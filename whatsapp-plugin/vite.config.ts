@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import process from "node:process";
 
 export default defineConfig({
   base: "/whatsapp-plugin/",
@@ -16,10 +17,10 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api/customers": {
-        target: "http://127.0.0.1:4188"
+        target: process.env.VITE_API_TARGET || "http://127.0.0.1:4188"
       },
       "/api/todos": {
-        target: "http://127.0.0.1:4188"
+        target: process.env.VITE_API_TARGET || "http://127.0.0.1:4188"
       },
       "/whatsapp-plugin/api": {
         target: "http://127.0.0.1:3100",

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openView } from "./navigation";
 
 const connector = {
   id: "connector_wecom",
@@ -69,9 +70,11 @@ async function login(page: Page, email: string, name: string) {
 }
 
 async function openIntegrationCenter(page: Page) {
-  await page.locator('.nav button[data-view="integration-center"]').click();
-  await expect(page.locator("#integration-center")).toHaveClass(/active/u);
-  await page.locator('[data-integration-tab="wecom-commands"]').click();
+  await openView(page, "integration-center");
+  const launcher = page.locator('[data-integration-launch-tab="wecom-commands"]');
+  if (await launcher.isVisible()) {
+    await launcher.click();
+  }
   await expect(page.locator('[data-integration-panel="wecom-commands"]')).toBeVisible();
 }
 

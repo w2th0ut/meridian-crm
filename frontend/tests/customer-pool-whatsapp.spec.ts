@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openView } from "./navigation";
 
 async function loginAsManager(page: Page) {
   await page.goto("/");
@@ -6,12 +7,6 @@ async function loginAsManager(page: Page) {
   await page.locator("#loginPassword").fill("goodjob123");
   await page.locator("#loginButton").click();
   await expect(page.locator("body")).toHaveClass(/is-authenticated/u);
-}
-
-async function openView(page: Page, view: string) {
-  // 「客户管理」下有「未成交客户 / 已成交客户」两个同 data-view 的入口，取第一个（未成交）
-  await page.locator(`.nav button[data-view="${view}"]`).first().click();
-  await expect(page.locator(`#${view}`)).toHaveClass(/active/u);
 }
 
 async function apiFromPage<T>(page: Page, path: string, method = "GET", body?: unknown) {

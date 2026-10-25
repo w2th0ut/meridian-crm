@@ -1,3 +1,5 @@
+import { publishTradeWorkbenchSnapshot } from "./trade-workspace";
+
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
 
@@ -11399,6 +11401,7 @@ function refreshVisibleDashboard() {
 }
 
 function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Customer[], fromCache = false) {
+  publishTradeWorkbenchSnapshot(customers);
   const businessScopes = state.iamCapabilities?.permissions["workspace.dashboard.read"] || [];
   const roleBusinessScope = businessScopes.includes("tenant") ? "全公司业务"
     : businessScopes.includes("org_subtree") || businessScopes.includes("org_unit") ? "组织业务" : "本人业务";
@@ -34142,7 +34145,10 @@ const PROSPECT_IDENTITY_OUTCOME_LABELS: Record<ProspectIdentityBootstrapAttempt[
 };
 
 function latestProspectIdentityBootstrap(item: WebsiteOpportunity) {
-  return [...(item.identityBootstrapAttempts || [])]
+  const attempts = item.identityBootstrapAttempts?.length
+    ? item.identityBootstrapAttempts
+    : prospectIdentityBootstrapViews.get(item.id)?.attempts;
+  return [...(attempts || [])]
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
 }
 
@@ -35216,6 +35222,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       <div class="form-field" style="grid-column:1/-1"><label>候选备注</label><textarea id="prospectEditDescription" ${readonly}>${escapeHtml(item.description || "")}</textarea></div>
       ${item.excludedReason ? `<div class="prospect-field" style="grid-column:1/-1"><span>排除原因</span><b>${escapeHtml(item.excludedReason)}</b></div>` : ""}
     </div>
+    ${renderProspectIdentityBootstrapPanel(item)}
     <details class="prospect-technical-audit" ${prospectTechnicalAuditOpenId === item.id ? "open" : ""}>
       <summary><span>技术核验记录</span><small>企业身份、官网证据</small></summary>
       <div class="prospect-technical-audit-body">
@@ -46244,6 +46251,7 @@ function rememberedWorkspaceView(user = state.user) {
 type ThemeColors = { brand: string; brandStrong: string; brand2: string; brandTint: string; nav: string; ring: string };
 
 const THEME_PRESETS: { id: string; name: string; desc: string; colors: string[] }[] = [
+  { id: "trade",  name: "航线 Trade",  desc: "全球贸易 · 清晰高效", colors: ["#286cff", "#102942", "#edf3ff", "#eff4f9"] },
   { id: "ocean",   name: "青绿 Ocean",   desc: "海洋 · 外贸本色", colors: ["#0f766e", "#0b5d57", "#e7f6f3", "#0c2b27"] },
   { id: "indigo",  name: "靛蓝 Indigo",  desc: "理性 · 商务沉稳", colors: ["#4f46e5", "#3730a3", "#eef0ff", "#151a35"] },
   { id: "amber",   name: "琥珀 Amber",   desc: "暖金 · 高级质感", colors: ["#b45309", "#8a3e0b", "#fbf1dd", "#271708"] },
@@ -46260,9 +46268,8 @@ const THEME_PRESETS: { id: string; name: string; desc: string; colors: string[] 
   { id: "sky",     name: "晴空 Sky",     desc: "明朗 · 天际蔚蓝", colors: ["#0369a1", "#075985", "#e6f3fa", "#07273a"] },
 ];
 const THEME_STORAGE_KEY = "gj-theme";
-// 系统默认主题：晨白 Paper（与 index.html 的 <html data-theme="paper"> 保持一致，
-// 两处需同步修改）。登录页在 boot 阶段即套用该默认值。
-const THEME_DEFAULT = "paper";
+// Existing explicit user themes are preserved; Trade is the new first-run default.
+const THEME_DEFAULT = "trade";
 
 function getStoredTheme(): string {
   try { return localStorage.getItem(THEME_STORAGE_KEY) || ""; } catch { return ""; }
@@ -46332,6 +46339,7 @@ function deriveThemeColors(hexInput: string): ThemeColors {
 
 function applyTheme(theme: string): void {
   const root = document.documentElement;
+  root.dataset.ui = "trade";
   ["--brand", "--brand-strong", "--brand-2", "--brand-tint", "--nav", "--brand-ring"].forEach((v) => root.style.removeProperty(v));
   if (theme.startsWith("custom:")) {
     const hex = theme.slice(7);
@@ -47829,7 +47837,7 @@ async function loadProductConfig() {
     const productName = String(config.productName || "GoodJob CRM").trim();
     const version = String(config.version || "").trim();
     if (versionNode) versionNode.textContent = version ? `${productName} · 版本 ${version}` : productName;
-    if (version) document.title = `${productName} ${version} · 外贸客户管理系统`;
+    if (version && document.documentElement.dataset.ui !== "trade") document.title = `${productName} ${version} · 外贸客户管理系统`;
   } catch {
     if (versionNode) versionNode.textContent = "GoodJob CRM";
   }

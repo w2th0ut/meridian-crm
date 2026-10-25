@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openView } from "./navigation";
 
 async function loginAsSales(page: import("@playwright/test").Page) {
   await page.goto("/");
@@ -40,12 +41,7 @@ async function apiFromPage<T>(
 }
 
 async function openProspectList(page: import("@playwright/test").Page) {
-  const button = page.locator('.nav button[data-view="prospect-list"]');
-  if (!(await button.isVisible())) {
-    await button.locator("xpath=ancestor::details[1]").locator("summary").click();
-  }
-  await button.click();
-  await expect(page.locator("#prospect-list")).toHaveClass(/active/);
+  await openView(page, "prospect-list");
 }
 
 test("identity bootstrap streams progress and ends with details folded", async ({ page }) => {
@@ -72,6 +68,8 @@ test("identity bootstrap streams progress and ends with details folded", async (
     country: "Global",
     ownerId: "u_sales_shirley",
     teamId: "europe",
+    status: "preview",
+    shortlistedAt: new Date().toISOString(),
     identityBootstrapAttempts: []
   });
   await apiFromPage(page, `/api/prospect-list/${encodeURIComponent(candidateId)}/details`, {
@@ -85,6 +83,15 @@ test("identity bootstrap streams progress and ends with details folded", async (
       contactInfo: candidate.contactInfo,
       description: "Identity bootstrap UI regression",
       requestId: `identity-ui-details-${suffix}`
+    }
+  });
+  await apiFromPage(page, "/api/prospect-list/batch", {
+    method: "PATCH",
+    body: {
+      ids: [candidateId],
+      action: "shortlist",
+      sourceRunId: `identity-ui-run-${suffix}`,
+      requestId: `identity-ui-shortlist-${suffix}`
     }
   });
 
@@ -173,7 +180,9 @@ test("identity bootstrap streams progress and ends with details folded", async (
             candidateId,
             formallyResolved: false,
             providers,
-            attempts: []
+            // The UI re-reads the attempt list while a task is running; keep the
+            // mock stateful so a running/ended attempt is not erased by polling.
+            attempts: (candidate.identityBootstrapAttempts as unknown[]) || []
           })
         });
         return;
