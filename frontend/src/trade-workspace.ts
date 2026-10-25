@@ -41,7 +41,7 @@ function updateChrome() {
   const active = $('.workspace > .view.active') || $('.main > .view.active');
   const activeLabel=labelForActiveView();
   if (breadcrumb && breadcrumb.textContent !== activeLabel) breadcrumb.textContent = activeLabel;
-  if (active) document.title = `${labelForActiveView()} · GoodJob 全球航贸工作台`;
+  if (active) document.title = `${labelForActiveView()} · Meridian 全球航贸工作台`;
 }
 $$('.view').forEach(view => new MutationObserver(updateChrome).observe(view,{attributes:true,attributeFilter:['class']}));
 if (breadcrumb) new MutationObserver(updateChrome).observe(breadcrumb,{childList:true,characterData:true,subtree:true});

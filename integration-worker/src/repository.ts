@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
-import { validateConnectorManifest, type ActiveConnectorManifest } from "@goodjob/integration-connector-sdk";
+import { validateConnectorManifest, type ActiveConnectorManifest } from "@meridian/integration-connector-sdk";
 import type { DiscoveredToolSnapshot } from "./mcp/tool-schema.js";
 import type { OAuthTransactionContext } from "./oauth/oauth-types.js";
 

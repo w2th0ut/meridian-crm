@@ -6,7 +6,7 @@
 
 > 单租户、单实例、私网部署的生产候选版。
 
-当前复用 GoodJob CRM 的签名会话身份，REST API 与 Socket.IO 按用户授权隔离；尚未具备组织级 RBAC、`tenant_id` 多租户模型和多实例协调。因此不能把服务作为独立公网多租户 SaaS 暴露。需要 Meta 官方 Webhook 时，只允许通过反向代理选择性公开 `/api/webhooks/meta/*`，其他页面、API 和 Socket.IO 必须继续位于 GoodJob CRM 身份网关之后。
+当前复用 Meridian CRM 的签名会话身份，REST API 与 Socket.IO 按用户授权隔离；尚未具备组织级 RBAC、`tenant_id` 多租户模型和多实例协调。因此不能把服务作为独立公网多租户 SaaS 暴露。需要 Meta 官方 Webhook 时，只允许通过反向代理选择性公开 `/api/webhooks/meta/*`，其他页面、API 和 Socket.IO 必须继续位于 Meridian CRM 身份网关之后。
 
 生产门禁完整清单见 [ARCHITECTURE.md](./ARCHITECTURE.md#9-未完成的生产门禁)。
 
@@ -18,7 +18,7 @@ flowchart LR
     META["Meta Webhook"] --> EDGE["公网 HTTPS 反向代理"]
     GATE --> APP["单个 Node.js 插件实例"]
     EDGE -->|"仅 /api/webhooks/meta/*"| APP
-    APP --> DB[("GoodJob MySQL")]
+    APP --> DB[("Meridian MySQL")]
     APP --> WA["WhatsApp Web / Baileys"]
     APP --> GRAPH["Meta Graph API"]
     APP --> AI["经批准的 OpenAI 兼容模型"]
@@ -358,7 +358,7 @@ curl --fail --silent --show-error http://127.0.0.1:3100/api/health/ready
 
 ### 10.1 必须备份的内容
 
-- GoodJob MySQL 全库：CRM 主业务表以及 Communication 的账号、加密 AuthState、联系人、会话、消息、译文、路由、加密 AI/Meta 凭据和审计。
+- Meridian MySQL 全库：CRM 主业务表以及 Communication 的账号、加密 AuthState、联系人、会话、消息、译文、路由、加密 AI/Meta 凭据和审计。
 - `SESSION_MASTER_KEY`：在独立密钥管理系统中备份，不与数据库备份放在同一位置。
 - 当前环境变量清单的变量名与配置版本，不保存明文 Secret。
 - 应用发布包、依赖锁文件和构建摘要。
@@ -372,14 +372,14 @@ curl --fail --silent --show-error http://127.0.0.1:3100/api/health/ready
 ```bash
 umask 077
 mysqldump \
-  --defaults-extra-file=/run/secrets/goodjob-mysql-client.cnf \
+  --defaults-extra-file=/run/secrets/meridian-mysql-client.cnf \
   --single-transaction \
   --routines \
   --triggers \
-  --databases goodjob_crm \
-  | gzip -c > "goodjob-crm-backup.sql.gz"
-sha256sum "goodjob-crm-backup.sql.gz"
-gzip -t "goodjob-crm-backup.sql.gz"
+  --databases meridian_crm \
+  | gzip -c > "meridian-crm-backup.sql.gz"
+sha256sum "meridian-crm-backup.sql.gz"
+gzip -t "meridian-crm-backup.sql.gz"
 ```
 
 备份文件包含业务和密文数据，仍然属于敏感资产。必须加密存储、限制访问、设置保留期，并定期执行恢复演练。
@@ -391,13 +391,13 @@ gzip -t "goodjob-crm-backup.sql.gz"
 3. 校验并恢复：
 
 ```bash
-gzip -t "goodjob-crm-backup.sql.gz"
-gzip -dc "goodjob-crm-backup.sql.gz" \
-  | mysql --defaults-extra-file=/run/secrets/goodjob-mysql-client.cnf
+gzip -t "meridian-crm-backup.sql.gz"
+gzip -dc "meridian-crm-backup.sql.gz" \
+  | mysql --defaults-extra-file=/run/secrets/meridian-mysql-client.cnf
 ```
 
 4. 使用备份对应的 `SESSION_MASTER_KEY` 启动隔离实例。
-5. 检查 `goodjob_schema_migrations`、`communication_schema_migrations`、readiness、账号/联系人/会话/消息计数和加密凭据可解密性，不输出具体业务内容。
+5. 检查 `meridian_schema_migrations`、`communication_schema_migrations`、readiness、账号/联系人/会话/消息计数和加密凭据可解密性，不输出具体业务内容。
 6. 在隔离环境禁止真实出站，完成只读检查。
 7. 正式恢复时切换数据库连接，启动唯一实例，再逐个恢复渠道流量。
 

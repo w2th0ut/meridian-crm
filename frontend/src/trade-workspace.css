@@ -1,4 +1,4 @@
-/* GoodJob / 全球航贸指挥台. Loaded after the original UI so existing modules keep their contracts. */
+/* Meridian / 全球航贸指挥台. Loaded after the original UI so existing modules keep their contracts. */
 html[data-ui="trade"] {
   --bg: #eff4f9; --surface: #fff; --surface-2: #f7f9fc; --surface-3: #edf2f7;
   --ink: #23364b; --text: #364b62; --muted: #72849a; --line: #dce5ef; --line-soft: #edf2f6;
@@ -312,7 +312,7 @@ html[data-ui="trade"] .login-visual { min-height:100dvh; padding:35px 43px 27px;
 html[data-ui="trade"] .login-visual::before,html[data-ui="trade"] .login-visual::after { display:none; }
 html[data-ui="trade"] .login-brand { gap:11px; }
 html[data-ui="trade"] .login-brand-mark { width:37px; height:37px; border:0; border-radius:9px; background:#286cff; box-shadow:none; }
-html[data-ui="trade"] .login-brand-mark::before { width:100%; height:100%; inset:0; border:0; background:transparent; content:'G'; color:#fff; font:700 22px/36px var(--font-sans); text-align:center; transform:none; }
+html[data-ui="trade"] .login-brand-mark::before { width:100%; height:100%; inset:0; border:0; background:transparent; content:'M'; color:#fff; font:700 22px/36px var(--font-sans); text-align:center; transform:none; }
 html[data-ui="trade"] .login-brand-mark::after { display:none; }
 html[data-ui="trade"] .login-brand strong { color:#f2f6fb; font-size:22px; letter-spacing:-.6px; }
 html[data-ui="trade"] .login-brand span { color:#91abc4; font-size:9px; letter-spacing:.04em; }

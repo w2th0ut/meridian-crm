@@ -172,7 +172,7 @@ describe("Chat history training and auto chat", () => {
         exchangeCount: 1,
         skippedConversations: 0
       });
-      expect(response.body.fileName).toMatch(/^goodjob-whatsapp-训练数据-\d{8}-\d{4}\.jsonl$/u);
+      expect(response.body.fileName).toMatch(/^meridian-whatsapp-训练数据-\d{8}-\d{4}\.jsonl$/u);
       expect(response.body.characters).toBeGreaterThan(0);
       expect(response.body.sample.length).toBeGreaterThan(0);
       expect(response.body.sample[0]).toMatchObject({

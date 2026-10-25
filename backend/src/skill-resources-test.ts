@@ -16,15 +16,15 @@ async function request(path: string, token = "", init: RequestInit = {}) {
 }
 
 async function login(email: string) {
-  const result = await request("/api/auth/login", "", { method: "POST", body: JSON.stringify({ email, password: "goodjob123" }) });
+  const result = await request("/api/auth/login", "", { method: "POST", body: JSON.stringify({ email, password: "meridian123" }) });
   assert.equal(result.response.status, 200);
   return String(result.json.token);
 }
 
 try {
-  const manager = await login("alex@goodjob.com");
-  const sales = await login("shirley@goodjob.com");
-  const otherTeam = { id: "u_skill_asia_test", name: "Skill Asia", email: "skill-asia-test@goodjob.com", password: "goodjob123", role: "sales" as const, teamId: "asia", avatar: "ST", status: "active" as const, authVersion: 1 };
+  const manager = await login("alex@meridian.com");
+  const sales = await login("shirley@meridian.com");
+  const otherTeam = { id: "u_skill_asia_test", name: "Skill Asia", email: "skill-asia-test@meridian.com", password: "meridian123", role: "sales" as const, teamId: "asia", avatar: "ST", status: "active" as const, authVersion: 1 };
   getStore().users.push(otherTeam);
   const asia = await login(otherTeam.email);
 

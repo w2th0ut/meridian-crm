@@ -85,7 +85,7 @@ export class ProspectWorker {
     const providerRawEnvelopeSecret =
       options.providerRawEnvelopeSecret
       || createHmac("sha256", options.claimSecret)
-        .update("goodjob-provider-raw-envelope-v1")
+        .update("meridian-provider-raw-envelope-v1")
         .digest("hex");
     this.store = options.store;
     this.dispatcher = options.dispatcher;
@@ -117,11 +117,11 @@ export class ProspectWorker {
       rawEnvelopeSecret: providerRawEnvelopeSecret,
       identitySecret: options.organizationIdentitySecret
         || createHmac("sha256", options.claimSecret)
-          .update("goodjob-organization-identity-development-v1")
+          .update("meridian-organization-identity-development-v1")
           .digest("hex"),
       coverageSecret: options.prospectCoverageSecret
         || createHmac("sha256", options.claimSecret)
-          .update("goodjob-prospect-coverage-development-v1")
+          .update("meridian-prospect-coverage-development-v1")
           .digest("hex")
     });
   }

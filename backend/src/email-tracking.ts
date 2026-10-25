@@ -9,7 +9,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
  * - messageId 与 SMTP 的 Message-ID 一致，用于把打开/点击/回信/退信全部挂回同一封发出的邮件。
  */
 
-const DEV_TRACKING_SECRET = "goodjob-crm-dev-email-tracking-secret";
+const DEV_TRACKING_SECRET = "meridian-crm-dev-email-tracking-secret";
 const SIGNATURE_LENGTH = 32;
 
 export const TRANSPARENT_GIF = Buffer.from(
@@ -78,7 +78,7 @@ export function messageIdDomain() {
       /* ignore */
     }
   }
-  return process.env.EMAIL_MESSAGE_ID_DOMAIN?.trim() || "goodjob-crm.local";
+  return process.env.EMAIL_MESSAGE_ID_DOMAIN?.trim() || "meridian-crm.local";
 }
 
 export function buildOutboundMessageId(prefix = "gj") {

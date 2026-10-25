@@ -51,7 +51,7 @@ const persistenceSchemaVersion = "organization-identity-mysql-v1";
 const fieldEnvelopeVersion = "organization-identity-field-v1";
 const fieldKeyVersion = "v1";
 const identityHkdfSalt = Buffer.from(
-  "goodjob-organization-identity-v1",
+  "meridian-organization-identity-v1",
   "utf8"
 );
 const identityTables = [
@@ -784,7 +784,7 @@ async function main() {
   const adminUrl = new URL(adminConnectionUrl);
   const appUrl = new URL(applicationUrl);
   const databaseName =
-    `goodjob_identity_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
+    `meridian_identity_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
   const admin = await mysql.createConnection(connectionOptions(adminUrl));
   let databaseCreated = false;
   let grantedAccount = "";

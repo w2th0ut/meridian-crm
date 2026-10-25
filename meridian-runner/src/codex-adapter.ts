@@ -48,7 +48,7 @@ function oneLine(value: unknown, maximum = 500) {
 
 function executionEnvironment() {
   const candidates = [
-    process.env.GOODJOB_CODE_MODE_HOST_DIR || "",
+    process.env.MERIDIAN_CODE_MODE_HOST_DIR || "",
     "/Applications/ChatGPT.app/Contents/Resources",
     join(homedir(), ".codex", "plugins", ".plugin-appserver")
   ].filter((directory) => directory && existsSync(join(directory, "codex-code-mode-host")));
@@ -73,7 +73,7 @@ export function codexCodeModeHost(binary: string) {
   }
 }
 
-export function resolveCodexBinary(configured = process.env.GOODJOB_CODEX_BIN || "codex") {
+export function resolveCodexBinary(configured = process.env.MERIDIAN_CODEX_BIN || "codex") {
   if (codexCodeModeHost(configured)) return configured;
   if (process.platform === "darwin" && existsSync(CHATGPT_CODEX_BINARY) && codexCodeModeHost(CHATGPT_CODEX_BINARY)) {
     return CHATGPT_CODEX_BINARY;
@@ -88,13 +88,13 @@ function mcpTitle(item: Record<string, unknown>) {
 
 function mcpStage(item: Record<string, unknown>) {
   const value = `${String(item.server || "")} ${String(item.tool || item.name || "")} ${mcpTitle(item)}`;
-  return /goodjob_browser|playwright|browser|chrome|google|浏览器|网页|页面|搜索|标签页/iu.test(value) ? "browser" : "tool";
+  return /meridian_browser|playwright|browser|chrome|google|浏览器|网页|页面|搜索|标签页/iu.test(value) ? "browser" : "tool";
 }
 
 function taskPrompt(prompt: string, browserMcpUrl = "") {
   if (!browserMcpUrl) return prompt;
-  return `本次任务已连接 GoodJob 独立受控浏览器 MCP，服务名为 goodjob_browser。
-遇到打开网页、搜索、点击、输入、读取页面或保持页面打开等浏览器任务时，必须使用 goodjob_browser 提供的 Playwright 工具完成实际操作。
+  return `本次任务已连接 Meridian 独立受控浏览器 MCP，服务名为 meridian_browser。
+遇到打开网页、搜索、点击、输入、读取页面或保持页面打开等浏览器任务时，必须使用 meridian_browser 提供的 Playwright 工具完成实际操作。
 不要改用 browser@openai-bundled、chrome@openai-bundled、node_repl 或浏览器扩展。用户所说的“打开 Chrome/浏览器”默认指这个独立受控浏览器，除非用户明确要求操作其个人浏览器。
 非浏览器任务不需要调用该工具。任务完成后不要主动关闭用户要求保留的页面。
 
@@ -164,7 +164,7 @@ export async function executeCodexTask(task: ClaimedTask, options: CodexExecutio
   const binary = options.codexBinary || resolveCodexBinary();
   const args = [
     ...(options.codexArgumentPrefix || []),
-    ...(options.browserMcpUrl ? ["-c", `mcp_servers.goodjob_browser.url=${JSON.stringify(options.browserMcpUrl)}`] : []),
+    ...(options.browserMcpUrl ? ["-c", `mcp_servers.meridian_browser.url=${JSON.stringify(options.browserMcpUrl)}`] : []),
     "--approve-for-me",
     "exec", "-C", workspace,
     "--sandbox", task.executionMode === "workspace_write" ? "workspace-write" : "read-only",

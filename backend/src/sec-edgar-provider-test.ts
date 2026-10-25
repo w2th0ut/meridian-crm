@@ -40,11 +40,11 @@ setProviderHttpTestTransport(async (url, init) => {
 
 const adapterPage = await SEC_EDGAR_PROVIDER.search!(
   { query, cursor: "" },
-  { apiKey: "GoodJobCRM admin@example.com" },
+  { apiKey: "MeridianCRM admin@example.com" },
   tools()
 );
 assert.equal(requestedUrl, "https://www.sec.gov/files/company_tickers.json");
-assert.equal(new Headers(requestedInit?.headers).get("user-agent"), "GoodJobCRM admin@example.com");
+assert.equal(new Headers(requestedInit?.headers).get("user-agent"), "MeridianCRM admin@example.com");
 assert.equal(adapterPage.rawCount, 3);
 assert.equal(adapterPage.records.length, 1);
 assert.equal(adapterPage.records[0]?.company, "Apple Inc.");
@@ -77,11 +77,11 @@ const exactCikPage = await SEC_EDGAR_PROVIDER.search!(
     }),
     cursor: ""
   },
-  { apiKey: "GoodJobCRM admin@example.com" },
+  { apiKey: "MeridianCRM admin@example.com" },
   tools()
 );
 assert.equal(requestedUrl, "https://data.sec.gov/submissions/CIK0000320193.json");
-assert.equal(new Headers(requestedInit?.headers).get("user-agent"), "GoodJobCRM admin@example.com");
+assert.equal(new Headers(requestedInit?.headers).get("user-agent"), "MeridianCRM admin@example.com");
 assert.equal(exactCikPage.records.length, 1);
 assert.equal(exactCikPage.records[0]?.providerRecordId, "CIK:0000320193");
 assert.equal(exactCikPage.records[0]?.confidence, 98);
@@ -101,7 +101,7 @@ const missingCikPage = await SEC_EDGAR_PROVIDER.search!(
     }),
     cursor: ""
   },
-  { apiKey: "GoodJobCRM admin@example.com" },
+  { apiKey: "MeridianCRM admin@example.com" },
   tools()
 );
 assert.equal(missingCikPage.records.length, 0);
@@ -127,7 +127,7 @@ await assert.rejects(
       }),
       cursor: ""
     },
-    { apiKey: "GoodJobCRM admin@example.com" },
+    { apiKey: "MeridianCRM admin@example.com" },
     tools()
   ),
   (error: unknown) => error instanceof ProviderContractError
@@ -152,7 +152,7 @@ assert.equal(normalizedPage.records[0]?.sourceLevel, "identity");
 for (const credential of [
   { apiKey: "" },
   { apiKey: "anonymous-client" },
-  { apiKey: "GoodJobCRM admin@example.com", baseUrl: "https://www.sec.gov" }
+  { apiKey: "MeridianCRM admin@example.com", baseUrl: "https://www.sec.gov" }
 ]) {
   await assert.rejects(
     SEC_EDGAR_PROVIDER.search!(
@@ -187,7 +187,7 @@ const noKeywordPage = await SEC_EDGAR_PROVIDER.search!(
     }),
     cursor: ""
   },
-  { apiKey: "GoodJobCRM admin@example.com" },
+  { apiKey: "MeridianCRM admin@example.com" },
   tools()
 );
 assert.equal(transportCalls, 0);
@@ -202,7 +202,7 @@ setProviderHttpTestTransport(async () =>
 await assert.rejects(
   SEC_EDGAR_PROVIDER.search!(
     { query, cursor: "" },
-    { apiKey: "GoodJobCRM admin@example.com" },
+    { apiKey: "MeridianCRM admin@example.com" },
     tools()
   ),
   (error: unknown) => error instanceof ProviderContractError

@@ -238,12 +238,12 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     crmJwtSecret: environment.CRM_JWT_SECRET?.trim() || environment.JWT_SECRET?.trim(),
     crmBaseUrl: (environment.CRM_BASE_URL?.trim() || "http://127.0.0.1:4188").replace(/\/+$/u, ""),
     crmTimeoutMs: parseInteger("CRM_TIMEOUT_MS", environment.CRM_TIMEOUT_MS, 6_000, 500, 60_000),
-    cliBinary: environment.GOODJOB_WORKBUDDY_BIN?.trim() || undefined,
-    cliTimeoutSeconds: parseInteger("GOODJOB_CLI_TIMEOUT_SECONDS", environment.GOODJOB_CLI_TIMEOUT_SECONDS, 90, 5, 600),
-    cliWorkspacePath: path.resolve(process.cwd(), environment.GOODJOB_CLI_WORKSPACE?.trim() || ".data/cli-workspace"),
+    cliBinary: environment.MERIDIAN_WORKBUDDY_BIN?.trim() || undefined,
+    cliTimeoutSeconds: parseInteger("MERIDIAN_CLI_TIMEOUT_SECONDS", environment.MERIDIAN_CLI_TIMEOUT_SECONDS, 90, 5, 600),
+    cliWorkspacePath: path.resolve(process.cwd(), environment.MERIDIAN_CLI_WORKSPACE?.trim() || ".data/cli-workspace"),
     // 与 Runner 侧同名：一处配置就能同时管住「CRM 任务用的技能目录」和「插件自动回复用的技能目录」。
-    cliSkillsDirs: environment.GOODJOB_SKILLS_DIRS?.trim() || undefined,
-    cliWarm: parseBoolean("GOODJOB_CLI_WARM", environment.GOODJOB_CLI_WARM, nodeEnv !== "test"),
+    cliSkillsDirs: environment.MERIDIAN_SKILLS_DIRS?.trim() || undefined,
+    cliWarm: parseBoolean("MERIDIAN_CLI_WARM", environment.MERIDIAN_CLI_WARM, nodeEnv !== "test"),
     autoChatCache: parseBoolean("AUTO_CHAT_CACHE", environment.AUTO_CHAT_CACHE, nodeEnv !== "test"),
     autoChatSweep: parseBoolean("AUTO_CHAT_SWEEP", environment.AUTO_CHAT_SWEEP, nodeEnv !== "test")
   };

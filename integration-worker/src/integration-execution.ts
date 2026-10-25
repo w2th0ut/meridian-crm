@@ -22,7 +22,7 @@ export class IntegrationExecutionService {
   private webhookClientState(context: { teamId: string; ownerId: string; connectionId: string; webhookPublicId?: string }) {
     if (!context.webhookPublicId) throw new Error("INTEGRATION_WEBHOOK_NOT_CONFIGURED: 连接缺少 Webhook 标识");
     return createHmac("sha256", this.credentialKey)
-      .update(`goodjob-webhook-v1\n${context.teamId}\n${context.ownerId}\n${context.connectionId}\n${context.webhookPublicId}`)
+      .update(`meridian-webhook-v1\n${context.teamId}\n${context.ownerId}\n${context.connectionId}\n${context.webhookPublicId}`)
       .digest("base64url");
   }
 

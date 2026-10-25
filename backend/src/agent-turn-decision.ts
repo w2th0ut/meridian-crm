@@ -22,7 +22,7 @@ export const agentMissionRelationSchema = z.enum([
 ]);
 
 export const agentTurnDecisionSchema = z.object({
-  protocol: z.literal("goodjob-turn/v1"),
+  protocol: z.literal("meridian-turn/v1"),
   speechAct: agentSpeechActSchema,
   topic: z.string().max(80),
   operation: z.string().max(80),
@@ -194,7 +194,7 @@ export function deterministicAgentTurnDecision(
 
   const writeAuthorized = !readOnly && ["execute", "continue", "answer_slot", "correct"].includes(speechAct);
   return {
-    protocol: "goodjob-turn/v1",
+    protocol: "meridian-turn/v1",
     speechAct,
     topic: inferTopic(message),
     operation: inferOperation(message, speechAct),
@@ -262,7 +262,7 @@ export function finalizeAgentTurnDecision(
     && !READ_ONLY.test(message);
 
   return agentTurnDecisionSchema.parse({
-    protocol: "goodjob-turn/v1",
+    protocol: "meridian-turn/v1",
     speechAct,
     topic: modelDecision.topic || fallback.topic,
     operation: modelDecision.operation || fallback.operation,

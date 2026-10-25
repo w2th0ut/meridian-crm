@@ -10,17 +10,17 @@ import { execFileSync } from "node:child_process";
 import { executeWorkbuddyTask, parseWorkbuddyCliProfile, resolveWorkbuddyBinary, workbuddyProcessEnvironment, workbuddySkillDirs, STRIPPED_ENVIRONMENT_PREFIXES } from "./workbuddy-adapter.js";
 import { cachedRunnerIdentity, cliDetectionSnapshot, detectRunnerClis, resetRunnerCliCache, runnerCliIssue, runnerIdentity } from "./runner.js";
 
-const root = await mkdtemp(path.join(tmpdir(), "goodjob-runner-test-"));
+const root = await mkdtemp(path.join(tmpdir(), "meridian-runner-test-"));
 const fakeCodex = path.join(root, "fake-codex.mjs");
 const lingeringCodex = path.join(root, "lingering-codex.mjs");
 const invocationFile = path.join(root, "codex-invocation.json");
 await writeFile(path.join(root, "codex-code-mode-host"), "", { mode: 0o700 });
 // CLI 技能目录注入（2026-10-10 回归）：技能包放在 .workbuddy/skills，CLI 自己不扫这个目录，
 // 必须由 Runner 通过 CODEBUDDY_SESSION_SKILL_DIRS 显式喂给子进程，否则技能等于不存在。
-await mkdir(path.join(root, ".workbuddy", "skills", "goodjob-probe"), { recursive: true });
+await mkdir(path.join(root, ".workbuddy", "skills", "meridian-probe"), { recursive: true });
 await writeFile(
-  path.join(root, ".workbuddy", "skills", "goodjob-probe", "SKILL.md"),
-  "---\nname: goodjob-probe\ndescription: runner test probe\n---\nprobe body\n"
+  path.join(root, ".workbuddy", "skills", "meridian-probe", "SKILL.md"),
+  "---\nname: meridian-probe\ndescription: runner test probe\n---\nprobe body\n"
 );
 await writeFile(fakeCodex, `
 import { writeFileSync } from "node:fs";
@@ -34,8 +34,8 @@ process.stdin.on("end", () => {
   console.log(JSON.stringify({type:"item.completed",item:{id:"msg_1",type:"agent_message",text:"正在检查运行环境"}}));
   console.log(JSON.stringify({type:"item.started",item:{type:"command_execution",command:"printf test"}}));
   console.log(JSON.stringify({type:"item.completed",item:{type:"command_execution",aggregated_output:"test",exit_code:0}}));
-  console.log(JSON.stringify({type:"item.started",item:{id:"browser_1",type:"mcp_tool_call",server:"goodjob_browser",tool:"browser_navigate",arguments:{title:"打开 Google 搜索"}}}));
-  console.log(JSON.stringify({type:"item.completed",item:{id:"browser_1",type:"mcp_tool_call",server:"goodjob_browser",tool:"browser_navigate",arguments:{title:"打开 Google 搜索"},status:"completed"}}));
+  console.log(JSON.stringify({type:"item.started",item:{id:"browser_1",type:"mcp_tool_call",server:"meridian_browser",tool:"browser_navigate",arguments:{title:"打开 Google 搜索"}}}));
+  console.log(JSON.stringify({type:"item.completed",item:{id:"browser_1",type:"mcp_tool_call",server:"meridian_browser",tool:"browser_navigate",arguments:{title:"打开 Google 搜索"},status:"completed"}}));
   console.log(JSON.stringify({type:"item.completed",item:{id:"reason_1",type:"reasoning",text:"已验证命令与浏览器步骤"}}));
   console.log(JSON.stringify({type:"item.completed",item:{id:"msg_2",type:"agent_message",text:"Runner closed loop works"}}));
   console.log(JSON.stringify({type:"turn.completed",usage:{input_tokens:10,output_tokens:5}}));
@@ -74,9 +74,9 @@ assert.ok(events.some((item) => item.message.includes("已验证命令与浏览�
 assert.ok(events.some((item) => item.message.includes("输入 10 / 输出 5 tokens") && item.stage === "usage"));
 assert.ok(events.some((item) => item.message === "Runner closed loop works" && item.eventType === "output"));
 const invocation = JSON.parse(await readFile(invocationFile, "utf8")) as { argv: string[]; prompt: string };
-assert.ok(invocation.argv.includes('mcp_servers.goodjob_browser.url="http://127.0.0.1:8931/mcp"'));
+assert.ok(invocation.argv.includes('mcp_servers.meridian_browser.url="http://127.0.0.1:8931/mcp"'));
 assert.ok(invocation.argv.includes("--approve-for-me"));
-assert.ok(invocation.prompt.includes("必须使用 goodjob_browser"));
+assert.ok(invocation.prompt.includes("必须使用 meridian_browser"));
 assert.ok(invocation.prompt.endsWith("用户任务：\ntest"));
 assert.equal(resolveCodexBinary(fakeCodex), fakeCodex);
 if (process.platform === "darwin") {
@@ -251,7 +251,7 @@ assert.equal(workbuddyInvocation.idePort, "", "CODEBUDDY_IDE_PORT 不得泄漏�
 assert.equal(workbuddyInvocation.serviceProxy, "", "不得把宿主会话的服务代理带给 CLI（会让 CLI 挂起）");
 assert.equal(workbuddyInvocation.mcpConfig, "", "不得把宿主会话级 MCP 配置（含 Bearer 凭据）带给 CLI");
 // 技能目录注入（2026-10-10 回归）：CLI 只扫 <cwd>/.codebuddy/skills 与 ~/.codebuddy/skills，
-// 不认桌面版的 .workbuddy/skills。少了这一条，四个 goodjob 技能包在真实任务里从不生效，
+// 不认桌面版的 .workbuddy/skills。少了这一条，四个 meridian 技能包在真实任务里从不生效，
 // 且「技能没起作用」这种故障没有任何报错——只能靠这条断言兜住。
 assert.ok(
   workbuddyInvocation.skillDirs.endsWith(`${path.sep}.workbuddy${path.sep}skills`),
@@ -259,11 +259,11 @@ assert.ok(
 );
 assert.equal(workbuddySkillDirs(root), path.join(root, ".workbuddy", "skills"), "默认取 <workspace>/.workbuddy/skills");
 assert.equal(workbuddySkillDirs(path.join(root, "no-skills-here")), "", "技能目录不存在时不得注入空路径");
-const savedSkillsOverride = process.env.GOODJOB_SKILLS_DIRS;
-process.env.GOODJOB_SKILLS_DIRS = "/tmp/goodjob-skills-override";
-assert.equal(workbuddySkillDirs(root), "/tmp/goodjob-skills-override", "GOODJOB_SKILLS_DIRS 必须优先于默认约定");
-if (savedSkillsOverride === undefined) delete process.env.GOODJOB_SKILLS_DIRS;
-else process.env.GOODJOB_SKILLS_DIRS = savedSkillsOverride;
+const savedSkillsOverride = process.env.MERIDIAN_SKILLS_DIRS;
+process.env.MERIDIAN_SKILLS_DIRS = "/tmp/meridian-skills-override";
+assert.equal(workbuddySkillDirs(root), "/tmp/meridian-skills-override", "MERIDIAN_SKILLS_DIRS 必须优先于默认约定");
+if (savedSkillsOverride === undefined) delete process.env.MERIDIAN_SKILLS_DIRS;
+else process.env.MERIDIAN_SKILLS_DIRS = savedSkillsOverride;
 for (const key of ENV_PROBE_KEYS) {
   const previous = savedEnvironment[key];
   if (previous === undefined) delete process.env[key];

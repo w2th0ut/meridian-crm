@@ -6,7 +6,7 @@ import path from "node:path";
 
 const archive = path.resolve(process.argv[2] || "");
 if (!archive || !statSync(archive).isFile()) throw new Error("请提供 Windows 便携包 ZIP");
-const temporary = mkdtempSync(path.join(tmpdir(), "goodjob-windows-package-test-"));
+const temporary = mkdtempSync(path.join(tmpdir(), "meridian-windows-package-test-"));
 
 function filesUnder(root) {
   const output = [];
@@ -32,7 +32,7 @@ try {
   const root = path.join(temporary, roots[0].name);
   const app = path.join(root, "app");
   const required = [
-    "START-GOODJOB.cmd", "STOP-GOODJOB.cmd", "DIAGNOSE-GOODJOB.cmd", "UPDATE-GOODJOB.cmd",
+    "START-MERIDIAN.cmd", "STOP-MERIDIAN.cmd", "DIAGNOSE-MERIDIAN.cmd", "UPDATE-MERIDIAN.cmd",
     "runtime/node/node.exe", "runtime/mariadb/bin/mariadbd.exe", "runtime/mariadb/bin/mariadb.exe",
     "runtime/mariadb/bin/mariadb-dump.exe", "runtime/update-public-key.pem",
     "app/backend/dist/server.js", "app/backend/dist/migrate-mysql.js", "app/frontend/dist/index.html",
@@ -74,7 +74,7 @@ try {
   if (nativeModules.some((file) => !file.includes("win32-x64"))) throw new Error("包含非 Windows x64 原生模块");
 
   const scripts = filesUnder(path.join(root, "runtime")).filter((file) => /\.(?:ps1|psm1)$/u.test(file)).map((file) => readFileSync(file, "utf8")).join("\n");
-  for (const unsafe of ["taskkill /f /im node.exe", "admin123456", "goodjob_local", "GoodJobCRMDefaultSecretKey"]) {
+  for (const unsafe of ["taskkill /f /im node.exe", "admin123456", "meridian_local", "MeridianCRMDefaultSecretKey"]) {
     if (scripts.includes(unsafe)) throw new Error(`启动器仍包含危险降级值：${unsafe}`);
   }
   console.log(JSON.stringify({ ok: true, archive, files: actualFiles.length, nativeModules: nativeModules.length, bytes: statSync(archive).size }, null, 2));

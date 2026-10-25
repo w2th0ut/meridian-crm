@@ -1,5 +1,5 @@
 ---
-name: goodjob-resource-scout
+name: meridian-resource-scout
 description: 外贸 WhatsApp 会话中的「资料挑选」方法论。当任务给出客户最新消息、最近会话，以及一份由 CRM 资源中心检索出的候选资料清单（文件 / Skill / 知识条目 / 产品），要求从中挑出这次该发给客户的几份并说明理由、给出可直接发送的一句话时使用。提供候选清单的使用纪律、相关与不相关的判定、理由的写法、以及「不知道就返回空」的兜底规则。
 ---
 

@@ -34,9 +34,9 @@ export class BullMqIntegrationQueueDispatcher implements IntegrationQueueDispatc
 
   constructor(redisUrl: string) {
     const connection = redisConnectionOptions(redisUrl);
-    this.control = new Queue("goodjob:integration:control", { connection });
-    this.toolCalls = new Queue("goodjob:integration:tool-calls", { connection });
-    this.events = new Queue("goodjob:integration:events", { connection });
+    this.control = new Queue("meridian:integration:control", { connection });
+    this.toolCalls = new Queue("meridian:integration:tool-calls", { connection });
+    this.events = new Queue("meridian:integration:events", { connection });
   }
 
   async ready() {

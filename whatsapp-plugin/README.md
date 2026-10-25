@@ -11,10 +11,10 @@
 - `free_first`、`official_first`、`hybrid` 三种接入策略。策略只影响新账号推荐，不迁移、合并、登出或删除已有账号。
 - 账号级联系人、会话、消息和幂等隔离；支持手动添加、WhatsApp 增量同步、CRM Sandbox 导入及可选自动建档。
 - OpenAI 兼容 AI Provider；支持自动翻译和周期客户深度分析。客户分析保留模型、提示词版本、证据消息、人工确认/忽略反馈，模型故障时自动降级到规则引擎。
-- 自动化节奏按增量消息周期分析，每日向 GoodJob CRM 生成待办和站内信；CRM 交付失败会进入失败运行记录并可重试。
+- 自动化节奏按增量消息周期分析，每日向 Meridian CRM 生成待办和站内信；CRM 交付失败会进入失败运行记录并可重试。
 - 商业上线检查中心集中验证 CRM 身份、Meta App、号码 Token、Graph 连接、公网 HTTPS、真实 Webhook、AI 分析、自动化和附件保留策略。
 - React 运维控制台，覆盖账号、会话、联系人、路由、接入设置、AI 和诊断，并适配桌面、平板与移动端。
-- 本机可使用 PGlite，生产运行时与 GoodJob CRM 共用同一个 MySQL 8 数据库。
+- 本机可使用 PGlite，生产运行时与 Meridian CRM 共用同一个 MySQL 8 数据库。
 
 Demo 数据和模拟 Provider 默认关闭。正常启动不会创建 Demo 账号、Mock AI Provider 或样例消息。
 
@@ -29,7 +29,7 @@ npm run dev
 ```
 
 - 独立控制台：<http://127.0.0.1:5193/whatsapp-plugin/>
-- GoodJob CRM 内嵌入口：`/whatsapp-plugin/?embedded=1`
+- Meridian CRM 内嵌入口：`/whatsapp-plugin/?embedded=1`
 - 兼容健康检查：<http://127.0.0.1:3100/api/health>
 - 存活检查：<http://127.0.0.1:3100/api/health/live>
 - 就绪检查：<http://127.0.0.1:3100/api/health/ready>
@@ -58,7 +58,7 @@ CLI 通道原来的耗时几乎全部不是模型：一次 `--print` 的冷启�
 
 ```dotenv
 # 关掉预热池（排查问题时用）：默认开启，测试环境自动关闭
-GOODJOB_CLI_WARM=0
+MERIDIAN_CLI_WARM=0
 # 关掉成品缓存：默认开启，测试环境自动关闭
 AUTO_CHAT_CACHE=0
 ```
@@ -96,7 +96,7 @@ npm run db:cleanup-demo -- --apply --plan-digest=<本次 dry-run 摘要>
 ```dotenv
 NODE_ENV=production
 DATABASE_CLIENT=mysql
-DATABASE_URL=mysql://app@database.example/goodjob_crm
+DATABASE_URL=mysql://app@database.example/meridian_crm
 SESSION_MASTER_KEY=<Base64 编码的 32 字节密钥>
 SEED_DEMO=false
 ALLOW_DEMO_PROVIDER=false
@@ -106,7 +106,7 @@ WEB_ORIGIN=https://crm.example.com
 
 发布时先独立执行 `npm run db:migrate`，再启动唯一应用实例。生产构建会由同一 Express 进程提供 `dist/` 前端文件。
 
-当前已复用 GoodJob CRM 签名会话身份，REST API 与 Socket.IO 均按用户隔离；入站 Meta Webhook 使用持久 Inbox 和失败恢复，并已接入 GoodJob CRM 客户、互动、待办与站内信接口。尚未实现 `tenant_id` 多租户模型、通用持久任务队列、出站 Outbox、多实例账号租约和 Socket.IO 多实例 Adapter，因此正式商业部署仍限定为单租户、单实例，管理页面只在 CRM 身份网关后开放；公网仅选择性开放 Meta Webhook。
+当前已复用 Meridian CRM 签名会话身份，REST API 与 Socket.IO 均按用户隔离；入站 Meta Webhook 使用持久 Inbox 和失败恢复，并已接入 Meridian CRM 客户、互动、待办与站内信接口。尚未实现 `tenant_id` 多租户模型、通用持久任务队列、出站 Outbox、多实例账号租约和 Socket.IO 多实例 Adapter，因此正式商业部署仍限定为单租户、单实例，管理页面只在 CRM 身份网关后开放；公网仅选择性开放 Meta Webhook。
 
 ## 验证
 

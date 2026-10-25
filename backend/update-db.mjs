@@ -1,6 +1,6 @@
 import mysql from "mysql2/promise";
 
-const dbUrl = process.env.DATABASE_URL || "mysql://goodjob:change_me@127.0.0.1:3306/goodjob_crm";
+const dbUrl = process.env.DATABASE_URL || "mysql://meridian:change_me@127.0.0.1:3306/meridian_crm";
 
 async function updateDatabase() {
   console.log("连接数据库...");

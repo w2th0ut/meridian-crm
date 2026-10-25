@@ -17,7 +17,7 @@ const config = store.aiModelConfigs.find((item) => item.ownerId === "u_sales_shi
 const originalConfig = config ? structuredClone(config) : null;
 
 try {
-  const login = await request("/api/auth/login", { method: "POST", body: JSON.stringify({ email: "shirley@goodjob.com", password: "goodjob123" }) });
+  const login = await request("/api/auth/login", { method: "POST", body: JSON.stringify({ email: "shirley@meridian.com", password: "meridian123" }) });
   assert.equal(login.response.ok, true);
   const authorization = `Bearer ${String(login.json.token || "")}`;
   assert.ok(config);

@@ -31,7 +31,7 @@ const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PRIVATE_DIRECTORY = join(PROJECT_ROOT, ".data", "private");
 const SETTINGS_PATH = join(PRIVATE_DIRECTORY, "website-lead-ingress.enc.json");
 const KEY_PATH = join(PRIVATE_DIRECTORY, "website-lead-ingress.key");
-const AAD = Buffer.from("goodjob-website-lead-ingress:v1", "utf8");
+const AAD = Buffer.from("meridian-website-lead-ingress:v1", "utf8");
 const EMPTY_SETTINGS: WebsiteLeadIngressSettings = {
   schemaVersion: 1,
   enabled: false,

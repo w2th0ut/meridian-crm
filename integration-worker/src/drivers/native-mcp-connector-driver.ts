@@ -1,5 +1,5 @@
 import type { NativeMcpClientOptions } from "../mcp/native-mcp-client.js";
-import { validateConnectorManifest } from "@goodjob/integration-connector-sdk";
+import { validateConnectorManifest } from "@meridian/integration-connector-sdk";
 import { McpSessionManager } from "../mcp/mcp-session-manager.js";
 import {
   exchangeOAuthCode,

@@ -24,7 +24,7 @@ async function request(path: string, token = "", init: RequestInit = {}) {
 async function login(email: string) {
   const result = await request("/api/auth/login", "", {
     method: "POST",
-    body: JSON.stringify({ email, password: "goodjob123" })
+    body: JSON.stringify({ email, password: "meridian123" })
   });
   assert.equal(result.response.status, 200, `login failed: ${email}`);
   return String(result.json.token || "");
@@ -41,7 +41,7 @@ function documentBody(unitPrice = 125) {
     buyer: "Nordic Tools AB",
     buyerAddress: "Stockholm, Sweden",
     buyerContact: "Emma",
-    seller: "GoodJob Export Limited",
+    seller: "Meridian Export Limited",
     sellerAddress: "Hong Kong",
     currency: "EUR",
     incoterm: "FOB",
@@ -68,8 +68,8 @@ try {
   const otherTeamUser: User = {
     id: "u_quote_other_team",
     name: "Quote Other Team",
-    email: "quote-other-team@goodjob.com",
-    password: "goodjob123",
+    email: "quote-other-team@meridian.com",
+    password: "meridian123",
     role: "admin",
     teamId: "quote-other-team",
     avatar: "QT",
@@ -78,7 +78,7 @@ try {
   };
   store.users.push(otherTeamUser);
 
-  const adminToken = await login("admin@goodjob.com");
+  const adminToken = await login("admin@meridian.com");
   const otherToken = await login(otherTeamUser.email);
 
   const anonymous = await request("/api/quote-history");

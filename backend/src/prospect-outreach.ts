@@ -242,7 +242,7 @@ async function writeFormalReplyFact(
       kind: "verify_contact_channel",
       channelId: channel.id,
       status: "bounced",
-      providerCode: "goodjob_manual_outreach",
+      providerCode: "meridian_manual_outreach",
       reasonCode: "outreach_bounced",
       verifiedAt: occurredAt,
       idempotencyKey: `outreach:${candidate.id}:${input.requestId}:bounced`

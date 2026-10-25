@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { executeCodexTask, resolveCodexBinary } from "./codex-adapter.js";
 import { executeWorkbuddyTask, resolveWorkbuddyBinary, workbuddyProcessEnvironment } from "./workbuddy-adapter.js";
 import { isBrowserCdpReady, isBrowserServiceReachable, tryStartBrowserService } from "./browser-service.js";
-import { GoodJobRunnerClient } from "./client.js";
+import { MeridianRunnerClient } from "./client.js";
 import type { RunnerConfig, RunnerIdentity, TaskEventInput } from "./types.js";
 
 const execFileAsync = promisify(execFile);
@@ -257,7 +257,7 @@ export function cachedRunnerIdentity(workspaces: string[]): RunnerIdentity | nul
 
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-function eventPublisher(client: GoodJobRunnerClient, taskId: string, leaseToken: string) {
+function eventPublisher(client: MeridianRunnerClient, taskId: string, leaseToken: string) {
   let pending: TaskEventInput[] = [];
   let timer: NodeJS.Timeout | null = null;
   let queue = Promise.resolve();
@@ -287,7 +287,7 @@ function eventPublisher(client: GoodJobRunnerClient, taskId: string, leaseToken:
 }
 
 export async function runOneClaim(config: RunnerConfig, outerSignal?: AbortSignal, browserMcpUrl = "") {
-  const client = new GoodJobRunnerClient({ serverUrl: config.serverUrl, token: config.token });
+  const client = new MeridianRunnerClient({ serverUrl: config.serverUrl, token: config.token });
   const claim = await client.claim();
   if (!claim) return false;
 
@@ -340,7 +340,7 @@ export async function runOneClaim(config: RunnerConfig, outerSignal?: AbortSigna
 }
 
 export async function startRunner(config: RunnerConfig, signal: AbortSignal) {
-  const client = new GoodJobRunnerClient({ serverUrl: config.serverUrl, token: config.token });
+  const client = new MeridianRunnerClient({ serverUrl: config.serverUrl, token: config.token });
   // 独立浏览器只在有 Codex 能力时才可能需要；纯 WorkBuddy CLI 的 Runner 不启动它，避免缺依赖时起不来。
   // ⚠️ 它**不是** Runner 的存活前提：起不来（端口被别的 Runner 占了最常见）只降级 + 上报，
   //    绝不能退出进程——否则 CRM 侧心跳还没过期，机器看着"在线"，任务却永远没人领。
@@ -351,8 +351,8 @@ export async function startRunner(config: RunnerConfig, signal: AbortSignal) {
     const started = await tryStartBrowserService();
     browserService = started.service;
     browserError = started.error;
-    if (browserService) console.log(`[GoodJob Runner] 独立浏览器已就绪：${browserService.configuration.url}`);
-    else console.error(`[GoodJob Runner] 独立浏览器不可用，Runner 继续运行（浏览器类任务会缺少受控浏览器）：${browserError}`);
+    if (browserService) console.log(`[Meridian Runner] 独立浏览器已就绪：${browserService.configuration.url}`);
+    else console.error(`[Meridian Runner] 独立浏览器不可用，Runner 继续运行（浏览器类任务会缺少受控浏览器）：${browserError}`);
   }
   let lastHeartbeat = 0;
   let lastBrowserHealth = 0;
@@ -369,7 +369,7 @@ export async function startRunner(config: RunnerConfig, signal: AbortSignal) {
           browserError = "独立浏览器服务已停止";
           await browserService.stop().catch(() => undefined);
           browserService = null;
-          console.error("[GoodJob Runner] 独立浏览器已停止，Runner 继续运行（浏览器类任务会缺少受控浏览器）");
+          console.error("[Meridian Runner] 独立浏览器已停止，Runner 继续运行（浏览器类任务会缺少受控浏览器）");
         } else {
           lastBrowserHealth = Date.now();
         }
@@ -390,7 +390,7 @@ export async function startRunner(config: RunnerConfig, signal: AbortSignal) {
       } catch (error) {
         failures += 1;
         const message = error instanceof Error ? error.message : "Runner 请求失败";
-        if (failures === 1 || failures % 10 === 0) console.error(`[GoodJob Runner] ${message}`);
+        if (failures === 1 || failures % 10 === 0) console.error(`[Meridian Runner] ${message}`);
         await sleep(Math.min(15_000, 1_000 * failures));
       }
     }

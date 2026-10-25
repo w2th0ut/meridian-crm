@@ -85,7 +85,7 @@ async function main() {
     researchSource: "gpt",
     emailSource: "cli",
     cliAdapter: "gemini",
-    cliWorkspace: "   /srv/goodjob/workspace   ",
+    cliWorkspace: "   /srv/meridian/workspace   ",
     cliTimeoutSeconds: 999_999,
     runnerId: " lrr_x ",
     updatedBy: "u_admin"
@@ -93,7 +93,7 @@ async function main() {
   check(dirty.researchSource === "ai", "非法来源必须回落到默认值，不能写进设置");
   check(dirty.emailSource === "cli", "合法来源必须保留");
   check(dirty.cliAdapter === "workbuddy", "非法适配器必须回落到 WorkBuddy");
-  check(dirty.cliWorkspace === "/srv/goodjob/workspace", "工作目录必须 trim");
+  check(dirty.cliWorkspace === "/srv/meridian/workspace", "工作目录必须 trim");
   check(dirty.cliTimeoutSeconds === AI_ENGINE_CLI_TIMEOUT_MAX, "超时必须被钳到 24 小时上限");
   check(dirty.runnerId === "lrr_x", "Runner 指定必须保留");
   check(clampAiEngineTimeout(0) === AI_ENGINE_CLI_TIMEOUT_MIN, "超时下限必须是 60 秒");
@@ -338,8 +338,8 @@ async function main() {
       + "提示词点名断言仍已全部执行。装技能包后本项会自动开启。");
   }
   check(new Set(Object.values(ENGINE_CLI_SKILLS)).size === 4, "四个技能名不得重复");
-  check(Object.values(ENGINE_CLI_SKILLS).every((name) => /^goodjob-[a-z-]+$/.test(name)),
-    "技能名必须是小写连字符的 goodjob-* 形式");
+  check(Object.values(ENGINE_CLI_SKILLS).every((name) => /^meridian-[a-z-]+$/.test(name)),
+    "技能名必须是小写连字符的 meridian-* 形式");
   check(tenderPrompt.includes('"previouslyReported"'), "日报提示词必须带上跨期去重字段");
 
   const streamText = [

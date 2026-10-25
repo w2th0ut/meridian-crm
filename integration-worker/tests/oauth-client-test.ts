@@ -103,7 +103,7 @@ const manifest: WorkerConnectorManifest = {
   allowedPorts: [address.port],
   allowInsecureLoopback: true,
   authentication: "oauth2",
-  oauth: { clientId: "goodjob-test-client", scopes: ["mcp.tools.read"] }
+  oauth: { clientId: "meridian-test-client", scopes: ["mcp.tools.read"] }
 };
 const context: OAuthTransactionContext = {
   state: "state-test-value",

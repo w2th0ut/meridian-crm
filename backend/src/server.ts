@@ -1637,7 +1637,7 @@ function resolveAccountExpiry(expiresInDays?: number, expiresAt?: string) {
 }
 
 function collaborationUser(userId: string) {
-  if (userId === "system") return { id: "system", name: "GoodJob", avatar: "GJ", role: "admin" as const, teamId: "" };
+  if (userId === "system") return { id: "system", name: "Meridian", avatar: "GJ", role: "admin" as const, teamId: "" };
   const user = getStore().users.find((item) => item.id === userId);
   return user ? { id: user.id, name: user.name, avatar: user.avatar, role: user.role, teamId: user.teamId } : {
     id: userId,
@@ -3306,8 +3306,8 @@ app.post("/api/profile/test-email", requireAuth, asyncRoute(async (_req, res) =>
   try {
     const info = await sendOutboundEmail(user, {
       to: testTo,
-      subject: "GoodJob CRM SMTP 测试邮件",
-      body: `这是一封来自 GoodJob CRM 的 SMTP 测试邮件。\n\n账号：${user.email}\n时间：${new Date().toISOString()}`
+      subject: "Meridian CRM SMTP 测试邮件",
+      body: `这是一封来自 Meridian CRM 的 SMTP 测试邮件。\n\n账号：${user.email}\n时间：${new Date().toISOString()}`
     });
     res.json({ ok: true, to: testTo, messageId: info.messageId, simulated: process.env.NODE_ENV === "test" });
   } catch (error) {
@@ -3410,8 +3410,8 @@ app.post("/api/sender-mailboxes/:id/test", requireAuth, asyncRoute(async (req, r
   try {
     const info = await sendOutboundEmail({ ...user, ...senderMailboxOverrides(mailbox) }, {
       to: testTo,
-      subject: "GoodJob CRM 发件邮箱池测试邮件",
-      body: `这是一封来自 GoodJob CRM 发件邮箱池的测试邮件。\n\n发件邮箱：${mailbox.email}\n账号：${user.email}\n时间：${new Date().toISOString()}`
+      subject: "Meridian CRM 发件邮箱池测试邮件",
+      body: `这是一封来自 Meridian CRM 发件邮箱池的测试邮件。\n\n发件邮箱：${mailbox.email}\n账号：${user.email}\n时间：${new Date().toISOString()}`
     });
     res.json({ ok: true, to: testTo, messageId: info.messageId, simulated: process.env.NODE_ENV === "test" });
   } catch (error) {
@@ -5500,7 +5500,7 @@ app.post("/api/accounts/generate", requireAuth, asyncRoute(async (req, res) => {
     expiresInDays: z.number().int().min(1).max(3650).default(3),
     namePrefix: z.string().min(1).max(30).default("体验账号"),
     emailPrefix: z.string().min(1).max(30).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).default("trial"),
-    emailDomain: z.string().min(3).max(100).regex(/^[A-Za-z0-9.-]+$/).default("goodjob.com"),
+    emailDomain: z.string().min(3).max(100).regex(/^[A-Za-z0-9.-]+$/).default("meridian.com"),
     teamId: z.string().min(1).max(64).optional()
   });
   const body = schema.parse(req.body ?? {});
@@ -5851,7 +5851,7 @@ async function resolveCustomerIntakeDir(workspace: string) {
 }
 
 /**
- * CLI 快速模式标记（Runner 侧解析，见 goodjob-runner/src/workbuddy-adapter.ts）。
+ * CLI 快速模式标记（Runner 侧解析，见 meridian-runner/src/workbuddy-adapter.ts）。
  *
  * 为什么要它：本机 CLI 是「编码 Agent」，默认参数下会为了理解字段含义去探索整个工作目录。
  * 2026-10-10 实测同一条提示词：默认参数 178 秒 / 53 次工具调用（还用了 Agent、WebFetch、Write），
@@ -6690,10 +6690,10 @@ function pruneWebsiteLeadReplayCache(nowSeconds: number) {
 function websiteLeadSignatureStatus(req: Request): WebsiteLeadSignatureStatus {
   const keys = websiteLeadSigningKeys();
   if (!keys.length) return "unconfigured";
-  const keyId = String(req.headers["x-goodjob-key-id"] || "").trim();
-  const timestampText = String(req.headers["x-goodjob-timestamp"] || "").trim();
-  const nonce = String(req.headers["x-goodjob-nonce"] || "").trim();
-  const signatureHeader = String(req.headers["x-goodjob-signature"] || "").trim();
+  const keyId = String(req.headers["x-meridian-key-id"] || "").trim();
+  const timestampText = String(req.headers["x-meridian-timestamp"] || "").trim();
+  const nonce = String(req.headers["x-meridian-nonce"] || "").trim();
+  const signatureHeader = String(req.headers["x-meridian-signature"] || "").trim();
   if (!/^[A-Za-z0-9_-]{2,80}$/u.test(keyId)
     || !/^\d{10}$/u.test(timestampText)
     || !/^[A-Za-z0-9_-]{20,64}$/u.test(nonce)
@@ -8004,7 +8004,7 @@ async function recoverEngineCliJobs(reason: string) {
       await finalizeEngineCliJob(publicUser(owner), job, snapshot);
       recovered += 1;
     }
-    if (recovered) console.log(`GoodJob CRM recovered ${recovered} unfinished AI engine job(s) (${reason})`);
+    if (recovered) console.log(`Meridian CRM recovered ${recovered} unfinished AI engine job(s) (${reason})`);
   } catch (error) {
     console.error("AI engine job recovery failed", error);
   } finally {
@@ -8014,7 +8014,7 @@ async function recoverEngineCliJobs(reason: string) {
 
 function startAiEngineRecoveryScheduler() {
   if (process.env.AI_ENGINE_RECOVERY === "false") {
-    console.log("GoodJob CRM AI engine job recovery disabled (AI_ENGINE_RECOVERY=false)");
+    console.log("Meridian CRM AI engine job recovery disabled (AI_ENGINE_RECOVERY=false)");
     return;
   }
   const pollMs = Math.max(60_000, Number(process.env.AI_ENGINE_RECOVERY_POLL_MS || 300_000) || 300_000);
@@ -9266,9 +9266,9 @@ async function enrichOutreachDraftLetters(reason: string) {
         processed += 1;
       }
       await store.persist();
-      console.log(`GoodJob CRM enriched outreach letters for ${host.label} (${reason})`);
+      console.log(`Meridian CRM enriched outreach letters for ${host.label} (${reason})`);
     }
-    if (processed) console.log(`GoodJob CRM enriched ${processed} outreach letter target(s) (${reason})`);
+    if (processed) console.log(`Meridian CRM enriched ${processed} outreach letter target(s) (${reason})`);
   } catch (error) {
     console.error("outreach letter enrichment failed", error);
   } finally {
@@ -9280,7 +9280,7 @@ let outreachLetterEnrichTimer: NodeJS.Timeout | null = null;
 
 function startOutreachLetterEnrichmentScheduler() {
   if (!outreachLetterEnrichmentEnabled()) {
-    console.log("GoodJob CRM outreach letter enrichment disabled (OUTREACH_LETTER_ENRICH=false)");
+    console.log("Meridian CRM outreach letter enrichment disabled (OUTREACH_LETTER_ENRICH=false)");
     return;
   }
   const pollMs = Math.max(10_000, Number(process.env.OUTREACH_LETTER_ENRICH_POLL_MS || 30_000) || 30_000);
@@ -14528,7 +14528,7 @@ app.post("/api/exchange/endpoints/:id/send", requireAuth, asyncRoute(async (req,
       : {};
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "User-Agent": "GoodJobCRM-Exchange/1.0",
+    "User-Agent": "MeridianCRM-Exchange/1.0",
     ...extraHeaders,
     ...authHeaders
   };
@@ -18020,7 +18020,7 @@ app.post("/api/trade-documents/:id/export-xlsx", requireAuth, asyncRoute(async (
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
     res.setHeader("Cache-Control", "no-store");
-    res.setHeader("X-GoodJob-Excel-SHA256", excelBufferSha256(result.buffer));
+    res.setHeader("X-Meridian-Excel-SHA256", excelBufferSha256(result.buffer));
     res.send(result.buffer);
   } catch (error) {
     res.status(400).json({ message: error instanceof Error ? error.message : "高级 Excel 导出失败" });
@@ -18051,7 +18051,7 @@ app.post("/api/trade-documents/:id/preview-xlsx", requireAuth, asyncRoute(async 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(previewName)}"; filename*=UTF-8''${encodeURIComponent(previewName)}`);
     res.setHeader("Cache-Control", "no-store");
-    res.setHeader("X-GoodJob-Excel-SHA256", excelBufferSha256(result.buffer));
+    res.setHeader("X-Meridian-Excel-SHA256", excelBufferSha256(result.buffer));
     res.send(pdf);
   } catch (error) {
     res.status(error instanceof ExcelPreviewUnavailableError ? 503 : 400).json({
@@ -20418,7 +20418,7 @@ const agentExecutionRuntime: AgentExecutionRuntime = {
       channel: "email",
       recipient: draft.to
     });
-    const domain = (stored.outboundEmail || "").split("@")[1] || "goodjob.local";
+    const domain = (stored.outboundEmail || "").split("@")[1] || "meridian.local";
     const dispatch = await dispatchOutboundEmail(getStore(), stored, {
       requestId: `agent:${executionId}`,
       entityType: draft.entityType === "lead" ? "lead" : "customer",
@@ -22189,7 +22189,7 @@ app.delete("/api/tools/products/:id", requireAuth, asyncRoute(async (req, res) =
   res.json({ product: removed, products: store.products.filter((item) => canSeeOwner(req.user!, item.ownerId, item.teamId)), categories: productCategoriesForUser(req.user!) });
 }));
 
-const uploadsDir = path.resolve(process.env.GOODJOB_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"));
+const uploadsDir = path.resolve(process.env.MERIDIAN_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"));
 app.use("/uploads", express.static(uploadsDir));
 const tradeDocumentImportsDir = path.join(uploadsDir, ".trade-document-imports");
 
@@ -25942,7 +25942,7 @@ const lfindSearchReportSchema = z.object({
 }).passthrough();
 
 const lfindResultSchema = z.object({
-  version: z.literal("goodjob-lfind-v1").default("goodjob-lfind-v1"),
+  version: z.literal("meridian-lfind-v1").default("meridian-lfind-v1"),
   summary: z.object({
     target: z.string().trim().max(500).default(""),
     markets: z.array(z.string().trim().max(100)).max(30).default([]),
@@ -26008,16 +26008,16 @@ function lfindPrompt(input: z.infer<typeof leadSearchSchema>, user: SessionUser)
     }));
   return [
     "Use $lfind.",
-    "Run a GoodJob Lfind public-source overseas B2B prospect discovery task.",
-    "Return only the final JSON object following goodjob-lfind-v1. No markdown fences, no explanations after JSON.",
+    "Run a Meridian Lfind public-source overseas B2B prospect discovery task.",
+    "Return only the final JSON object following meridian-lfind-v1. No markdown fences, no explanations after JSON.",
     "",
     "Execution discipline (important):",
-    "- This environment has no built-in web search. Use the goodjob_browser controlled browser (Playwright tools) for ALL public web lookups; it is the only search channel.",
+    "- This environment has no built-in web search. Use the meridian_browser controlled browser (Playwright tools) for ALL public web lookups; it is the only search channel.",
     "- If a search engine blocks you (reCAPTCHA, consent wall, 429), do NOT investigate or repair the browser. Immediately switch to a different engine or query (e.g. Bing, DuckDuckGo, Google with different wording) and continue.",
     "- Spend at most 2 minutes total on browser troubleshooting of any kind. Guard the total budget: finish within 25 minutes and start writing the final JSON by minute 22 at the latest.",
     "- If time runs short, return fewer candidates (even zero) with a valid JSON object and explain in summary/failures. An empty opportunities array with valid schema is a successful outcome; a timeout with no output is not.",
     "",
-    "GoodJob search request:",
+    "Meridian search request:",
     JSON.stringify({
       goal: input.goal,
       productKeywords: input.productKeywords,
@@ -26047,7 +26047,7 @@ async function lfindRunnerPlan(user: SessionUser) {
   if (!service) return {
     configured: false,
     message: "当前数据库运行模式未启用本地 Runner 服务",
-    suggestion: "请使用 MySQL 版服务，并在集成中心完成 GoodJob Runner 配对。",
+    suggestion: "请使用 MySQL 版服务，并在集成中心完成 Meridian Runner 配对。",
     service: null,
     runner: null
   };
@@ -26067,7 +26067,7 @@ async function lfindRunnerPlan(user: SessionUser) {
     } : {
       configured: false,
       message: "没有可用的在线 Codex Runner",
-      suggestion: "请在集成中心启动并配对 GoodJob Runner，确认 Codex CLI 显示在线，并授权一个工作目录。",
+      suggestion: "请在集成中心启动并配对 Meridian Runner，确认 Codex CLI 显示在线，并授权一个工作目录。",
       service,
       runner: null
     };
@@ -26116,7 +26116,7 @@ function lfindEvidenceSnapshot(
     evidenceSummary: source.evidence || source.title || "Lfind public source evidence",
     matchedFields,
     adapterVersion: "lfind-skill-v1",
-    catalogPolicyVersion: "goodjob-lfind-v1",
+    catalogPolicyVersion: "meridian-lfind-v1",
     sourceLevel: "assisted",
     fieldAuthority: Object.fromEntries(matchedFields.map((field) => [
       field,
@@ -26434,7 +26434,7 @@ app.get("/api/lead-finder/lfind-tasks/:id", requireAuth, asyncRoute(async (req, 
     res.status(value.status || 422).json({
       message: value.message || "Lfind 任务结果无法同步",
       errorCode: value.code || "LFIND_RESULT_INVALID",
-      suggestion: value.suggestion || "请在集成中心查看任务最终回复，确认返回的是 goodjob-lfind-v1 JSON。"
+      suggestion: value.suggestion || "请在集成中心查看任务最终回复，确认返回的是 meridian-lfind-v1 JSON。"
     });
   }
 }));
@@ -27426,7 +27426,7 @@ function scheduleMidnightTodoArchive() {
     const archived = archiveExpiredTodos(store.todos, new Date());
     if (archived.length) {
       await store.persist();
-      console.log(`GoodJob CRM archived ${archived.length} todos into history`);
+      console.log(`Meridian CRM archived ${archived.length} todos into history`);
     }
     schedule();
   };
@@ -27759,10 +27759,10 @@ async function tickReminderRules(reason: string) {
       try {
         const result = await runReminderRuleNow(rule, rule.targetOwnerId || rule.ownerId, { persistWhenNoChanges: false });
         if (result.createdCount) {
-          console.log(`GoodJob CRM reminder rule「${rule.title}」created ${result.createdCount} todo(s) [${reason}] matched=${result.matchedCount} skipped=${result.skippedCount} failed=${result.failedCount}`);
+          console.log(`Meridian CRM reminder rule「${rule.title}」created ${result.createdCount} todo(s) [${reason}] matched=${result.matchedCount} skipped=${result.skippedCount} failed=${result.failedCount}`);
         }
       } catch (error) {
-        console.error(`GoodJob CRM reminder rule「${rule.title}」failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(`Meridian CRM reminder rule「${rule.title}」failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   } finally {
@@ -27776,12 +27776,12 @@ async function tickReminderRules(reason: string) {
  */
 function startReminderRuleScheduler() {
   if (process.env.REMINDER_RULE_SCHEDULER === "false") {
-    console.log("GoodJob CRM reminder rule scheduler disabled (REMINDER_RULE_SCHEDULER=false)");
+    console.log("Meridian CRM reminder rule scheduler disabled (REMINDER_RULE_SCHEDULER=false)");
     return;
   }
   const pollMs = Math.max(REMINDER_RULE_MIN_POLL_MS, Number(process.env.REMINDER_RULE_POLL_MS || 30_000) || 30_000);
   reminderRuleSchedulerTimer = setInterval(() => void tickReminderRules("scheduled"), pollMs);
-  console.log(`GoodJob CRM reminder rule scheduler enabled (poll ${pollMs}ms, ${enabledReminderRules().length} enabled rule(s))`);
+  console.log(`Meridian CRM reminder rule scheduler enabled (poll ${pollMs}ms, ${enabledReminderRules().length} enabled rule(s))`);
   void tickReminderRules("startup");
 }
 
@@ -27805,18 +27805,18 @@ async function tickPruneResourceEvents(reason: string) {
   try {
     const removed = await getResourceHubRepository().pruneEvents(RESOURCE_RETENTION_DAYS);
     if (removed > 0) {
-      console.log(`GoodJob CRM resource retrieval events pruned ${removed} row(s) [${reason}] (retention ${RESOURCE_RETENTION_DAYS}d)`);
+      console.log(`Meridian CRM resource retrieval events pruned ${removed} row(s) [${reason}] (retention ${RESOURCE_RETENTION_DAYS}d)`);
     }
   } catch (error) {
     // 清理失败只记日志：它是保洁工序，不能反过来把主流程带下水
-    console.error(`GoodJob CRM resource event prune failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM resource event prune failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
 /** 关闭方式：RESOURCE_EVENT_PRUNE=false；间隔：RESOURCE_EVENT_PRUNE_MS（默认 24h，下限 1h）。 */
 function startResourceEventPruneScheduler() {
   if (process.env.RESOURCE_EVENT_PRUNE === "false") {
-    console.log("GoodJob CRM resource event prune scheduler disabled (RESOURCE_EVENT_PRUNE=false)");
+    console.log("Meridian CRM resource event prune scheduler disabled (RESOURCE_EVENT_PRUNE=false)");
     return;
   }
   const intervalMs = Math.max(
@@ -27824,7 +27824,7 @@ function startResourceEventPruneScheduler() {
     Number(process.env.RESOURCE_EVENT_PRUNE_MS || 86_400_000) || 86_400_000
   );
   resourceEventPruneTimer = setInterval(() => void tickPruneResourceEvents("scheduled"), intervalMs);
-  console.log(`GoodJob CRM resource event prune scheduler enabled (every ${intervalMs}ms, retention ${RESOURCE_RETENTION_DAYS}d)`);
+  console.log(`Meridian CRM resource event prune scheduler enabled (every ${intervalMs}ms, retention ${RESOURCE_RETENTION_DAYS}d)`);
   void tickPruneResourceEvents("startup");
 }
 
@@ -28352,7 +28352,7 @@ async function startServer() {
   // 部署密钥文件：deploy-secrets.json 里填好的值在此补进 env（已设置的环境变量优先）
   const deploySecrets = loadDeploySecrets();
   if (deploySecrets.appliedKeys.length) {
-    console.log(`GoodJob CRM deploy-secrets applied from ${deploySecrets.path}: ${deploySecrets.appliedKeys.join(", ")}`);
+    console.log(`Meridian CRM deploy-secrets applied from ${deploySecrets.path}: ${deploySecrets.appliedKeys.join(", ")}`);
   }
   const mysqlRequested = process.env.CRM_STORE === "mysql"
     || (process.env.CRM_STORE !== "memory" && Boolean(process.env.DATABASE_URL || process.env.MYSQL_URL));
@@ -28380,7 +28380,7 @@ async function startServer() {
       throw new Error("生产环境必须配置 MySQL 持久化，禁止使用内存存储");
     }
   } catch (error) {
-    console.error(`GoodJob CRM security validation failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM security validation failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
     return;
   }
@@ -28389,9 +28389,9 @@ async function startServer() {
     try {
       const store = await createMysqlStore({ processRole: "api" });
       setStore(store);
-      console.log("GoodJob CRM using MySQL persistence");
+      console.log("Meridian CRM using MySQL persistence");
     } catch (error) {
-      console.error(`GoodJob CRM MySQL unavailable, startup aborted: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`Meridian CRM MySQL unavailable, startup aborted: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   }
@@ -28411,9 +28411,9 @@ async function startServer() {
       );
       activeIntegrationControlPlane.startMaintenance();
       setIntegrationControlPlaneService(activeIntegrationControlPlane);
-      console.log("GoodJob CRM integration control plane enabled");
+      console.log("Meridian CRM integration control plane enabled");
     } catch (error) {
-      console.error(`GoodJob CRM integration startup failed: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`Meridian CRM integration startup failed: ${error instanceof Error ? error.message : String(error)}`);
       await getStore().close?.();
       process.exit(1);
       return;
@@ -28427,7 +28427,7 @@ async function startServer() {
     const ids = interruptedWebsiteCandidates.map((candidate) => candidate.id);
     if (store.persistProspectCandidates) await store.persistProspectCandidates(ids);
     else await store.persist();
-    console.log(`GoodJob CRM recovered ${ids.length} interrupted website probe tasks`);
+    console.log(`Meridian CRM recovered ${ids.length} interrupted website probe tasks`);
   }
   const agentBackgroundRunner = new AgentBackgroundRunner(
     store,
@@ -28438,7 +28438,7 @@ async function startServer() {
     await agentBackgroundRunner.start();
     activeAgentBackgroundRunner = agentBackgroundRunner;
   } catch (error) {
-    console.error(`GoodJob CRM Agent runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM Agent runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
     await store.close?.();
     process.exit(1);
     return;
@@ -28451,7 +28451,7 @@ async function startServer() {
     : new ProspectWorkerService({ store });
   if (!prospectWorkerService && prospectQueueRequired) {
     console.error(
-      "GoodJob CRM prospect queue startup failed: "
+      "Meridian CRM prospect queue startup failed: "
       + "启用强制队列时不能关闭 PROSPECT_WORKER_ENABLED"
     );
     activeAgentBackgroundRunner = null;
@@ -28464,7 +28464,7 @@ async function startServer() {
     await prospectWorkerService?.start();
     activeProspectWorkerService = prospectWorkerService;
   } catch (error) {
-    console.error(`GoodJob CRM prospect worker startup failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM prospect worker startup failed: ${error instanceof Error ? error.message : String(error)}`);
     activeAgentBackgroundRunner = null;
     await agentBackgroundRunner.stop();
     await store.close?.();
@@ -28486,7 +28486,7 @@ async function startServer() {
     activeAgentBackgroundRunner = null;
     await agentBackgroundRunner.stop();
     await store.close?.();
-    console.error(`GoodJob CRM prospect scheduler startup failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM prospect scheduler startup failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
     return;
   }
@@ -28509,7 +28509,7 @@ async function startServer() {
     activeAgentBackgroundRunner = null;
     await agentBackgroundRunner.stop();
     await store.close?.();
-    console.error(`GoodJob CRM super search runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM super search runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
     return;
   }
@@ -28539,7 +28539,7 @@ async function startServer() {
     activeAgentBackgroundRunner = null;
     await agentBackgroundRunner.stop();
     await store.close?.();
-    console.error(`GoodJob CRM outreach sequence runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM outreach sequence runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
     return;
   }
@@ -28560,7 +28560,7 @@ async function startServer() {
     activeAgentBackgroundRunner = null;
     await agentBackgroundRunner.stop();
     await store.close?.();
-    console.error(`GoodJob CRM customer maintenance runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM customer maintenance runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
     return;
   }
@@ -28742,7 +28742,7 @@ async function startServer() {
     activeAgentBackgroundRunner = null;
     await agentBackgroundRunner.stop();
     await store.close?.();
-    console.error(`GoodJob CRM Agent trigger runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM Agent trigger runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
     return;
   }
@@ -28764,7 +28764,7 @@ async function startServer() {
     activeAgentBackgroundRunner = null;
     await agentBackgroundRunner.stop();
     await store.close?.();
-    console.error(`GoodJob CRM sales training runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Meridian CRM sales training runner startup failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
     return;
   }
@@ -28778,7 +28778,7 @@ async function startServer() {
     });
     activeInboundMailWatcher = inboundMailWatcher;
     inboundMailWatcher.start();
-    console.log(`GoodJob CRM inbound mail watcher enabled (poll ${Number(process.env.INBOUND_MAIL_POLL_MS || 120_000)}ms, lookback ${Number(process.env.INBOUND_MAIL_LOOKBACK_DAYS || 7)}d)`);
+    console.log(`Meridian CRM inbound mail watcher enabled (poll ${Number(process.env.INBOUND_MAIL_POLL_MS || 120_000)}ms, lookback ${Number(process.env.INBOUND_MAIL_LOOKBACK_DAYS || 7)}d)`);
   }
   // ── 生产模式：后端直接 serve 前端静态文件（单端口模式）────────────
   const frontendDist = process.env.FRONTEND_DIST
@@ -28796,7 +28796,7 @@ async function startServer() {
     app.get("/whatsapp-plugin/*", (_req, res) => {
       res.sendFile(path.resolve(communicationFrontendDist, "index.html"));
     });
-    console.log(`GoodJob CRM serving Communication frontend from ${communicationFrontendDist}`);
+    console.log(`Meridian CRM serving Communication frontend from ${communicationFrontendDist}`);
   }
   if (existsSync(frontendDist)) {
     app.use(express.static(frontendDist, {
@@ -28815,11 +28815,11 @@ async function startServer() {
       }
       res.sendFile(path.resolve(frontendDist, "index.html"));
     });
-    console.log(`GoodJob CRM serving frontend from ${frontendDist}`);
+    console.log(`Meridian CRM serving frontend from ${frontendDist}`);
   }
 
   const httpServer = app.listen(port, host, () => {
-    console.log(`GoodJob CRM API listening on http://${host}:${port}`);
+    console.log(`Meridian CRM API listening on http://${host}:${port}`);
   });
   httpServer.on("upgrade", (request, socket, head) => {
     if (!request.url?.startsWith("/whatsapp-plugin/socket.io")) return;
@@ -28837,7 +28837,7 @@ async function startServer() {
   const shutdown = async (signal: NodeJS.Signals) => {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log(`GoodJob CRM received ${signal}, shutting down`);
+    console.log(`Meridian CRM received ${signal}, shutting down`);
     try {
       activeInboundMailWatcher?.stop();
       activeInboundMailWatcher = null;
@@ -28871,7 +28871,7 @@ async function startServer() {
       await store.close?.();
       process.exit(0);
     } catch (error) {
-      console.error(`GoodJob CRM shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`Meridian CRM shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   };

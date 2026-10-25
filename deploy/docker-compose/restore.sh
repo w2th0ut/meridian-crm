@@ -7,9 +7,9 @@ source "$SCRIPT_DIR/lib.sh"
 load_env
 
 target="${1:-}"
-[[ -n "$target" && -d "$target" ]] || die "用法：$0 /opt/goodjobcrm/shared/backups/时间戳"
+[[ -n "$target" && -d "$target" ]] || die "用法：$0 /opt/meridiancrm/shared/backups/时间戳"
 target="$(cd "$target" && pwd)"
-[[ "$target" == "$BACKUP_DIR/"* ]] || die "只允许恢复 GoodJob 备份目录中的备份"
+[[ "$target" == "$BACKUP_DIR/"* ]] || die "只允许恢复 Meridian 备份目录中的备份"
 [[ -s "$target/mysql.sql.gz" ]] || die "备份不完整，缺少统一 MySQL 备份 mysql.sql.gz"
 [[ -s "$target/uploads.tar.gz" ]] || die "备份不完整，缺少上传文件备份 uploads.tar.gz"
 [[ -s "$target/communication-media.tar.gz" ]] || die "备份不完整，缺少 Communication 媒体备份 communication-media.tar.gz"
@@ -28,11 +28,11 @@ cleanup_legacy_postgres() {
 }
 trap cleanup_legacy_postgres EXIT
 
-warn "恢复会覆盖 GoodJob 自己的统一 MySQL 数据库，但不会操作其他容器或数据库"
-read -r -p "输入 RESTORE-GOODJOB 确认：" confirmation
-[[ "$confirmation" == "RESTORE-GOODJOB" ]] || die "已取消"
+warn "恢复会覆盖 Meridian 自己的统一 MySQL 数据库，但不会操作其他容器或数据库"
+read -r -p "输入 RESTORE-MERIDIAN 确认：" confirmation
+[[ "$confirmation" == "RESTORE-MERIDIAN" ]] || die "已取消"
 
-export GOODJOB_RELEASE_ID="$(cat "$STATE_DIR/current-release" 2>/dev/null || release_id)"
+export MERIDIAN_RELEASE_ID="$(cat "$STATE_DIR/current-release" 2>/dev/null || release_id)"
 log "覆盖前先备份当前统一 MySQL"
 "$SCRIPT_DIR/backup.sh"
 compose stop gateway backend communication
@@ -47,15 +47,15 @@ restore_volume() {
   tar -xzf "$target/$archive_name" -C "$mountpoint"
 }
 
-log "恢复 GoodJob MySQL"
+log "恢复 Meridian MySQL"
 compose exec -T mysql sh -ec \
   'MYSQL_PWD="$(cat /run/secrets/mysql_root_password)" mysql -u root -e "DROP DATABASE IF EXISTS \`$MYSQL_DATABASE\`; CREATE DATABASE \`$MYSQL_DATABASE\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON \`$MYSQL_DATABASE\`.* TO '\''$MYSQL_USER'\''@'\''%'\''; FLUSH PRIVILEGES;"'
 gzip -dc "$target/mysql.sql.gz" | compose exec -T mysql sh -ec \
   'MYSQL_PWD="$(cat /run/secrets/mysql_root_password)" exec mysql -u root'
 
 log "恢复上传文件与 Communication 媒体"
-restore_volume goodjobcrm_uploads_data uploads.tar.gz
-restore_volume goodjobcrm_communication_media communication-media.tar.gz
+restore_volume meridiancrm_uploads_data uploads.tar.gz
+restore_volume meridiancrm_communication_media communication-media.tar.gz
 
 compose --profile tools run --rm backend-migrate
 compose --profile tools run --rm communication-migrate
@@ -84,6 +84,6 @@ if [[ -n "$legacy_dump" ]]; then
 fi
 
 compose up -d --no-build communication backend gateway
-wait_for_url "http://127.0.0.1:${GOODJOB_HTTP_PORT}/api/health" 60 \
+wait_for_url "http://127.0.0.1:${MERIDIAN_HTTP_PORT}/api/health" 60 \
   || die "恢复后应用未通过健康检查"
 log "恢复完成"

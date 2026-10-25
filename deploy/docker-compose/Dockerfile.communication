@@ -12,12 +12,12 @@ RUN npm ci --omit=dev --no-audit --no-fund \
     && npm cache clean --force
 
 COPY whatsapp-plugin/dist-server dist-server
-COPY deploy/docker-compose/communication-entrypoint.sh /usr/local/bin/goodjob-communication-entrypoint
-RUN chmod 0755 /usr/local/bin/goodjob-communication-entrypoint \
+COPY deploy/docker-compose/communication-entrypoint.sh /usr/local/bin/meridian-communication-entrypoint
+RUN chmod 0755 /usr/local/bin/meridian-communication-entrypoint \
     && install -d -o node -g node -m 0700 /data/media \
     && chown -R node:node /app /home/node
 
 USER node
 EXPOSE 3100
-ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/local/bin/goodjob-communication-entrypoint"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/local/bin/meridian-communication-entrypoint"]
 CMD ["node", "dist-server/server/index.js"]

@@ -1,5 +1,5 @@
 ---
-name: goodjob-auto-reply
+name: meridian-auto-reply
 description: 外贸 WhatsApp 客户消息自动回复方法论。当任务要求「代表团队给客户写一条 WhatsApp 回复」、用到训练库（标准问答对 / 口径片段 / 政策 / 禁用场景）、训练档案风格样本、并需要返回 reply/confidence/reason/language 的 JSON 时使用。提供训练库四类条目的使用规则、必须转人工的红线、风格对齐方法、confidence 判定标准与交付前自检。
 ---
 

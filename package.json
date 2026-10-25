@@ -1,10 +1,10 @@
 {
-  "name": "goodjob-crm",
+  "name": "meridian-crm",
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "pretest": "npm run build --workspace @goodjob/integration-connector-sdk",
+    "pretest": "npm run build --workspace @meridian/integration-connector-sdk",
     "dev": "npm run app:dev",
     "dev:mysql": "npm run app:dev",
     "dev:services": "concurrently -k -n crm-api,crm-web,whatsapp \"npm run dev:mysql --workspace backend\" \"npm run dev --workspace frontend\" \"DATABASE_CLIENT=mysql PORT=3100 npm --prefix whatsapp-plugin run dev\"",
@@ -16,8 +16,8 @@
     "db:profiles:status": "node scripts/database-profile-status.mjs",
     "test:mysql": "node scripts/run-with-profile.mjs test npm run test:mysql:suite --workspace backend",
     "svn:check-database": "node scripts/check-database-safety.mjs",
-    "build": "npm run build --workspace @goodjob/integration-connector-sdk && npm run build --workspace backend && npm run build --workspace frontend && npm run build --workspace integration-worker && npm run build --workspace @goodjob/local-runner && npm --prefix whatsapp-plugin run build",
-    "test": "npm run test --workspace @goodjob/integration-connector-sdk && npm run test --workspace backend && npm run test --workspace frontend && npm run test --workspace integration-worker && npm run test --workspace @goodjob/local-runner && npm --prefix whatsapp-plugin test",
+    "build": "npm run build --workspace @meridian/integration-connector-sdk && npm run build --workspace backend && npm run build --workspace frontend && npm run build --workspace integration-worker && npm run build --workspace @meridian/local-runner && npm --prefix whatsapp-plugin run build",
+    "test": "npm run test --workspace @meridian/integration-connector-sdk && npm run test --workspace backend && npm run test --workspace frontend && npm run test --workspace integration-worker && npm run test --workspace @meridian/local-runner && npm --prefix whatsapp-plugin test",
     "test:e2e": "npm run test:e2e --workspace frontend"
   },
   "workspaces": [
@@ -25,7 +25,7 @@
     "frontend",
     "integration-worker",
     "integration-sdk",
-    "goodjob-runner"
+    "meridian-runner"
   ],
   "devDependencies": {
     "concurrently": "^9.2.1"

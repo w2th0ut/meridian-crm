@@ -6,8 +6,8 @@ import type {
   ProspectQueueSignalKind
 } from "./prospect-queue-coordinator.js";
 
-const EXECUTION_QUEUE_NAME = "goodjob-prospect-execution-v1";
-const DEAD_LETTER_QUEUE_NAME = "goodjob-prospect-dead-letter-v1";
+const EXECUTION_QUEUE_NAME = "meridian-prospect-execution-v1";
+const DEAD_LETTER_QUEUE_NAME = "meridian-prospect-dead-letter-v1";
 
 function withTimeout<T>(
   operation: Promise<T>,

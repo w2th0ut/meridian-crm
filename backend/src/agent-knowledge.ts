@@ -73,7 +73,7 @@ function fallbackSystemDocument(): AgentKnowledgeDocument {
     id: "system.contract.fallback",
     module: "agent",
     title: "Agent 安全执行边界",
-    content: "Agent 只能使用 GoodJob CRM 提供的工具和当前用户权限。不得猜测接口、业务对象或执行结果；只读要求禁止写入和发送。"
+    content: "Agent 只能使用 Meridian CRM 提供的工具和当前用户权限。不得猜测接口、业务对象或执行结果；只读要求禁止写入和发送。"
   };
   return {
     ...semantic,
@@ -443,7 +443,7 @@ export function retrieveAgentKnowledge(store: CrmStore, actor: AgentActor, query
 export function compileAgentKnowledgeEnvelope(store: CrmStore, actor: AgentActor, goal: string, context: AgentPlanContext = {}) {
   const hits = retrieveAgentKnowledge(store, actor, goal, { activeView: context.activeView, limit: 8 });
   return {
-    protocol: "goodjob-agent-context/v1",
+    protocol: "meridian-agent-context/v1",
     knowledgeVersion: hashKnowledge(hits.map((hit) => [hit.document.id, hit.document.version, hit.document.checksum])).slice(0, 16),
     retrievalMode: "structured+weighted-lexical+semantic-expansion",
     vectorEnabled: false,

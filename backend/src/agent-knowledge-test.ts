@@ -61,7 +61,7 @@ if (!retrieveAgentKnowledge(memoryStore, sales, "样品费用和地址", { activ
 if (listAgentKnowledgeDocuments(memoryStore, otherTeam).some((item) => item.id === draft.id)) throw new Error("cross-team knowledge leaked");
 
 const envelope = compileAgentKnowledgeEnvelope(memoryStore, sales, "发送样品前需要做什么", { activeView: "deals" });
-if (envelope.protocol !== "goodjob-agent-context/v1" || !envelope.knowledge.some((item) => item.id === draft.id)) {
+if (envelope.protocol !== "meridian-agent-context/v1" || !envelope.knowledge.some((item) => item.id === draft.id)) {
   throw new Error("knowledge context envelope failed");
 }
 

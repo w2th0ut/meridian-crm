@@ -18,7 +18,7 @@ const client = new NativeMcpClient({
 
 try {
   const discovery = await client.discoverTools();
-  assert.equal(discovery.serverName, "goodjob-fake-mcp");
+  assert.equal(discovery.serverName, "meridian-fake-mcp");
   assert.ok(discovery.protocolVersion);
   assert.deepEqual(discovery.tools.map((tool) => tool.remoteName).sort(), ["company.lookup", "schema.version"]);
   const lookup = discovery.tools.find((tool) => tool.remoteName === "company.lookup");

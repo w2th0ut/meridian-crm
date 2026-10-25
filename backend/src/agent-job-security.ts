@@ -25,7 +25,7 @@ function masterSecret() {
 
 function encryptionKey() {
   return createHash("sha256")
-    .update("goodjob-agent-job-payload-v1|")
+    .update("meridian-agent-job-payload-v1|")
     .update(masterSecret())
     .digest();
 }

@@ -16,8 +16,8 @@ import mysql from "mysql2/promise";
 
 const projectRoot = resolve(import.meta.dirname, "..");
 const sourceEnvPath = resolve(projectRoot, ".env");
-const personalDatabase = "goodjob_crm_personal";
-const developmentDatabase = "goodjob_crm_dev";
+const personalDatabase = "meridian_crm_personal";
+const developmentDatabase = "meridian_crm_dev";
 const adminUrl = "mysql://root@127.0.0.1:3306/mysql";
 
 if (!existsSync(sourceEnvPath)) throw new Error("缺少现有 .env，无法识别待迁移数据库");
@@ -127,7 +127,7 @@ if (existingRows.length) {
   await admin.end();
   throw new Error(`目标数据库已存在，已停止：${existingRows.map((item) => item.name).join(", ")}`);
 }
-const localUsers = ["goodjob_personal", "goodjob_dev", "goodjob_test"];
+const localUsers = ["meridian_personal", "meridian_dev", "meridian_test"];
 const [existingUsers] = await admin.query(
   "SELECT User AS name FROM mysql.user WHERE User IN (?, ?, ?)",
   localUsers
@@ -137,7 +137,7 @@ if (existingUsers.length) {
   throw new Error(`目标数据库账号已存在，已停止：${existingUsers.map((item) => item.name).join(", ")}`);
 }
 
-const backupDir = resolve(projectRoot, "../../GoodJob_private/database-backups");
+const backupDir = resolve(projectRoot, "../../Meridian_private/database-backups");
 mkdirSync(backupDir, { recursive: true, mode: 0o700 });
 const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
 const backupPath = resolve(backupDir, `${sourceDatabase}-${stamp}.sql.gz`);
@@ -167,9 +167,9 @@ await schemaConnection.query(schema);
 await schemaConnection.end();
 
 for (const [user, password] of [
-  ["goodjob_personal", personalPassword],
-  ["goodjob_dev", developmentPassword],
-  ["goodjob_test", testPassword]
+  ["meridian_personal", personalPassword],
+  ["meridian_dev", developmentPassword],
+  ["meridian_test", testPassword]
 ]) {
   await admin.query(
     `CREATE USER '${user}'@'127.0.0.1' IDENTIFIED BY ?`,
@@ -177,10 +177,10 @@ for (const [user, password] of [
   );
 }
 await admin.query(
-  `GRANT ALL PRIVILEGES ON \`${personalDatabase}\`.* TO 'goodjob_personal'@'127.0.0.1'`
+  `GRANT ALL PRIVILEGES ON \`${personalDatabase}\`.* TO 'meridian_personal'@'127.0.0.1'`
 );
 await admin.query(
-  `GRANT ALL PRIVILEGES ON \`${developmentDatabase}\`.* TO 'goodjob_dev'@'127.0.0.1'`
+  `GRANT ALL PRIVILEGES ON \`${developmentDatabase}\`.* TO 'meridian_dev'@'127.0.0.1'`
 );
 await admin.end();
 
@@ -189,7 +189,7 @@ const personalEnv = {
   APP_DATABASE_PROFILE: "personal",
   CRM_STORE: "mysql",
   CRM_SEED_DEVELOPMENT_DATA: "false",
-  DATABASE_URL: mysqlUrl("goodjob_personal", personalPassword, personalDatabase),
+  DATABASE_URL: mysqlUrl("meridian_personal", personalPassword, personalDatabase),
   PORT: "4188",
   VITE_API_TARGET: "http://127.0.0.1:4188"
 };
@@ -200,7 +200,7 @@ const developmentEnv = {
   APP_DATABASE_PROFILE: "development",
   CRM_STORE: "mysql",
   CRM_SEED_DEVELOPMENT_DATA: "true",
-  DATABASE_URL: mysqlUrl("goodjob_dev", developmentPassword, developmentDatabase),
+  DATABASE_URL: mysqlUrl("meridian_dev", developmentPassword, developmentDatabase),
   PORT: "4190",
   VITE_API_TARGET: "http://127.0.0.1:4190"
 };
@@ -212,7 +212,7 @@ const testEnv = {
   CRM_STORE: "mysql",
   CRM_SEED_DEVELOPMENT_DATA: "true",
   MYSQL_TEST_ADMIN_URL: adminUrl,
-  MYSQL_TEST_APP_URL: mysqlUrl("goodjob_test", testPassword)
+  MYSQL_TEST_APP_URL: mysqlUrl("meridian_test", testPassword)
 };
 delete testEnv.DATABASE_URL;
 delete testEnv.MYSQL_URL;

@@ -255,7 +255,7 @@ async function main() {
   const adminUrl = new URL(adminConnectionUrl);
   const appUrl = new URL(applicationUrl);
   const databaseName =
-    `goodjob_execution_test_${
+    `meridian_execution_test_${
       randomUUID().replaceAll("-", "").slice(0, 16)
     }`;
   const admin = await mysql.createConnection(connectionOptions(adminUrl));

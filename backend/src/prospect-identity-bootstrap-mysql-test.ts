@@ -30,7 +30,7 @@ async function main() {
     );
   }
   const adminUrl = new URL(configuredUrl);
-  const databaseName = `goodjob_identity_bootstrap_test_${
+  const databaseName = `meridian_identity_bootstrap_test_${
     randomUUID().replaceAll("-", "").slice(0, 12)
   }`;
   const admin = await mysql.createConnection(connectionOptions(adminUrl));

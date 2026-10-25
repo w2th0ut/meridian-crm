@@ -37,8 +37,8 @@ export interface MysqlImportEvent {
   message: string;
 }
 
-const IMPORT_LOCK_NAME = "goodjob_mysql_data_import";
-const INTERNAL_TABLES = new Set(["goodjob_data_import_jobs", "goodjob_schema_migrations"]);
+const IMPORT_LOCK_NAME = "meridian_mysql_data_import";
+const INTERNAL_TABLES = new Set(["meridian_data_import_jobs", "meridian_schema_migrations"]);
 
 function databaseUrl() {
   const value = process.env.DATABASE_URL || process.env.MYSQL_URL;
@@ -76,7 +76,7 @@ export class MysqlDataImportError extends Error {
 }
 
 async function ensureImportSchema(pool: Pool | PoolConnection) {
-  await pool.query(`CREATE TABLE IF NOT EXISTS goodjob_data_import_jobs (
+  await pool.query(`CREATE TABLE IF NOT EXISTS meridian_data_import_jobs (
     id VARCHAR(64) PRIMARY KEY,
     actor_id VARCHAR(64) NOT NULL,
     file_name VARCHAR(255) NOT NULL,
@@ -91,7 +91,7 @@ async function ensureImportSchema(pool: Pool | PoolConnection) {
     error_message VARCHAR(500) NULL,
     created_at DATETIME(3) NOT NULL,
     completed_at DATETIME(3) NULL,
-    INDEX idx_goodjob_import_actor_created(actor_id, created_at)
+    INDEX idx_meridian_import_actor_created(actor_id, created_at)
   ) ENGINE=InnoDB`);
   const additions: Array<[string, string]> = [
     ["phase", "VARCHAR(40) NOT NULL DEFAULT 'running'"],
@@ -103,13 +103,13 @@ async function ensureImportSchema(pool: Pool | PoolConnection) {
     ["events_json", "JSON NULL"]
   ];
   const [columnRows] = await pool.query(
-    "SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='goodjob_data_import_jobs'"
+    "SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='meridian_data_import_jobs'"
   );
   const existing = new Set((columnRows as Array<{ column_name: string }>).map((row) => String(row.column_name)));
   for (const [column, definition] of additions) {
     if (!existing.has(column)) {
       try {
-        await pool.query(`ALTER TABLE goodjob_data_import_jobs ADD COLUMN \`${column}\` ${definition}`);
+        await pool.query(`ALTER TABLE meridian_data_import_jobs ADD COLUMN \`${column}\` ${definition}`);
       } catch (err: any) {
         // Ignore "Duplicate column name" errors (ER_DUP_FIELDNAME / errno 1060)
         // Can happen due to concurrent calls or information_schema caching
@@ -216,7 +216,7 @@ export async function beginMysqlDataImport(input: {
     const totalRows = Object.values(tableRows).reduce((sum, value) => sum + Number(value || 0), 0);
     const events = [importEvent("queued", `迁移任务已建立，共 ${Object.keys(tableRows).length} 张表、${totalRows} 条记录${input.ignoredStatements ? `，忽略 ${input.ignoredStatements} 条非数据语句` : ""}`)];
     await pool.query(
-      `INSERT INTO goodjob_data_import_jobs
+      `INSERT INTO meridian_data_import_jobs
        (id, actor_id, file_name, file_size, file_sha256, conflict_mode, import_status,
         phase,current_table,total_tables,processed_tables,total_rows,processed_rows,
         imported_rows, skipped_rows, failed_rows, table_stats_json, events_json, created_at)
@@ -236,7 +236,7 @@ export async function listMysqlDataImports(limit = 30) {
   const pool = createImportPool();
   try {
     await ensureImportSchema(pool);
-    const [rows] = await pool.query("SELECT * FROM goodjob_data_import_jobs ORDER BY created_at DESC LIMIT ?", [Math.max(1, Math.min(100, limit))]);
+    const [rows] = await pool.query("SELECT * FROM meridian_data_import_jobs ORDER BY created_at DESC LIMIT ?", [Math.max(1, Math.min(100, limit))]);
     return (rows as Array<Record<string, any>>).map(rowToSummary);
   } finally {
     await pool.end();
@@ -248,7 +248,7 @@ export async function getMysqlDataImport(id: string, actorId: string) {
   try {
     await ensureImportSchema(pool);
     const [rows] = await pool.query(
-      "SELECT * FROM goodjob_data_import_jobs WHERE id = ? AND actor_id = ? LIMIT 1",
+      "SELECT * FROM meridian_data_import_jobs WHERE id = ? AND actor_id = ? LIMIT 1",
       [id, actorId]
     );
     const row = (rows as Array<Record<string, any>>)[0];
@@ -331,7 +331,7 @@ export async function importMysqlDataBatch(input: {
     lockAcquired = Number((lockRows as Array<{ acquired: number }>)[0]?.acquired || 0) === 1;
     if (!lockAcquired) throw new MysqlDataImportError(409, "另一个数据库迁移任务正在执行");
     const [jobRows] = await connection.query(
-      "SELECT * FROM goodjob_data_import_jobs WHERE id = ? AND actor_id = ? FOR UPDATE",
+      "SELECT * FROM meridian_data_import_jobs WHERE id = ? AND actor_id = ? FOR UPDATE",
       [input.jobId, input.actorId]
     );
     const jobRow = (jobRows as Array<Record<string, any>>)[0];
@@ -348,7 +348,7 @@ export async function importMysqlDataBatch(input: {
       const stats = mergeTableStats(summary.tableStats, input.table, 0, skipped, 0);
       if (input.tableComplete) events.push(importEvent("table", `${input.table} 在当前版本不存在，已跳过`, { table: input.table, level: "warning" }));
       await connection.query(
-        `UPDATE goodjob_data_import_jobs SET skipped_rows=skipped_rows+?, processed_rows=processed_rows+?,
+        `UPDATE meridian_data_import_jobs SET skipped_rows=skipped_rows+?, processed_rows=processed_rows+?,
          processed_tables=processed_tables+?, phase='data', current_table=?, table_stats_json=?, events_json=? WHERE id=?`,
         [skipped, input.rows.length, input.tableComplete ? 1 : 0, input.table, JSON.stringify(stats), JSON.stringify(events.slice(-500)), input.jobId]
       );
@@ -386,7 +386,7 @@ export async function importMysqlDataBatch(input: {
     const stats = mergeTableStats(summary.tableStats, input.table, imported, skipped, 0);
     if (input.tableComplete) events.push(importEvent("table", `${input.table} 迁移完成：写入 ${stats[input.table]!.imported}，跳过 ${stats[input.table]!.skipped}`, { table: input.table, level: "success" }));
     await connection.query(
-      `UPDATE goodjob_data_import_jobs
+      `UPDATE meridian_data_import_jobs
        SET imported_rows=imported_rows+?, skipped_rows=skipped_rows+?, processed_rows=processed_rows+?,
            processed_tables=processed_tables+?, phase='data', current_table=?, table_stats_json=?, events_json=?
        WHERE id=?`,
@@ -403,7 +403,7 @@ export async function importMysqlDataBatch(input: {
     if (!(error instanceof MysqlDataImportError && error.status === 409)) {
       try {
         const [rows] = await connection.query(
-          "SELECT * FROM goodjob_data_import_jobs WHERE id=? AND actor_id=? AND import_status='running' LIMIT 1",
+          "SELECT * FROM meridian_data_import_jobs WHERE id=? AND actor_id=? AND import_status='running' LIMIT 1",
           [input.jobId, input.actorId]
         );
         const row = (rows as Array<Record<string, any>>)[0];
@@ -413,7 +413,7 @@ export async function importMysqlDataBatch(input: {
           const message = error instanceof Error ? error.message : "数据批次迁移失败";
           const events = [...summary.events, importEvent("table", message, { table: input.table, level: "error" })].slice(-500);
           await connection.query(
-            `UPDATE goodjob_data_import_jobs SET failed_rows=failed_rows+?, processed_rows=processed_rows+?,
+            `UPDATE meridian_data_import_jobs SET failed_rows=failed_rows+?, processed_rows=processed_rows+?,
              current_table=?, table_stats_json=?, events_json=? WHERE id=?`,
             [input.rows.length, input.rows.length, input.table, JSON.stringify(stats), JSON.stringify(events), input.jobId]
           );
@@ -442,7 +442,7 @@ export async function completeMysqlDataImport(jobId: string, actorId: string) {
     const current = await getMysqlDataImport(jobId, actorId);
     const events = [...current.events, importEvent("completed", `迁移完成：写入 ${current.importedRows}，跳过 ${current.skippedRows}`, { level: "success" })].slice(-500);
     await pool.query(
-      `UPDATE goodjob_data_import_jobs
+      `UPDATE meridian_data_import_jobs
        SET import_status='completed', phase='completed', current_table='', events_json=?, completed_at=NOW(3)
        WHERE id=? AND actor_id=? AND import_status='running'`,
       [JSON.stringify(events), jobId, actorId]
@@ -460,7 +460,7 @@ export async function failMysqlDataImport(jobId: string, actorId: string, messag
     const current = await getMysqlDataImport(jobId, actorId);
     const events = [...current.events, importEvent("failed", message, { table: current.currentTable, level: "error" })].slice(-500);
     await pool.query(
-      `UPDATE goodjob_data_import_jobs
+      `UPDATE meridian_data_import_jobs
        SET import_status='failed', phase='failed', error_message=?, events_json=?, completed_at=NOW(3)
        WHERE id=? AND actor_id=? AND import_status='running'`,
       [message.slice(0, 500), JSON.stringify(events), jobId, actorId]
@@ -478,7 +478,7 @@ export async function cancelMysqlDataImport(jobId: string, actorId: string) {
     if (current.status !== "running") return current;
     const events = [...current.events, importEvent("cancelled", "管理员已取消迁移", { level: "warning" })].slice(-500);
     await pool.query(
-      `UPDATE goodjob_data_import_jobs SET import_status='cancelled', phase='cancelled', events_json=?, completed_at=NOW(3)
+      `UPDATE meridian_data_import_jobs SET import_status='cancelled', phase='cancelled', events_json=?, completed_at=NOW(3)
        WHERE id=? AND actor_id=? AND import_status='running'`,
       [JSON.stringify(events), jobId, actorId]
     );

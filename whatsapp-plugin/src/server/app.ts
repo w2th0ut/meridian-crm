@@ -763,7 +763,7 @@ export async function createAppRuntime(config: AppConfig): Promise<AppRuntime> {
       } catch { return false; }
     })();
     const checks: CommercialReadinessCheck[] = [
-      { key: "crm_auth", label: "CRM 身份与权限", detail: "当前请求已通过 GoodJob CRM 会话身份验证。", status: "pass", actionView: null },
+      { key: "crm_auth", label: "CRM 身份与权限", detail: "当前请求已通过 Meridian CRM 会话身份验证。", status: "pass", actionView: null },
       { key: "crm_adapter", label: "CRM 待办与站内信通道", detail: crm.ok ? "即刻沟通可以使用当前用户身份访问 CRM。" : crm.error ?? "CRM 连接失败。", status: crm.ok ? "pass" : "blocking", actionView: "diagnostics" },
       { key: "official_strategy", label: "官方通道策略", detail: preference.defaultProvider === "meta" ? "新账号默认使用 Meta 官方通道。" : "当前仍默认创建免费通道账号，正式上线建议切换为官方优先。", status: preference.defaultProvider === "meta" ? "pass" : "warning", actionView: "access" },
       { key: "meta_app", label: "Meta App 密钥", detail: apps.length ? `已加密保存 ${apps.length} 个 Meta App。` : "尚未保存 Meta App、App Secret 与 Verify Token。", status: apps.length ? "pass" : "blocking", actionView: "access" },
@@ -1837,7 +1837,7 @@ export async function createAppRuntime(config: AppConfig): Promise<AppRuntime> {
             id: input.externalContact.id,
             phone: input.externalContact.phone,
             name: input.externalContact.name,
-            source: "goodjob_crm",
+            source: "meridian_crm",
             sourceContactId: input.externalContact.id,
             createdAt: new Date().toISOString()
           }

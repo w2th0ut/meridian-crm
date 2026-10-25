@@ -12,7 +12,7 @@ import {
 
 const config = {
   corpId: "ww_test_corp",
-  callbackToken: "goodjob-callback-token",
+  callbackToken: "meridian-callback-token",
   encodingAesKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
 };
 const xml = "<xml><ToUserName><![CDATA[ww_test_corp]]></ToUserName><FromUserName><![CDATA[zhangsan]]></FromUserName><CreateTime>1720000000</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[查我的待办]]></Content><MsgId>123456</MsgId><AgentID>1000001</AgentID></xml>";

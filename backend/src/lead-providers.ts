@@ -226,7 +226,7 @@ function anySearchHeaders(apiKey: string) {
   const headers: Record<string, string> = {
     accept: "application/json",
     "content-type": "application/json",
-    "X-Anysearch-Client": "goodjobcrm"
+    "X-Anysearch-Client": "meridiancrm"
   };
   if (apiKey.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`;
   return headers;

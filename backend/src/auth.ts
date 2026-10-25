@@ -14,8 +14,8 @@ export {
 } from "./authorization.js";
 
 const scrypt = promisify(scryptCallback);
-const TOKEN_ISSUER = "goodjob-crm";
-const TOKEN_AUDIENCE = "goodjob-crm-web";
+const TOKEN_ISSUER = "meridian-crm";
+const TOKEN_AUDIENCE = "meridian-crm-web";
 const TOKEN_TTL_SECONDS = 8 * 60 * 60;
 
 /**

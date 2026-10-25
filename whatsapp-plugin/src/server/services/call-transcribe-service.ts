@@ -109,7 +109,7 @@ function resolveBinary(): string {
   const explicit = String(process.env.WHISPER_SERVER_BIN ?? "").trim();
   if (explicit) return explicit;
   return firstExisting([
-    path.join(os.homedir(), ".goodjob-whisper", "bin", "whisper-server"),
+    path.join(os.homedir(), ".meridian-whisper", "bin", "whisper-server"),
     "/opt/homebrew/bin/whisper-server",
     "/usr/local/bin/whisper-server"
   ]);
@@ -125,10 +125,10 @@ function resolveModel(): { name: string; modelPath: string } {
   if (explicit) return { name: path.basename(explicit).replace(/^ggml-|\.bin$/g, ""), modelPath: explicit };
   const home = os.homedir();
   const candidates = [
-    path.join(home, ".goodjob-whisper", "models", "ggml-small.bin"),
-    path.join(home, ".goodjob-whisper", "ggml-small.bin"),
-    path.join(home, ".goodjob-whisper", "models", "ggml-base.bin"),
-    path.join(home, ".goodjob-whisper", "ggml-base.bin")
+    path.join(home, ".meridian-whisper", "models", "ggml-small.bin"),
+    path.join(home, ".meridian-whisper", "ggml-small.bin"),
+    path.join(home, ".meridian-whisper", "models", "ggml-base.bin"),
+    path.join(home, ".meridian-whisper", "ggml-base.bin")
   ];
   const modelPath = firstExisting(candidates);
   const name = modelPath ? path.basename(modelPath).replace(/^ggml-|\.bin$/g, "") : "small";

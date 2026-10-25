@@ -43,7 +43,7 @@ async function request(path: string, token = "", init: RequestInit = {}) {
 async function login(email: string) {
   const result = await request("/api/auth/login", "", {
     method: "POST",
-    body: JSON.stringify({ email, password: "goodjob123" })
+    body: JSON.stringify({ email, password: "meridian123" })
   });
   assert.equal(result.response.status, 200, `登录失败：${email}`);
   return String(result.json.token);
@@ -53,8 +53,8 @@ const now = new Date().toISOString();
 
 try {
   const store = getStore();
-  const manager = store.users.find((item) => item.email === "alex@goodjob.com")!;
-  const sales = store.users.find((item) => item.email === "shirley@goodjob.com")!;
+  const manager = store.users.find((item) => item.email === "alex@meridian.com")!;
+  const sales = store.users.find((item) => item.email === "shirley@meridian.com")!;
   const teamId = manager.teamId;
 
   // 词表走内存档位（与生产同一份接口语义）；先清空，保证用例之间不互相污染。
@@ -65,8 +65,8 @@ try {
   const otherTeamUser = {
     id: `u_hub_asia_${randomUUID().slice(0, 8)}`,
     name: "Hub Asia",
-    email: `hub-asia-${randomUUID().slice(0, 8)}@goodjob.com`,
-    password: "goodjob123",
+    email: `hub-asia-${randomUUID().slice(0, 8)}@meridian.com`,
+    password: "meridian123",
     role: "sales" as const,
     teamId: "asia",
     avatar: "HA",
@@ -114,7 +114,7 @@ try {
     title: "产品技术资料 Technical Data",
     category: "产品资料",
     sourceType: "external_url" as const,
-    sourceUrl: "https://docs.goodjob.test/technical-data.pdf",
+    sourceUrl: "https://docs.meridian.test/technical-data.pdf",
     fileType: "word" as const
   });
   const assetDraft = seedAsset({
@@ -224,8 +224,8 @@ try {
     quotedAt: now
   } as (typeof store.quoteHistory)[number]);
 
-  const managerToken = await login("alex@goodjob.com");
-  const salesToken = await login("shirley@goodjob.com");
+  const managerToken = await login("alex@meridian.com");
+  const salesToken = await login("shirley@meridian.com");
   const asiaToken = await login(otherTeamUser.email);
 
   /* ---------------- 1. 目录：四源合并 + 三层可见性 ---------------- */
@@ -981,7 +981,7 @@ try {
   /* ---------------- 18. 目录快照：面向插件的资料库视图（含治理口径） ---------------- */
 
   {
-    const token = await login("alex@goodjob.com");
+    const token = await login("alex@meridian.com");
 
     // 这是**对外**接口，不能因为"只读"就放开
     const anonymous = await request("/api/agent/resources/catalog");

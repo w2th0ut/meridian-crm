@@ -16,7 +16,7 @@ import {
 import type { ProspectProviderRequestDispatch } from "./types.js";
 
 const idempotencySecret =
-  "goodjob-provider-request-ledger-test-secret-2026";
+  "meridian-provider-request-ledger-test-secret-2026";
 
 function success(
   acceptedCount: number,

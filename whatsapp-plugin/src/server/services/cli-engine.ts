@@ -31,7 +31,7 @@ const WARM_IDLE_MS = 30 * 60_000;
 const WARM_READY_MS = 2_500;
 
 /**
- * ⚠️ 这份清单与 `goodjob-runner/src/workbuddy-adapter.ts::STRIPPED_ENVIRONMENT_KEYS` 是同一份知识，
+ * ⚠️ 这份清单与 `meridian-runner/src/workbuddy-adapter.ts::STRIPPED_ENVIRONMENT_KEYS` 是同一份知识，
  * 修改时必须两边一起改。它是本机跑 CLI 最容易踩的一坨坑，逐条原因见下：
  *
  * - NODE_OPTIONS：宿主预加载补丁脚本，会破坏 CLI 的全局 fetch。
@@ -190,17 +190,17 @@ export function sanitizeCliEffort(value: unknown): string {
 
 /**
  * 自动回复依赖的技能名（目录名与 frontmatter `name` 必须逐字一致）。
- * 插件自带这个技能：`<插件>/skills/goodjob-auto-reply/SKILL.md`。
+ * 插件自带这个技能：`<插件>/skills/meridian-auto-reply/SKILL.md`。
  */
-export const AUTO_REPLY_SKILL = "goodjob-auto-reply";
+export const AUTO_REPLY_SKILL = "meridian-auto-reply";
 
 /**
- * 资源挑选（资料推荐复排）依赖的技能名。同样自带：`<插件>/skills/goodjob-resource-scout/SKILL.md`。
+ * 资源挑选（资料推荐复排）依赖的技能名。同样自带：`<插件>/skills/meridian-resource-scout/SKILL.md`。
  *
  * 与自动回复技能是**两个独立技能**：一个管「这句话怎么回」，一个管「这次该发哪几份资料」。
  * 合成一个技能会让提示词里塞两套方法论，反而两边都做不好。
  */
-export const RESOURCE_SCOUT_SKILL = "goodjob-resource-scout";
+export const RESOURCE_SCOUT_SKILL = "meridian-resource-scout";
 
 /**
  * 提示词**首行**的技能点名。
@@ -217,8 +217,8 @@ export function cliSkillDirective(skill: string = AUTO_REPLY_SKILL): string {
 }
 
 /**
- * 技能扫描目录解析，顺序与 Runner 侧同名逻辑保持一致（`GOODJOB_SKILLS_DIRS` 优先）：
- * 1. 显式配置（环境变量 `GOODJOB_SKILLS_DIRS` / 构造参数）；
+ * 技能扫描目录解析，顺序与 Runner 侧同名逻辑保持一致（`MERIDIAN_SKILLS_DIRS` 优先）：
+ * 1. 显式配置（环境变量 `MERIDIAN_SKILLS_DIRS` / 构造参数）；
  * 2. 插件自带的 `skills/`（随包发布，**无需任何安装步骤**就能用上自动回复技能）；
  * 3. 工作区里的 `.workbuddy/skills`（与 Runner 共用同一份安装位置）。
  * 都找不到就返回空串——CLI 会正常跑，只是没有技能（由 status 上报，不让它静默）。

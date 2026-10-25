@@ -14,8 +14,8 @@ import jwt from "jsonwebtoken";
 export function crmIdentityToken(secret: string, userId: string): string {
   return jwt.sign({ ver: 1 }, secret, {
     subject: userId,
-    issuer: "goodjob-crm",
-    audience: "goodjob-crm-web",
+    issuer: "meridian-crm",
+    audience: "meridian-crm-web",
     expiresIn: "10m",
     algorithm: "HS256"
   });

@@ -5,7 +5,7 @@ interface ClientOptions {
   token?: string;
 }
 
-export class GoodJobRunnerClient {
+export class MeridianRunnerClient {
   constructor(private readonly options: ClientOptions) {}
 
   private async request<T>(path: string, input: object, authenticated = true): Promise<T> {

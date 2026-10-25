@@ -3,7 +3,7 @@ import {
   canonicalManifestJson,
   connectorManifestHash,
   validateConnectorManifest
-} from "@goodjob/integration-connector-sdk";
+} from "@meridian/integration-connector-sdk";
 import { createRequire } from "node:module";
 import { assertObjectScope, authorize, resolveDataScope, type DataScope } from "../authorization.js";
 import { canSeeOwner, hasIamPermission, hasIamScope, isPlatformIdentity, publicUser } from "../auth.js";

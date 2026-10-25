@@ -54,21 +54,21 @@ function encryptionKey() {
 
 function aiModelEncryptionKey() {
   return createHash("sha256")
-    .update("goodjob-ai-model-api-key-v1|")
+    .update("meridian-ai-model-api-key-v1|")
     .update(credentialSecret())
     .digest();
 }
 
 function providerResponseCacheEncryptionKey() {
   return createHash("sha256")
-    .update("goodjob-provider-response-cache-v1|")
+    .update("meridian-provider-response-cache-v1|")
     .update(credentialSecret())
     .digest();
 }
 
 function mailCredentialEncryptionKey() {
   return createHash("sha256")
-    .update("goodjob-mail-credential-v1|")
+    .update("meridian-mail-credential-v1|")
     .update(credentialSecret())
     .digest();
 }

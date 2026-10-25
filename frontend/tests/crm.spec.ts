@@ -14,15 +14,15 @@ async function loginWithCredentials(page: import("@playwright/test").Page, email
 }
 
 async function loginAsManager(page: import("@playwright/test").Page) {
-  await loginWithCredentials(page, "alex@goodjob.com", "goodjob123", "Alex");
+  await loginWithCredentials(page, "alex@meridian.com", "meridian123", "Alex");
 }
 
 async function loginAsSales(page: import("@playwright/test").Page) {
-  await loginWithCredentials(page, "shirley@goodjob.com", "goodjob123", "Shirley");
+  await loginWithCredentials(page, "shirley@meridian.com", "meridian123", "Shirley");
 }
 
 async function loginAsAdmin(page: import("@playwright/test").Page) {
-  await loginWithCredentials(page, "admin@goodjob.com", "goodjob123", "Admin");
+  await loginWithCredentials(page, "admin@meridian.com", "meridian123", "Admin");
 }
 
 async function apiFromPage<T>(
@@ -453,7 +453,7 @@ function buildCustomerWorkbookBuffer(company: string) {
   return Buffer.from(XLSX.write(workbook, { bookType: "xlsx", type: "buffer" }));
 }
 
-test.describe("GoodJob CRM prototype pages", () => {
+test.describe("Meridian CRM prototype pages", () => {
   let runId: string;
 
   test.beforeEach(async ({ page }) => {
@@ -1246,7 +1246,7 @@ test.describe("GoodJob CRM prototype pages", () => {
       body: {
         outboundEmail: "admin.sender@example.com",
         emailSenderName: "Admin Sales",
-        emailSignature: "Best regards,\nAdmin Sales\nGoodJob Export",
+        emailSignature: "Best regards,\nAdmin Sales\nMeridian Export",
         smtpHost: "smtp.example.com",
         smtpPort: 465,
         smtpSecure: true,
@@ -1258,9 +1258,9 @@ test.describe("GoodJob CRM prototype pages", () => {
     await page.reload();
     await expect(page.locator("body")).toHaveClass(/is-authenticated/);
     await openView(page, "settings");
-    await page.locator("#companyProfileName").fill("GoodJob Export Ltd.");
-    await page.locator("#companyProfileWebsite").fill("https://goodjob.example.com");
-    await page.locator("#companyProfileEmail").fill("sales@goodjob.example.com");
+    await page.locator("#companyProfileName").fill("Meridian Export Ltd.");
+    await page.locator("#companyProfileWebsite").fill("https://meridian.example.com");
+    await page.locator("#companyProfileEmail").fill("sales@meridian.example.com");
     await page.locator("#companyProfileProducts").fill("industrial lighting and export sourcing solutions");
     await page.locator("#companyProfilePhone").fill("+86 755 0000 0000");
     await page.locator("#companyProfileAddress").fill("Shenzhen, China");
@@ -1274,7 +1274,7 @@ test.describe("GoodJob CRM prototype pages", () => {
       body: {
         outboundEmail: "shirley.sender@example.com",
         emailSenderName: "Shirley",
-        emailSignature: "Best regards,\nShirley\nGoodJob Export",
+        emailSignature: "Best regards,\nShirley\nMeridian Export",
         smtpHost: "smtp.example.com",
         smtpPort: 465,
         smtpSecure: true,
@@ -1787,7 +1787,7 @@ test.describe("GoodJob CRM prototype pages", () => {
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#exportCustomersButton").click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toContain("GoodJob客户清单");
+    expect(download.suggestedFilename()).toContain("Meridian客户清单");
     await expect(page.locator("#imports tbody")).toContainText("客户清单导出");
   });
 
@@ -2083,12 +2083,12 @@ test.describe("GoodJob CRM prototype pages", () => {
     await expect(page.locator("#settings .page-head .btn", { hasText: "新增账号" })).toBeDisabled();
 
     await page.locator("#logoutButton").click();
-    await loginWithCredentials(page, "admin@goodjob.com", "goodjob123", "Admin");
+    await loginWithCredentials(page, "admin@meridian.com", "meridian123", "Admin");
     await openView(page, "settings");
     await expect(page.locator("#settings tbody")).not.toContainText("Super Admin");
     await page.locator("#settings .page-head .btn", { hasText: "新增账号" }).click();
     await page.locator("#accountNameInput").fill(accountName);
-    await page.locator("#accountEmailInput").fill(`auto.account.${runId}@goodjob.com`);
+    await page.locator("#accountEmailInput").fill(`auto.account.${runId}@meridian.com`);
     await page.locator("#accountPasswordInput").fill(`pw${runId}`);
     await page.locator("#accountRoleInput").selectOption("sales");
     await page.locator("#saveAccountButton").click();
@@ -2099,10 +2099,10 @@ test.describe("GoodJob CRM prototype pages", () => {
     await page.locator("#savePasswordButton").click();
     await expect(page.locator(".toast").last()).toContainText("密码已更新");
     await page.locator("#logoutButton").click();
-    await loginWithCredentials(page, `auto.account.${runId}@goodjob.com`, `newpw${runId}`, accountName);
+    await loginWithCredentials(page, `auto.account.${runId}@meridian.com`, `newpw${runId}`, accountName);
     await expect(page.locator("#settings tbody")).not.toContainText("Super Admin");
     await page.locator("#logoutButton").click();
-    await loginWithCredentials(page, "admin@goodjob.com", "goodjob123", "Admin");
+    await loginWithCredentials(page, "admin@meridian.com", "meridian123", "Admin");
     await openView(page, "settings");
     await page.locator("#settings tbody tr", { hasText: accountName }).first().getByRole("button", { name: "停用" }).click();
     await expect(page.locator("#settings tbody tr", { hasText: accountName }).first()).toContainText("停用");
@@ -3751,7 +3751,7 @@ test.describe("GoodJob CRM prototype pages", () => {
     const outboundEmail = `alex.sender.${runId}@example.com`;
     await page.locator("#profileOutboundEmail").fill(outboundEmail);
     await page.locator("#profileSenderName").fill("Alex Export");
-    await page.locator("#profileEmailSignature").fill("Best regards\\nAlex Export\\nGoodJob CRM");
+    await page.locator("#profileEmailSignature").fill("Best regards\\nAlex Export\\nMeridian CRM");
     await page.locator("#profileSaveButton").click();
     await expect(page.locator(".toast").last()).toContainText("个人邮箱配置已保存");
     await expect(page.locator("#profileEmailStatus")).toContainText(outboundEmail);
@@ -3920,7 +3920,7 @@ test.describe("GoodJob CRM prototype pages", () => {
         const loginResponse = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password: "goodjob123" })
+          body: JSON.stringify({ email, password: "meridian123" })
         });
         const login = await loginResponse.json();
         const reportResponse = await fetch("/api/reports/executive", {
@@ -3929,8 +3929,8 @@ test.describe("GoodJob CRM prototype pages", () => {
         return reportResponse.json();
       };
       return {
-        sales: await readReport("shirley@goodjob.com"),
-        admin: await readReport("admin@goodjob.com")
+        sales: await readReport("shirley@meridian.com"),
+        admin: await readReport("admin@meridian.com")
       };
     });
     expect(scopedReports.sales.scope.label).toBe("本人业务");
@@ -3940,7 +3940,7 @@ test.describe("GoodJob CRM prototype pages", () => {
       await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "alex@goodjob.com", password: "goodjob123" })
+        body: JSON.stringify({ email: "alex@meridian.com", password: "meridian123" })
       });
     });
 
@@ -3955,7 +3955,7 @@ test.describe("GoodJob CRM prototype pages", () => {
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#reportExportButton").click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toContain("GoodJob-CRM");
+    expect(download.suggestedFilename()).toContain("Meridian-CRM");
     const downloadPath = await download.path();
     expect(downloadPath).not.toBeNull();
     const exportText = await readFile(downloadPath!, "utf8");

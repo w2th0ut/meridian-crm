@@ -192,8 +192,8 @@ describe("资源推荐：插件 ↔ CRM ↔ CLI 的闭环", () => {
 
   const ownerToken = jwt.sign({ ver: 1 }, SECRET, {
     subject: OWNER,
-    issuer: "goodjob-crm",
-    audience: "goodjob-crm-web",
+    issuer: "meridian-crm",
+    audience: "meridian-crm-web",
     expiresIn: "2h",
     algorithm: "HS256"
   });
@@ -239,7 +239,7 @@ process.stdin.on("end", () => {
   } else {
     const probes = [
       ["company", "ACME-RESOURCE-MARKER GmbH"],
-      ["engineName", "goodjob-auto-reply"]
+      ["engineName", "meridian-auto-reply"]
     ];
     text = JSON.stringify({
       reply: probes.map(([name, needle]) => (prompt.includes(needle) ? name + "=1" : name + "=0")).join(" "),
@@ -278,7 +278,7 @@ process.stdin.on("end", () => {
       let subject = "";
       let authorized = false;
       try {
-        const payload = jwt.verify(token, SECRET, { issuer: "goodjob-crm", audience: "goodjob-crm-web" });
+        const payload = jwt.verify(token, SECRET, { issuer: "meridian-crm", audience: "meridian-crm-web" });
         subject = String((payload as { sub?: string }).sub ?? "");
         authorized = Boolean(subject);
       } catch {
@@ -496,9 +496,9 @@ process.stdin.on("end", () => {
     expect(resourcePrompt).toBeTruthy();
     expect(resourcePrompt!).toContain(FILE_TITLE);
     expect(resourcePrompt!).toContain(`file:${FILE_ID}`);
-    expect(resourcePrompt!).toContain('load your skill "goodjob-resource-scout"');
+    expect(resourcePrompt!).toContain('load your skill "meridian-resource-scout"');
     const replyPrompt = prompts.find((prompt) => !prompt.includes("candidateMaterials"));
-    expect(replyPrompt!).toContain('load your skill "goodjob-auto-reply"');
+    expect(replyPrompt!).toContain('load your skill "meridian-auto-reply"');
   });
 
   it("withReply:false 时不出回复，只出资料", async () => {

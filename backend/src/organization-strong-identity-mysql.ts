@@ -46,9 +46,9 @@ const CANONICAL_VERSION = "canonical-json-v1";
 const ENVELOPE_VERSION = "organization-identity-field-v1";
 const HKDF_VERSION = "hkdf-sha256-v1";
 const KEY_VERSION = "v1";
-const SCHEMA_LOCK = "goodjob_organization_identity_schema_v1";
+const SCHEMA_LOCK = "meridian_organization_identity_schema_v1";
 const FROZEN_TABLE_ENGINE = "InnoDB";
-const HKDF_SALT = Buffer.from("goodjob-organization-identity-v1", "utf8");
+const HKDF_SALT = Buffer.from("meridian-organization-identity-v1", "utf8");
 const IDENTITY_TABLES = [
   "organizations",
   "organization_identity_claims",

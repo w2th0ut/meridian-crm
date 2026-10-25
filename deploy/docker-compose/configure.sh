@@ -15,7 +15,7 @@ if [[ -e "$ENV_FILE" || -d "$SECRETS_DIR" ]]; then
   die "$SHARED_DIR 已有配置。为避免覆盖现有生产凭据，本脚本拒绝重复配置"
 fi
 
-read -r -p "GoodJob 专属域名（不含 http/https）：" DOMAIN
+read -r -p "Meridian 专属域名（不含 http/https）：" DOMAIN
 DOMAIN="${DOMAIN,,}"
 [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] \
   || die "域名格式不正确"
@@ -29,8 +29,8 @@ else
   SESSION_COOKIE_SECURE=false
 fi
 
-DEFAULT_INITIAL_ADMIN_EMAIL="admin@goodjob.com"
-DEFAULT_INITIAL_ADMIN_NAME="GoodJob Admin"
+DEFAULT_INITIAL_ADMIN_EMAIL="admin@meridian.com"
+DEFAULT_INITIAL_ADMIN_NAME="Meridian Admin"
 
 read -r -p "首次超级管理员邮箱 [$DEFAULT_INITIAL_ADMIN_EMAIL]：" INITIAL_ADMIN_EMAIL
 INITIAL_ADMIN_EMAIL="${INITIAL_ADMIN_EMAIL:-$DEFAULT_INITIAL_ADMIN_EMAIL}"
@@ -71,7 +71,7 @@ unset INITIAL_ADMIN_PASSWORD
     number="$(printf '%02d' "$sequence")"
     team_number="$(printf '%03d' "$sequence")"
     password="$(openssl rand -hex 24)"
-    printf '%s\tGoodJob Admin %s\tbeta-admin-%s@goodjob-crm.com\tbeta-%s\t%s\n' \
+    printf '%s\tMeridian Admin %s\tbeta-admin-%s@meridian-crm.com\tbeta-%s\t%s\n' \
       "$sequence" "$number" "$number" "$team_number" "$password"
   done
 } > "$SECRETS_DIR/admin_credentials.tsv"
@@ -104,23 +104,23 @@ chown 0:1000 "$SECRETS_DIR"/*
 chmod 0640 "$SECRETS_DIR"/*
 
 cat > "$ENV_FILE" <<EOF
-COMPOSE_PROJECT_NAME=goodjobcrm
-GOODJOB_SHARED_DIR=$SHARED_DIR
+COMPOSE_PROJECT_NAME=meridiancrm
+MERIDIAN_SHARED_DIR=$SHARED_DIR
 DOMAIN=$DOMAIN
 PUBLIC_SCHEME=$PUBLIC_SCHEME
 PUBLIC_ORIGIN=$PUBLIC_SCHEME://$DOMAIN
 SESSION_COOKIE_SECURE=$SESSION_COOKIE_SECURE
-GOODJOB_HTTP_PORT=4188
-GOODJOB_IMAGE_MODE=registry
-GOODJOB_BACKEND_IMAGE=crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_goodjobcrm/backend
-GOODJOB_GATEWAY_IMAGE=crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_goodjobcrm/gateway
-GOODJOB_COMMUNICATION_IMAGE=crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_goodjobcrm/communication
+MERIDIAN_HTTP_PORT=4188
+MERIDIAN_IMAGE_MODE=registry
+MERIDIAN_BACKEND_IMAGE=crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_meridiancrm/backend
+MERIDIAN_GATEWAY_IMAGE=crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_meridiancrm/gateway
+MERIDIAN_COMMUNICATION_IMAGE=crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_meridiancrm/communication
 INITIAL_ADMIN_EMAIL=$INITIAL_ADMIN_EMAIL
 INITIAL_ADMIN_NAME=$INITIAL_ADMIN_NAME
-MYSQL_DATABASE=goodjob_crm_prod
-MYSQL_USER=goodjob_crm_app
+MYSQL_DATABASE=meridian_crm_prod
+MYSQL_USER=meridian_crm_app
 ENABLE_API_DOCS=true
-GOODJOB_BACKUP_RETENTION_COUNT=10
+MERIDIAN_BACKUP_RETENTION_COUNT=10
 MYSQL_MEMORY_LIMIT=768m
 MYSQL_CPU_LIMIT=1.0
 BACKEND_MEMORY_LIMIT=640m

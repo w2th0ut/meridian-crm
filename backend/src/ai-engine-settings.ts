@@ -30,7 +30,7 @@ export type AiEngineAdapter = "workbuddy" | "codex";
 // 不配置的团队也会显式传 `--model`，不再受登录账号影响。
 //
 // 三处白名单必须一致：本文件 / CLI 的 `--help`（supported list）/ Runner 的 MODEL_IDS
-// （goodjob-runner/src/workbuddy-adapter.ts）。Runner 侧对非法取值静默忽略，
+// （meridian-runner/src/workbuddy-adapter.ts）。Runner 侧对非法取值静默忽略，
 // 所以这里也要挡一道，避免用户存下一个永远不生效的值。
 // ---------------------------------------------------------------------------
 export interface AiEngineCliModelOption {

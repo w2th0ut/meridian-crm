@@ -6,7 +6,7 @@ source "$SCRIPT_DIR/lib.sh"
 load_env
 "$SCRIPT_DIR/preflight.sh"
 
-if [[ "$(image_mode)" == "local" && ( ! -f "$PACKAGE_ROOT/backend/dist/server.js" || "${GOODJOB_BUILD_BEFORE_INSTALL:-false}" == "true" ) ]]; then
+if [[ "$(image_mode)" == "local" && ( ! -f "$PACKAGE_ROOT/backend/dist/server.js" || "${MERIDIAN_BUILD_BEFORE_INSTALL:-false}" == "true" ) ]]; then
   log "未检测到可用生产构建，使用 Node.js Docker 构建器生成构建产物"
   "$SCRIPT_DIR/build-in-docker.sh"
 fi
@@ -27,9 +27,9 @@ cleanup_install() {
     if [[ -n "$current_release" ]]; then
       rm -f "$STATE_DIR/install-intent"
       log "新版本部署失败，尝试恢复上一版应用容器：$current_release"
-      export GOODJOB_RELEASE_ID="$current_release"
+      export MERIDIAN_RELEASE_ID="$current_release"
       compose up -d --no-build backend communication gateway >/dev/null 2>&1 || true
-      if wait_for_url "http://127.0.0.1:${GOODJOB_HTTP_PORT}/api/health" 30; then
+      if wait_for_url "http://127.0.0.1:${MERIDIAN_HTTP_PORT}/api/health" 30; then
         log "上一版应用容器已恢复；数据库迁移不会自动回滚，请根据备份评估"
       else
         warn "上一版应用容器自动恢复失败，请执行 ./rollback.sh 并查看 ./manage.sh logs 200"
@@ -45,7 +45,7 @@ cleanup_install() {
 trap cleanup_install EXIT
 
 new_release="$(release_id)"
-export GOODJOB_RELEASE_ID="$new_release"
+export MERIDIAN_RELEASE_ID="$new_release"
 current_release="$(cat "$STATE_DIR/current-release" 2>/dev/null || true)"
 install_intent="$(cat "$STATE_DIR/install-intent" 2>/dev/null || true)"
 if [[ -n "$install_intent" && "$install_intent" != "$new_release" ]]; then
@@ -61,15 +61,15 @@ if [[ -n "$current_release" ]]; then
 fi
 
 if [[ "$(image_mode)" == "registry" ]]; then
-  log "拉取 GoodJob $new_release ACR 镜像（服务器不在本地编译）"
+  log "拉取 Meridian $new_release ACR 镜像（服务器不在本地编译）"
   compose pull backend-migrate communication-migrate backend communication gateway
 else
-  log "构建 GoodJob $new_release 本地镜像（不会重启 Docker daemon）"
+  log "构建 Meridian $new_release 本地镜像（不会重启 Docker daemon）"
   COMPOSE_PARALLEL_LIMIT=1 compose --profile tools build backend-migrate communication-migrate gateway
 fi
 
 legacy_postgres_volume=false
-if docker volume inspect goodjobcrm_postgres_data >/dev/null 2>&1; then
+if docker volume inspect meridiancrm_postgres_data >/dev/null 2>&1; then
   legacy_postgres_volume=true
 fi
 
@@ -114,12 +114,12 @@ if [[ "$legacy_postgres_volume" == true ]]; then
   fi
   cleanup_legacy_postgres
   legacy_postgres_started=false
-  warn "旧 PostgreSQL 数据卷 goodjobcrm_postgres_data 已停用但未删除，可用于人工回滚"
+  warn "旧 PostgreSQL 数据卷 meridiancrm_postgres_data 已停用但未删除，可用于人工回滚"
 fi
 
 log "启动应用容器"
 compose up -d --no-build backend communication gateway
-if ! wait_for_url "http://127.0.0.1:${GOODJOB_HTTP_PORT}/api/health" 60; then
+if ! wait_for_url "http://127.0.0.1:${MERIDIAN_HTTP_PORT}/api/health" 60; then
   compose ps
   compose logs --tail 120 backend communication gateway >&2 || true
   die "应用在 120 秒内未通过健康检查；数据库卷未删除"
@@ -154,5 +154,5 @@ for service in backend communication gateway; do
   done < <(docker image ls "$repository" --format '{{.Repository}}:{{.Tag}}')
 done
 
-log "容器部署完成：http://127.0.0.1:${GOODJOB_HTTP_PORT}"
-log "下一步按 DOCKER-BAOTA-INSTALL.md 给 GoodJob 专属宝塔网站添加反向代理"
+log "容器部署完成：http://127.0.0.1:${MERIDIAN_HTTP_PORT}"
+log "下一步按 DOCKER-BAOTA-INSTALL.md 给 Meridian 专属宝塔网站添加反向代理"

@@ -37,10 +37,10 @@ export class NativeMcpClient {
     const transport = new StreamableHTTPClientTransport(endpoint, {
       fetch: createValidatedFetch(this.options.endpointPolicy),
       authProvider: this.options.accessToken ? { token: async () => this.options.accessToken } : undefined,
-      requestInit: { headers: { "user-agent": "GoodJob-Integration-Worker/1.0" } }
+      requestInit: { headers: { "user-agent": "Meridian-Integration-Worker/1.0" } }
     });
     const client = new Client(
-      { name: "goodjob-integration-worker", version: "1.0.0" },
+      { name: "meridian-integration-worker", version: "1.0.0" },
       {
         capabilities: {},
         enforceStrictCapabilities: true,

@@ -30,7 +30,7 @@ function idempotencySecret() {
     || process.env.JWT_SECRET
     || process.env.DATABASE_URL
     || process.env.MYSQL_URL
-    || "goodjob-agent-job-idempotency-development";
+    || "meridian-agent-job-idempotency-development";
 }
 
 function idempotencyDigest(value: string) {

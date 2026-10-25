@@ -1,11 +1,11 @@
 {
-  "name": "@goodjob/local-runner",
+  "name": "@meridian/local-runner",
   "version": "0.1.0",
-  "description": "GoodJob CRM local execution bridge",
+  "description": "Meridian CRM local execution bridge",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "goodjob-runner": "dist/cli.js"
+    "meridian-runner": "dist/cli.js"
   },
   "files": [
     "dist",

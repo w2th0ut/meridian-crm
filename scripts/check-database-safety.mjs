@@ -33,7 +33,7 @@ const schemaSql = readFileSync(
   "utf8"
 );
 if (!/CREATE TABLE(?: IF NOT EXISTS)?\b/iu.test(schemaSql)
-  || /goodjob_crm_(?:personal|local)\b/u.test(schemaSql)) {
+  || /meridian_crm_(?:personal|local)\b/u.test(schemaSql)) {
   console.error("backend/schema.mysql.sql 必须是无个人数据库引用的结构文件");
   process.exit(1);
 }

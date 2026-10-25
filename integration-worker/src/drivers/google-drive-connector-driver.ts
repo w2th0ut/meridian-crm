@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { validateConnectorManifest } from "@goodjob/integration-connector-sdk";
+import { validateConnectorManifest } from "@meridian/integration-connector-sdk";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/client";
 import { createValidatedFetch, validateMcpEndpoint } from "../network-policy.js";
 import { normalizeToolList } from "../mcp/tool-schema.js";
@@ -11,7 +11,7 @@ import { OfficialApiConnectorDriver } from "./official-api-connector-driver.js";
 const tools: Tool[] = [
   {
     name: "storage.list_files", title: "查询贸易单据",
-    description: "分页查询由 GoodJob CRM 归档到 Google Drive 的文件，不读取无关个人文件。",
+    description: "分页查询由 Meridian CRM 归档到 Google Drive 的文件，不读取无关个人文件。",
     inputSchema: { type: "object", additionalProperties: false, properties: {
       query: { type: "string", maxLength: 120 }, crmObjectType: { type: "string", enum: ["lead", "customer", "opportunity", "document", "shipment"] },
       crmObjectId: { type: "string", maxLength: 100 }, pageSize: { type: "integer", minimum: 1, maximum: 100 }, pageToken: { type: "string", maxLength: 1000 }
@@ -79,7 +79,7 @@ function appProperties(input: Record<string, unknown>) {
   const crmObjectType = stringValue(input, "crmObjectType", false, 30);
   const crmObjectId = stringValue(input, "crmObjectId", false, 100);
   return {
-    goodjobCrm: "true",
+    meridianCrm: "true",
     ...(crmObjectType ? { crmObjectType } : {}),
     ...(crmObjectId ? { crmObjectId } : {})
   };
@@ -130,8 +130,8 @@ export class GoogleDriveConnectorDriver extends OfficialApiConnectorDriver {
     const headers = new Headers(init.headers);
     headers.set("authorization", `Bearer ${context.accessToken}`);
     headers.set("accept", "application/json");
-    headers.set("x-goog-api-client", "goodjob-crm/1.0");
-    if (context.requestId) headers.set("x-goog-request-reason", `GoodJob request ${context.requestId.slice(0, 120)}`);
+    headers.set("x-goog-api-client", "meridian-crm/1.0");
+    if (context.requestId) headers.set("x-goog-request-reason", `Meridian request ${context.requestId.slice(0, 120)}`);
     if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
     const response = await createValidatedFetch(this.policy(context))(url, { ...init, headers, signal: AbortSignal.timeout(context.timeoutMs) });
     const bytes = Buffer.from(await response.arrayBuffer());
@@ -160,7 +160,7 @@ export class GoogleDriveConnectorDriver extends OfficialApiConnectorDriver {
   async invokeTool(context: DriverRuntimeContext, remoteName: string, input: Record<string, unknown>) {
     const observedAt = new Date().toISOString();
     if (remoteName === "storage.list_files") {
-      const clauses = ["trashed = false", "appProperties has { key='goodjobCrm' and value='true' }"];
+      const clauses = ["trashed = false", "appProperties has { key='meridianCrm' and value='true' }"];
       const text = stringValue(input, "query", false, 120);
       const properties = appProperties(input);
       if (text) clauses.push(`name contains '${driveQueryValue(text)}'`);
@@ -201,7 +201,7 @@ export class GoogleDriveConnectorDriver extends OfficialApiConnectorDriver {
         ...(parentFolderId ? { parents: [parentFolderId] } : {})
       };
       const contentType = stringValue(input, "contentType", true, 120);
-      const boundary = `goodjob_${createHash("sha256").update(`${context.requestId || "upload"}:${metadata.name}`).digest("hex").slice(0, 24)}`;
+      const boundary = `meridian_${createHash("sha256").update(`${context.requestId || "upload"}:${metadata.name}`).digest("hex").slice(0, 24)}`;
       const multipart = Buffer.concat([
         Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`, "utf8"),
         content,

@@ -54,8 +54,8 @@ async function mockIntegrationState(page: Page) {
   });
   await page.route("**/api/accounts", async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ accounts: [
-      { id: "u_sales_shirley", name: "Shirley", email: "shirley@goodjob.com", role: "sales", teamId: "team-a", avatar: "SH", status: "active" },
-      { id: "u_sales_mia", name: "Mia", email: "mia@goodjob.com", role: "sales", teamId: "team-a", avatar: "MI", status: "active" }
+      { id: "u_sales_shirley", name: "Shirley", email: "shirley@meridian.com", role: "sales", teamId: "team-a", avatar: "SH", status: "active" },
+      { id: "u_sales_mia", name: "Mia", email: "mia@meridian.com", role: "sales", teamId: "team-a", avatar: "MI", status: "active" }
     ] }) });
   });
 }
@@ -63,7 +63,7 @@ async function mockIntegrationState(page: Page) {
 async function login(page: Page, email: string, name: string) {
   await page.goto("/");
   await page.locator("#loginEmail").fill(email);
-  await page.locator("#loginPassword").fill("goodjob123");
+  await page.locator("#loginPassword").fill("meridian123");
   await page.locator("#loginButton").click();
   await expect(page.locator("body")).toHaveClass(/is-authenticated/u);
   await expect(page.locator("#scopeUser")).toContainText(name);
@@ -80,7 +80,7 @@ async function openIntegrationCenter(page: Page) {
 
 test("管理员可以配置企业微信指令，凭证不回显", async ({ page }) => {
   await mockIntegrationState(page);
-  await login(page, "admin@goodjob.com", "Admin");
+  await login(page, "admin@meridian.com", "Admin");
   await openIntegrationCenter(page);
   await expect(page.locator('[data-integration-panel="wecom-commands"]')).toContainText("回调地址");
   await expect(page.locator('[data-integration-panel="wecom-commands"]')).toContainText("复制地址");
@@ -94,7 +94,7 @@ test("管理员可以配置企业微信指令，凭证不回显", async ({ page 
 
 test("业务员只能看到自己的企业微信绑定状态", async ({ page }) => {
   await mockIntegrationState(page);
-  await login(page, "shirley@goodjob.com", "Shirley");
+  await login(page, "shirley@meridian.com", "Shirley");
   await openIntegrationCenter(page);
   const panel = page.locator('[data-integration-panel="wecom-commands"]');
   await expect(panel).toContainText("当前账号已绑定企业微信");

@@ -264,7 +264,7 @@ function qualificationSecret() {
     || process.env.ORGANIZATION_IDENTITY_MASTER_SECRET
     || (process.env.NODE_ENV === "production"
       ? ""
-      : "goodjob-prospect-qualification-development-secret-v1");
+      : "meridian-prospect-qualification-development-secret-v1");
   if (Buffer.byteLength(value, "utf8") < 32) {
     fail(
       "QUALIFICATION_SECRET_INVALID",

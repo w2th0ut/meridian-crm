@@ -1,5 +1,5 @@
 /*
- * GoodJob trade UI — complete visual-system pass.
+ * Meridian trade UI — complete visual-system pass.
  * Keep business markup, API contracts and action handlers intact; this layer owns presentation.
  */
 html[data-ui="trade"] {
@@ -405,7 +405,7 @@ html[data-ui="trade"] .login-visual { min-height: 100dvh; padding: 35px 44px 27p
 html[data-ui="trade"] .login-visual::before, html[data-ui="trade"] .login-visual::after { display: none; }
 html[data-ui="trade"] .login-brand { gap: 11px; }
 html[data-ui="trade"] .login-brand-mark { width: 38px; height: 38px; border: 0; border-radius: 8px; background: var(--trade-accent); box-shadow: none; }
-html[data-ui="trade"] .login-brand-mark::before { inset: 0; width: 100%; height: 100%; border: 0; transform: none; color: #fff; background: transparent; content: "G"; font: 700 22px/38px var(--font-sans); text-align: center; }
+html[data-ui="trade"] .login-brand-mark::before { inset: 0; width: 100%; height: 100%; border: 0; transform: none; color: #fff; background: transparent; content: "M"; font: 700 22px/38px var(--font-sans); text-align: center; }
 html[data-ui="trade"] .login-brand-mark::after { display: none; }
 html[data-ui="trade"] .login-brand strong { color: #f3f6fa; font-size: 22px; letter-spacing: -.03em; }
 html[data-ui="trade"] .login-brand span { color: #9db3c8; font-size: 10px; letter-spacing: .04em; }

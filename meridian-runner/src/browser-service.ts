@@ -42,7 +42,7 @@ function portFromEnvironment(raw: string | undefined, fallback: number, variable
 }
 
 export function browserExecutablePath(environment: NodeJS.ProcessEnv = process.env) {
-  const configured = environment.GOODJOB_BROWSER_EXECUTABLE || "";
+  const configured = environment.MERIDIAN_BROWSER_EXECUTABLE || "";
   const fromPath = String(environment.PATH || "").split(path.delimiter).flatMap((directory) => [
     path.join(directory, "google-chrome"),
     path.join(directory, "google-chrome-stable"),
@@ -59,7 +59,7 @@ export function browserExecutablePath(environment: NodeJS.ProcessEnv = process.e
     ...fromPath
   ].filter(Boolean);
   const executable = candidates.find((candidate) => existsSync(candidate));
-  if (!executable) throw new Error("未找到可用的 Google Chrome/Chromium，请安装浏览器或设置 GOODJOB_BROWSER_EXECUTABLE");
+  if (!executable) throw new Error("未找到可用的 Google Chrome/Chromium，请安装浏览器或设置 MERIDIAN_BROWSER_EXECUTABLE");
   return executable;
 }
 
@@ -69,11 +69,11 @@ export function browserServiceConfiguration(
 ): BrowserServiceConfiguration {
   const host = overrides.host || DEFAULT_HOST;
   if (host !== DEFAULT_HOST) throw new Error("独立浏览器服务只允许绑定 127.0.0.1");
-  const port = overrides.port ?? portFromEnvironment(environment.GOODJOB_BROWSER_MCP_PORT, DEFAULT_PORT, "GOODJOB_BROWSER_MCP_PORT");
-  const cdpPort = overrides.cdpPort ?? portFromEnvironment(environment.GOODJOB_BROWSER_CDP_PORT, DEFAULT_CDP_PORT, "GOODJOB_BROWSER_CDP_PORT");
+  const port = overrides.port ?? portFromEnvironment(environment.MERIDIAN_BROWSER_MCP_PORT, DEFAULT_PORT, "MERIDIAN_BROWSER_MCP_PORT");
+  const cdpPort = overrides.cdpPort ?? portFromEnvironment(environment.MERIDIAN_BROWSER_CDP_PORT, DEFAULT_CDP_PORT, "MERIDIAN_BROWSER_CDP_PORT");
   if (port === cdpPort) throw new Error("浏览器 MCP 端口和 CDP 端口不能相同");
-  const dataDir = overrides.dataDir || environment.GOODJOB_BROWSER_DATA_DIR || path.join(homedir(), ".goodjob", "browser-profile");
-  const outputDir = overrides.outputDir || environment.GOODJOB_BROWSER_OUTPUT_DIR || path.join(homedir(), ".goodjob", "browser-output");
+  const dataDir = overrides.dataDir || environment.MERIDIAN_BROWSER_DATA_DIR || path.join(homedir(), ".meridian", "browser-profile");
+  const outputDir = overrides.outputDir || environment.MERIDIAN_BROWSER_OUTPUT_DIR || path.join(homedir(), ".meridian", "browser-output");
   return {
     host,
     port,
@@ -82,7 +82,7 @@ export function browserServiceConfiguration(
     cdpUrl: `http://${host}:${cdpPort}`,
     dataDir: path.resolve(dataDir),
     outputDir: path.resolve(outputDir),
-    proxyServer: overrides.proxyServer ?? environment.GOODJOB_BROWSER_PROXY_SERVER ?? "",
+    proxyServer: overrides.proxyServer ?? environment.MERIDIAN_BROWSER_PROXY_SERVER ?? "",
     executablePath: overrides.executablePath || browserExecutablePath(environment)
   };
 }
@@ -141,7 +141,7 @@ export async function isBrowserMcpReady(
         params: {
           protocolVersion: "2025-06-18",
           capabilities: {},
-          clientInfo: { name: "goodjob-runner-health", version: "1" }
+          clientInfo: { name: "meridian-runner-health", version: "1" }
         }
       })
     });
@@ -175,10 +175,10 @@ export async function startBrowserService(
 ): Promise<BrowserService> {
   const configuration = browserServiceConfiguration(process.env, overrides);
   if (await isBrowserServiceReachable(configuration)) {
-    throw new Error(`浏览器 MCP 端口 ${configuration.port} 已被占用，请停止重复的 Runner 或修改 GOODJOB_BROWSER_MCP_PORT`);
+    throw new Error(`浏览器 MCP 端口 ${configuration.port} 已被占用，请停止重复的 Runner 或修改 MERIDIAN_BROWSER_MCP_PORT`);
   }
   if (await isPortReachable(configuration.host, configuration.cdpPort)) {
-    throw new Error(`浏览器 CDP 端口 ${configuration.cdpPort} 已被占用，请停止重复的 Runner 或修改 GOODJOB_BROWSER_CDP_PORT`);
+    throw new Error(`浏览器 CDP 端口 ${configuration.cdpPort} 已被占用，请停止重复的 Runner 或修改 MERIDIAN_BROWSER_CDP_PORT`);
   }
   await Promise.all([
     mkdir(configuration.dataDir, { recursive: true, mode: 0o700 }),

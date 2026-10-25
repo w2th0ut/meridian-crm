@@ -3,8 +3,8 @@ import { openView } from "./navigation";
 
 async function loginAsSales(page: import("@playwright/test").Page) {
   await page.goto("/");
-  await page.locator("#loginEmail").fill("shirley@goodjob.com");
-  await page.locator("#loginPassword").fill("goodjob123");
+  await page.locator("#loginEmail").fill("shirley@meridian.com");
+  await page.locator("#loginPassword").fill("meridian123");
   await page.locator("#loginButton").click();
   await expect(page.locator("body")).toHaveClass(/is-authenticated/);
 }

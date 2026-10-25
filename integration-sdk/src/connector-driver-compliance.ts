@@ -93,7 +93,7 @@ export async function runConnectorDriverComplianceSuite<TContext, TDiscovery, TR
     options.validateKnownResult(result);
     knownToolInvoked = true;
     try {
-      await options.driver.invokeTool(options.context, "__goodjob_unknown_tool__", {});
+      await options.driver.invokeTool(options.context, "__meridian_unknown_tool__", {});
     } catch (error) {
       unknownToolDenied = options.isUnknownToolDenied(error);
     }

@@ -5,8 +5,8 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${1:-$(node -p "require('$PROJECT_ROOT/frontend/public/product-config.json').version")}" 
 DIST_DIR="$PROJECT_ROOT/dist-packages"
 BUILD_ROOT="$PROJECT_ROOT/.build-windows-portable"
-CACHE_ROOT="${GOODJOB_RUNTIME_CACHE:-$PROJECT_ROOT/.runtime-cache}"
-PACKAGE_ROOT="$BUILD_ROOT/GoodJob-CRM-Windows-v$VERSION"
+CACHE_ROOT="${MERIDIAN_RUNTIME_CACHE:-$PROJECT_ROOT/.runtime-cache}"
+PACKAGE_ROOT="$BUILD_ROOT/Meridian-CRM-Windows-v$VERSION"
 APP_ROOT="$PACKAGE_ROOT/app"
 RUNTIME_ROOT="$PACKAGE_ROOT/runtime"
 NODE_VERSION="v22.23.2"
@@ -15,7 +15,7 @@ NODE_SHA256="1177b4137ba5adaa56354ae40f1080c7450e8ae09cecb47da459d1c52ac99f97"
 MARIADB_VERSION="11.4.12"
 MARIADB_ARCHIVE="mariadb-$MARIADB_VERSION-winx64.zip"
 MARIADB_SHA256="4db7f8003d4a64ac8042b771c6d34ed04c7ffae8cf52775275b72f2bd4dd17a9"
-OUTPUT_FILE="$DIST_DIR/GoodJob-CRM-v$VERSION-Windows-x64-Portable.zip"
+OUTPUT_FILE="$DIST_DIR/Meridian-CRM-v$VERSION-Windows-x64-Portable.zip"
 
 log() { printf '[WINDOWS BUILD] %s\n' "$*"; }
 die() { printf '[WINDOWS BUILD] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -67,7 +67,7 @@ for (const name of ["@electric-sql/pglite", "@tanstack/react-query", "lucide-rea
   delete communicationServerDependencies[name];
 }
 fs.writeFileSync(targetPath, JSON.stringify({
-  name: "goodjob-windows-runtime-dependencies",
+  name: "meridian-windows-runtime-dependencies",
   version: "1.0.0",
   private: true,
   dependencies: { ...backend.dependencies, ...communicationServerDependencies }
@@ -92,7 +92,7 @@ rm -f "$APP_ROOT/communication/dist-server/server/scripts/migrate-postgres-to-my
 cp "$PROJECT_ROOT/LICENSE" "$PROJECT_ROOT/NOTICE" "$PROJECT_ROOT/THIRD_PARTY_NOTICES.md" "$APP_ROOT/"
 cat > "$APP_ROOT/package.json" <<JSON
 {
-  "name": "goodjob-crm-windows-app",
+  "name": "meridian-crm-windows-app",
   "version": "$VERSION",
   "platform": "win32",
   "architecture": "x64",
@@ -153,28 +153,28 @@ find "$RUNTIME_ROOT/mariadb/bin" -maxdepth 1 -type f \
 
 log "7/9 安装启动、停止、诊断与事务更新脚本"
 cp "$PROJECT_ROOT/scripts/windows/"*.ps1 "$PROJECT_ROOT/scripts/windows/"*.psm1 "$PROJECT_ROOT/scripts/windows/"*.mjs "$RUNTIME_ROOT/"
-cp "$PROJECT_ROOT/scripts/windows/GoodJob-CRM.cmd" "$PACKAGE_ROOT/START-GOODJOB.cmd"
-cp "$PROJECT_ROOT/scripts/windows/GoodJob-CRM-Stop.cmd" "$PACKAGE_ROOT/STOP-GOODJOB.cmd"
-cp "$PROJECT_ROOT/scripts/windows/GoodJob-CRM-Diagnose.cmd" "$PACKAGE_ROOT/DIAGNOSE-GOODJOB.cmd"
-cp "$PROJECT_ROOT/scripts/windows/GoodJob-CRM-Update.cmd" "$PACKAGE_ROOT/UPDATE-GOODJOB.cmd"
-PUBLIC_KEY_PATH="${GOODJOB_UPDATE_PUBLIC_KEY:-$PROJECT_ROOT/scripts/windows/update-public-key.pem}"
+cp "$PROJECT_ROOT/scripts/windows/Meridian-CRM.cmd" "$PACKAGE_ROOT/START-MERIDIAN.cmd"
+cp "$PROJECT_ROOT/scripts/windows/Meridian-CRM-Stop.cmd" "$PACKAGE_ROOT/STOP-MERIDIAN.cmd"
+cp "$PROJECT_ROOT/scripts/windows/Meridian-CRM-Diagnose.cmd" "$PACKAGE_ROOT/DIAGNOSE-MERIDIAN.cmd"
+cp "$PROJECT_ROOT/scripts/windows/Meridian-CRM-Update.cmd" "$PACKAGE_ROOT/UPDATE-MERIDIAN.cmd"
+PUBLIC_KEY_PATH="${MERIDIAN_UPDATE_PUBLIC_KEY:-$PROJECT_ROOT/scripts/windows/update-public-key.pem}"
 if [[ -f "$PUBLIC_KEY_PATH" ]]; then
   cp "$PUBLIC_KEY_PATH" "$RUNTIME_ROOT/update-public-key.pem"
 else
   cat > "$RUNTIME_ROOT/update-public-key.pem.example" <<'EOF'
 正式发布前，请把 Ed25519 公钥 PEM 放到 runtime/update-public-key.pem。
-构建时设置 GOODJOB_UPDATE_PUBLIC_KEY=/absolute/path/update-public-key.pem 可自动嵌入。
+构建时设置 MERIDIAN_UPDATE_PUBLIC_KEY=/absolute/path/update-public-key.pem 可自动嵌入。
 EOF
 fi
 cat > "$PACKAGE_ROOT/README-FIRST.txt" <<'EOF'
-GoodJob CRM Windows x64 便携版
+Meridian CRM Windows x64 便携版
 
 1. 完整解压 ZIP，不要直接在压缩包内双击。
-2. 双击 START-GOODJOB.cmd。首次启动会初始化包内 MariaDB，大约需要 1-3 分钟。
+2. 双击 START-MERIDIAN.cmd。首次启动会初始化包内 MariaDB，大约需要 1-3 分钟。
 3. Node.js 与 MariaDB 均在包内，不安装系统服务，也不会修改电脑现有 Node/MySQL。
-4. 业务数据、上传、日志和备份位于：%LOCALAPPDATA%\GoodJobCRM
-5. 首次账号位于：%LOCALAPPDATA%\GoodJobCRM\config\首次登录账号.txt
-6. 正常退出请双击 STOP-GOODJOB.cmd。故障时运行 DIAGNOSE-GOODJOB.cmd。
+4. 业务数据、上传、日志和备份位于：%LOCALAPPDATA%\MeridianCRM
+5. 首次账号位于：%LOCALAPPDATA%\MeridianCRM\config\首次登录账号.txt
+6. 正常退出请双击 STOP-MERIDIAN.cmd。故障时运行 DIAGNOSE-MERIDIAN.cmd。
 7. 更新源在 CRM 系统设置中配置；一键更新强制先备份数据库，失败不会覆盖旧版本。
 
 支持：Windows 10 1809+ / Windows 11，x64。

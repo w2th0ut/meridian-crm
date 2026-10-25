@@ -681,7 +681,7 @@ export class ProspectExecutionKernel {
     const providerRequestIdempotencySecret =
       options.providerRequestIdempotencySecret
       || createHmac("sha256", options.claimSecret)
-        .update("goodjob-provider-request-idempotency-v1")
+        .update("meridian-provider-request-idempotency-v1")
         .digest("hex");
     if (Buffer.byteLength(providerRequestIdempotencySecret, "utf8") < 32) {
       throw new ProspectExecutionKernelError(
@@ -692,7 +692,7 @@ export class ProspectExecutionKernel {
     const providerRequestEnvelopeSecret =
       options.providerRequestEnvelopeSecret
       || createHmac("sha256", options.claimSecret)
-        .update("goodjob-provider-request-envelope-v1")
+        .update("meridian-provider-request-envelope-v1")
         .digest("hex");
     if (Buffer.byteLength(providerRequestEnvelopeSecret, "utf8") < 32) {
       throw new ProspectExecutionKernelError(
@@ -703,7 +703,7 @@ export class ProspectExecutionKernel {
     const providerResponseEnvelopeSecret =
       options.providerResponseEnvelopeSecret
       || createHmac("sha256", options.claimSecret)
-        .update("goodjob-provider-response-envelope-v1")
+        .update("meridian-provider-response-envelope-v1")
         .digest("hex");
     if (Buffer.byteLength(providerResponseEnvelopeSecret, "utf8") < 32) {
       throw new ProspectExecutionKernelError(
@@ -714,7 +714,7 @@ export class ProspectExecutionKernel {
     const providerRawEnvelopeSecret =
       options.providerRawEnvelopeSecret
       || createHmac("sha256", options.claimSecret)
-        .update("goodjob-provider-raw-envelope-v1")
+        .update("meridian-provider-raw-envelope-v1")
         .digest("hex");
     if (Buffer.byteLength(providerRawEnvelopeSecret, "utf8") < 32) {
       throw new ProspectExecutionKernelError(
@@ -725,7 +725,7 @@ export class ProspectExecutionKernel {
     const providerRawIdentitySecret =
       options.providerRawIdentitySecret
       || createHmac("sha256", options.claimSecret)
-        .update("goodjob-provider-raw-identity-v1")
+        .update("meridian-provider-raw-identity-v1")
         .digest("hex");
     if (Buffer.byteLength(providerRawIdentitySecret, "utf8") < 32) {
       throw new ProspectExecutionKernelError(
@@ -776,11 +776,11 @@ export class ProspectExecutionKernel {
     this.providerRequestIdempotencySecret =
       providerRequestIdempotencySecret;
     this.providerRequestEnvelopeKey = createHash("sha256")
-      .update("goodjob-provider-request-envelope-key-v1\u001f")
+      .update("meridian-provider-request-envelope-key-v1\u001f")
       .update(providerRequestEnvelopeSecret)
       .digest();
     this.providerResponseEnvelopeKey = createHash("sha256")
-      .update("goodjob-provider-response-envelope-key-v1\u001f")
+      .update("meridian-provider-response-envelope-key-v1\u001f")
       .update(providerResponseEnvelopeSecret)
       .digest();
     this.providerRawEnvelopeSecret = providerRawEnvelopeSecret;
@@ -1589,7 +1589,7 @@ export class ProspectExecutionKernel {
     "id" | "identityHash" | "teamId" | "ownerId" | "providerCode"
   >) {
     return Buffer.from([
-      "goodjob-prospect-strategy-source-position-cursor-v1",
+      "meridian-prospect-strategy-source-position-cursor-v1",
       position.id,
       position.identityHash,
       position.teamId,

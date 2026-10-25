@@ -25,7 +25,7 @@ let cachedRates: TodayExchangeRates | null = null;
 let cachedAt = 0;
 
 function configuredUrl() {
-  const value = process.env.GOODJOB_EXCHANGE_RATES_URL?.trim();
+  const value = process.env.MERIDIAN_EXCHANGE_RATES_URL?.trim();
   return value || DEFAULT_EXCHANGE_RATE_URL;
 }
 

@@ -1,4 +1,4 @@
-import { assertConnectorDriverContract } from "@goodjob/integration-connector-sdk";
+import { assertConnectorDriverContract } from "@meridian/integration-connector-sdk";
 import type { WorkerConnectorManifest } from "../repository.js";
 import type { ConnectorDriver } from "./connector-driver.js";
 

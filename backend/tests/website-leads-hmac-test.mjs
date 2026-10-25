@@ -27,10 +27,10 @@ function signedHeaders(body, overrides = {}) {
   const signature = createHmac("sha256", overrides.secret || currentSecret).update(canonical).digest("hex");
   return {
     "content-type": "application/json",
-    "x-goodjob-key-id": keyId,
-    "x-goodjob-timestamp": timestamp,
-    "x-goodjob-nonce": nonce,
-    "x-goodjob-signature": `v1=${signature}`
+    "x-meridian-key-id": keyId,
+    "x-meridian-timestamp": timestamp,
+    "x-meridian-nonce": nonce,
+    "x-meridian-signature": `v1=${signature}`
   };
 }
 

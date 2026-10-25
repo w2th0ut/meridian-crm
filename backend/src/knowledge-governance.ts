@@ -254,7 +254,7 @@ export function createMysqlKnowledgeGovernanceRepository(pool: Pool) {
  *
  * ⚠️ id 与 `normalized` 都在 **JS 侧**算，不在 SQL 里算：
  * ① 本机 MySQL（9.7.1）**没有 `MD5()`** —— 写成 `SUBSTRING(MD5(...),1,24)` 会让整个迁移
- *    直接报 `FUNCTION goodjob_crm_dev.MD5 does not exist` 并中止（踩过）；
+ *    直接报 `FUNCTION meridian_crm_dev.MD5 does not exist` 并中止（踩过）；
  * ② 归一化只该有一处真相 —— 在 SQL 里再写一遍 `LOWER(REGEXP_REPLACE(TRIM(..)))` 迟早与
  *    `normalizeVocabularyValue()` 漂移，而"是不是同一个词"正是唯一索引的判定依据。
  */

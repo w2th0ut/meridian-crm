@@ -24,7 +24,7 @@ async function request(path: string, options: RequestInit = {}) {
 }
 
 const store = getStore();
-const owner = store.users.find((item) => item.email === "shirley@goodjob.com");
+const owner = store.users.find((item) => item.email === "shirley@meridian.com");
 assert.ok(owner);
 const userSnapshot = structuredClone(owner);
 const logsSnapshot = structuredClone(store.outboundEmailLogs);
@@ -53,7 +53,7 @@ try {
 
   const login = await request("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: owner.email, password: "goodjob123" })
+    body: JSON.stringify({ email: owner.email, password: "meridian123" })
   });
   assert.equal(login.response.ok, true);
   const token = String(login.json.token || "");

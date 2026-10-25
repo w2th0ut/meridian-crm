@@ -3,22 +3,22 @@ chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
 REM ════════════════════════════════════════════════════════════════
-REM  GoodJob CRM Windows 启动器
+REM  Meridian CRM Windows 启动器
 REM  功能: 启动 MariaDB -> 启动 Node.js 后端 -> 打开浏览器
 REM ════════════════════════════════════════════════════════════════
 
-title GoodJob CRM
+title Meridian CRM
 
 REM ── 路径定位 ──────────────────────────────────────────────────────
 set "SCRIPT_DIR=%~dp0"
 set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
-set "APP_NAME=GoodJob CRM"
+set "APP_NAME=Meridian CRM"
 
 REM 数据目录
-if "%GOODJOB_DATA_DIR%"=="" (
-    set "DATA_DIR=%USERPROFILE%\.goodjob-crm"
+if "%MERIDIAN_DATA_DIR%"=="" (
+    set "DATA_DIR=%USERPROFILE%\.meridian-crm"
 ) else (
-    set "DATA_DIR=%GOODJOB_DATA_DIR%"
+    set "DATA_DIR=%MERIDIAN_DATA_DIR%"
 )
 
 set "LOG_FILE=%DATA_DIR%\launcher.log"
@@ -127,19 +127,19 @@ exit /b 1
 :mysql_ready
 
 REM ── 数据库初始化 ──────────────────────────────────────────────────
-"%MYSQL_CLIENT%" --socket="%DATA_DIR%\mysql.sock" -u root -e "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='goodjob_crm'" -s 2>nul | findstr "goodjob_crm" >nul 2>&1
+"%MYSQL_CLIENT%" --socket="%DATA_DIR%\mysql.sock" -u root -e "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='meridian_crm'" -s 2>nul | findstr "meridian_crm" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [%APP_NAME%] 首次运行：创建数据库...
-    "%MYSQL_CLIENT%" --socket="%DATA_DIR%\mysql.sock" -u root -e "CREATE DATABASE IF NOT EXISTS goodjob_crm CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'goodjob'@'localhost' IDENTIFIED BY 'goodjob_local'; CREATE USER IF NOT EXISTS 'goodjob'@'127.0.0.1' IDENTIFIED BY 'goodjob_local'; GRANT ALL PRIVILEGES ON goodjob_crm.* TO 'goodjob'@'localhost'; GRANT ALL PRIVILEGES ON goodjob_crm.* TO 'goodjob'@'127.0.0.1'; FLUSH PRIVILEGES;"
+    "%MYSQL_CLIENT%" --socket="%DATA_DIR%\mysql.sock" -u root -e "CREATE DATABASE IF NOT EXISTS meridian_crm CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'meridian'@'localhost' IDENTIFIED BY 'meridian_local'; CREATE USER IF NOT EXISTS 'meridian'@'127.0.0.1' IDENTIFIED BY 'meridian_local'; GRANT ALL PRIVILEGES ON meridian_crm.* TO 'meridian'@'localhost'; GRANT ALL PRIVILEGES ON meridian_crm.* TO 'meridian'@'127.0.0.1'; FLUSH PRIVILEGES;"
 
     if exist "%SCRIPT_DIR%\backend\schema.mysql.sql" (
         echo [%APP_NAME%] 导入数据库结构...
-        "%MYSQL_CLIENT%" --socket="%DATA_DIR%\mysql.sock" -u root goodjob_crm < "%SCRIPT_DIR%\backend\schema.mysql.sql"
+        "%MYSQL_CLIENT%" --socket="%DATA_DIR%\mysql.sock" -u root meridian_crm < "%SCRIPT_DIR%\backend\schema.mysql.sql"
     )
 
-    if exist "%SCRIPT_DIR%\backend\goodjob_crm.full.sql" (
+    if exist "%SCRIPT_DIR%\backend\meridian_crm.full.sql" (
         echo [%APP_NAME%] 导入种子数据...
-        "%MYSQL_CLIENT%" --socket="%DATA_DIR%\mysql.sock" -u root goodjob_crm < "%SCRIPT_DIR%\backend\goodjob_crm.full.sql"
+        "%MYSQL_CLIENT%" --socket="%DATA_DIR%\mysql.sock" -u root meridian_crm < "%SCRIPT_DIR%\backend\meridian_crm.full.sql"
     )
 
     echo [%APP_NAME%] 数据库初始化完成
@@ -152,21 +152,21 @@ if not exist "%DATA_DIR%\.secrets" (
     echo [%APP_NAME%] 生成安全密钥...
     REM 使用 PowerShell 生成随机密钥
     for /f "delims=" %%i in ('powershell -Command "[System.Web.Security.Membership]::GeneratePassword(64,0)" 2^>nul ^| powershell -Command "$input ^| ForEach-Object { $_ -replace '[^a-zA-Z0-9]', '' }" ^| powershell -Command "$input -join ''"') do set "JWT_SECRET=%%i"
-    if "!JWT_SECRET!"=="" set "JWT_SECRET=GoodJobCRMDefaultSecretKeyReplaceMe1234567890"
+    if "!JWT_SECRET!"=="" set "JWT_SECRET=MeridianCRMDefaultSecretKeyReplaceMe1234567890"
 
     (
         echo JWT_SECRET=!JWT_SECRET!
-        echo PROVIDER_CREDENTIAL_KEY=GoodJobProviderKeyReplaceMe1234567890
-        echo MYSQL_DATA_IMPORT_TOKEN=GoodJobMysqlTokenReplaceMe1234567890
-        echo AGENT_JOB_ENCRYPTION_KEY=GoodJobAgentKeyReplaceMe1234567890
-        echo TRADE_OBSERVATION_CURSOR_SECRET=GoodJobTradeObsReplaceMe1234567890
-        echo MARKET_OPPORTUNITY_CURSOR_SECRET=GoodJobMarketOppReplaceMe1234567890
-        echo PROSPECT_RUN_IDEMPOTENCY_SECRET=GoodJobProspectIdemReplaceMe1234567890
-        echo PROSPECT_RUN_CURSOR_SECRET=GoodJobProspectCursorReplaceMe1234567890
-        echo PROSPECT_EXECUTION_CLAIM_SECRET=GoodJobProspectClaimReplaceMe1234567890
-        echo ORGANIZATION_IDENTITY_MASTER_SECRET=GoodJobOrgIdentityReplaceMe1234567890
-        echo PROSPECT_SOURCE_RAW_ENVELOPE_SECRET=GoodJobProspectSourceReplaceMe1234567890
-        echo PROSPECT_COVERAGE_MASTER_SECRET=GoodJobProspectCoverageReplaceMe1234567890
+        echo PROVIDER_CREDENTIAL_KEY=MeridianProviderKeyReplaceMe1234567890
+        echo MYSQL_DATA_IMPORT_TOKEN=MeridianMysqlTokenReplaceMe1234567890
+        echo AGENT_JOB_ENCRYPTION_KEY=MeridianAgentKeyReplaceMe1234567890
+        echo TRADE_OBSERVATION_CURSOR_SECRET=MeridianTradeObsReplaceMe1234567890
+        echo MARKET_OPPORTUNITY_CURSOR_SECRET=MeridianMarketOppReplaceMe1234567890
+        echo PROSPECT_RUN_IDEMPOTENCY_SECRET=MeridianProspectIdemReplaceMe1234567890
+        echo PROSPECT_RUN_CURSOR_SECRET=MeridianProspectCursorReplaceMe1234567890
+        echo PROSPECT_EXECUTION_CLAIM_SECRET=MeridianProspectClaimReplaceMe1234567890
+        echo ORGANIZATION_IDENTITY_MASTER_SECRET=MeridianOrgIdentityReplaceMe1234567890
+        echo PROSPECT_SOURCE_RAW_ENVELOPE_SECRET=MeridianProspectSourceReplaceMe1234567890
+        echo PROSPECT_COVERAGE_MASTER_SECRET=MeridianProspectCoverageReplaceMe1234567890
     ) > "%DATA_DIR%\.secrets"
     echo [%APP_NAME%] 密钥生成完成
 )
@@ -185,10 +185,10 @@ set CRM_SEED_DEVELOPMENT_DATA=true
 set PROSPECT_WORKER_ENABLED=false
 set PROSPECT_QUEUE_REQUIRED=false
 set REDIS_URL=
-set DATABASE_URL=mysql://goodjob:goodjob_local@127.0.0.1:%MYSQL_PORT%/goodjob_crm
+set DATABASE_URL=mysql://meridian:meridian_local@127.0.0.1:%MYSQL_PORT%/meridian_crm
 set FRONTEND_DIST=%SCRIPT_DIR%\frontend\dist
 set AGENT_SKILLS_DIR=%SCRIPT_DIR%\agent-skills
-set INITIAL_ADMIN_EMAIL=admin@goodjob.local
+set INITIAL_ADMIN_EMAIL=admin@meridian.local
 set INITIAL_ADMIN_PASSWORD=admin123456
 set INITIAL_ADMIN_NAME=Admin
 
@@ -225,7 +225,7 @@ echo.
 echo [%APP_NAME%] ═══════════════════════════════════════════
 echo [%APP_NAME%]   %APP_NAME% 已启动!
 echo [%APP_NAME%]   访问地址: http://127.0.0.1:%API_PORT%
-echo [%APP_NAME%]   默认账号: admin@goodjob.local
+echo [%APP_NAME%]   默认账号: admin@meridian.local
 echo [%APP_NAME%]   默认密码: admin123456
 echo [%APP_NAME%]   数据目录: %DATA_DIR%
 echo [%APP_NAME%]   日志目录: %DATA_DIR%\logs\

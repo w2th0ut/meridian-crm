@@ -8,7 +8,7 @@ import type { OAuthTransactionContext, StoredOAuthCredential } from "../oauth/oa
 import type { WorkerConnectorManifest } from "../repository.js";
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import type { ConnectorDriver, DriverDiscoveryResult, DriverRuntimeContext } from "./connector-driver.js";
-import type { DriverHealthResult } from "@goodjob/integration-connector-sdk";
+import type { DriverHealthResult } from "@meridian/integration-connector-sdk";
 
 export abstract class OfficialApiConnectorDriver implements ConnectorDriver {
   abstract readonly type: "native_mcp" | "microsoft_graph" | "google_workspace" | "google_drive" | "erpnext" | "easypost" | "wecom";

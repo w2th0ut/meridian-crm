@@ -48,7 +48,7 @@ async function request(path: string, token = "", init: RequestInit = {}) {
 async function login(email: string) {
   const result = await request("/api/auth/login", "", {
     method: "POST",
-    body: JSON.stringify({ email, password: "goodjob123" })
+    body: JSON.stringify({ email, password: "meridian123" })
   });
   assert.equal(result.response.status, 200, `登录失败：${email}`);
   return String(result.json.token);
@@ -61,9 +61,9 @@ function isIso(value: unknown) {
 
 try {
   const store = getStore();
-  const manager = store.users.find((item) => item.email === "alex@goodjob.com")!;
-  const management = await login("alex@goodjob.com");
-  const salesToken = await login("shirley@goodjob.com");
+  const manager = store.users.find((item) => item.email === "alex@meridian.com")!;
+  const management = await login("alex@meridian.com");
+  const salesToken = await login("shirley@meridian.com");
 
   // 种子数据：c1/c2 属 shirley(europe)，c3 属 mia(europe)；ca1→c1, ca2→c2, ca3→c3
   const originalCa1CreatedAt = "2026-07-10T03:20:00.000Z";

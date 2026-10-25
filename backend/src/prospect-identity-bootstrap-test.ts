@@ -16,7 +16,7 @@ import type {
 } from "./types.js";
 
 const user = getStore().users.find((item) =>
-  item.email === "shirley@goodjob.com"
+  item.email === "shirley@meridian.com"
 )! as SessionUser;
 
 assert.equal(

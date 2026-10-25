@@ -16,7 +16,7 @@ import {
 import type { ProspectSearchRun } from "./types.js";
 
 process.env.PROSPECT_COVERAGE_MASTER_SECRET ||=
-  "goodjob-self-test-coverage-secret-at-least-32-characters";
+  "meridian-self-test-coverage-secret-at-least-32-characters";
 process.env.AUTO_WEBSITE_PROBE_ENABLED = "false";
 
 const server = app.listen(0);
@@ -44,7 +44,7 @@ function websiteDomain(raw: string) {
 async function login(email: string) {
   const { response, json } = await request("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password: "goodjob123" })
+    body: JSON.stringify({ email, password: "meridian123" })
   });
   if (!response.ok) throw new Error(`login failed ${email}`);
   return json.token as string;
@@ -269,11 +269,11 @@ async function qualifyCandidateForSelfTest(candidateId: string) {
 }
 
 try {
-  const salesToken = await login("shirley@goodjob.com");
-  const miaToken = await login("mia@goodjob.com");
-  const managerToken = await login("alex@goodjob.com");
-  const adminToken = await login("admin@goodjob.com");
-  const superAdminToken = await login("super@goodjob.com");
+  const salesToken = await login("shirley@meridian.com");
+  const miaToken = await login("mia@meridian.com");
+  const managerToken = await login("alex@meridian.com");
+  const adminToken = await login("admin@meridian.com");
+  const superAdminToken = await login("super@meridian.com");
 
   const salesCustomers = await request("/api/customers", { headers: { authorization: `Bearer ${salesToken}` } });
   const managerCustomers = await request("/api/customers", { headers: { authorization: `Bearer ${managerToken}` } });
@@ -584,7 +584,7 @@ try {
     headers: { authorization: `Bearer ${salesToken}` },
     body: JSON.stringify({
       to: "lead.buyer@example.com",
-      subject: "GoodJob 产品资料与报价沟通",
+      subject: "Meridian 产品资料与报价沟通",
       body: "Dear Lead Buyer, we would like to confirm your specification and prepare a quotation.",
       nextFollowAt: "后天 10:00"
     })
@@ -2847,7 +2847,7 @@ try {
       title: "X".repeat(256),
       number: "PI-LENGTH-CHECK",
       issueDate: "2026-07-24",
-      seller: "GoodJob Trading Test Co., Ltd.",
+      seller: "Meridian Trading Test Co., Ltd.",
       items: [{ product: "Length validation", quantity: 1, unitPrice: 1 }]
     })
   });
@@ -2866,7 +2866,7 @@ try {
       buyer: "Automation Buyer Ltd.",
       buyerAddress: "Berlin, Germany",
       buyerContact: "Auto Buyer",
-      seller: "GoodJob Trading Test Co., Ltd.",
+      seller: "Meridian Trading Test Co., Ltd.",
       sellerAddress: "Shanghai, China",
       currency: "USD",
       incoterm: "FOB",
@@ -3104,14 +3104,14 @@ try {
   const forbiddenSuper = await request("/api/accounts", {
     method: "POST",
     headers: { authorization: `Bearer ${adminToken}` },
-    body: JSON.stringify({ name: "Forbidden Super", email: `forbidden.super.${Date.now()}@goodjob.com`, password: "forbid123", role: "super_admin" })
+    body: JSON.stringify({ name: "Forbidden Super", email: `forbidden.super.${Date.now()}@meridian.com`, password: "forbid123", role: "super_admin" })
   });
   if (forbiddenSuper.response.status !== 403) throw new Error("admin must not create super admin");
 
   const account = await request("/api/accounts", {
     method: "POST",
     headers: { authorization: `Bearer ${adminToken}` },
-    body: JSON.stringify({ name: "Auto Sales", email: `auto.${Date.now()}@goodjob.com`, password: "start123", role: "sales", teamId: "europe" })
+    body: JSON.stringify({ name: "Auto Sales", email: `auto.${Date.now()}@meridian.com`, password: "start123", role: "sales", teamId: "europe" })
   });
   if (!account.response.ok || account.json.account.name !== "Auto Sales") throw new Error("account create failed");
 

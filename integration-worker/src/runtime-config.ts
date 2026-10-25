@@ -7,9 +7,9 @@ export interface IntegrationWorkerConfig {
   redisUrl: string;
   credentialKeyConfigured: boolean;
   credentialKey: string;
-  queueName: "goodjob:integration:tool-calls";
-  controlQueueName: "goodjob:integration:control";
-  eventQueueName: "goodjob:integration:events";
+  queueName: "meridian:integration:tool-calls";
+  controlQueueName: "meridian:integration:control";
+  eventQueueName: "meridian:integration:events";
   globalConcurrency: number;
   connectionConcurrency: number;
   httpTimeoutMs: number;
@@ -93,9 +93,9 @@ export function loadIntegrationWorkerConfig(
     redisUrl,
     credentialKeyConfigured: credentialKey.length >= 32,
     credentialKey,
-    queueName: "goodjob:integration:tool-calls",
-    controlQueueName: "goodjob:integration:control",
-    eventQueueName: "goodjob:integration:events",
+    queueName: "meridian:integration:tool-calls",
+    controlQueueName: "meridian:integration:control",
+    eventQueueName: "meridian:integration:events",
     globalConcurrency: boundedNumber(env.INTEGRATION_GLOBAL_CONCURRENCY, 10, 1, 100, "INTEGRATION_GLOBAL_CONCURRENCY"),
     connectionConcurrency: boundedNumber(env.INTEGRATION_CONNECTION_CONCURRENCY, 2, 1, 20, "INTEGRATION_CONNECTION_CONCURRENCY"),
     httpTimeoutMs: boundedNumber(env.INTEGRATION_HTTP_TIMEOUT_MS, 15_000, 1_000, 120_000, "INTEGRATION_HTTP_TIMEOUT_MS"),

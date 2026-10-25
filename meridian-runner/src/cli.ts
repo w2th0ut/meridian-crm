@@ -3,7 +3,7 @@ import { hostname } from "node:os";
 import { codexCodeModeHost, resolveCodexBinary } from "./codex-adapter.js";
 import { resolveWorkbuddyBinary } from "./workbuddy-adapter.js";
 import { browserServiceConfiguration, isBrowserCdpReady, isBrowserMcpReady, startBrowserService } from "./browser-service.js";
-import { GoodJobRunnerClient } from "./client.js";
+import { MeridianRunnerClient } from "./client.js";
 import { loadConfig, normalizeServerUrl, normalizeWorkspace, runnerConfigPath, saveConfig } from "./config.js";
 import { detectCodexVersion, detectWorkbuddyVersion, runnerCliIssue, runnerIdentity, RUNNER_VERSION, runOneClaim, startRunner } from "./runner.js";
 
@@ -19,14 +19,14 @@ function values(args: string[], name: string) {
 const value = (args: string[], name: string) => values(args, name).at(-1) || "";
 
 function usage() {
-  console.log(`GoodJob Local Runner ${RUNNER_VERSION}
+  console.log(`Meridian Local Runner ${RUNNER_VERSION}
 
 用法：
-  goodjob-runner pair --server <CRM地址> --code <配对码> --workspace <绝对路径> [--workspace <路径>]
-  goodjob-runner start
-  goodjob-runner once
-  goodjob-runner status
-  goodjob-runner doctor`);
+  meridian-runner pair --server <CRM地址> --code <配对码> --workspace <绝对路径> [--workspace <路径>]
+  meridian-runner start
+  meridian-runner once
+  meridian-runner status
+  meridian-runner doctor`);
 }
 
 async function main() {
@@ -44,7 +44,7 @@ async function main() {
     }
     const cliLabel = identity.codexVersion && identity.workbuddyVersion ? "Codex + WorkBuddy" : identity.codexVersion ? "Codex" : "WorkBuddy";
     const displayName = value(args, "--name") || `${hostname()} · ${cliLabel}`;
-    const client = new GoodJobRunnerClient({ serverUrl });
+    const client = new MeridianRunnerClient({ serverUrl });
     const paired = await client.pair({ ...identity, code, displayName });
     await saveConfig({ serverUrl, runnerId: paired.runner.id, token: paired.token, displayName: paired.runner.displayName, workspaces, createdAt: new Date().toISOString() });
     console.log(`配对成功：${paired.runner.displayName}`);
@@ -59,8 +59,8 @@ async function main() {
     const codexBinary = resolveCodexBinary();
     const workbuddyVersion = await detectWorkbuddyVersion();
     const workbuddyBinary = resolveWorkbuddyBinary();
-    const client = new GoodJobRunnerClient({ serverUrl: config.serverUrl, token: config.token });
-    // 上报时带上 CLI 故障原因：`goodjob-runner status` 往往就是用户发现"CLI 到底能不能用"时跑的命令，
+    const client = new MeridianRunnerClient({ serverUrl: config.serverUrl, token: config.token });
+    // 上报时带上 CLI 故障原因：`meridian-runner status` 往往就是用户发现"CLI 到底能不能用"时跑的命令，
     // 顺手把结论同步给 CRM，集成中心和新增客户弹窗就能显示同一份原因。
     const state = await client.heartbeat({ ...(await runnerIdentity(config.workspaces)), lastError: runnerCliIssue() });
     console.log(`CRM：${config.serverUrl}`);
@@ -101,7 +101,7 @@ async function main() {
     const stop = () => controller.abort();
     process.once("SIGINT", stop);
     process.once("SIGTERM", stop);
-    console.log(`GoodJob Runner 已连接 ${config.serverUrl}，等待任务...`);
+    console.log(`Meridian Runner 已连接 ${config.serverUrl}，等待任务...`);
     await startRunner(config, controller.signal);
     return;
   }

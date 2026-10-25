@@ -10,7 +10,7 @@ export interface DatabaseProfileInfo {
 }
 
 const TEST_DATABASE_PATTERN =
-  /^goodjob_[a-z0-9_]*_test_[a-z0-9]+$/u;
+  /^meridian_[a-z0-9_]*_test_[a-z0-9]+$/u;
 
 function configuredDatabaseUrl(env: NodeJS.ProcessEnv) {
   return String(env.DATABASE_URL || env.MYSQL_URL || "").trim();
@@ -45,18 +45,18 @@ export function assertDatabaseProfile(
   const database = databaseName(rawUrl);
   const seedEnabled = env.CRM_SEED_DEVELOPMENT_DATA === "true";
 
-  if (profile === "personal" && database !== "goodjob_crm_personal") {
-    throw new Error("个人档位只能连接 goodjob_crm_personal");
+  if (profile === "personal" && database !== "meridian_crm_personal") {
+    throw new Error("个人档位只能连接 meridian_crm_personal");
   }
-  if (profile === "development" && database !== "goodjob_crm_dev") {
-    throw new Error("开发档位只能连接 goodjob_crm_dev");
+  if (profile === "development" && database !== "meridian_crm_dev") {
+    throw new Error("开发档位只能连接 meridian_crm_dev");
   }
   if (profile === "test" && !TEST_DATABASE_PATTERN.test(database)) {
-    throw new Error("测试档位只能连接带随机后缀的 goodjob_*_test_* 临时库");
+    throw new Error("测试档位只能连接带随机后缀的 meridian_*_test_* 临时库");
   }
   if (profile === "production" && [
-    "goodjob_crm_personal",
-    "goodjob_crm_dev"
+    "meridian_crm_personal",
+    "meridian_crm_dev"
   ].includes(database)) {
     throw new Error("生产档位不能连接个人库或开发库");
   }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { runConnectorDriverComplianceSuite, type ConnectorManifest } from "@goodjob/integration-connector-sdk";
+import { runConnectorDriverComplianceSuite, type ConnectorManifest } from "@meridian/integration-connector-sdk";
 import { GoogleWorkspaceConnectorDriver, googleOfflineAuthorizationUrl } from "../src/drivers/google-workspace-connector-driver.js";
 import type { DriverRuntimeContext } from "../src/drivers/connector-driver.js";
 
