@@ -16,7 +16,7 @@ import {
 import type { ProspectProviderRequestDispatch } from "./types.js";
 
 const idempotencySecret =
-  "meridian-provider-request-ledger-test-secret-2026";
+  "keduoduo-provider-request-ledger-test-secret-2026";
 
 function success(
   acceptedCount: number,

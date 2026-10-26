@@ -12,7 +12,7 @@ import { resolveBackendHost } from "./server-network.js";
 import { getStore } from "./store.js";
 import { hashPassword } from "./auth.js";
 
-const TEST_JWT_SECRET = "meridian-security-test-secret-at-least-32-characters";
+const TEST_JWT_SECRET = "keduoduo-security-test-secret-at-least-32-characters";
 const server = app.listen(0);
 const address = server.address();
 if (!address || typeof address === "string") throw new Error("Cannot start security test server");
@@ -149,7 +149,7 @@ try {
   await expectStatus("malformed cookie", malformedCookie.response.status, 401);
   results.malformedCookie = malformedCookie.response.status;
 
-  const shirley = await login("shirley@meridian.com", "meridian123");
+  const shirley = await login("shirley@keduoduo.com", "keduoduo123");
   const csrf = cookieValue(shirley.cookies, "gj_csrf");
   const setCookies = shirley.response.headers.getSetCookie().join("\n");
   if (!/gj_session=.*HttpOnly/i.test(setCookies) || !/SameSite=Strict/i.test(setCookies) || !csrf) {
@@ -278,8 +278,8 @@ try {
     TEST_JWT_SECRET,
     {
       subject: "u_sales_shirley",
-      issuer: "meridian-crm",
-      audience: "meridian-crm-web",
+      issuer: "keduoduo-crm",
+      audience: "keduoduo-crm-web",
       expiresIn: "1h",
       algorithm: "HS256"
     }
@@ -340,7 +340,7 @@ try {
       title: "Security state test",
       number: `PI-SEC-${Date.now()}`,
       issueDate: "2026-07-12",
-      seller: "Meridian",
+      seller: "Keduoduo",
       currency: "USD",
       incoterm: "FOB",
       status: "approved",
@@ -386,7 +386,7 @@ try {
   }
   results.ssrfBlocked = true;
 
-  const admin = await login("admin@meridian.com", "meridian123");
+  const admin = await login("admin@keduoduo.com", "keduoduo123");
   const docsAsAdmin = await request("/api/docs/openapi.json", { headers: bearer(admin.json.token) });
   if (!docsAsAdmin.response.ok || docsAsAdmin.json.openapi !== "3.0.3") {
     throw new Error("administrator must be able to read the OpenAPI document");
@@ -434,13 +434,13 @@ try {
     headers: { authorization: `Bearer ${admin.json.token}` }
   });
   const docsInitScript = await docsInit.text();
-  if (!docsUi.ok || !docsHtml.includes("Meridian CRM API 调试")
+  if (!docsUi.ok || !docsHtml.includes("Keduoduo CRM API 调试")
     || !docsInit.ok || !docsInitScript.includes("X-CSRF-Token")) {
     throw new Error("Swagger UI or automatic CSRF interceptor missing");
   }
   results.apiDocsOperations = documentedOperations;
 
-  const superAdmin = await login("super@meridian.com", "meridian123");
+  const superAdmin = await login("super@keduoduo.com", "keduoduo123");
   const tenantSuffix = Date.now();
   const tenantTeamId = `security-beta-${tenantSuffix}`;
   const tenantAdminEmail = `security-admin-${tenantSuffix}@example.com`;
@@ -963,7 +963,7 @@ try {
   }
   results.crossModuleTenantIsolation = tenantListChecks.length;
 
-  const manager = await login("alex@meridian.com", "meridian123");
+  const manager = await login("alex@keduoduo.com", "keduoduo123");
   const managerCustomers = await request("/api/customers", { headers: bearer(manager.json.token) });
   if (managerCustomers.json.customers?.some((customer: { id: string }) => customer.id === tenantCustomer.json.customer.id)) {
     throw new Error("manager must not see another team's customer");

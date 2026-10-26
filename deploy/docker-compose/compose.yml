@@ -38,8 +38,8 @@ services:
     profiles: ["legacy-migration"]
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DATABASE:-meridiancrm_whatsapp_prod}
-      POSTGRES_USER: ${POSTGRES_USER:-meridiancrm_whatsapp_app}
+      POSTGRES_DB: ${POSTGRES_DATABASE:-keduoduocrm_whatsapp_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-keduoduocrm_whatsapp_app}
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       TZ: Asia/Shanghai
     command:
@@ -68,7 +68,7 @@ services:
       - no-new-privileges:true
 
   backend-migrate:
-    image: ${MERIDIAN_BACKEND_IMAGE:-meridiancrm-backend}:${MERIDIAN_RELEASE_ID}
+    image: ${KEDUODUO_BACKEND_IMAGE:-keduoduocrm-backend}:${KEDUODUO_RELEASE_ID}
     build:
       context: ../..
       dockerfile: deploy/docker-compose/Dockerfile.backend
@@ -113,9 +113,9 @@ services:
       EMAIL_DKIM_SELECTORS: ""
       AGENT_KNOWLEDGE_DIR: /app/agent-knowledge
       AGENT_SKILLS_DIR: /app/agent-skills
-      MERIDIAN_UPLOADS_DIR: /app/uploads
+      KEDUODUO_UPLOADS_DIR: /app/uploads
       MYSQL_LOCAL_BACKUP_ENABLED: "false"
-      MERIDIAN_RELEASE_ID: ${MERIDIAN_RELEASE_ID}
+      KEDUODUO_RELEASE_ID: ${KEDUODUO_RELEASE_ID}
     secrets: &backend_secrets
       - mysql_password
       - initial_admin_password
@@ -135,7 +135,7 @@ services:
       - no-new-privileges:true
 
   communication-migrate:
-    image: ${MERIDIAN_COMMUNICATION_IMAGE:-meridiancrm-communication}:${MERIDIAN_RELEASE_ID}
+    image: ${KEDUODUO_COMMUNICATION_IMAGE:-keduoduocrm-communication}:${KEDUODUO_RELEASE_ID}
     build:
       context: ../..
       dockerfile: deploy/docker-compose/Dockerfile.communication
@@ -152,8 +152,8 @@ services:
       DB_USER: ${MYSQL_USER}
       LEGACY_POSTGRES_HOST: postgres
       LEGACY_POSTGRES_PORT: "5432"
-      LEGACY_POSTGRES_DB: ${POSTGRES_DATABASE:-meridiancrm_whatsapp_prod}
-      LEGACY_POSTGRES_USER: ${POSTGRES_USER:-meridiancrm_whatsapp_app}
+      LEGACY_POSTGRES_DB: ${POSTGRES_DATABASE:-keduoduocrm_whatsapp_prod}
+      LEGACY_POSTGRES_USER: ${POSTGRES_USER:-keduoduocrm_whatsapp_app}
       MEDIA_STORAGE_PATH: /data/media
       SEED_DEMO: "false"
       ALLOW_DEMO_PROVIDER: "false"
@@ -179,7 +179,7 @@ services:
       - no-new-privileges:true
 
   backend:
-    image: ${MERIDIAN_BACKEND_IMAGE:-meridiancrm-backend}:${MERIDIAN_RELEASE_ID}
+    image: ${KEDUODUO_BACKEND_IMAGE:-keduoduocrm-backend}:${KEDUODUO_RELEASE_ID}
     restart: unless-stopped
     environment: *backend_environment
     secrets: *backend_secrets
@@ -206,7 +206,7 @@ services:
       - no-new-privileges:true
 
   communication:
-    image: ${MERIDIAN_COMMUNICATION_IMAGE:-meridiancrm-communication}:${MERIDIAN_RELEASE_ID}
+    image: ${KEDUODUO_COMMUNICATION_IMAGE:-keduoduocrm-communication}:${KEDUODUO_RELEASE_ID}
     restart: unless-stopped
     environment: *communication_environment
     secrets:
@@ -234,13 +234,13 @@ services:
       - no-new-privileges:true
 
   gateway:
-    image: ${MERIDIAN_GATEWAY_IMAGE:-meridiancrm-gateway}:${MERIDIAN_RELEASE_ID}
+    image: ${KEDUODUO_GATEWAY_IMAGE:-keduoduocrm-gateway}:${KEDUODUO_RELEASE_ID}
     build:
       context: ../..
       dockerfile: deploy/docker-compose/Dockerfile.gateway
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${MERIDIAN_HTTP_PORT:-4188}:8080"
+      - "127.0.0.1:${KEDUODUO_HTTP_PORT:-4188}:8080"
     networks:
       - private
     depends_on:
@@ -261,31 +261,31 @@ services:
 
 secrets:
   mysql_password:
-    file: ${MERIDIAN_SHARED_DIR}/secrets/mysql_password
+    file: ${KEDUODUO_SHARED_DIR}/secrets/mysql_password
   mysql_root_password:
-    file: ${MERIDIAN_SHARED_DIR}/secrets/mysql_root_password
+    file: ${KEDUODUO_SHARED_DIR}/secrets/mysql_root_password
   postgres_password:
-    file: ${MERIDIAN_SHARED_DIR}/secrets/postgres_password
+    file: ${KEDUODUO_SHARED_DIR}/secrets/postgres_password
   initial_admin_password:
-    file: ${MERIDIAN_SHARED_DIR}/secrets/initial_admin_password
+    file: ${KEDUODUO_SHARED_DIR}/secrets/initial_admin_password
   admin_credentials:
-    file: ${MERIDIAN_SHARED_DIR}/secrets/admin_credentials.tsv
+    file: ${KEDUODUO_SHARED_DIR}/secrets/admin_credentials.tsv
   communication_session_key:
-    file: ${MERIDIAN_SHARED_DIR}/secrets/communication_session_key
+    file: ${KEDUODUO_SHARED_DIR}/secrets/communication_session_key
   crm_runtime_env:
-    file: ${MERIDIAN_SHARED_DIR}/secrets/crm_runtime_env
+    file: ${KEDUODUO_SHARED_DIR}/secrets/crm_runtime_env
 
 volumes:
   mysql_data:
-    name: meridiancrm_mysql_data
+    name: keduoduocrm_mysql_data
   postgres_data:
-    name: meridiancrm_postgres_data
+    name: keduoduocrm_postgres_data
   communication_media:
-    name: meridiancrm_communication_media
+    name: keduoduocrm_communication_media
   uploads_data:
-    name: meridiancrm_uploads_data
+    name: keduoduocrm_uploads_data
 
 networks:
   private:
-    name: meridiancrm_private
+    name: keduoduocrm_private
     driver: bridge

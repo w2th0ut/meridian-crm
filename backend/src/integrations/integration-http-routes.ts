@@ -81,7 +81,7 @@ router.get("/oauth/callback/:connectorCode", oauthCallbackLimiter, async (req, r
       res.redirect(303, target.toString());
       return;
     }
-    res.status(202).type("html").send("<!doctype html><meta charset=\"utf-8\"><title>授权已接收</title><style>body{font:15px system-ui;margin:48px;color:#17202a}main{max-width:520px;margin:auto}h1{font-size:22px}</style><main><h1>授权已接收</h1><p>正在安全交换凭据，请返回 Meridian CRM 完成账号确认。</p></main>");
+    res.status(202).type("html").send("<!doctype html><meta charset=\"utf-8\"><title>授权已接收</title><style>body{font:15px system-ui;margin:48px;color:#17202a}main{max-width:520px;margin:auto}h1{font-size:22px}</style><main><h1>授权已接收</h1><p>正在安全交换凭据，请返回 Keduoduo CRM 完成账号确认。</p></main>");
   } catch (cause) {
     const value = cause as { status?: number; message?: string };
     res.status(Number(value.status || 400)).type("html").send(`<!doctype html><meta charset="utf-8"><title>授权失败</title><main><h1>授权未完成</h1><p>${String(value.message || "OAuth 回调处理失败").replace(/[<>&"']/gu, "")}</p></main>`);
@@ -123,10 +123,10 @@ router.post("/webhooks/:connectorCode/:connectionPublicId", webhookLimiter, asyn
       webhookPublicId: params.connectionPublicId,
       body: req.body,
       rawBody,
-      signatureHeader: String(req.headers["x-meridian-signature"] || ""),
-      nonce: String(req.headers["x-meridian-nonce"] || ""),
-      eventId: String(req.headers["x-meridian-event-id"] || ""),
-      eventType: String(req.headers["x-meridian-event-type"] || "")
+      signatureHeader: String(req.headers["x-keduoduo-signature"] || ""),
+      nonce: String(req.headers["x-keduoduo-nonce"] || ""),
+      eventId: String(req.headers["x-keduoduo-event-id"] || ""),
+      eventType: String(req.headers["x-keduoduo-event-type"] || "")
     });
     res.status(202).json({ received: true, ...result });
   } catch (cause) {

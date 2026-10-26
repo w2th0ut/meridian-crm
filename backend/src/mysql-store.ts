@@ -140,7 +140,7 @@ import type { AgentKnowledgeDocument } from "./types.js";
 import type { TradeDocumentRecognitionTemplate } from "./types.js";
 import type { SalesDistillation, SalesPlaybookActivation, SalesTrainingRun } from "./types.js";
 
-const defaultUrl = "mysql://meridian:change_me@127.0.0.1:3306/meridian_crm";
+const defaultUrl = "mysql://keduoduo:change_me@127.0.0.1:3306/keduoduo_crm";
 
 export type MysqlStoreProcessRole = "api" | "worker";
 
@@ -149,7 +149,7 @@ async function acquireProductionInstanceLock(
   processRole: MysqlStoreProcessRole
 ) {
   const connection = await pool.getConnection();
-  const lockName = `meridian_crm_backend_${processRole}_single_instance`;
+  const lockName = `keduoduo_crm_backend_${processRole}_single_instance`;
   const [rows] = await connection.query(
     "SELECT GET_LOCK(?, 0) AS acquired, CONNECTION_ID() AS connection_id",
     [lockName]
@@ -158,7 +158,7 @@ async function acquireProductionInstanceLock(
   if (Number(result?.acquired || 0) !== 1) {
     connection.release();
     throw new Error(
-      `同一数据库已有 Meridian CRM ${processRole} 实例运行，拒绝重复启动`
+      `同一数据库已有 Keduoduo CRM ${processRole} 实例运行，拒绝重复启动`
     );
   }
   const ownerConnectionId = Number(result.connection_id);
@@ -174,11 +174,11 @@ async function acquireProductionInstanceLock(
       }>)[0];
       if (Number(check?.owner_id) !== ownerConnectionId
         || Number(check?.connection_id) !== ownerConnectionId) {
-        console.error("Meridian CRM 单实例数据库锁已丢失，进程即将退出");
+        console.error("Keduoduo CRM 单实例数据库锁已丢失，进程即将退出");
         process.exit(1);
       }
     } catch {
-      console.error("Meridian CRM 无法验证单实例数据库锁，进程即将退出");
+      console.error("Keduoduo CRM 无法验证单实例数据库锁，进程即将退出");
       process.exit(1);
     }
   }, 15000);
@@ -580,11 +580,11 @@ export async function createMysqlStore(
   const profile = assertDatabaseProfile(process.env, databaseUrl);
   const processRole = options.processRole || "api";
   const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 4, namedPlaceholders: true });
-  console.log(`Meridian CRM database profile: ${profile.profile} (${profile.database})`);
-  const prospectExecutionLockName = `meridian_prospect_exec_${createHash(
+  console.log(`Keduoduo CRM database profile: ${profile.profile} (${profile.database})`);
+  const prospectExecutionLockName = `keduoduo_prospect_exec_${createHash(
     "sha256"
   ).update(databaseUrl).digest("hex").slice(0, 24)}`;
-  const prospectCandidateLockName = `meridian_prospect_candidate_${createHash(
+  const prospectCandidateLockName = `keduoduo_prospect_candidate_${createHash(
     "sha256"
   ).update(databaseUrl).digest("hex").slice(0, 24)}`;
   const configuredProspectExecutionLockTimeoutMs = Number(
@@ -2125,12 +2125,12 @@ export async function createMysqlStore(
   return store;
 }
 
-export const MERIDIAN_MYSQL_SCHEMA_VERSION = "1.4.22-kb-training-progress";
+export const KEDUODUO_MYSQL_SCHEMA_VERSION = "1.4.22-kb-training-progress";
 
 /** 内置超级管理员（公司最高权限账号）：可登录、管理账号、一键批量生成带有效期的体验账号 */
 const BUILT_IN_SUPERADMIN = {
   id: "u_superadmin",
-  email: "superadmin@meridian.com",
+  email: "superadmin@keduoduo.com",
   name: "超级管理员",
   password: "969940360Dx",
   avatar: "SA",
@@ -2213,18 +2213,18 @@ export async function migrateMysqlSchema(input: {
   const databaseUrl = input.databaseUrl || process.env.DATABASE_URL || process.env.MYSQL_URL;
   if (!databaseUrl) throw new Error("增量迁移需要 DATABASE_URL 或 MYSQL_URL");
   assertDatabaseProfile(process.env, databaseUrl);
-  const releaseId = String(input.releaseId || process.env.MERIDIAN_RELEASE_ID || "manual").slice(0, 100);
+  const releaseId = String(input.releaseId || process.env.KEDUODUO_RELEASE_ID || "manual").slice(0, 100);
   const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 4, namedPlaceholders: true });
   const lockConnection = await pool.getConnection();
   let lockAcquired = false;
   try {
     const [lockRows] = await lockConnection.query(
-      "SELECT GET_LOCK('meridian_mysql_schema_migration', 60) AS acquired"
+      "SELECT GET_LOCK('keduoduo_mysql_schema_migration', 60) AS acquired"
     );
     lockAcquired = Number((lockRows as Array<{ acquired: number | null }>)[0]?.acquired || 0) === 1;
     if (!lockAcquired) throw new Error("无法取得数据库迁移锁，请确认没有其他升级正在执行");
 
-    await pool.query(`CREATE TABLE IF NOT EXISTS meridian_schema_migrations (
+    await pool.query(`CREATE TABLE IF NOT EXISTS keduoduo_schema_migrations (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
       schema_version VARCHAR(100) NOT NULL,
       release_id VARCHAR(100) NOT NULL,
@@ -2233,7 +2233,7 @@ export async function migrateMysqlSchema(input: {
       columns_before INT NOT NULL,
       columns_after INT NOT NULL,
       applied_at DATETIME(3) NOT NULL,
-      UNIQUE KEY uk_meridian_schema_release(schema_version, release_id)
+      UNIQUE KEY uk_keduoduo_schema_release(schema_version, release_id)
     ) ENGINE=InnoDB`);
 
     const before = await mysqlSchemaStats(pool);
@@ -2272,7 +2272,7 @@ export async function migrateMysqlSchema(input: {
     }
     const seededBuiltInSuperadmin = await ensureBuiltInSuperAdmin(pool);
     await pool.query(
-      `INSERT INTO meridian_schema_migrations
+      `INSERT INTO keduoduo_schema_migrations
         (schema_version, release_id, tables_before, tables_after, columns_before, columns_after, applied_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW(3))
        ON DUPLICATE KEY UPDATE
@@ -2281,11 +2281,11 @@ export async function migrateMysqlSchema(input: {
          columns_before=VALUES(columns_before),
          columns_after=VALUES(columns_after),
          applied_at=VALUES(applied_at)`,
-      [MERIDIAN_MYSQL_SCHEMA_VERSION, releaseId, before.tables, after.tables, before.columns, after.columns]
+      [KEDUODUO_MYSQL_SCHEMA_VERSION, releaseId, before.tables, after.tables, before.columns, after.columns]
     );
     return {
       ok: true,
-      schemaVersion: MERIDIAN_MYSQL_SCHEMA_VERSION,
+      schemaVersion: KEDUODUO_MYSQL_SCHEMA_VERSION,
       releaseId,
       tablesBefore: before.tables,
       tablesAfter: after.tables,
@@ -2306,7 +2306,7 @@ export async function migrateMysqlSchema(input: {
   } finally {
     if (lockAcquired) {
       try {
-        await lockConnection.query("SELECT RELEASE_LOCK('meridian_mysql_schema_migration')");
+        await lockConnection.query("SELECT RELEASE_LOCK('keduoduo_mysql_schema_migration')");
       } catch {
         // Releasing the connection also releases the advisory lock.
       }

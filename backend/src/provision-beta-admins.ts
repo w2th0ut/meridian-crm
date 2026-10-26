@@ -40,7 +40,7 @@ function argumentValue(name: string) {
 }
 
 function credentialFilePath() {
-  return path.resolve(argumentValue("file") || process.env.MERIDIAN_ADMIN_CREDENTIALS_FILE || process.env.BETA_ADMIN_CREDENTIALS_FILE || "./admin-credentials.tsv");
+  return path.resolve(argumentValue("file") || process.env.KEDUODUO_ADMIN_CREDENTIALS_FILE || process.env.BETA_ADMIN_CREDENTIALS_FILE || "./admin-credentials.tsv");
 }
 
 function generatePassword() {
@@ -58,7 +58,7 @@ function generateCredentials(): BetaCredential[] {
     return {
       sequence,
       name,
-      email: `beta-admin-${number}@meridian-crm.com`,
+      email: `beta-admin-${number}@keduoduo-crm.com`,
       teamId: `beta-${String(sequence).padStart(3, "0")}`,
       password: generatePassword()
     };
@@ -149,7 +149,7 @@ async function provision(credentials: BetaCredential[], removePrimaryAdmin: bool
               SUM(status = 'active') AS active_count
        FROM users
        WHERE role = 'admin'
-         AND email REGEXP '^beta-admin-[0-9]{2}@meridian-crm\\.com$'
+         AND email REGEXP '^beta-admin-[0-9]{2}@keduoduo-crm\\.com$'
          AND team_id REGEXP '^beta-[0-9]{3}$'`
     );
     const betaSummary = betaRows[0] || {};
@@ -162,7 +162,7 @@ async function provision(credentials: BetaCredential[], removePrimaryAdmin: bool
     if (removePrimaryAdmin) {
       const [result] = await connection.execute<mysql.ResultSetHeader>(
         "DELETE FROM users WHERE id = ? AND email = ? AND role = 'admin' AND team_id = ?",
-        ["u_admin", "admin@meridian.com", "europe"]
+        ["u_admin", "admin@keduoduo.com", "europe"]
       );
       removedPrimaryAdmin = Number(result.affectedRows || 0);
     }

@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Meridian CRM may be used commercially. Commercial use does not remove the
+Keduoduo CRM may be used commercially. Commercial use does not remove the
 obligations of the licenses below. The exact dependency versions are pinned
 in `package-lock.json` and `whatsapp-plugin/package-lock.json`. The full
 license texts included in this distribution are under `LICENSES/`.
@@ -17,7 +17,7 @@ license texts included in this distribution are under `LICENSES/`.
 
 The Communication service was integrated from the local `CRM系统对接`
 working copy. That working copy had no upstream commit or remote configured;
-therefore its original application code is attributed to the Meridian project
+therefore its original application code is attributed to the Keduoduo project
 contributors, while the protocol and crypto components above remain the
 property of their upstream authors.
 

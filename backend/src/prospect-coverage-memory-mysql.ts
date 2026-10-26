@@ -63,8 +63,8 @@ import type {
 const PERSISTENCE_SCHEMA_VERSION = "prospect-coverage-mysql-v1";
 const CANONICAL_VERSION = "canonical-json-v1";
 const HKDF_VERSION = "hkdf-sha256-v1";
-const SCHEMA_LOCK = "meridian_prospect_coverage_schema_v1";
-const HKDF_SALT = Buffer.from("meridian-prospect-coverage-v1", "utf8");
+const SCHEMA_LOCK = "keduoduo_prospect_coverage_schema_v1";
+const HKDF_SALT = Buffer.from("keduoduo-prospect-coverage-v1", "utf8");
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const coverageCacheVersions =
   new WeakMap<CrmStore, Map<string, number>>();

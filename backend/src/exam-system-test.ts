@@ -16,15 +16,15 @@ async function request(path: string, token = "", init: RequestInit = {}) {
 }
 
 async function login(email: string) {
-  const result = await request("/api/auth/login", "", { method: "POST", body: JSON.stringify({ email, password: "meridian123" }) });
+  const result = await request("/api/auth/login", "", { method: "POST", body: JSON.stringify({ email, password: "keduoduo123" }) });
   assert.equal(result.response.status, 200, `login failed: ${email}`);
   return String(result.json.token);
 }
 
 try {
-  const manager = await login("alex@meridian.com");
-  const assignedSales = await login("shirley@meridian.com");
-  const unassignedSales = await login("mia@meridian.com");
+  const manager = await login("alex@keduoduo.com");
+  const assignedSales = await login("shirley@keduoduo.com");
+  const unassignedSales = await login("mia@keduoduo.com");
 
   const question = await request("/api/exam-questions", manager, {
     method: "POST",

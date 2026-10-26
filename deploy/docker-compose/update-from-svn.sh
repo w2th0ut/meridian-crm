@@ -3,13 +3,13 @@ set -Eeuo pipefail
 umask 077
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_SOURCE_ROOT="${MERIDIAN_SOURCE_ROOT:-/opt/meridiancrm-src}"
+DEFAULT_SOURCE_ROOT="${KEDUODUO_SOURCE_ROOT:-/opt/keduoduocrm-src}"
 SOURCE_ROOT="$DEFAULT_SOURCE_ROOT"
-SVN_URL="${MERIDIAN_SVN_URL:-svn://gitee.com/sendoh-huang/good-job-private}"
-APP_ROOT="${MERIDIAN_APP_ROOT:-/opt/meridiancrm}"
+SVN_URL="${KEDUODUO_SVN_URL:-svn://gitee.com/sendoh-huang/good-job-private}"
+APP_ROOT="${KEDUODUO_APP_ROOT:-/opt/keduoduocrm}"
 
-log() { printf '[Meridian 更新] %s\n' "$*"; }
-die() { printf '[Meridian 更新][错误] %s\n' "$*" >&2; exit 1; }
+log() { printf '[Keduoduo 更新] %s\n' "$*"; }
+die() { printf '[Keduoduo 更新][错误] %s\n' "$*" >&2; exit 1; }
 
 [[ "${EUID:-$(id -u)}" -eq 0 ]] || die "请使用 root 执行"
 command -v svn >/dev/null 2>&1 || die "缺少 svn，请先安装 Subversion"
@@ -58,8 +58,8 @@ if [[ ! -f "$APP_ROOT/shared/deploy.env" ]]; then
   (cd "$SOURCE_ROOT" && "$DEPLOY_DIR/configure.sh")
 fi
 
-if [[ -f "$APP_ROOT/shared/deploy.env" ]] && grep -q '^MERIDIAN_IMAGE_MODE=registry$' "$APP_ROOT/shared/deploy.env"; then
-  release="${MERIDIAN_RELEASE_ID:-${1:-}}"
+if [[ -f "$APP_ROOT/shared/deploy.env" ]] && grep -q '^KEDUODUO_IMAGE_MODE=registry$' "$APP_ROOT/shared/deploy.env"; then
+  release="${KEDUODUO_RELEASE_ID:-${1:-}}"
   [[ -n "$release" ]] || die "当前为 registry 模式，请使用 ./update-registry.sh 固定版本号"
   log "检测到 registry 模式，跳过本地构建；请使用 ./update-registry.sh $release"
   exec "$DEPLOY_DIR/update-registry.sh" "$release"
@@ -72,6 +72,6 @@ release="${version}-$(date +%Y%m%d%H%M%S)"
 log "构建版本 $release"
 (cd "$SOURCE_ROOT" && "$DEPLOY_DIR/build-in-docker.sh")
 log "执行数据库备份、迁移和健康检查"
-(cd "$SOURCE_ROOT" && MERIDIAN_BUILD_BEFORE_INSTALL=false MERIDIAN_RELEASE_ID="$release" "$DEPLOY_DIR/install.sh")
+(cd "$SOURCE_ROOT" && KEDUODUO_BUILD_BEFORE_INSTALL=false KEDUODUO_RELEASE_ID="$release" "$DEPLOY_DIR/install.sh")
 svn revert -R "$SOURCE_ROOT/whatsapp-plugin/dist-server" >/dev/null 2>&1 || true
 log "更新完成。当前访问地址见 shared/deploy.env 的 PUBLIC_ORIGIN"

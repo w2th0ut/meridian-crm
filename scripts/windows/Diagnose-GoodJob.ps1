@@ -5,11 +5,11 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Continue"
-Import-Module (Join-Path $PSScriptRoot "Meridian.Runtime.psm1") -Force
-$context = New-MeridianContext -PackageRoot $PackageRoot -DataRoot $DataRoot
-$report = Start-MeridianLog -Context $context -Prefix "diagnosis"
-Initialize-MeridianDirectories -Context $context
-Write-MeridianLog -Message "Meridian CRM 诊断开始"
+Import-Module (Join-Path $PSScriptRoot "Keduoduo.Runtime.psm1") -Force
+$context = New-KeduoduoContext -PackageRoot $PackageRoot -DataRoot $DataRoot
+$report = Start-KeduoduoLog -Context $context -Prefix "diagnosis"
+Initialize-KeduoduoDirectories -Context $context
+Write-KeduoduoLog -Message "Keduoduo CRM 诊断开始"
 
 $checks = [ordered]@{
     windowsX64 = ((Test-IsWindowsPlatform) -and [Environment]::Is64BitOperatingSystem)
@@ -18,7 +18,7 @@ $checks = [ordered]@{
     configuration = (Test-Path -LiteralPath $context.SecretsFile)
     databaseData = (Test-Path -LiteralPath (Join-Path $context.DatabaseRoot "mysql"))
 }
-$state = Read-MeridianState -Context $context
+$state = Read-KeduoduoState -Context $context
 if ($state) {
     $nodePath = [string](Get-StateValue -State $state -Name "nodePath")
     $crmPid = Get-StateValue -State $state -Name "crmPid"
@@ -33,10 +33,10 @@ if ($state) {
     $checks.communicationHealth = Wait-HttpReady -Url "http://127.0.0.1:$communicationPort/api/health/ready" -TimeoutSeconds 2
 }
 foreach ($entry in $checks.GetEnumerator()) {
-    Write-MeridianLog -Level $(if ($entry.Value) { "OK" } else { "ERROR" }) -Message "$($entry.Key)：$($entry.Value)"
+    Write-KeduoduoLog -Level $(if ($entry.Value) { "OK" } else { "ERROR" }) -Message "$($entry.Key)：$($entry.Value)"
 }
 
-Write-MeridianLog -Message "最近日志尾部"
+Write-KeduoduoLog -Message "最近日志尾部"
 Get-ChildItem -LiteralPath $context.LogsRoot -File -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime -Descending | Select-Object -First 6 | ForEach-Object {
         Add-Content -LiteralPath $report -Value "`r`n===== $($_.FullName) =====" -Encoding UTF8

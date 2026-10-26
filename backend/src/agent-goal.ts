@@ -50,7 +50,7 @@ const pageContextSchema = z.object({
 }).strict();
 
 export const agentGoalSpecSchema = z.object({
-  protocol: z.literal("meridian-goal/v1"),
+  protocol: z.literal("keduoduo-goal/v1"),
   rawGoal: z.string().min(1).max(4_000),
   primaryAction: agentGoalActionSchema,
   primaryDomain: agentGoalDomainSchema,
@@ -275,7 +275,7 @@ export function compileAgentGoalSpec(goalInput: string, context: AgentGoalContex
     ...(modelPatch?.completionCriteria || [])
   ]);
   return agentGoalSpecSchema.parse({
-    protocol: "meridian-goal/v1",
+    protocol: "keduoduo-goal/v1",
     rawGoal: goal,
     primaryAction,
     primaryDomain,

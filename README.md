@@ -1,4 +1,4 @@
-# Meridian CRM 外贸客户管理软件原型交付
+# Keduoduo CRM 外贸客户管理软件原型交付
 如果这个项目对你有帮助，欢迎自愿打赏支持：
 <img width="200" height="300" alt="cc8e0570ef598ec305bf7df5b98840d0" src="https://github.com/user-attachments/assets/7eb404f7-8bee-4c59-84aa-09d6b9335c59" />
 
@@ -6,7 +6,7 @@
 ## WhatsApp 集成
 
 CRM 的 `WhatsApp` 页面加载仓库内的独立服务 `whatsapp-plugin/`。该目录从已验收的
-`桌面/Meridian/CRM系统对接` 迁入，保留 Baileys/Meta Provider、PGlite/MySQL、
+`桌面/Keduoduo/CRM系统对接` 迁入，保留 Baileys/Meta Provider、PGlite/MySQL、
 AES-256-GCM AuthState、Socket.IO、AI 翻译、测试和部署文档，不使用 CRM 原有的
 `whatsapp-web.js` 页面作为聊天入口。
 
@@ -30,7 +30,7 @@ npm run dev
 
 ## 1. 产品定位
 
-Meridian CRM 是一款面向外贸销售团队的网页版客户管理软件，采用前后端分离架构，后端数据本地化存储到 MySQL。产品核心不是“记录客户”，而是让外贸业务员每天知道：该跟谁、跟进到哪一步、哪些客户有风险、哪些商机最可能成交、团队的数据是否可导入导出和沉淀。
+Keduoduo CRM 是一款面向外贸销售团队的网页版客户管理软件，采用前后端分离架构，后端数据本地化存储到 MySQL。产品核心不是“记录客户”，而是让外贸业务员每天知道：该跟谁、跟进到哪一步、哪些客户有风险、哪些商机最可能成交、团队的数据是否可导入导出和沉淀。
 
 参考方向来自主流 CRM 的共性能力：
 
@@ -252,7 +252,7 @@ Meridian CRM 是一款面向外贸销售团队的网页版客户管理软件，�
 数据库首次拆分（只执行一次）：
 
 ```bash
-cd Meridian/CRM
+cd Keduoduo/CRM
 npm run db:profiles:provision
 ```
 
@@ -273,7 +273,7 @@ npm run dev
 ```
 
 `npm run dev` 固定等同于 `npm run app:dev`。每次启动都会校验数据库档位和数据库名；
-个人档位只能连接 `meridian_crm_personal`，开发档位只能连接 `meridian_crm_dev`。
+个人档位只能连接 `keduoduo_crm_personal`，开发档位只能连接 `keduoduo_crm_dev`。
 
 查看两套数据库的连接状态：
 
@@ -295,7 +295,7 @@ npm run test:mysql
 ```
 
 MySQL 测试必须使用 `.env.test.local` 中的 `MYSQL_TEST_ADMIN_URL`，测试用例只创建并删除
-`meridian_*_test_*` 随机临时库，不允许回退到个人库或开发库。
+`keduoduo_*_test_*` 随机临时库，不允许回退到个人库或开发库。
 
 提交 SVN 前执行：
 
@@ -337,7 +337,7 @@ INTEGRATION_ENABLED=true
 INTEGRATION_WORKER_ENABLED=true
 INTEGRATION_CREDENTIAL_KEY=请生成至少32位且独立保存的随机密钥
 REDIS_URL=redis://127.0.0.1:6379/0
-DATABASE_URL=mysql://用户名:密码@127.0.0.1:3306/meridian_crm
+DATABASE_URL=mysql://用户名:密码@127.0.0.1:3306/keduoduo_crm
 INTEGRATION_AGENT_CALL_TIMEOUT_MS=30000
 # OAuth 连接器启用时填写 CRM API 的公网 HTTPS 地址
 INTEGRATION_OAUTH_CALLBACK_BASE_URL=https://api.example.com
@@ -373,7 +373,7 @@ Stage 4 提供 Microsoft 365 Outlook 邮箱和日历闭环。Azure 应用需要�
 
 Stage 7 提供 Google Workspace Gmail 与 Google Calendar 官方连接器。Google Cloud OAuth Web 应用必须启用 Gmail API 和 Google Calendar API，并将重定向 URI精确设置为 `https://你的CRM域名/api/integrations/oauth/callback/google-workspace`。授权范围包括 Gmail 读取、草稿与发送，以及日历事件和忙闲查询；发送邮件、创建会议和更新会议沿用 R4 冻结参数审批与 CRM 客户回写。涉及 Gmail 敏感/受限范围时，公测前还需按 Google 要求完成 OAuth consent screen、测试用户或应用验证。依赖 Google Cloud Pub/Sub 的 Gmail 实时推送仍需单独配置，Client ID 与 Client Secret 未同时配置时目录会保持规划态。
 
-Stage 8 增加 ERPNext、EasyPost 国际物流和 Google Drive 贸易单据三个官方连接器。ERPNext 仅调用 `INTEGRATION_ERPNEXT_BASE_URL` 指向实例的 Frappe REST API；EasyPost 仅调用 `api.easypost.com/v2`，不会抓取承运商网站；二者的 API 凭据在连接弹窗录入，以 `teamId + ownerId + connectionId` 作为 AES-GCM 绑定后保存，接口和日志不回显。Google Drive 使用最小化的 `drive.file` Scope，只管理 Meridian CRM 创建的文件；Google Cloud 项目需启用 Drive API，并额外登记重定向 URI `https://你的CRM域名/api/integrations/oauth/callback/google-drive-trade-docs`。报价/订单创建、物流跟踪创建、文件上传和对外共享沿用现有审批、参数冻结、完成证据与未知结果人工对账。正式发布前仍需分别使用企业自己的 ERPNext、EasyPost 和 Google Workspace 账号完成真实实例验收。
+Stage 8 增加 ERPNext、EasyPost 国际物流和 Google Drive 贸易单据三个官方连接器。ERPNext 仅调用 `INTEGRATION_ERPNEXT_BASE_URL` 指向实例的 Frappe REST API；EasyPost 仅调用 `api.easypost.com/v2`，不会抓取承运商网站；二者的 API 凭据在连接弹窗录入，以 `teamId + ownerId + connectionId` 作为 AES-GCM 绑定后保存，接口和日志不回显。Google Drive 使用最小化的 `drive.file` Scope，只管理 Keduoduo CRM 创建的文件；Google Cloud 项目需启用 Drive API，并额外登记重定向 URI `https://你的CRM域名/api/integrations/oauth/callback/google-drive-trade-docs`。报价/订单创建、物流跟踪创建、文件上传和对外共享沿用现有审批、参数冻结、完成证据与未知结果人工对账。正式发布前仍需分别使用企业自己的 ERPNext、EasyPost 和 Google Workspace 账号完成真实实例验收。
 
 Stage 9 增加企业微信官方 API 连接器。管理员在集成中心创建团队连接时录入 `CorpID`、自建应用 `Secret`、`AgentId` 和“客户联系 Secret”；四项凭据按连接加密保存，换密钥后旧 access token 会失效，access token 只在 Integration Worker 内存中短期缓存。连接器只访问 `qyapi.weixin.qq.com` 的固定官方接口，提供部门、成员、外部联系人编号、外部联系人详情和应用文本通知 5 个工具，不访问企业或客户网页。成员列表默认不返回手机号和邮箱；应用通知禁止 `@all`，最多 100 名明确成员，启用 30 分钟重复消息检查，并经过 R4 冻结参数审批。部署前需在企业微信管理后台创建自建应用、配置可见范围和服务器可信 IP，并从“客户联系 API”页面获取独立 Secret；正式开放前仍需使用真实企业完成最小权限、成员读取、客户读取、消息回执、换密钥和解绑验收。
 
@@ -536,7 +536,7 @@ Swagger 文档默认启用，但必须先使用管理员或超级管理员账号
 
 ## 10. 开源许可证
 
-Meridian CRM 自有核心代码使用 Apache-2.0，允许使用、修改、商用、销售和
+Keduoduo CRM 自有核心代码使用 Apache-2.0，允许使用、修改、商用、销售和
 再分发，但必须保留许可证、版权和 NOTICE。Communication 是独立服务，因
 运行时包含 GPL-3.0 的 libsignal，使用 GPL-3.0-only；它同样允许商用，但
 分发时必须按 GPL 提供对应源代码并保留声明。

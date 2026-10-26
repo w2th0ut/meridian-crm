@@ -8,9 +8,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-Import-Module (Join-Path $PSScriptRoot "Meridian.Runtime.psm1") -Force
-$context = New-MeridianContext -PackageRoot $PackageRoot -DataRoot $DataRoot
-$log = Start-MeridianLog -Context $context -Prefix "update"
+Import-Module (Join-Path $PSScriptRoot "Keduoduo.Runtime.psm1") -Force
+$context = New-KeduoduoContext -PackageRoot $PackageRoot -DataRoot $DataRoot
+$log = Start-KeduoduoLog -Context $context -Prefix "update"
 $lockStream = $null
 $oldAppDirectory = $null
 $newAppDirectory = $null
@@ -101,7 +101,7 @@ function Assert-PackageManifest {
 function New-DatabaseBackup {
     param([hashtable]$Config)
     $stamp = Get-Date -Format "yyyyMMdd-HHmmssfff"
-    $sqlPath = Join-Path $context.BackupsRoot "meridian-$($Config.DB_NAME)-pre-update-$stamp.sql"
+    $sqlPath = Join-Path $context.BackupsRoot "keduoduo-$($Config.DB_NAME)-pre-update-$stamp.sql"
     $gzipPath = "$sqlPath.gz"
     $errorPath = "$sqlPath.error.log"
     $arguments = @(
@@ -129,13 +129,13 @@ function New-DatabaseBackup {
 }
 
 try {
-    Initialize-MeridianDirectories -Context $context
-    Initialize-MeridianConfiguration -Context $context
+    Initialize-KeduoduoDirectories -Context $context
+    Initialize-KeduoduoConfiguration -Context $context
     $lockPath = Join-Path $context.UpdatesRoot "update.lock"
     try { $lockStream = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
     catch { throw "已有更新任务正在运行" }
 
-    $config = Get-MeridianConfiguration -Context $context
+    $config = Get-KeduoduoConfiguration -Context $context
     $context.ApiPort = [int]$config.API_PORT
     $context.CommunicationPort = [int]$config.COMMUNICATION_PORT
     $context.DatabasePort = [int]$config.DATABASE_PORT
@@ -170,8 +170,8 @@ try {
     if ($targetVersion -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw "更新版本号格式无效" }
     $minimumVersion = [string](Get-StateValue -State $manifest -Name "minimumVersion")
     if ($minimumVersion -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw "更新清单最低兼容版本无效" }
-    if ((Compare-MeridianVersion -Left $targetVersion -Right $currentVersion) -le 0) { throw "当前已是 v$currentVersion，没有可应用的新版本" }
-    if ((Compare-MeridianVersion -Left $currentVersion -Right $minimumVersion) -lt 0) { throw "当前版本 v$currentVersion 低于热更新最低版本 v$minimumVersion，请下载完整便携包升级" }
+    if ((Compare-KeduoduoVersion -Left $targetVersion -Right $currentVersion) -le 0) { throw "当前已是 v$currentVersion，没有可应用的新版本" }
+    if ((Compare-KeduoduoVersion -Left $currentVersion -Right $minimumVersion) -lt 0) { throw "当前版本 v$currentVersion 低于热更新最低版本 v$minimumVersion，请下载完整便携包升级" }
     $release = $manifest.releases.$targetVersion
     if (-not $release -or -not $release.windows) { throw "版本 $targetVersion 没有 Windows x64 更新包" }
     if ([string]$release.databaseCompatibility -ne "backward-compatible") { throw "该版本没有声明数据库向后兼容，不能热更新" }
@@ -190,16 +190,16 @@ try {
 
     $stage = "更新前数据库备份"
     Write-UpdateProgress -Context $context -Stage "backing_up" -Message "更新前强制备份数据库" -Percent 8
-    $state = Read-MeridianState -Context $context
+    $state = Read-KeduoduoState -Context $context
     $databasePid = Get-StateValue -State $state -Name "databasePid"
     $databasePath = [string](Get-StateValue -State $state -Name "databasePath")
     $databaseStartedAt = [string](Get-StateValue -State $state -Name "databaseStartedAt")
-    if (-not $state -or -not (Test-OwnedProcess -PidValue $databasePid -ExpectedPath $databasePath -ExpectedStartedAt $databaseStartedAt)) { throw "无法确认 Meridian 数据库正在运行，请先启动系统再更新" }
+    if (-not $state -or -not (Test-OwnedProcess -PidValue $databasePid -ExpectedPath $databasePath -ExpectedStartedAt $databaseStartedAt)) { throw "无法确认 Keduoduo 数据库正在运行，请先启动系统再更新" }
     $backup = New-DatabaseBackup -Config $config
     Write-UpdateProgress -Context $context -Stage "backup_verified" -Message "数据库备份完成并通过 SHA256 校验" -Percent 22 -Details @{ backupFile = $backup.file; backupSize = $backup.size; backupSha256 = $backup.sha256 }
 
     $stage = "下载更新包"
-    $assetPath = Join-Path $context.UpdatesRoot "meridian-app-$targetVersion-win-x64.zip"
+    $assetPath = Join-Path $context.UpdatesRoot "keduoduo-app-$targetVersion-win-x64.zip"
     $assetLocation = if ($assetUrl -match '^https?://') { $assetUrl } else { Resolve-MirrorLocation -Base $Mirror -Child $assetUrl }
     Copy-UpdateResource -Source $assetLocation -Destination $assetPath -PercentStart 23 -PercentEnd 58 -Message "下载 Windows 完整更新包"
     $assetInfo = Get-Item -LiteralPath $assetPath
@@ -225,13 +225,13 @@ try {
     $stage = "停止应用服务"
     Invoke-ExternalProcess -FilePath "powershell.exe" -Arguments @(
         "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-        (Join-Path $context.RuntimeRoot "Stop-Meridian.ps1"), "-PackageRoot", $context.PackageRoot,
+        (Join-Path $context.RuntimeRoot "Stop-Keduoduo.ps1"), "-PackageRoot", $context.PackageRoot,
         "-DataRoot", $context.DataRoot, "-KeepDatabase"
     ) -LogPath $log | Out-Null
     $servicesStopped = $true
     Write-UpdateProgress -Context $context -Stage "migrating" -Message "应用服务已停止，正在执行幂等迁移" -Percent 76
 
-    Set-MeridianRuntimeEnvironment -Context $context -AppDirectory $newAppDirectory | Out-Null
+    Set-KeduoduoRuntimeEnvironment -Context $context -AppDirectory $newAppDirectory | Out-Null
     Invoke-ExternalProcess -FilePath $context.NodeExe -Arguments @((Join-Path $newAppDirectory "backend\dist\migrate-mysql.js")) -WorkingDirectory (Join-Path $newAppDirectory "backend") -LogPath $log | Out-Null
     [Environment]::SetEnvironmentVariable("DATABASE_CLIENT", "mysql", "Process")
     [Environment]::SetEnvironmentVariable("AUTO_MIGRATE", "false", "Process")
@@ -244,7 +244,7 @@ try {
     if (-not $NoRestart) {
         Invoke-ExternalProcess -FilePath "powershell.exe" -Arguments @(
             "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-            (Join-Path $context.RuntimeRoot "Start-Meridian.ps1"), "-PackageRoot", $context.PackageRoot,
+            (Join-Path $context.RuntimeRoot "Start-Keduoduo.ps1"), "-PackageRoot", $context.PackageRoot,
             "-DataRoot", $context.DataRoot, "-NoBrowser"
         ) -LogPath $log | Out-Null
         if (-not (Wait-HttpReady -Url "http://127.0.0.1:$($context.ApiPort)/api/health" -TimeoutSeconds 90)) { throw "新版本健康检查未通过" }
@@ -255,7 +255,7 @@ try {
 } catch {
     $failureRecord = $_
     $failureMessage = $failureRecord.Exception.Message
-    Write-MeridianFailure -ErrorRecord $failureRecord -Stage $stage
+    Write-KeduoduoFailure -ErrorRecord $failureRecord -Stage $stage
     $backupFile = if ($backup) { $backup.file } else { "" }
     $backupSize = if ($backup) { $backup.size } else { 0 }
     $backupSha256 = if ($backup) { $backup.sha256 } else { "" }
@@ -267,13 +267,13 @@ try {
             if (-not $NoRestart) {
                 Invoke-ExternalProcess -FilePath "powershell.exe" -Arguments @(
                     "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                    (Join-Path $context.RuntimeRoot "Start-Meridian.ps1"), "-PackageRoot", $context.PackageRoot,
+                    (Join-Path $context.RuntimeRoot "Start-Keduoduo.ps1"), "-PackageRoot", $context.PackageRoot,
                     "-DataRoot", $context.DataRoot, "-NoBrowser"
                 ) -LogPath $log | Out-Null
             }
         } catch {
             $rollbackFailure = $_.Exception.Message
-            Write-MeridianFailure -ErrorRecord $_ -Stage "自动回滚"
+            Write-KeduoduoFailure -ErrorRecord $_ -Stage "自动回滚"
         }
     }
     $finalMessage = if ($rollbackFailure) { "更新失败，且旧版本自动重启失败：$failureMessage；回滚错误：$rollbackFailure" } elseif ($servicesStopped) { "更新失败，已切回旧版本代码：$failureMessage" } else { "更新失败，现有版本未切换：$failureMessage" }

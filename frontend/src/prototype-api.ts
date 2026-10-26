@@ -8911,7 +8911,7 @@ function openExchangeEndpointModal(endpoint?: ExchangeEndpointView) {
         <option value="inbound" ${endpoint?.direction === "inbound" ? "selected" : ""}>接收（对方 → 我方）</option>
         <option value="both" ${endpoint?.direction === "both" ? "selected" : ""}>双向</option>
       </select></div>
-      <div class="form-field full"><label>推送地址（对方的接收 URL）</label><input id="exchangeBaseUrlInput" value="${escapeHtml(endpoint?.baseUrl || "")}" placeholder="https://api.example.com/webhook/meridian"></div>
+      <div class="form-field full"><label>推送地址（对方的接收 URL）</label><input id="exchangeBaseUrlInput" value="${escapeHtml(endpoint?.baseUrl || "")}" placeholder="https://api.example.com/webhook/keduoduo"></div>
       <div class="form-field"><label>鉴权方式</label><select id="exchangeAuthTypeInput">
         <option value="none" ${endpoint?.authType === "none" ? "selected" : ""}>无</option>
         <option value="bearer" ${endpoint?.authType === "bearer" ? "selected" : ""}>Bearer Token</option>
@@ -8919,7 +8919,7 @@ function openExchangeEndpointModal(endpoint?: ExchangeEndpointView) {
       </select></div>
       <div class="form-field"><label>自定义头名称（鉴权方式=自定义请求头时填）</label><input id="exchangeAuthNameInput" value="${escapeHtml(endpoint?.authName || "")}" placeholder="例如 X-Api-Key"></div>
       <div class="form-field full"><label>鉴权密钥 / Token</label><input id="exchangeAuthSecretInput" type="password" value="${escapeHtml(endpoint?.authSecret || "")}" placeholder="对方系统分配的密钥"></div>
-      <div class="form-field full"><label>附加请求头（JSON，可选）</label><input id="exchangeExtraHeadersInput" value="${escapeHtml(endpoint?.extraHeadersJson === "{}" ? "" : endpoint?.extraHeadersJson || "")}" placeholder='{"X-Tenant":"meridian"}'></div>
+      <div class="form-field full"><label>附加请求头（JSON，可选）</label><input id="exchangeExtraHeadersInput" value="${escapeHtml(endpoint?.extraHeadersJson === "{}" ? "" : endpoint?.extraHeadersJson || "")}" placeholder='{"X-Tenant":"keduoduo"}'></div>
       <div class="form-field full"><label>描述</label><input id="exchangeDescriptionInput" value="${escapeHtml(endpoint?.description || "")}" placeholder="对接内容、负责人、注意事项等"></div>
       <div class="form-field full"><label>接收处理（仅接收/双向方向生效）</label><select id="exchangeOnReceiveInput">
         <option value="log" ${(endpoint?.onReceive || "log") === "log" ? "selected" : ""}>仅记录报文（默认）</option>
@@ -8943,7 +8943,7 @@ function openExchangeEndpointModal(endpoint?: ExchangeEndpointView) {
       try {
         extraHeadersJson = JSON.stringify(JSON.parse(extraRaw));
       } catch {
-        toast("附加请求头不是合法 JSON，例如 {\"X-Tenant\":\"meridian\"}", "error");
+        toast("附加请求头不是合法 JSON，例如 {\"X-Tenant\":\"keduoduo\"}", "error");
         return;
       }
     }
@@ -10214,7 +10214,7 @@ async function removeSenderMailbox(id: string) {
 }
 
 function collectDevelopmentEmailDraft() {
-  const sender = qs<HTMLInputElement>("#profileSenderName")?.value.trim() || state.user?.name || "Meridian Sales";
+  const sender = qs<HTMLInputElement>("#profileSenderName")?.value.trim() || state.user?.name || "Keduoduo Sales";
   const from = qs<HTMLInputElement>("#profileOutboundEmail")?.value.trim() || state.user?.outboundEmail || "";
   const signature = qs<HTMLTextAreaElement>("#profileEmailSignature")?.value.trim() || "";
   return {
@@ -10230,7 +10230,7 @@ function collectDevelopmentEmailDraft() {
 
 function generateDevelopmentEmailDraft() {
   const company = qs<HTMLInputElement>("#devEmailCompany")?.value.trim() || "your company";
-  const sender = qs<HTMLInputElement>("#profileSenderName")?.value.trim() || state.user?.name || "Meridian Sales";
+  const sender = qs<HTMLInputElement>("#profileSenderName")?.value.trim() || state.user?.name || "Keduoduo Sales";
   const signature = qs<HTMLTextAreaElement>("#profileEmailSignature")?.value.trim() || `Best regards,\n${sender}`;
   const body = [
     `Dear ${company} team,`,
@@ -10976,7 +10976,7 @@ function setupApprovalEvents() {
   qs<HTMLButtonElement>("#approvalDesignerFit")?.addEventListener("click", fitApprovalDesignerCanvas);
   qs<HTMLButtonElement>("#approvalValidationClose")?.addEventListener("click", () => { const drawer = qs<HTMLElement>("#approvalValidationDrawer"); if (drawer) drawer.hidden = true; });
   qsa<HTMLButtonElement>("[data-approval-palette]").forEach((button) => {
-    button.addEventListener("dragstart", (event) => event.dataTransfer?.setData("application/x-meridian-approval-node", button.dataset.approvalPalette || "approval"));
+    button.addEventListener("dragstart", (event) => event.dataTransfer?.setData("application/x-keduoduo-approval-node", button.dataset.approvalPalette || "approval"));
     button.addEventListener("click", () => {
       const workflow = approvalDesignerWorkflow; const canvas = qs<HTMLElement>("#approvalCanvas"); const type = button.dataset.approvalPalette as ApprovalWorkflowNodeType; if (!workflow || !canvas) return;
       const node = approvalDesignerNode(approvalDesignerId("node"), type, canvas.scrollLeft + Math.max(80, canvas.clientWidth / 2 - 87), canvas.scrollTop + Math.max(110, canvas.clientHeight / 2 - 34));
@@ -10986,7 +10986,7 @@ function setupApprovalEvents() {
   const canvas = qs<HTMLElement>("#approvalCanvas");
   canvas?.addEventListener("dragover", (event) => { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = "copy"; });
   canvas?.addEventListener("drop", (event) => {
-    event.preventDefault(); const workflow = approvalDesignerWorkflow; const type = event.dataTransfer?.getData("application/x-meridian-approval-node") as ApprovalWorkflowNodeType; if (!workflow || !["approval", "condition", "cc", "automation"].includes(type)) return;
+    event.preventDefault(); const workflow = approvalDesignerWorkflow; const type = event.dataTransfer?.getData("application/x-keduoduo-approval-node") as ApprovalWorkflowNodeType; if (!workflow || !["approval", "condition", "cc", "automation"].includes(type)) return;
     const rect = canvas.getBoundingClientRect(); const node = approvalDesignerNode(approvalDesignerId("node"), type, Math.max(20, event.clientX - rect.left + canvas.scrollLeft - 87), Math.max(64, event.clientY - rect.top + canvas.scrollTop - 34));
     workflow.nodes = [...(workflow.nodes || []), node]; approvalDesignerSelectedNodeId = node.id; approvalDesignerSelectedEdgeId = ""; markApprovalDesignerDirty(); renderApprovalDesigner(); renderApprovalInspector();
   });
@@ -14531,7 +14531,7 @@ async function whatsappPluginRequest<T>(path: string, init: RequestInit = {}): P
 // 与「自定义取色」（applyTheme 把令牌写成 <html> 的行内样式）走的是同一条路，
 // 不需要在插件里再维护一份预设表。
 // 与插件侧同名常量：whatsapp-plugin/src/web/theme.ts
-const WHATSAPP_THEME_MESSAGE = "meridian:theme";
+const WHATSAPP_THEME_MESSAGE = "keduoduo:theme";
 
 function readHostThemeTokens(): Record<string, string> {
   const computed = getComputedStyle(document.documentElement);
@@ -15813,7 +15813,7 @@ function launchCustomerContact(customer: Customer, channel: "email" | "phone" | 
       openCustomerModal(customer);
       return;
     }
-    window.location.href = `mailto:${contacts.email}?subject=${encodeURIComponent(`Meridian CRM · ${customer.company}`)}`;
+    window.location.href = `mailto:${contacts.email}?subject=${encodeURIComponent(`Keduoduo CRM · ${customer.company}`)}`;
     return;
   }
   if (channel === "phone") {
@@ -15905,7 +15905,7 @@ function launchContactDockChannel(subject: ContactDockSubject, channel: ContactD
     return;
   }
   if (channel === "email") {
-    window.location.href = `mailto:${value}?subject=${encodeURIComponent(`Meridian CRM · ${subject.name}`)}`;
+    window.location.href = `mailto:${value}?subject=${encodeURIComponent(`Keduoduo CRM · ${subject.name}`)}`;
     return;
   }
   if (channel === "phone") {
@@ -16337,7 +16337,7 @@ async function createCustomerCommunicationTodo(customer: Customer, followup: Wha
     });
     if (!state.todos.some((todo) => todo.id === result.todo.id)) state.todos.unshift(result.todo);
     button.textContent = "已加入待办";
-    toast("已加入 Meridian 待办");
+    toast("已加入 Keduoduo 待办");
   } catch (error) {
     button.disabled = false;
     button.textContent = "转为待办";
@@ -16377,13 +16377,13 @@ async function loadCustomerCommunicationInsights(customer: Customer) {
         <div><h3>客户特点</h3><div class="communication-traits">${analysis.traits.length ? analysis.traits.map((trait) => `<span><b>${escapeHtml(trait.label)}</b><small>${escapeHtml(trait.value || "已识别")} · ${Math.round(trait.confidence * 100)}% 可信 · ${trait.evidenceMessageIds.length} 条证据</small></span>`).join("") : `<span class="is-empty">当前会话证据不足</span>`}</div></div>
         <div><h3>关键决策信号</h3><div class="communication-points">${analysis.keyPoints.length ? analysis.keyPoints.map((point) => `<span><i>✓</i>${escapeHtml(point)}</span>`).join("") : `<span>尚未提取到明确采购信号</span>`}</div></div>
       </div>` : `<div class="communication-insight-empty"><b>客户画像正在等待首次分析</b><span>周期分析任务会自动生成客户特点、风险和跟进建议。</span></div>`}
-      <div class="communication-followup-block"><div class="communication-block-head"><div><h3>最近要跟进的事项</h3><p>即刻沟通建议与 Meridian 待办统一呈现</p></div><b>${pending.length + unmatchedLinkedTodos.length}</b></div><div class="communication-followups">
+      <div class="communication-followup-block"><div class="communication-block-head"><div><h3>最近要跟进的事项</h3><p>即刻沟通建议与 Keduoduo 待办统一呈现</p></div><b>${pending.length + unmatchedLinkedTodos.length}</b></div><div class="communication-followups">
         ${pending.map((item) => {
           const linkedTodo = relatedTodos.find((todo) => todoMatchesCommunicationFollowup(todo, customer, item));
           const buttonLabel = linkedTodo ? (linkedTodo.done ? "待办已完成" : "已加入待办") : "转为待办";
-          return `<article class="priority-${item.priority}${linkedTodo ? " is-crm-todo" : ""}"><i></i><div><b>${escapeHtml(item.title)}</b><span>${escapeHtml(communicationDueLabel(item.dueAt))}</span><p>${escapeHtml(linkedTodo ? (linkedTodo.done ? "关联待办已完成" : "已进入 Meridian 待办") : item.reason)}</p></div><button class="btn" type="button" data-communication-todo="${escapeHtml(item.id)}"${linkedTodo ? " disabled" : ""}>${buttonLabel}</button></article>`;
+          return `<article class="priority-${item.priority}${linkedTodo ? " is-crm-todo" : ""}"><i></i><div><b>${escapeHtml(item.title)}</b><span>${escapeHtml(communicationDueLabel(item.dueAt))}</span><p>${escapeHtml(linkedTodo ? (linkedTodo.done ? "关联待办已完成" : "已进入 Keduoduo 待办") : item.reason)}</p></div><button class="btn" type="button" data-communication-todo="${escapeHtml(item.id)}"${linkedTodo ? " disabled" : ""}>${buttonLabel}</button></article>`;
         }).join("")}
-        ${unmatchedLinkedTodos.slice(0, 4).map((todo) => `<article class="is-crm-todo"><i></i><div><b>${escapeHtml(todo.title)}</b><span>${escapeHtml(communicationDueLabel(todo.dueAt))}</span><p>已进入 Meridian 待办</p></div><em>CRM</em></article>`).join("")}
+        ${unmatchedLinkedTodos.slice(0, 4).map((todo) => `<article class="is-crm-todo"><i></i><div><b>${escapeHtml(todo.title)}</b><span>${escapeHtml(communicationDueLabel(todo.dueAt))}</span><p>已进入 Keduoduo 待办</p></div><em>CRM</em></article>`).join("")}
         ${pending.length + unmatchedLinkedTodos.length === 0 ? `<div class="communication-insight-empty compact"><b>暂无未完成事项</b><span>新消息完成分析后，行动建议会自动出现。</span></div>` : ""}
       </div></div>`;
     qsa<HTMLButtonElement>("[data-communication-todo]", box).forEach((button) => {
@@ -16692,7 +16692,7 @@ async function createCustomerMeetingTodo(customer: Customer, activityId: string,
     }
     updateTodoChips(state.todos);
     renderTopbarStats();
-    toast("会前准备已加入 Meridian 待办");
+    toast("会前准备已加入 Keduoduo 待办");
   } catch (error) {
     setButtonPending(button, false, "生成会前待办", "创建中");
     toast(error instanceof Error ? error.message : "会前待办创建失败", "error");
@@ -19880,7 +19880,7 @@ async function exportCommission() {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, summarySheet, "人员月度汇总");
   XLSX.utils.book_append_sheet(workbook, detailSheet, "逐笔计提明细");
-  XLSX.writeFile(workbook, `Meridian-提成对账-${state.commissionMonth}.xlsx`);
+  XLSX.writeFile(workbook, `Keduoduo-提成对账-${state.commissionMonth}.xlsx`);
   toast(`已导出 ${result.exportJob.rows} 行提成对账数据`);
 }
 
@@ -20385,7 +20385,7 @@ function renderMemoDetail(memo?: Memo) {
 }
 
 function memoDraftKey(id: string) {
-  return `meridian:memo-draft:${state.user?.id || "anonymous"}:${id}`;
+  return `keduoduo:memo-draft:${state.user?.id || "anonymous"}:${id}`;
 }
 
 function collectMemoEditorDraft(memo: Memo): MemoDraft {
@@ -20421,7 +20421,7 @@ function clearMemoDraft(id: string) {
 }
 
 function clearCurrentUserMemoDrafts() {
-  const prefix = `meridian:memo-draft:${state.user?.id || "anonymous"}:`;
+  const prefix = `keduoduo:memo-draft:${state.user?.id || "anonymous"}:`;
   Object.keys(localStorage).filter((key) => key.startsWith(prefix)).forEach((key) => localStorage.removeItem(key));
 }
 
@@ -24733,7 +24733,7 @@ async function exportCustomers() {
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "客户清单");
-    XLSX.writeFile(workbook, `Meridian客户清单-${Date.now()}.xlsx`);
+    XLSX.writeFile(workbook, `Keduoduo客户清单-${Date.now()}.xlsx`);
     state.jobs.unshift(result.job);
     renderJobs(state.jobs);
     toast(`客户已导出：${rows.length} 行`);
@@ -24746,7 +24746,7 @@ function downloadCustomerTemplate() {
   const worksheet = XLSX.utils.aoa_to_sheet([["客户ID", "公司简称", "公司全名", "国家", "联系人", "电话", "邮箱", "联系方式备注（其它渠道）", "官网", "客户来源", "成交状态", "阶段", "预计金额", "健康度", "下一提醒"]]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "客户导入模板");
-  XLSX.writeFile(workbook, "Meridian客户导入模板.xlsx");
+  XLSX.writeFile(workbook, "Keduoduo客户导入模板.xlsx");
   toast("客户导入模板已下载");
 }
 
@@ -28184,7 +28184,7 @@ async function exportQuestionBank() {
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "基础题库");
-    XLSX.writeFile(workbook, `Meridian基础题库-${Date.now()}.xlsx`);
+    XLSX.writeFile(workbook, `Keduoduo基础题库-${Date.now()}.xlsx`);
     toast(`题库已导出：${rows.length} 道题`);
   } catch (error) {
     toast(error instanceof Error ? error.message : "题库导出失败", "error");
@@ -28773,7 +28773,7 @@ async function downloadDatabaseBackup(id: string) {
     const blob = await response.blob();
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = databaseMaintenanceJobs.find((job) => job.id === id)?.fileName || "meridian-database.sql.gz";
+    link.download = databaseMaintenanceJobs.find((job) => job.id === id)?.fileName || "keduoduo-database.sql.gz";
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   } catch (error) {
@@ -28806,7 +28806,7 @@ function downloadDatabaseLog() {
   const blob = new Blob([databaseLogText()], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `meridian-database-task-${databaseCurrentJob?.id || "local"}.log`;
+  link.download = `keduoduo-database-task-${databaseCurrentJob?.id || "local"}.log`;
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
@@ -29686,7 +29686,7 @@ function openTrialGenerateModal() {
       <div class="form-field"><label>有效天数</label><select id="trialDays"><option value="1">1 天</option><option value="3" selected>3 天</option><option value="7">7 天</option><option value="30">30 天</option><option value="90">90 天</option></select></div>
       <div class="form-field"><label>名称前缀</label><input id="trialNamePrefix" value="体验账号"></div>
       <div class="form-field"><label>邮箱前缀</label><input id="trialEmailPrefix" value="trial"></div>
-      <div class="form-field"><label>邮箱域名</label><input id="trialEmailDomain" value="meridian.com"></div>
+      <div class="form-field"><label>邮箱域名</label><input id="trialEmailDomain" value="keduoduo.com"></div>
       <div class="form-field"><label>团队编号</label><input id="trialTeamId" value="europe" placeholder="例如 europe"></div>
       <div class="form-field full" style="color:#758296;font-size:10px;line-height:1.5">账号密码随机生成，只在生成结果里显示一次，请当场复制或导出 CSV。到期后账号自动禁止登录、已有登录立即失效。</div>
     </div>
@@ -29699,7 +29699,7 @@ async function generateTrialAccounts() {
   const days = Number(qs<HTMLSelectElement>("#trialDays")?.value || 3);
   const namePrefix = qs<HTMLInputElement>("#trialNamePrefix")?.value.trim() || "体验账号";
   const emailPrefix = qs<HTMLInputElement>("#trialEmailPrefix")?.value.trim() || "trial";
-  const emailDomain = qs<HTMLInputElement>("#trialEmailDomain")?.value.trim() || "meridian.com";
+  const emailDomain = qs<HTMLInputElement>("#trialEmailDomain")?.value.trim() || "keduoduo.com";
   const teamId = qs<HTMLInputElement>("#trialTeamId")?.value.trim() || "";
   if (!Number.isInteger(count) || count < 1 || count > 200) {
     toast("数量需在 1-200 之间", "error");
@@ -29982,7 +29982,7 @@ async function deleteAccount(id: string, button?: HTMLButtonElement) {
   }
   if (!await confirmAction({
     title: "删除成员账号",
-    message: "该成员将无法继续登录 Meridian CRM。",
+    message: "该成员将无法继续登录 Keduoduo CRM。",
     detail: `${account.name}（${account.email}）`,
     detailLabel: "成员账号",
     consequences: ["账号权限会立即失效", "该成员名下的业务数据不会随账号删除"],
@@ -33488,7 +33488,7 @@ function renderProspectMailPreview() {
   const preview = qs<HTMLElement>("#prospectMailPreview");
   const item = selectedProspect();
   if (!preview) return;
-  const sender = state.user?.emailSenderName || state.user?.name || "Meridian Sales";
+  const sender = state.user?.emailSenderName || state.user?.name || "Keduoduo Sales";
   const from = state.user?.outboundEmail || "";
   preview.textContent = [
     `From: ${sender}${from ? ` <${from}>` : " <未绑定发件邮箱>"}`,
@@ -33500,15 +33500,15 @@ function renderProspectMailPreview() {
 }
 
 function localProspectMailTemplate(item: WebsiteOpportunity) {
-  const sender = state.user?.emailSenderName || state.user?.name || "Meridian Sales";
-  const signature = state.user?.emailSignature?.trim() || `Best regards,\n${sender}\nMeridian Sales Team`;
+  const sender = state.user?.emailSenderName || state.user?.name || "Keduoduo Sales";
+  const signature = state.user?.emailSignature?.trim() || `Best regards,\n${sender}\nKeduoduo Sales Team`;
   return {
     subject: `${item.business || "Product"} supplier support for ${item.company}`,
     body: [
       `Dear ${item.company} team,`,
       "",
       `I noticed your company is active in ${item.business || "international sourcing and distribution"}${item.country ? ` in ${item.country}` : ""}.`,
-      "Meridian supports overseas buyers with product selection, specifications, certificates, quotations and sample coordination.",
+      "Keduoduo supports overseas buyers with product selection, specifications, certificates, quotations and sample coordination.",
       "",
       "May I know which product categories you are currently sourcing, and whether you have any upcoming project requirements?",
       "",
@@ -41843,7 +41843,7 @@ async function refreshLfindJob(job: LeadFinderJob) {
     job.detailLines = [
       ...buildLeadFinderJobDetails(job.resultIds),
       `Lfind 同步失败：${error instanceof Error ? error.message : "任务结果无法同步"}`,
-      "调整建议：在集成中心查看本地 Runner 任务记录，确认 Codex 最终回复是 meridian-lfind-v1 JSON。"
+      "调整建议：在集成中心查看本地 Runner 任务记录，确认 Codex 最终回复是 keduoduo-lfind-v1 JSON。"
     ];
     renderLeadFinder(state.websiteOpportunities);
   }
@@ -42322,7 +42322,7 @@ function exportLeadFinderRows() {
   })));
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "智能搜客结果");
-  XLSX.writeFile(workbook, `Meridian智能搜客结果-${Date.now()}.xlsx`);
+  XLSX.writeFile(workbook, `Keduoduo智能搜客结果-${Date.now()}.xlsx`);
   toast("搜客结果已导出");
 }
 
@@ -43563,7 +43563,7 @@ function customerIntakeFallbackDiagnosis(error: unknown): CustomerIntakeIssue {
     code: "cli_failed",
     title: "本机 CLI 不可用",
     detail: message,
-    command: "cd ~/Desktop/Meridian_private/meridian-runner && node dist/cli.js start"
+    command: "cd ~/Desktop/Keduoduo_private/keduoduo-runner && node dist/cli.js start"
   };
 }
 
@@ -43596,7 +43596,7 @@ async function runCustomerIntakeAnalysis(fileIds: string[], onProgress: (text: s
         code: "cli_timeout",
         title: "识别超时",
         detail: `任务已等待 ${customerIntakeSeconds(Math.round(CUSTOMER_INTAKE_POLL_TIMEOUT_MS / 1000))} 仍未结束。`,
-        command: "确认本机 Runner 在运行（cd ~/Desktop/Meridian_private/meridian-runner && node dist/cli.js start），或换更小的文件重试"
+        command: "确认本机 Runner 在运行（cd ~/Desktop/Keduoduo_private/keduoduo-runner && node dist/cli.js start），或换更小的文件重试"
       }
     );
   }
@@ -44020,7 +44020,7 @@ function renderExecutiveReport(report: ExecutiveReport) {
     if (node) node.innerHTML = value;
   };
   setText("#reportPeriod", `${report.title} · ${report.period.label}`);
-  setText("#reportGeneratedAt", `Meridian CRM · 生成于 ${generatedText}`);
+  setText("#reportGeneratedAt", `Keduoduo CRM · 生成于 ${generatedText}`);
   setText("#reportHeadline", report.headline);
   setText("#reportHeroNote", state.reportNote || report.note);
   setText("#reportScope", `范围：${report.scope.label}`);
@@ -44150,7 +44150,7 @@ async function exportReport() {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "Meridian-CRM-经营汇报.txt";
+  link.download = "Keduoduo-CRM-经营汇报.txt";
   link.click();
   URL.revokeObjectURL(link.href);
   toast("汇报已生成下载");
@@ -44562,7 +44562,7 @@ function buildDailyDraft(dateStr: string): DailyDraft {
     return `<div class="dy-bar"><span class="dy-bar-label">${LOG_CATEGORY_LABEL[c]}</span><span class="dy-bar-track"><i style="width:${pct}%"></i></span><span class="dy-bar-val">${v}</span></div>`;
   }).join("");
 
-  const markdown = `# Meridian CRM 每日经营日报（${dateStr}）
+  const markdown = `# Keduoduo CRM 每日经营日报（${dateStr}）
 
 ## 今日完成工作
 ${completedWork}
@@ -44867,8 +44867,8 @@ function installIntegrationCenterInteractions() {
 }
 
 /** 登录页默认账号（静默内嵌用）：默认管理员 */
-const DEFAULT_LOGIN_EMAIL = "admin@meridian.com";
-const DEFAULT_LOGIN_PASSWORD = "meridian123";
+const DEFAULT_LOGIN_EMAIL = "admin@keduoduo.com";
+const DEFAULT_LOGIN_PASSWORD = "keduoduo123";
 
 /**
  * 登录页默认账号静默内嵌：打开登录页时把默认管理员账号密码填进输入框。
@@ -46251,7 +46251,7 @@ function rememberedWorkspaceView(user = state.user) {
 type ThemeColors = { brand: string; brandStrong: string; brand2: string; brandTint: string; nav: string; ring: string };
 
 const THEME_PRESETS: { id: string; name: string; desc: string; colors: string[] }[] = [
-  { id: "trade",  name: "航线 Trade",  desc: "全球贸易 · 清晰高效", colors: ["#286cff", "#102942", "#edf3ff", "#eff4f9"] },
+  { id: "trade",  name: "客多多 印章",  desc: "纸墨 · 印章红", colors: ["#cc2118", "#16191b", "#fdeceb", "#f1f2ee"] },
   { id: "ocean",   name: "青绿 Ocean",   desc: "海洋 · 外贸本色", colors: ["#0f766e", "#0b5d57", "#e7f6f3", "#0c2b27"] },
   { id: "indigo",  name: "靛蓝 Indigo",  desc: "理性 · 商务沉稳", colors: ["#4f46e5", "#3730a3", "#eef0ff", "#151a35"] },
   { id: "amber",   name: "琥珀 Amber",   desc: "暖金 · 高级质感", colors: ["#b45309", "#8a3e0b", "#fbf1dd", "#271708"] },
@@ -47343,7 +47343,7 @@ function exportContainerLoad() {
       <tr><th>配重校验 · 偏载</th><td>前后偏移 ${txt("clCgLong")} · 左右偏移 ${txt("clCgLat")} · 重心高度 ${txt("clCgHeight")} <span class="xp-badge ${balanceWarn()}">${badgeText("clBalanceBadge")}</span></td></tr>
     </table>
     ${snap}
-    <div class="xp-foot">本方案由 Meridian CRM 装箱计算模块生成，理论最大值按同向整齐码放估算，实际装柜请预留 10–15% 安全余量（间隙、加固、不规则形状）。重量以「单件重量×件数」核对集装箱最大载货重；配重按贴角码放估算重心。</div>
+    <div class="xp-foot">本方案由 Keduoduo CRM 装箱计算模块生成，理论最大值按同向整齐码放估算，实际装柜请预留 10–15% 安全余量（间隙、加固、不规则形状）。重量以「单件重量×件数」核对集装箱最大载货重；配重按贴角码放估算重心。</div>
   </body></html>`;
 
   const w = window.open("", "_blank", "width=900,height=1000");
@@ -47834,12 +47834,12 @@ async function loadProductConfig() {
     const response = await fetch("/product-config.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const config = await response.json() as { productName?: string; version?: string };
-    const productName = String(config.productName || "Meridian CRM").trim();
+    const productName = String(config.productName || "Keduoduo CRM").trim();
     const version = String(config.version || "").trim();
     if (versionNode) versionNode.textContent = version ? `${productName} · 版本 ${version}` : productName;
     if (version && document.documentElement.dataset.ui !== "trade") document.title = `${productName} ${version} · 外贸客户管理系统`;
   } catch {
-    if (versionNode) versionNode.textContent = "Meridian CRM";
+    if (versionNode) versionNode.textContent = "Keduoduo CRM";
   }
 }
 
@@ -47997,10 +47997,10 @@ let pendingUpdateCredits: string | null = null;
 
 // 默认鸣谢内容 (编译进 JS, 永远存在, 不会被更新覆盖)
 const DEFAULT_CREDITS = `<div style="text-align:center;margin-bottom:16px;">
-  <div style="font-size:18px;font-weight:600;color:var(--accent,#3157d5);margin-bottom:4px;">Meridian CRM</div>
+  <div style="font-size:18px;font-weight:600;color:var(--accent,#3157d5);margin-bottom:4px;">Keduoduo CRM</div>
   <div style="font-size:12px;color:var(--text-2,#999);">外贸客户关系管理系统</div>
 </div>
-<p style="margin-bottom:12px;">感谢您使用 Meridian CRM，即将开始更新。本软件在开发过程中使用了以下开源项目，在此表示感谢：</p>
+<p style="margin-bottom:12px;">感谢您使用 Keduoduo CRM，即将开始更新。本软件在开发过程中使用了以下开源项目，在此表示感谢：</p>
 <div style="background:var(--surface-2,#f5f7fa);border-radius:8px;padding:12px 16px;margin-bottom:12px;">
   <div style="font-weight:600;margin-bottom:8px;font-size:13px;">开源依赖</div>
   <div style="font-size:12px;line-height:2;color:var(--text-2,#666);">

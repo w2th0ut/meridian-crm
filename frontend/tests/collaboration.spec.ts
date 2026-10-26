@@ -8,7 +8,7 @@ async function login(
 ) {
   await page.goto("/");
   await page.locator("#loginEmail").fill(email);
-  await page.locator("#loginPassword").fill("meridian123");
+  await page.locator("#loginPassword").fill("keduoduo123");
   await page.locator("#loginButton").click();
   await expect(page.locator("body")).toHaveClass(/is-authenticated/);
   await expect(page.locator("#scopeUser")).toContainText(expectedName);
@@ -26,7 +26,7 @@ test("daily report and internal message collaboration flow", async ({ page }) =>
   const managerComment = `主管反馈 ${marker}`;
   const salespersonReply = `业务回复 ${marker}`;
 
-  await login(page, "shirley@meridian.com", "Shirley");
+  await login(page, "shirley@keduoduo.com", "Shirley");
   await openView(page, "daily-reports");
   await page.locator("#newDailyReportButton").click();
   await page.locator("#dailyReportCompletedInput").fill(completedWork);
@@ -44,7 +44,7 @@ test("daily report and internal message collaboration flow", async ({ page }) =>
   await expect(page.locator("#dailyReportDetail")).toContainText(updatedWork);
 
   await logout(page);
-  await login(page, "alex@meridian.com", "Alex");
+  await login(page, "alex@keduoduo.com", "Alex");
   await openView(page, "daily-reports");
   await expect(page.locator("#dailyReportDetail")).toContainText(updatedWork);
   await page.locator("#dailyReportCommentInput").fill(managerComment);
@@ -52,7 +52,7 @@ test("daily report and internal message collaboration flow", async ({ page }) =>
   await expect(page.locator("#dailyReportDetail")).toContainText(managerComment);
 
   await logout(page);
-  await login(page, "shirley@meridian.com", "Shirley");
+  await login(page, "shirley@keduoduo.com", "Shirley");
   await expect(page.locator("#notificationBellBadge")).toBeVisible();
   await expect(page.locator("#notificationBellBadge")).not.toHaveAttribute("hidden", "");
   await openView(page, "inbox");
@@ -69,7 +69,7 @@ test("daily report and internal message collaboration flow", async ({ page }) =>
   await expect(page.locator("#dailyReportDetail")).toContainText(salespersonReply);
 
   await logout(page);
-  await login(page, "alex@meridian.com", "Alex");
+  await login(page, "alex@keduoduo.com", "Alex");
   await openView(page, "inbox");
   const replyNotification = page.locator("#inboxMessageList .notification-message-row", {
     hasText: "回复了你的日报评论"
@@ -80,7 +80,7 @@ test("daily report and internal message collaboration flow", async ({ page }) =>
 
 test("collaboration pages fit a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await login(page, "shirley@meridian.com", "Shirley");
+  await login(page, "shirley@keduoduo.com", "Shirley");
 
   for (const view of ["daily-reports", "inbox"]) {
     await openView(page, view);

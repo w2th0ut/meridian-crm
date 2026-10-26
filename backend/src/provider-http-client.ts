@@ -276,7 +276,7 @@ async function requestOnce(
         errorCode: response.ok ? "" : `http_${response.status}`
       });
       const responseHeaders = new Headers(response.headers);
-      if (truncated) responseHeaders.set("x-meridian-response-truncated", "true");
+      if (truncated) responseHeaders.set("x-keduoduo-response-truncated", "true");
       const result = new Response(responsePayload(response.status, returnedBody), {
         status: response.status,
         statusText: response.statusText,
@@ -353,7 +353,7 @@ async function requestOnce(
             return value === undefined ? [] : [[key, String(value)]];
           }
         );
-        if (truncated) responseHeaders.push(["x-meridian-response-truncated", "true"]);
+        if (truncated) responseHeaders.push(["x-keduoduo-response-truncated", "true"]);
         const status = response.statusCode || 502;
         const result = new Response(responsePayload(status, Buffer.concat(chunks)), {
           status,

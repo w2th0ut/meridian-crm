@@ -1022,7 +1022,7 @@ export function mountIntegrationCenter(dependencies: IntegrationCenterDependenci
       const button = event.currentTarget as HTMLButtonElement;
       button.disabled = true;
       const authorizationWindow = connector.manifest.authentication === "oauth2"
-        ? window.open("about:blank", "meridian-integration-oauth", "width=720,height=760")
+        ? window.open("about:blank", "keduoduo-integration-oauth", "width=720,height=760")
         : null;
       try {
         const credentials = Object.fromEntries(all<HTMLInputElement>("[data-integration-credential]", document).map((input) => [
@@ -1246,7 +1246,7 @@ export function mountIntegrationCenter(dependencies: IntegrationCenterDependenci
       if (action === "authorize") {
         const connection = connections.find((item) => item.id === id);
         if (!connection) return;
-        const authorizationWindow = window.open("about:blank", "meridian-integration-oauth", "width=720,height=760");
+        const authorizationWindow = window.open("about:blank", "keduoduo-integration-oauth", "width=720,height=760");
         await runOAuthFlow(connection, undefined, authorizationWindow);
         return;
       }
@@ -1262,7 +1262,7 @@ export function mountIntegrationCenter(dependencies: IntegrationCenterDependenci
           openApiCredentialRefresh(connection, connector);
           return;
         }
-        const authorizationWindow = window.open("about:blank", "meridian-integration-oauth", "width=720,height=760");
+        const authorizationWindow = window.open("about:blank", "keduoduo-integration-oauth", "width=720,height=760");
         const transaction = await client.reauthorizeConnection(id);
         await runOAuthFlow(connection, transaction, authorizationWindow);
         return;

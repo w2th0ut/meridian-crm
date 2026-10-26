@@ -486,7 +486,7 @@ export class TrainingService {
       messageCount,
       exchangeCount,
       characters,
-      fileName: `meridian-whatsapp-训练数据-${suffix}.${extension}`,
+      fileName: `keduoduo-whatsapp-训练数据-${suffix}.${extension}`,
       records,
       skippedConversations
     };

@@ -1,4 +1,4 @@
-# Meridian CRM 1.7.2 安装与更新说明
+# Keduoduo CRM 1.7.2 安装与更新说明
 
 ## 真实物流查询
 
@@ -15,16 +15,16 @@
 ```bash
 read -r -s TRACKING_TOKEN
 printf '\\n'
-printf 'TRACKING_PROVIDER=17track\\nTRACKING_17TRACK_TOKEN=%s\\n' "$TRACKING_TOKEN" >> /opt/meridiancrm/shared/secrets/crm_runtime_env
+printf 'TRACKING_PROVIDER=17track\\nTRACKING_17TRACK_TOKEN=%s\\n' "$TRACKING_TOKEN" >> /opt/keduoduocrm/shared/secrets/crm_runtime_env
 unset TRACKING_TOKEN
-chmod 0640 /opt/meridiancrm/shared/secrets/crm_runtime_env
-cd /root/Meridian-CRM-Registry-1.7.2
+chmod 0640 /opt/keduoduocrm/shared/secrets/crm_runtime_env
+cd /root/Keduoduo-CRM-Registry-1.7.2
 ./manage.sh restart
 ```
 
 不要把 Token 写入前端、Compose 文件、公开仓库或聊天记录。
 
-这是 Meridian CRM 的最小 Docker 部署包。安装包只包含部署脚本和 Compose 配置，服务器会从公开 ACR 仓库拉取三个镜像，不包含源码、数据库备份或业务数据。
+这是 Keduoduo CRM 的最小 Docker 部署包。安装包只包含部署脚本和 Compose 配置，服务器会从公开 ACR 仓库拉取三个镜像，不包含源码、数据库备份或业务数据。
 
 ## 1. 固定信息
 
@@ -32,16 +32,16 @@ cd /root/Meridian-CRM-Registry-1.7.2
 版本：1.7.2
 前端域名：https://crm.nanmianyun.com
 宿主机内部入口：http://127.0.0.1:4188
-项目名：meridiancrm
-数据目录：/opt/meridiancrm/shared
+项目名：keduoduocrm
+数据目录：/opt/keduoduocrm/shared
 ```
 
 公开镜像：
 
 ```text
-crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_meridiancrm/backend:1.7.2
-crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_meridiancrm/communication:1.7.2
-crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_meridiancrm/gateway:1.7.2
+crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_keduoduocrm/backend:1.7.2
+crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_keduoduocrm/communication:1.7.2
+crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_keduoduocrm/gateway:1.7.2
 ```
 
 仓库是公开的，服务器端**不需要执行 `docker login`**。
@@ -50,10 +50,10 @@ crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com/kevin_meridiancrm/gat
 
 ```text
 超级管理员：使用 ./configure.sh 时填写的邮箱和密码
-50 个团队管理员凭据：/opt/meridiancrm/shared/secrets/admin_credentials.tsv
+50 个团队管理员凭据：/opt/keduoduocrm/shared/secrets/admin_credentials.tsv
 ```
 
-50 个团队管理员账号为 `beta-admin-01@meridian-crm.com` 到 `beta-admin-50@meridian-crm.com`，分别对应 `beta-001` 到 `beta-050` 团队。密码由服务器首次配置时随机生成，不写入镜像、SVN 或部署包。首次登录后立即修改密码；已有数据库更新时，脚本只会补齐缺失账号，不会覆盖已有密码。
+50 个团队管理员账号为 `beta-admin-01@keduoduo-crm.com` 到 `beta-admin-50@keduoduo-crm.com`，分别对应 `beta-001` 到 `beta-050` 团队。密码由服务器首次配置时随机生成，不写入镜像、SVN 或部署包。首次登录后立即修改密码；已有数据库更新时，脚本只会补齐缺失账号，不会覆盖已有密码。
 
 ## 2. 安装前检查
 
@@ -84,8 +84,8 @@ df -h
 
 ```bash
 scp \
-  "dist-packages/Meridian-CRM-Registry-1.7.2.tar.gz" \
-  "dist-packages/Meridian-CRM-Registry-1.7.2.tar.gz.sha256" \
+  "dist-packages/Keduoduo-CRM-Registry-1.7.2.tar.gz" \
+  "dist-packages/Keduoduo-CRM-Registry-1.7.2.tar.gz.sha256" \
   root@服务器公网IP:/root/
 ```
 
@@ -93,16 +93,16 @@ scp \
 
 ```bash
 cd /root
-sha256sum -c Meridian-CRM-Registry-1.7.2.tar.gz.sha256
-tar -xzf Meridian-CRM-Registry-1.7.2.tar.gz
-cd Meridian-CRM-Registry-1.7.2
+sha256sum -c Keduoduo-CRM-Registry-1.7.2.tar.gz.sha256
+tar -xzf Keduoduo-CRM-Registry-1.7.2.tar.gz
+cd Keduoduo-CRM-Registry-1.7.2
 chmod +x *.sh
 ```
 
 校验必须显示：
 
 ```text
-Meridian-CRM-Registry-1.7.2.tar.gz: OK
+Keduoduo-CRM-Registry-1.7.2.tar.gz: OK
 ```
 
 ## 4. 首次配置
@@ -114,17 +114,17 @@ Meridian-CRM-Registry-1.7.2.tar.gz: OK
 按提示填写：
 
 ```text
-Meridian 专属域名：crm.nanmianyun.com
+Keduoduo 专属域名：crm.nanmianyun.com
 当前是否已经启用 HTTPS：y
-首次超级管理员邮箱：admin@meridian.com
-首次超级管理员姓名：Meridian Admin
+首次超级管理员邮箱：admin@keduoduo.com
+首次超级管理员姓名：Keduoduo Admin
 首次超级管理员密码：设置一个至少 12 位的强密码
 ```
 
 密码输入时终端不会回显。配置脚本会在服务器本地生成数据库密码、JWT 密钥和其他运行密钥，保存到：
 
 ```text
-/opt/meridiancrm/shared/secrets
+/opt/keduoduocrm/shared/secrets
 ```
 
 不要复制、上传或公开这个目录。当前版本默认 MySQL 容器内存上限为 `768m`。
@@ -140,7 +140,7 @@ Meridian 专属域名：crm.nanmianyun.com
 如果只提示可用内存低于 2 GiB，但确认服务器允许继续，必须在同一个终端会话执行：
 
 ```bash
-export MERIDIAN_ALLOW_LOW_MEMORY=true
+export KEDUODUO_ALLOW_LOW_MEMORY=true
 ./preflight.sh
 ```
 
@@ -150,13 +150,13 @@ export MERIDIAN_ALLOW_LOW_MEMORY=true
 ./install.sh
 ```
 
-安装脚本会拉取三个 `1.7.2` 镜像、创建 Meridian 专属网络和数据卷、启动 MySQL 8.4、执行幂等迁移、创建首次超级管理员和 50 个团队管理员、启动三个应用容器并检查健康状态。
+安装脚本会拉取三个 `1.7.2` 镜像、创建 Keduoduo 专属网络和数据卷、启动 MySQL 8.4、执行幂等迁移、创建首次超级管理员和 50 个团队管理员、启动三个应用容器并检查健康状态。
 
 查看状态：
 
 ```bash
 ./manage.sh status
-docker ps --filter name=meridiancrm \
+docker ps --filter name=keduoduocrm \
   --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
 ```
 
@@ -174,7 +174,7 @@ curl -fsS http://127.0.0.1:4188/api/health
 
 ## 6. 宝塔 Nginx 反向代理
 
-只修改 `crm.nanmianyun.com` 这个 Meridian 专属网站，不要修改其他网站、全局 Nginx 配置或其他项目的 server 块。
+只修改 `crm.nanmianyun.com` 这个 Keduoduo 专属网站，不要修改其他网站、全局 Nginx 配置或其他项目的 server 块。
 
 先找到实际配置文件：
 
@@ -273,7 +273,7 @@ https://crm.nanmianyun.com
 50 个团队管理员的账号密码：
 
 ```bash
-column -t -s $'\t' /opt/meridiancrm/shared/secrets/admin_credentials.tsv
+column -t -s $'\t' /opt/keduoduocrm/shared/secrets/admin_credentials.tsv
 ```
 ```
 
@@ -282,7 +282,7 @@ column -t -s $'\t' /opt/meridiancrm/shared/secrets/admin_credentials.tsv
 ## 8. 日常管理
 
 ```bash
-cd /root/Meridian-CRM-Registry-1.7.2
+cd /root/Keduoduo-CRM-Registry-1.7.2
 ./manage.sh status
 ./manage.sh logs 200
 ./manage.sh restart
@@ -290,13 +290,13 @@ cd /root/Meridian-CRM-Registry-1.7.2
 ./manage.sh start
 ```
 
-`stop` 只停止 Meridian 容器，不会停止其他项目。不要执行：
+`stop` 只停止 Keduoduo 容器，不会停止其他项目。不要执行：
 
 ```bash
 docker compose down -v
 ```
 
-`-v` 会删除 Meridian 数据卷。
+`-v` 会删除 Keduoduo 数据卷。
 
 ## 9. 备份与更新
 
@@ -309,7 +309,7 @@ docker compose down -v
 备份目录：
 
 ```text
-/opt/meridiancrm/shared/backups
+/opt/keduoduocrm/shared/backups
 ```
 
 以后发布新业务版本时，可以直接通过宝塔计划任务更新，不必再次上传最小部署包。
@@ -317,23 +317,23 @@ docker compose down -v
 首次安装成功后，`install.sh` 会自动创建：
 
 ```text
-/opt/meridiancrm/ops/baota-update.sh
-/opt/meridiancrm/ops/runtime/
+/opt/keduoduocrm/ops/baota-update.sh
+/opt/keduoduocrm/ops/runtime/
 ```
 
 如果当前服务器是在加入此入口前安装的 1.7.2，先在当前部署包目录执行一次：
 
 ```bash
-install -d -m 0700 /opt/meridiancrm/ops /opt/meridiancrm/ops/runtime
-cp -a ./deploy/docker-compose/. /opt/meridiancrm/ops/runtime/
-chmod +x /opt/meridiancrm/ops/runtime/*.sh
-install -m 0700 ./baota-update.sh /opt/meridiancrm/ops/baota-update.sh
+install -d -m 0700 /opt/keduoduocrm/ops /opt/keduoduocrm/ops/runtime
+cp -a ./deploy/docker-compose/. /opt/keduoduocrm/ops/runtime/
+chmod +x /opt/keduoduocrm/ops/runtime/*.sh
+install -m 0700 ./baota-update.sh /opt/keduoduocrm/ops/baota-update.sh
 ```
 
 在宝塔“计划任务”中添加 Shell 脚本任务，任务类型选择“Shell 脚本”，脚本内容填写：
 
 ```bash
-/opt/meridiancrm/ops/baota-update.sh 1.7.3 >> /opt/meridiancrm/shared/baota-update.log 2>&1
+/opt/keduoduocrm/ops/baota-update.sh 1.7.3 >> /opt/keduoduocrm/shared/baota-update.log 2>&1
 ```
 
 执行用户选择 `root`，周期选择“手动执行”或按你的发布节奏设置。以后更新只需要：
@@ -341,33 +341,33 @@ install -m 0700 ./baota-update.sh /opt/meridiancrm/ops/baota-update.sh
 1. 在电脑发布三个新镜像；
 2. 把计划任务脚本中的版本号改成新版本，例如 `1.7.3`；
 3. 点击计划任务的“执行”；
-4. 在计划任务日志或 `/opt/meridiancrm/shared/baota-update.log` 查看结果。
+4. 在计划任务日志或 `/opt/keduoduocrm/shared/baota-update.log` 查看结果。
 
 入口会直接调用现有更新流程，拉取对应版本的公开镜像。它会备份 MySQL、上传文件和
 Communication 媒体，执行迁移、健康检查和应用回退；不会执行 `docker compose down -v`，
-也不会删除 Meridian 数据卷。服务器端不需要 `docker login`。
+也不会删除 Keduoduo 数据卷。服务器端不需要 `docker login`。
 
 仍可使用命令行方式排查或手动更新：
 
 ```bash
-cd /root/Meridian-CRM-Registry-新版本目录
-export MERIDIAN_ALLOW_LOW_MEMORY=true
+cd /root/Keduoduo-CRM-Registry-新版本目录
+export KEDUODUO_ALLOW_LOW_MEMORY=true
 ./update-registry.sh 新版本号
 ```
 
 例如更新到 `1.7.3`：
 
 ```bash
-cd /root/Meridian-CRM-Registry-1.7.3
+cd /root/Keduoduo-CRM-Registry-1.7.3
 ./update-registry.sh 1.7.3
 ```
 
-更新脚本会拉取三个新镜像、先备份 MySQL、执行数据库迁移并启动新容器。数据保存在 MySQL Docker 卷和 `/opt/meridiancrm/shared`，正常更新不会删除业务数据。
+更新脚本会拉取三个新镜像、先备份 MySQL、执行数据库迁移并启动新容器。数据保存在 MySQL Docker 卷和 `/opt/keduoduocrm/shared`，正常更新不会删除业务数据。
 
 如果之前手动调整过 MySQL 内存，更新前确认：
 
 ```bash
-grep '^MYSQL_MEMORY_LIMIT=' /opt/meridiancrm/shared/deploy.env
+grep '^MYSQL_MEMORY_LIMIT=' /opt/keduoduocrm/shared/deploy.env
 ```
 
 应为：
@@ -385,7 +385,7 @@ MYSQL_MEMORY_LIMIT=768m
 数据库恢复属于破坏性操作，只能在确认备份和恢复点后执行：
 
 ```bash
-./restore.sh /opt/meridiancrm/shared/backups/具体时间戳
+./restore.sh /opt/keduoduocrm/shared/backups/具体时间戳
 ```
 
 ## 10. 常见问题
@@ -395,22 +395,22 @@ MYSQL_MEMORY_LIMIT=768m
 确认 MySQL 当前限制：
 
 ```bash
-docker stats --no-stream meridiancrm-mysql-1
+docker stats --no-stream keduoduocrm-mysql-1
 ```
 
 测试环境继续安装：
 
 ```bash
-export MERIDIAN_ALLOW_LOW_MEMORY=true
+export KEDUODUO_ALLOW_LOW_MEMORY=true
 ./install.sh
 ```
 
 如果 MySQL unhealthy，先检查：
 
 ```bash
-docker inspect meridiancrm-mysql-1 \
+docker inspect keduoduocrm-mysql-1 \
   --format 'status={{.State.Status}} health={{.State.Health.Status}} oom={{.State.OOMKilled}}'
-docker logs --tail 100 meridiancrm-mysql-1
+docker logs --tail 100 keduoduocrm-mysql-1
 ```
 
 ### 前端 JS 返回 404
@@ -425,7 +425,7 @@ curl -I http://127.0.0.1:4188/assets/index-CA-XoN24.js
 
 ### 登录提示账号或密码错误
 
-`INITIAL_ADMIN_EMAIL` 和初始密码只对空数据库首次初始化生效，50 个团队管理员凭据只在服务器首次配置时生成并保存。更新镜像不会覆盖已有用户或密码。不要删除数据卷；先检查 `/opt/meridiancrm/shared/secrets/admin_credentials.tsv`，再使用已知管理员修改密码。
+`INITIAL_ADMIN_EMAIL` 和初始密码只对空数据库首次初始化生效，50 个团队管理员凭据只在服务器首次配置时生成并保存。更新镜像不会覆盖已有用户或密码。不要删除数据卷；先检查 `/opt/keduoduocrm/shared/secrets/admin_credentials.tsv`，再使用已知管理员修改密码。
 
 ### 4188 无法从公网访问
 

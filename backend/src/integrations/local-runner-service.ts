@@ -100,7 +100,7 @@ export class LocalRunnerService {
     const token = `gjr_${runnerId}.${secret}`;
     const createdAt = now();
     const runner: LocalRunner = {
-      id: runnerId, teamId: "", ownerId: "", displayName: input.displayName.trim().slice(0, 160) || "Meridian Runner",
+      id: runnerId, teamId: "", ownerId: "", displayName: input.displayName.trim().slice(0, 160) || "Keduoduo Runner",
       status: "active", tokenHash: sha256(token), tokenFingerprint: sha256(token).slice(0, 12),
       hostname: input.hostname.slice(0, 200), platform: input.platform.slice(0, 80),
       runnerVersion: input.runnerVersion.slice(0, 40), codexVersion: input.codexVersion.slice(0, 80),

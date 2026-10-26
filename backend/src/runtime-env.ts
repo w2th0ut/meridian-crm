@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 export function loadLocalEnv() {
   const currentDir = dirname(fileURLToPath(import.meta.url));
   const projectRoot = resolve(currentDir, "../..");
-  const requested = String(process.env.MERIDIAN_ENV_FILE || "").trim();
+  const requested = String(process.env.KEDUODUO_ENV_FILE || "").trim();
   const candidates = requested
     ? [
         resolve(projectRoot, requested),
@@ -32,5 +32,5 @@ export function loadLocalEnv() {
     if (!key || process.env[key] !== undefined) continue;
     process.env[key] = rawValue.replace(/^["']|["']$/g, "");
   }
-  process.env.MERIDIAN_ENV_FILE = envPath;
+  process.env.KEDUODUO_ENV_FILE = envPath;
 }

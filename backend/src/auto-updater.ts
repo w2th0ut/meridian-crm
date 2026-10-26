@@ -65,19 +65,19 @@ let inMemoryProgress: UpdateProgress = { stage: "idle", message: "", percent: 0 
 let lastCheckResult: UpdateStatus | null = null;
 
 function getDataDir() {
-  return process.env.MERIDIAN_DATA_DIR?.trim() || path.join(homedir(), ".meridian-crm");
+  return process.env.KEDUODUO_DATA_DIR?.trim() || path.join(homedir(), ".keduoduo-crm");
 }
 
 function updateConfigPath() {
-  return process.env.MERIDIAN_UPDATE_CONFIG_FILE?.trim() || path.join(getDataDir(), "config", "update-config.json");
+  return process.env.KEDUODUO_UPDATE_CONFIG_FILE?.trim() || path.join(getDataDir(), "config", "update-config.json");
 }
 
 function updateProgressPath() {
-  return process.env.MERIDIAN_UPDATE_PROGRESS_FILE?.trim() || path.join(getDataDir(), "updates", "progress.json");
+  return process.env.KEDUODUO_UPDATE_PROGRESS_FILE?.trim() || path.join(getDataDir(), "updates", "progress.json");
 }
 
 function getAppDir() {
-  return process.env.MERIDIAN_APP_DIR?.trim() || path.resolve(process.cwd(), "..");
+  return process.env.KEDUODUO_APP_DIR?.trim() || path.resolve(process.cwd(), "..");
 }
 
 function getVersion() {
@@ -90,7 +90,7 @@ function getVersion() {
   } catch {
     // Environment fallback keeps diagnostics available for an incomplete package.
   }
-  return process.env.MERIDIAN_APP_VERSION || "0.0.0";
+  return process.env.KEDUODUO_APP_VERSION || "0.0.0";
 }
 
 function readJsonFile(file: string): Record<string, unknown> {
@@ -104,7 +104,7 @@ function readJsonFile(file: string): Record<string, unknown> {
 
 function getMirrorUrl() {
   const configured = String(readJsonFile(updateConfigPath()).mirrorUrl || "").trim();
-  return configured || process.env.MERIDIAN_MIRROR_URL?.trim() || "";
+  return configured || process.env.KEDUODUO_MIRROR_URL?.trim() || "";
 }
 
 function normalizeMirror(value: string) {
@@ -148,7 +148,7 @@ async function fetchResource(url: string, timeoutMs = 15_000, maxBytes = 1_048_5
   try {
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: { "User-Agent": "Meridian-CRM-Updater/2.0", Accept: "application/json" }
+      headers: { "User-Agent": "Keduoduo-CRM-Updater/2.0", Accept: "application/json" }
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const length = Number(response.headers.get("content-length") || 0);
@@ -162,7 +162,7 @@ async function fetchResource(url: string, timeoutMs = 15_000, maxBytes = 1_048_5
 }
 
 async function loadVerifiedManifest(mirror: string) {
-  const publicKeyPath = process.env.MERIDIAN_UPDATE_PUBLIC_KEY?.trim();
+  const publicKeyPath = process.env.KEDUODUO_UPDATE_PUBLIC_KEY?.trim();
   if (!publicKeyPath || !existsSync(publicKeyPath)) throw new Error("安装包缺少更新签名公钥，请重新安装完整便携包");
   const [manifestBytes, signatureBytes] = await Promise.all([
     fetchResource(manifestLocation(mirror)),
@@ -272,8 +272,8 @@ export async function applyUpdate(): Promise<{ success: boolean; message: string
   if (!mirror) return { success: false, message: "镜像源未配置" };
   const current = getUpdateProgress();
   if (!["idle", "done", "error"].includes(current.stage)) return { success: false, message: "已有更新任务正在进行" };
-  const script = process.env.MERIDIAN_UPDATER_SCRIPT?.trim();
-  const packageRoot = process.env.MERIDIAN_PACKAGE_ROOT?.trim();
+  const script = process.env.KEDUODUO_UPDATER_SCRIPT?.trim();
+  const packageRoot = process.env.KEDUODUO_PACKAGE_ROOT?.trim();
   if (!script || !packageRoot || !existsSync(script)) return { success: false, message: "Windows 外部更新器不存在，请重新安装完整便携包" };
 
   mkdirSync(path.dirname(updateProgressPath()), { recursive: true });

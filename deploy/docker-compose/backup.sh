@@ -12,7 +12,7 @@ install -d -m 0700 "$target"
 
 compose ps --status running mysql --quiet | grep -q . \
   || die "统一 MySQL 未运行，拒绝生成不完整备份"
-log "备份 Meridian 统一 MySQL（包含 CRM 与 Communication）"
+log "备份 Keduoduo 统一 MySQL（包含 CRM 与 Communication）"
 compose exec -T mysql sh -ec \
   'MYSQL_PWD="$(cat /run/secrets/mysql_root_password)" exec mysqldump -u root --single-transaction --routines --triggers --databases "$MYSQL_DATABASE"' \
   | gzip -c > "$target/mysql.sql.gz"
@@ -28,15 +28,15 @@ archive_volume() {
   gzip -t "$target/$archive_name" || die "数据卷备份损坏：$archive_name"
 }
 
-if ! docker volume inspect meridiancrm_uploads_data >/dev/null 2>&1; then
+if ! docker volume inspect keduoduocrm_uploads_data >/dev/null 2>&1; then
   log "首次创建上传文件持久卷"
   docker volume create \
-    --label com.docker.compose.project=meridiancrm \
+    --label com.docker.compose.project=keduoduocrm \
     --label com.docker.compose.volume=uploads_data \
-    meridiancrm_uploads_data >/dev/null
+    keduoduocrm_uploads_data >/dev/null
   legacy_backend_container="$(compose ps --quiet backend 2>/dev/null || true)"
   if [[ -n "$legacy_backend_container" ]]; then
-    uploads_mountpoint="$(docker volume inspect --format '{{.Mountpoint}}' meridiancrm_uploads_data)"
+    uploads_mountpoint="$(docker volume inspect --format '{{.Mountpoint}}' keduoduocrm_uploads_data)"
     if docker cp "$legacy_backend_container:/app/uploads/." "$uploads_mountpoint/" >/dev/null 2>&1; then
       log "已把旧后端容器中的上传文件迁入持久卷"
     else
@@ -46,8 +46,8 @@ if ! docker volume inspect meridiancrm_uploads_data >/dev/null 2>&1; then
 fi
 
 log "备份上传文件、Logo、公章、签名与 Communication 媒体"
-archive_volume meridiancrm_uploads_data uploads.tar.gz
-archive_volume meridiancrm_communication_media communication-media.tar.gz
+archive_volume keduoduocrm_uploads_data uploads.tar.gz
+archive_volume keduoduocrm_communication_media communication-media.tar.gz
 
 cp -p "$ENV_FILE" "$target/deploy.env"
 cp -a "$SECRETS_DIR" "$target/secrets"
@@ -58,9 +58,9 @@ chmod -R go-rwx "$target"
   > SHA256SUMS)
 log "备份完成：$target"
 
-retention="${MERIDIAN_BACKUP_RETENTION_COUNT:-10}"
+retention="${KEDUODUO_BACKUP_RETENTION_COUNT:-10}"
 [[ "$retention" =~ ^[0-9]+$ ]] && (( retention >= 2 && retention <= 100 )) \
-  || die "MERIDIAN_BACKUP_RETENTION_COUNT 必须是 2 到 100 之间的整数"
+  || die "KEDUODUO_BACKUP_RETENTION_COUNT 必须是 2 到 100 之间的整数"
 kept=0
 while IFS= read -r candidate; do
   name="$(basename "$candidate")"

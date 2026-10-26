@@ -184,8 +184,8 @@ describe("buildCrmContext：取到三路依据", () => {
 
     const { default: jwt } = await import("jsonwebtoken");
     const payload = jwt.verify(authorization.replace(/^Bearer /u, ""), SECRET, {
-      issuer: "meridian-crm",
-      audience: "meridian-crm-web"
+      issuer: "keduoduo-crm",
+      audience: "keduoduo-crm-web"
     }) as { sub?: string };
     expect(payload.sub).toBe("user-1");
   });

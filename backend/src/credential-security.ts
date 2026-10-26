@@ -54,21 +54,21 @@ function encryptionKey() {
 
 function aiModelEncryptionKey() {
   return createHash("sha256")
-    .update("meridian-ai-model-api-key-v1|")
+    .update("keduoduo-ai-model-api-key-v1|")
     .update(credentialSecret())
     .digest();
 }
 
 function providerResponseCacheEncryptionKey() {
   return createHash("sha256")
-    .update("meridian-provider-response-cache-v1|")
+    .update("keduoduo-provider-response-cache-v1|")
     .update(credentialSecret())
     .digest();
 }
 
 function mailCredentialEncryptionKey() {
   return createHash("sha256")
-    .update("meridian-mail-credential-v1|")
+    .update("keduoduo-mail-credential-v1|")
     .update(credentialSecret())
     .digest();
 }

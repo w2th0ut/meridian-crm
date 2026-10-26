@@ -14,15 +14,15 @@ async function loginWithCredentials(page: import("@playwright/test").Page, email
 }
 
 async function loginAsManager(page: import("@playwright/test").Page) {
-  await loginWithCredentials(page, "alex@meridian.com", "meridian123", "Alex");
+  await loginWithCredentials(page, "alex@keduoduo.com", "keduoduo123", "Alex");
 }
 
 async function loginAsSales(page: import("@playwright/test").Page) {
-  await loginWithCredentials(page, "shirley@meridian.com", "meridian123", "Shirley");
+  await loginWithCredentials(page, "shirley@keduoduo.com", "keduoduo123", "Shirley");
 }
 
 async function loginAsAdmin(page: import("@playwright/test").Page) {
-  await loginWithCredentials(page, "admin@meridian.com", "meridian123", "Admin");
+  await loginWithCredentials(page, "admin@keduoduo.com", "keduoduo123", "Admin");
 }
 
 async function apiFromPage<T>(
@@ -453,7 +453,7 @@ function buildCustomerWorkbookBuffer(company: string) {
   return Buffer.from(XLSX.write(workbook, { bookType: "xlsx", type: "buffer" }));
 }
 
-test.describe("Meridian CRM prototype pages", () => {
+test.describe("Keduoduo CRM prototype pages", () => {
   let runId: string;
 
   test.beforeEach(async ({ page }) => {
@@ -1246,7 +1246,7 @@ test.describe("Meridian CRM prototype pages", () => {
       body: {
         outboundEmail: "admin.sender@example.com",
         emailSenderName: "Admin Sales",
-        emailSignature: "Best regards,\nAdmin Sales\nMeridian Export",
+        emailSignature: "Best regards,\nAdmin Sales\nKeduoduo Export",
         smtpHost: "smtp.example.com",
         smtpPort: 465,
         smtpSecure: true,
@@ -1258,9 +1258,9 @@ test.describe("Meridian CRM prototype pages", () => {
     await page.reload();
     await expect(page.locator("body")).toHaveClass(/is-authenticated/);
     await openView(page, "settings");
-    await page.locator("#companyProfileName").fill("Meridian Export Ltd.");
-    await page.locator("#companyProfileWebsite").fill("https://meridian.example.com");
-    await page.locator("#companyProfileEmail").fill("sales@meridian.example.com");
+    await page.locator("#companyProfileName").fill("Keduoduo Export Ltd.");
+    await page.locator("#companyProfileWebsite").fill("https://keduoduo.example.com");
+    await page.locator("#companyProfileEmail").fill("sales@keduoduo.example.com");
     await page.locator("#companyProfileProducts").fill("industrial lighting and export sourcing solutions");
     await page.locator("#companyProfilePhone").fill("+86 755 0000 0000");
     await page.locator("#companyProfileAddress").fill("Shenzhen, China");
@@ -1274,7 +1274,7 @@ test.describe("Meridian CRM prototype pages", () => {
       body: {
         outboundEmail: "shirley.sender@example.com",
         emailSenderName: "Shirley",
-        emailSignature: "Best regards,\nShirley\nMeridian Export",
+        emailSignature: "Best regards,\nShirley\nKeduoduo Export",
         smtpHost: "smtp.example.com",
         smtpPort: 465,
         smtpSecure: true,
@@ -1787,7 +1787,7 @@ test.describe("Meridian CRM prototype pages", () => {
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#exportCustomersButton").click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toContain("Meridian客户清单");
+    expect(download.suggestedFilename()).toContain("Keduoduo客户清单");
     await expect(page.locator("#imports tbody")).toContainText("客户清单导出");
   });
 
@@ -2083,12 +2083,12 @@ test.describe("Meridian CRM prototype pages", () => {
     await expect(page.locator("#settings .page-head .btn", { hasText: "新增账号" })).toBeDisabled();
 
     await page.locator("#logoutButton").click();
-    await loginWithCredentials(page, "admin@meridian.com", "meridian123", "Admin");
+    await loginWithCredentials(page, "admin@keduoduo.com", "keduoduo123", "Admin");
     await openView(page, "settings");
     await expect(page.locator("#settings tbody")).not.toContainText("Super Admin");
     await page.locator("#settings .page-head .btn", { hasText: "新增账号" }).click();
     await page.locator("#accountNameInput").fill(accountName);
-    await page.locator("#accountEmailInput").fill(`auto.account.${runId}@meridian.com`);
+    await page.locator("#accountEmailInput").fill(`auto.account.${runId}@keduoduo.com`);
     await page.locator("#accountPasswordInput").fill(`pw${runId}`);
     await page.locator("#accountRoleInput").selectOption("sales");
     await page.locator("#saveAccountButton").click();
@@ -2099,10 +2099,10 @@ test.describe("Meridian CRM prototype pages", () => {
     await page.locator("#savePasswordButton").click();
     await expect(page.locator(".toast").last()).toContainText("密码已更新");
     await page.locator("#logoutButton").click();
-    await loginWithCredentials(page, `auto.account.${runId}@meridian.com`, `newpw${runId}`, accountName);
+    await loginWithCredentials(page, `auto.account.${runId}@keduoduo.com`, `newpw${runId}`, accountName);
     await expect(page.locator("#settings tbody")).not.toContainText("Super Admin");
     await page.locator("#logoutButton").click();
-    await loginWithCredentials(page, "admin@meridian.com", "meridian123", "Admin");
+    await loginWithCredentials(page, "admin@keduoduo.com", "keduoduo123", "Admin");
     await openView(page, "settings");
     await page.locator("#settings tbody tr", { hasText: accountName }).first().getByRole("button", { name: "停用" }).click();
     await expect(page.locator("#settings tbody tr", { hasText: accountName }).first()).toContainText("停用");
@@ -3751,7 +3751,7 @@ test.describe("Meridian CRM prototype pages", () => {
     const outboundEmail = `alex.sender.${runId}@example.com`;
     await page.locator("#profileOutboundEmail").fill(outboundEmail);
     await page.locator("#profileSenderName").fill("Alex Export");
-    await page.locator("#profileEmailSignature").fill("Best regards\\nAlex Export\\nMeridian CRM");
+    await page.locator("#profileEmailSignature").fill("Best regards\\nAlex Export\\nKeduoduo CRM");
     await page.locator("#profileSaveButton").click();
     await expect(page.locator(".toast").last()).toContainText("个人邮箱配置已保存");
     await expect(page.locator("#profileEmailStatus")).toContainText(outboundEmail);
@@ -3920,7 +3920,7 @@ test.describe("Meridian CRM prototype pages", () => {
         const loginResponse = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password: "meridian123" })
+          body: JSON.stringify({ email, password: "keduoduo123" })
         });
         const login = await loginResponse.json();
         const reportResponse = await fetch("/api/reports/executive", {
@@ -3929,8 +3929,8 @@ test.describe("Meridian CRM prototype pages", () => {
         return reportResponse.json();
       };
       return {
-        sales: await readReport("shirley@meridian.com"),
-        admin: await readReport("admin@meridian.com")
+        sales: await readReport("shirley@keduoduo.com"),
+        admin: await readReport("admin@keduoduo.com")
       };
     });
     expect(scopedReports.sales.scope.label).toBe("本人业务");
@@ -3940,7 +3940,7 @@ test.describe("Meridian CRM prototype pages", () => {
       await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "alex@meridian.com", password: "meridian123" })
+        body: JSON.stringify({ email: "alex@keduoduo.com", password: "keduoduo123" })
       });
     });
 
@@ -3955,7 +3955,7 @@ test.describe("Meridian CRM prototype pages", () => {
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#reportExportButton").click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toContain("Meridian-CRM");
+    expect(download.suggestedFilename()).toContain("Keduoduo-CRM");
     const downloadPath = await download.path();
     expect(downloadPath).not.toBeNull();
     const exportText = await readFile(downloadPath!, "utf8");

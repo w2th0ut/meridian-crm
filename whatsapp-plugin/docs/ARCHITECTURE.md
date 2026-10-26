@@ -39,7 +39,7 @@ flowchart LR
         REPO["Repository / 领域数据访问"]
     end
 
-    DB[("Meridian MySQL")]
+    DB[("Keduoduo MySQL")]
     WA["WhatsApp Web"]
     META["Meta Graph API"]
     AI["OpenAI 兼容模型"]
@@ -66,14 +66,14 @@ flowchart LR
 | 组件 | 当前职责 | 生产边界 |
 | --- | --- | --- |
 | React 控制台 | 账号、联系人、会话、路由、接入方式、AI 与诊断操作 | 是独立测试控制台，不是带坐席权限的完整 CRM 前端 |
-| Express API | 参数校验、Meridian CRM 签名会话身份、领域操作、Meta Webhook、生产静态资源托管 | 当前为个人账号所有权模型，不是完整组织级 RBAC 或多租户边界 |
+| Express API | 参数校验、Keduoduo CRM 签名会话身份、领域操作、Meta Webhook、生产静态资源托管 | 当前为个人账号所有权模型，不是完整组织级 RBAC 或多租户边界 |
 | Socket.IO | 广播账号、联系人、消息、翻译和状态变化 | 当前为全局广播，没有租户 ACL 或账号房间 |
 | Provider Manager | 根据持久化账号类型分派 Baileys、Meta 或开发 Demo Provider | Provider 身份由账号记录决定，不支持把已有账号原地改成另一 Provider |
 | Baileys Provider | 二维码登录、AuthState、自动重连、联系人增量、双向文本和状态 | 非官方 WhatsApp Web 协议，无官方 SLA，协议变化或平台风控可导致中断 |
 | Meta Provider | Graph 凭据校验、Webhook 验签、文本、模板和状态回执 | 标准 Cloud API 不枚举一般通讯录；官方 Business App Coexistence 未实现 |
 | Translation Service | OpenAI 兼容翻译、自动/手动触发、译文持久化 | 当前在应用进程内执行，没有持久任务队列和崩溃后自动重放 |
 | Repository | MySQL 参数化 SQL、账号隔离、幂等和审计 | Communication 表与 CRM 表共库但边界独立 |
-| Meridian CRM Adapter | 读取客户与待办，写入客户互动、待办和站内信；本地 `crm_contacts` 仅作为独立运行回退 | CRM 写失败进入自动化失败记录并释放幂等声明供重试 |
+| Keduoduo CRM Adapter | 读取客户与待办，写入客户互动、待办和站内信；本地 `crm_contacts` 仅作为独立运行回退 | CRM 写失败进入自动化失败记录并释放幂等声明供重试 |
 
 ## 4. 运行时生命周期
 
@@ -248,14 +248,14 @@ Baileys 直接消费 WhatsApp Web 事件。联系人、会话、消息和 AuthSt
 
 | 门禁 | 当前风险 | 完成标准 |
 | --- | --- | --- |
-| 组织级 RBAC | 当前已验证 Meridian CRM 会话并按个人账号隔离，但没有组织角色矩阵 | 管理员、运营、销售、只读角色及账号级授权策略 |
+| 组织级 RBAC | 当前已验证 Keduoduo CRM 会话并按个人账号隔离，但没有组织角色矩阵 | 管理员、运营、销售、只读角色及账号级授权策略 |
 | `tenant_id` 多租户模型 | 数据库没有租户级强制隔离 | 所有领域表、查询、唯一约束和任务携带租户身份 |
 | Socket ACL 与账号房间 | 所有连接接收全局事件 | 鉴权握手、租户/账号房间和服务端授权检查 |
 | 出站 Outbox | Meta 入站已持久化并支持失败恢复；出站消息在不确定状态仍需人工对账 | 事务 Outbox、幂等发送、超时对账和死信处理 |
 | 持久任务队列 | 翻译和后续 CRM 任务依赖当前进程 | 持久队列、重试、退避、并发、超时和停机排空 |
 | 多实例账号租约与 fencing token | 多副本可能同时持有同一 Baileys 会话 | 分布式租约、续租、代际令牌和陈旧实例拒写 |
 | Socket.IO 多实例 Adapter | 事件只存在于当前进程 | Redis 等 Adapter、跨实例房间和故障验收 |
-| CRM 冲突队列 | 已接入 Meridian CRM 客户、互动、待办和站内信，失败可重试；缺少独立冲突处理队列 | 字段冲突、身份合并和人工处理界面 |
+| CRM 冲突队列 | 已接入 Keduoduo CRM 客户、互动、待办和站内信，失败可重试；缺少独立冲突处理队列 | 字段冲突、身份合并和人工处理界面 |
 | 真实渠道与数据库 E2E | Mock/本机通过不能代表目标环境 | 目标 MySQL、真实 Meta 测试号、两个隔离 Baileys 账号完整验收 |
 
 还需要在正式上线前补齐密钥轮换、数据保留与删除策略、用户同意、备份自动化、恢复演练、监控告警和供应商故障手册。当前主密钥没有在线轮换流程，丢失主密钥将导致已加密凭据不可恢复。

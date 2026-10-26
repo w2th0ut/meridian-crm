@@ -42,7 +42,7 @@ async function main() {
   }
 
   const adminUrl = new URL(configuredUrl);
-  const databaseName = `meridian_campaign_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
+  const databaseName = `keduoduo_campaign_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
   const admin = await mysql.createConnection(connectionOptions(adminUrl));
   let databaseCreated = false;
   let exitCode = 1;

@@ -45,9 +45,9 @@ export interface DatabaseBackupJob {
 }
 
 const INTERNAL_TABLES = new Set([
-  "meridian_data_import_jobs",
-  "meridian_database_backup_jobs",
-  "meridian_schema_migrations"
+  "keduoduo_data_import_jobs",
+  "keduoduo_database_backup_jobs",
+  "keduoduo_schema_migrations"
 ]);
 const activeBackups = new Map<string, { cancelled: boolean; child?: ChildProcess }>();
 
@@ -92,7 +92,7 @@ function createPool() {
 }
 
 async function ensureBackupSchema(pool: Pool) {
-  await pool.query(`CREATE TABLE IF NOT EXISTS meridian_database_backup_jobs (
+  await pool.query(`CREATE TABLE IF NOT EXISTS keduoduo_database_backup_jobs (
     id VARCHAR(64) PRIMARY KEY,
     actor_id VARCHAR(64) NOT NULL,
     backup_status VARCHAR(20) NOT NULL,
@@ -109,8 +109,8 @@ async function ensureBackupSchema(pool: Pool) {
     events_json JSON NULL,
     created_at DATETIME(3) NOT NULL,
     completed_at DATETIME(3) NULL,
-    INDEX idx_meridian_backup_created(created_at),
-    INDEX idx_meridian_backup_status(backup_status)
+    INDEX idx_keduoduo_backup_created(created_at),
+    INDEX idx_keduoduo_backup_status(backup_status)
   ) ENGINE=InnoDB`);
 }
 
@@ -149,7 +149,7 @@ function rowToJob(row: Record<string, unknown>): DatabaseBackupJob {
 
 async function getJobRow(pool: Pool, id: string) {
   await ensureBackupSchema(pool);
-  const [rows] = await pool.query("SELECT * FROM meridian_database_backup_jobs WHERE id=? LIMIT 1", [id]);
+  const [rows] = await pool.query("SELECT * FROM keduoduo_database_backup_jobs WHERE id=? LIMIT 1", [id]);
   const row = (rows as Array<Record<string, unknown>>)[0];
   if (!row) throw new MysqlDataImportError(404, "数据库备份任务不存在");
   return row;
@@ -169,7 +169,7 @@ export async function listDatabaseBackupJobs(limit = 30) {
   try {
     await ensureBackupSchema(pool);
     const [rows] = await pool.query(
-      "SELECT * FROM meridian_database_backup_jobs ORDER BY created_at DESC LIMIT ?",
+      "SELECT * FROM keduoduo_database_backup_jobs ORDER BY created_at DESC LIMIT ?",
       [Math.max(1, Math.min(100, limit))]
     );
     return (rows as Array<Record<string, unknown>>).map(rowToJob);
@@ -194,7 +194,7 @@ async function updateJob(pool: Pool, id: string, patch: Partial<DatabaseBackupJo
   const events = event ? [...current.events, event].slice(-500) : current.events;
   const tableStats = patch.tableStats || current.tableStats;
   await pool.query(
-    `UPDATE meridian_database_backup_jobs SET
+    `UPDATE keduoduo_database_backup_jobs SET
       backup_status=?, phase=?, current_table=?, total_tables=?, processed_tables=?, estimated_rows=?,
       file_name=?, file_size=?, file_sha256=?, error_message=?, table_stats_json=?, events_json=?,
       completed_at=? WHERE id=?`,
@@ -299,7 +299,7 @@ async function cleanupExpiredBackups(pool: Pool) {
   if (!config.retentionDays) return;
   const cutoff = new Date(Date.now() - config.retentionDays * 86_400_000);
   const [rows] = await pool.query(
-    "SELECT * FROM meridian_database_backup_jobs WHERE backup_status='completed' AND completed_at < ?",
+    "SELECT * FROM keduoduo_database_backup_jobs WHERE backup_status='completed' AND completed_at < ?",
     [cutoff]
   );
   for (const row of rows as Array<Record<string, unknown>>) {
@@ -324,7 +324,7 @@ async function executeDatabaseBackup(jobId: string, allowedTables?: string[]) {
     const tables = await tableInventory(pool, allowedTables);
     if (!tables.length) throw new Error("当前数据库没有可备份的业务数据表");
     const timestamp = new Date().toISOString().replace(/[-:]/gu, "").replace(/\.\d{3}Z$/u, "Z");
-    const fileName = `meridian-${connection.database}-${timestamp}.sql.gz`;
+    const fileName = `keduoduo-${connection.database}-${timestamp}.sql.gz`;
     finalPath = resolve(config.directory, fileName);
     const tableStats: Record<string, DatabaseBackupTableStat> = Object.fromEntries(
       tables.map((item) => [item.table, { status: "pending", rows: item.rows, bytes: 0 }])
@@ -342,7 +342,7 @@ async function executeDatabaseBackup(jobId: string, allowedTables?: string[]) {
     file = createWriteStream(partialPath, { mode: 0o600 });
     gzip.pipe(file);
     const fileFinished = finished(file);
-    await writeStream(gzip, `-- Meridian CRM database backup\n-- Created at ${new Date().toISOString()}\nSET FOREIGN_KEY_CHECKS=0;\n`);
+    await writeStream(gzip, `-- Keduoduo CRM database backup\n-- Created at ${new Date().toISOString()}\nSET FOREIGN_KEY_CHECKS=0;\n`);
     const binary = await dumpBinary();
     const common = [
       `--host=${connection.host}`,
@@ -369,7 +369,7 @@ async function executeDatabaseBackup(jobId: string, allowedTables?: string[]) {
       const before = await stat(partialPath).catch(() => ({ size: 0 }));
       tableStats[item.table] = { ...tableStats[item.table]!, status: "running" };
       await updateJob(pool, jobId, { phase: "data", currentTable: item.table, tableStats }, maintenanceEvent("table", `开始备份 ${item.table}`, { table: item.table }));
-      await writeStream(gzip, `\n-- Meridian table: ${item.table}\n`);
+      await writeStream(gzip, `\n-- Keduoduo table: ${item.table}\n`);
       await runDump(jobId, binary, [...common, "--no-create-info", "--skip-triggers", connection.database, item.table], connection.password, gzip);
       const after = await stat(partialPath).catch(() => ({ size: before.size }));
       tableStats[item.table] = { ...tableStats[item.table]!, status: "completed", bytes: Math.max(0, after.size - before.size) };
@@ -420,7 +420,7 @@ export async function beginDatabaseBackup(input: { actorId: string; allowedTable
     const id = `dbb_${randomUUID()}`;
     const events = [maintenanceEvent("queued", "备份任务已进入队列")];
     await pool.query(
-      `INSERT INTO meridian_database_backup_jobs
+      `INSERT INTO keduoduo_database_backup_jobs
        (id,actor_id,backup_status,phase,table_stats_json,events_json,created_at)
        VALUES (?,?,'queued','queued',JSON_OBJECT(),?,NOW(3))`,
       [id, input.actorId, JSON.stringify(events)]
@@ -472,7 +472,7 @@ export async function deleteDatabaseBackup(id: string) {
       const path = resolve(config.directory, job.fileName);
       if (path.startsWith(`${config.directory}${sep}`)) await unlink(path).catch(() => undefined);
     }
-    await pool.query("DELETE FROM meridian_database_backup_jobs WHERE id=?", [id]);
+    await pool.query("DELETE FROM keduoduo_database_backup_jobs WHERE id=?", [id]);
     return { deleted: true };
   } finally {
     await pool.end();

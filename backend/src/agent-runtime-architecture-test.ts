@@ -8,7 +8,7 @@ const delegatedCompound = compileAgentGoalSpec(
   "生成一个客户并记录一条首次跟进，其它数据你看着来",
   { activeView: "customers", selectedCustomerId: "c_selected" }
 );
-assert.equal(delegatedCompound.protocol, "meridian-goal/v1");
+assert.equal(delegatedCompound.protocol, "keduoduo-goal/v1");
 assert.equal(delegatedCompound.authorization.delegatedFieldSynthesis, true);
 assert.equal(delegatedCompound.authorization.directExecution, true);
 assert.equal(delegatedCompound.pageContext.selectedCustomerId, "c_selected");

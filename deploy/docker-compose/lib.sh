@@ -4,7 +4,7 @@ umask 077
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-APP_ROOT="${MERIDIAN_APP_ROOT:-/opt/meridiancrm}"
+APP_ROOT="${KEDUODUO_APP_ROOT:-/opt/keduoduocrm}"
 SHARED_DIR="$APP_ROOT/shared"
 ENV_FILE="$SHARED_DIR/deploy.env"
 SECRETS_DIR="$SHARED_DIR/secrets"
@@ -12,9 +12,9 @@ STATE_DIR="$SHARED_DIR/state"
 BACKUP_DIR="$SHARED_DIR/backups"
 COMPOSE_FILE="$PACKAGE_ROOT/deploy/docker-compose/compose.yml"
 
-log() { printf '[Meridian] %s\n' "$*"; }
-warn() { printf '[Meridian][警告] %s\n' "$*" >&2; }
-die() { printf '[Meridian][错误] %s\n' "$*" >&2; exit 1; }
+log() { printf '[Keduoduo] %s\n' "$*"; }
+warn() { printf '[Keduoduo][警告] %s\n' "$*" >&2; }
+die() { printf '[Keduoduo][错误] %s\n' "$*" >&2; exit 1; }
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || die "缺少命令：$1"
@@ -26,16 +26,16 @@ load_env() {
   # deploy.env 由 configure.sh 生成，只允许 root 写入。
   source "$ENV_FILE"
   set +a
-  export MERIDIAN_SHARED_DIR="$SHARED_DIR"
+  export KEDUODUO_SHARED_DIR="$SHARED_DIR"
 }
 
 compose() {
-  docker compose --project-name meridiancrm --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  docker compose --project-name keduoduocrm --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
 release_id() {
-  if [[ -n "${MERIDIAN_RELEASE_ID:-}" ]]; then
-    printf '%s\n' "$MERIDIAN_RELEASE_ID"
+  if [[ -n "${KEDUODUO_RELEASE_ID:-}" ]]; then
+    printf '%s\n' "$KEDUODUO_RELEASE_ID"
     return
   fi
   if [[ -f "$PACKAGE_ROOT/RELEASE-ID" ]]; then
@@ -46,15 +46,15 @@ release_id() {
 }
 
 image_mode() {
-  printf '%s\n' "${MERIDIAN_IMAGE_MODE:-local}"
+  printf '%s\n' "${KEDUODUO_IMAGE_MODE:-local}"
 }
 
 image_repository() {
   case "$1" in
-    backend) printf '%s\n' "${MERIDIAN_BACKEND_IMAGE:-meridiancrm-backend}" ;;
-    communication) printf '%s\n' "${MERIDIAN_COMMUNICATION_IMAGE:-meridiancrm-communication}" ;;
-    gateway) printf '%s\n' "${MERIDIAN_GATEWAY_IMAGE:-meridiancrm-gateway}" ;;
-    *) die "未知 Meridian 镜像服务：$1" ;;
+    backend) printf '%s\n' "${KEDUODUO_BACKEND_IMAGE:-keduoduocrm-backend}" ;;
+    communication) printf '%s\n' "${KEDUODUO_COMMUNICATION_IMAGE:-keduoduocrm-communication}" ;;
+    gateway) printf '%s\n' "${KEDUODUO_GATEWAY_IMAGE:-keduoduocrm-gateway}" ;;
+    *) die "未知 Keduoduo 镜像服务：$1" ;;
   esac
 }
 
@@ -73,7 +73,7 @@ validate_image_mode() {
       done
       ;;
     *)
-      die "MERIDIAN_IMAGE_MODE 只能是 local 或 registry，当前为：$(image_mode)"
+      die "KEDUODUO_IMAGE_MODE 只能是 local 或 registry，当前为：$(image_mode)"
       ;;
   esac
 }

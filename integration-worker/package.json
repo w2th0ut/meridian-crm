@@ -1,5 +1,5 @@
 {
-  "name": "meridian-crm-integration-worker",
+  "name": "keduoduo-crm-integration-worker",
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
@@ -11,7 +11,7 @@
     "test": "NODE_ENV=test tsx src/runtime-config-test.ts && NODE_ENV=test tsx tests/native-mcp-client-test.ts && NODE_ENV=test tsx tests/connector-driver-compliance-test.ts && NODE_ENV=test tsx tests/connector-failure-boundaries-test.ts && NODE_ENV=test tsx tests/oauth-client-test.ts && NODE_ENV=test tsx tests/integration-execution-test.ts && NODE_ENV=test tsx tests/microsoft-graph-connector-driver-test.ts && NODE_ENV=test tsx tests/google-workspace-connector-driver-test.ts && NODE_ENV=test tsx tests/second-batch-connectors-test.ts && NODE_ENV=test tsx tests/wecom-connector-driver-test.ts && NODE_ENV=test tsx tests/integration-webhook-event-test.ts && NODE_ENV=test tsx tests/integration-webhook-lease-test.ts"
   },
   "dependencies": {
-    "@meridian/integration-connector-sdk": "0.1.0",
+    "@keduoduo/integration-connector-sdk": "0.1.0",
     "@modelcontextprotocol/client": "2.0.0",
     "ajv": "8.20.0",
     "bullmq": "5.80.3",

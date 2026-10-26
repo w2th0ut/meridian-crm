@@ -31,13 +31,13 @@ try {
   const login = await jsonRequest("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({
-      email: "shirley@meridian.com",
-      password: "meridian123"
+      email: "shirley@keduoduo.com",
+      password: "keduoduo123"
     })
   });
   assert.equal(login.response.ok, true);
   const token = String(login.json.token || "");
-  const owner = store.users.find((item) => item.email === "shirley@meridian.com");
+  const owner = store.users.find((item) => item.email === "shirley@keduoduo.com");
   assert.ok(owner);
   const authorization = { authorization: `Bearer ${token}` };
   probeCandidate = {

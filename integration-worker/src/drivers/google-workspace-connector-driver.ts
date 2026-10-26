@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { validateConnectorManifest } from "@meridian/integration-connector-sdk";
+import { validateConnectorManifest } from "@keduoduo/integration-connector-sdk";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/client";
 import { createValidatedFetch, validateMcpEndpoint } from "../network-policy.js";
 import { normalizeToolList } from "../mcp/tool-schema.js";
@@ -327,7 +327,7 @@ function rawMessage(input: Record<string, unknown>, requestId: string) {
     `Subject: ${encodeHeader(subject)}`,
     ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`] : []),
     "MIME-Version: 1.0",
-    `X-Meridian-Request-Id: ${createHash("sha256").update(requestId || "meridian-integration-call").digest("hex").slice(0, 32)}`
+    `X-Keduoduo-Request-Id: ${createHash("sha256").update(requestId || "keduoduo-integration-call").digest("hex").slice(0, 32)}`
   ];
   if (!attachments.length) {
     return {
@@ -336,7 +336,7 @@ function rawMessage(input: Record<string, unknown>, requestId: string) {
       cc
     };
   }
-  const boundary = `meridian_${createHash("sha256").update(`${requestId}:${subject}`).digest("hex").slice(0, 24)}`;
+  const boundary = `keduoduo_${createHash("sha256").update(`${requestId}:${subject}`).digest("hex").slice(0, 24)}`;
   const parts = [
     ...headers,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
@@ -433,8 +433,8 @@ export class GoogleWorkspaceConnectorDriver extends OfficialApiConnectorDriver {
     const headers = new Headers(init.headers);
     headers.set("authorization", `Bearer ${context.accessToken}`);
     headers.set("accept", "application/json");
-    headers.set("x-goog-api-client", "meridian-crm/1.0");
-    if (context.requestId) headers.set("x-goog-request-reason", `Meridian request ${context.requestId.slice(0, 120)}`);
+    headers.set("x-goog-api-client", "keduoduo-crm/1.0");
+    if (context.requestId) headers.set("x-goog-request-reason", `Keduoduo request ${context.requestId.slice(0, 120)}`);
     if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
     const response = await createValidatedFetch(this.policy(context))(url, {
       ...init,
@@ -598,7 +598,7 @@ export class GoogleWorkspaceConnectorDriver extends OfficialApiConnectorDriver {
         attendees: emailList(input, "attendees", true).map((email) => ({ email })),
         description: optionalString(input, "body", 20_000),
         location: optionalString(input, "location", 255),
-        extendedProperties: { private: { meridianRequestId: String(context.requestId || "").slice(0, 120) } }
+        extendedProperties: { private: { keduoduoRequestId: String(context.requestId || "").slice(0, 120) } }
       };
       if (input.onlineMeeting === true) {
         payload.conferenceData = { createRequest: { requestId: eventId, conferenceSolutionKey: { type: "hangoutsMeet" } } };

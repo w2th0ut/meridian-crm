@@ -4,9 +4,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Meridian · 全球航贸工作台</title>
-  <meta name="theme-color" content="#102942" />
-  <meta name="description" content="连接全球客户、交易进度、贸易单据与运输节点的外贸工作台。" />
+  <title>客多多 · 外贸客户经营台</title>
+  <meta name="theme-color" content="#16191B" />
+  <meta name="description" content="客多多：外贸客户的跟进、报价、单据与发运，合成同一本账。" />
   <link rel="icon" type="image/svg+xml" href="/assets/trade/favicon.svg" />
   <style>
     :root {
@@ -25528,17 +25528,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
   <a class="trade-skip-link" href="#mainContent">跳到主要内容</a>
   <section class="login-screen" aria-label="登录">
     <div class="login-visual">
-      <div class="login-brand" aria-label="Meridian 全球航贸工作台">
+      <div class="login-brand" aria-label="客多多 Keduoduo 外贸客户经营台">
         <div class="login-brand-mark" aria-hidden="true"></div>
         <div>
-          <strong>Meridian</strong>
-          <span>GLOBAL TRADE WORKSPACE</span>
+          <strong>客多多</strong>
+          <span>KEDUODUO</span>
         </div>
       </div>
       <div class="login-visual-content">
         <div class="login-copy">
-          <h1>每一笔生意，<br>都有一条航线。</h1>
-          <p>从客户建立、交易推进到货物抵达，让全球业务的每个下一步都有据可循。</p>
+          <h1>客户在其中，<br>下一步也在其中。</h1>
+          <p>从一条询盘到一票货，客户、报价、单据与跟进记录汇在同一本账上。</p>
         </div>
         <div class="trade-login-chart" aria-hidden="true">
           <svg class="trade-login-route" viewBox="0 0 560 300" preserveAspectRatio="none">
@@ -25549,31 +25549,31 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <circle cx="70" cy="163" r="4"/><circle cx="265" cy="140" r="3"/><circle cx="445" cy="91" r="4"/><circle cx="405" cy="202" r="3"/>
           </svg>
           <img class="trade-login-art" src="/assets/trade/trade-guide.png" alt="" width="700" height="555" fetchpriority="high" />
-          <span class="trade-login-caption">上海起运 · 下一站，世界。</span>
+          <span class="trade-login-caption">上海起运 · 目的市场</span>
         </div>
       </div>
-      <div class="trade-login-footer"><span>客户关系 · 交易协作 · 运输跟踪</span><span>私有化部署 · 业务数据自主掌握</span></div>
+      <div class="trade-login-footer"><span>客户关系 · 报价单据 · 运输跟踪</span><span>私有化部署 · 数据自主掌握</span></div>
     </div>
     <div class="login-panel">
       <div class="login-panel-head">
-        <h2>登录业务工作台</h2>
+        <h2>登录经营台</h2>
         <span class="login-panel-status">安全工作区</span>
       </div>
-      <p>欢迎回来。继续推进客户、交易和手头的业务。</p>
+      <p>继续推进客户、报价与手头的单据。</p>
       <div class="login-field"><label>账号</label><input id="loginEmail" placeholder="请输入登录邮箱" autocomplete="username"></div>
       <div class="login-field"><label>密码</label><input id="loginPassword" type="password" placeholder="请输入密码" autocomplete="current-password"></div>
-      <button class="btn primary" id="loginButton">登录工作台</button>
-      <div class="login-product-version" id="loginProductVersion" aria-label="产品版本">Meridian CRM · 正在读取版本</div>
+      <button class="btn primary" id="loginButton">进入经营台</button>
+      <div class="login-product-version" id="loginProductVersion" aria-label="产品版本">Keduoduo CRM · 正在读取版本</div>
     </div>
   </section>
 
   <div class="shell">
     <aside class="sidebar" id="tradeSidebar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true"><span>M</span><span></span></div>
+        <div class="brand-mark" aria-hidden="true"><span>客</span><span></span></div>
         <div>
-          <strong>Meridian</strong>
-          <span>全球航贸工作台</span>
+          <strong>客多多</strong>
+          <span>外贸客户经营台</span>
         </div>
       </div>
 
@@ -25785,27 +25785,21 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </div>
           </div>
 
-          <section class="trade-hero" aria-label="客户目的市场与全球交易航线">
-            <div class="trade-hero-copy">
-              <h2>从上海出发，连接真实的客户市场。</h2>
-              <p>航线根据当前账号可见的客户国家生成；仅定位已知目的市场，不会臆造订单或物流记录。</p>
-              <div class="trade-hero-meta"><span id="tradeRouteSummary" aria-live="polite">等待加载当前业务数据</span><span><i></i>当前账号业务范围</span></div>
-              <div class="trade-hero-actions">
-                <button class="btn" type="button" data-trade-navigate="customers">查看客户</button>
-                <button class="btn" type="button" data-trade-navigate="global-map">查看全球航线</button>
-                <button class="btn primary" type="button" data-trade-navigate="documents">进入贸易单据</button>
-              </div>
+          <section class="mh-band" aria-label="客户目的市场与交易航线">
+            <div class="mh-band-head">
+              <h2><span class="mh-origin">起运 上海</span>客户目的市场</h2>
+              <p>按当前账号可见客户的国家归集，未识别国家的不计入。</p>
             </div>
-            <div class="trade-route-map" id="tradeRouteHero">
-              <svg class="trade-route-svg" viewBox="0 0 100 88" role="img" aria-label="从上海起运的客户目的市场关系图">
-                <defs><pattern id="trade-route-grid" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M6 0H0V6" class="trade-route-grid-line"/></pattern><radialGradient id="trade-route-glow"><stop stop-color="#70a6ff" stop-opacity=".18"/><stop offset="1" stop-color="#70a6ff" stop-opacity="0"/></radialGradient></defs>
-                <rect width="100" height="88" fill="url(#trade-route-grid)"/><circle cx="50" cy="47.5" r="29" fill="url(#trade-route-glow)"/>
-                <path d="M4 25c22-10 53-9 91 0M5 70c25 10 60 10 90 0M20 4c-10 25-10 54 0 80M80 4c10 25 10 54 0 80" fill="none" class="trade-globe-guide"/>
-                <circle cx="50" cy="47.5" r="12" fill="none" class="trade-origin-orbit"/><circle cx="50" cy="47.5" r="3.2" class="trade-origin-core"/>
-                <text x="52" y="53" class="trade-origin-label">上海</text><g class="trade-route-points"></g>
-              </svg>
-              <p class="trade-route-empty" hidden>当前没有可定位的已知客户目的市场。<br>录入准确的国家信息后，航线会自动呈现。</p>
-              <span class="trade-route-hint" aria-live="polite">路线将基于真实客户国家逐步显现</span>
+            <div class="mh-marks" id="tradeRouteHero" role="list" aria-label="客户目的市场"></div>
+            <p class="trade-route-empty" hidden>当前没有可归集的客户市场。<br>录入客户国家后，市场会按客户数自动排列。</p>
+            <div class="mh-band-foot">
+              <span id="tradeRouteSummary" aria-live="polite">等待加载当前业务数据</span>
+              <span class="trade-route-hint" aria-live="polite"></span>
+              <div class="mh-actions">
+                <button class="btn" type="button" data-trade-navigate="customers">客户</button>
+                <button class="btn" type="button" data-trade-navigate="global-map">全球航线</button>
+                <button class="btn primary" type="button" data-trade-navigate="documents">开单据</button>
+              </div>
             </div>
           </section>
           <div class="dashboard-ticker" aria-label="今日参考汇率">
@@ -25896,7 +25890,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </div>
           </div>
 
-          <div class="dashboard-footer-note"><span>MERIDIAN / OPERATING SYSTEM</span><span>数据每 60 秒自动刷新 · 最后更新见主简报</span></div>
+          <div class="dashboard-footer-note"><span>KEDUODUO / OPERATING SYSTEM</span><span>数据每 60 秒自动刷新 · 最后更新见主简报</span></div>
         </div>
 
         <div class="view todo-view" id="todo">
@@ -26457,7 +26451,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
         <div class="view" id="ai-agent">
           <div class="agent-chat-shell">
             <aside class="agent-chat-sidebar">
-              <div class="agent-chat-brand"><span>AI</span><div><b>Meridian Agent</b><small>业务执行助手</small></div></div>
+              <div class="agent-chat-brand"><span>AI</span><div><b>Keduoduo Agent</b><small>业务执行助手</small></div></div>
               <button class="agent-new-conversation" id="agentNewPlanButton" type="button"><i>+</i><span>新对话</span></button>
               <div class="agent-chat-side-title">对话</div>
               <div class="agent-conversation-list" id="agentConversationList"><div class="agent-conversation-empty">暂无历史对话</div></div>
@@ -26480,7 +26474,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
               </details>
             </aside>
             <section class="agent-chat-main">
-              <header><div><span class="agent-online-dot"></span><div><b>Meridian Agent</b><small>说出目标，我会持续执行到得到结果</small></div></div><div id="agentRunStatus"></div></header>
+              <header><div><span class="agent-online-dot"></span><div><b>Keduoduo Agent</b><small>说出目标，我会持续执行到得到结果</small></div></div><div id="agentRunStatus"></div></header>
               <div class="agent-chat-messages" id="agentChatMessages"><div class="agent-chat-welcome"><span>AI</span><div><h2>今天想推进什么？</h2></div></div></div>
               <div class="agent-chat-composer">
                 <textarea class="agent-goal" id="agentGoalInput" placeholder="告诉我你最终想完成什么"></textarea>
@@ -26693,7 +26687,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
 
             <section class="integration-tab-panel" data-integration-panel="local-runner" hidden>
               <div class="local-runner-head">
-                <div><h2>Meridian Runner</h2><p>让网页安全调用本机 Codex CLI 或 WorkBuddy CLI，任务过程与结果自动回到 CRM。</p></div>
+                <div><h2>Keduoduo Runner</h2><p>让网页安全调用本机 Codex CLI 或 WorkBuddy CLI，任务过程与结果自动回到 CRM。</p></div>
                 <button class="btn primary" id="localRunnerPairButton" type="button" data-permission="integration.connect">配对设备</button>
               </div>
               <div class="local-runner-summary" aria-label="Runner 状态概览">
@@ -29659,7 +29653,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <section class="panel report-hero">
               <div class="report-hero-top">
                 <small id="reportPeriod">正在读取统计期间</small>
-                <small id="reportGeneratedAt">Meridian CRM · 正在生成</small>
+                <small id="reportGeneratedAt">Keduoduo CRM · 正在生成</small>
               </div>
               <h2 id="reportHeadline">正在加载实时经营快照...</h2>
               <p id="reportHeroNote"></p>
@@ -31311,7 +31305,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="view" id="platform-operations">
             <div class="platform-page">
               <header class="platform-head">
-                <div class="platform-head-row"><div><h1>Meridian 平台运维</h1><p>公司生命周期、支持访问与系统安全运行</p><div class="platform-account-notice"><b>运维专用账号</b><span>当前账号仅用于平台运维。业务模块，请登录其他账号。</span></div></div><div class="platform-environment"><i></i><span>生产控制域</span></div></div>
+                <div class="platform-head-row"><div><h1>Keduoduo 平台运维</h1><p>公司生命周期、支持访问与系统安全运行</p><div class="platform-account-notice"><b>运维专用账号</b><span>当前账号仅用于平台运维。业务模块，请登录其他账号。</span></div></div><div class="platform-environment"><i></i><span>生产控制域</span></div></div>
                 <nav class="platform-tabs" id="platformTabs" aria-label="平台运维模块">
                   <button type="button" class="active" data-platform-tab="overview">平台概览</button>
                   <button type="button" data-platform-tab="tenants">公司管理</button>
@@ -31383,7 +31377,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <label><span>CLI 模型</span><select id="aiEngineCliModel" title="系统默认 deepseek-v4.1-flash；选「跟随 CLI 默认」则改由 CLI 当前登录账号决定（会随切账号变化）"></select></label>
               <label><span>思考档位</span><select id="aiEngineCliEffort" title="留空 = 跟随 CLI 默认"></select></label>
               <label><span>CLI 超时（分钟）</span><input id="aiEngineCliTimeout" type="number" min="1" max="1440" step="1" value="15"></label>
-              <label class="wide"><span>CLI 工作目录（留空自动用 Runner 的首个授权目录）</span><input id="aiEngineCliWorkspace" placeholder="/Users/you/Desktop/Meridian_private"></label>
+              <label class="wide"><span>CLI 工作目录（留空自动用 Runner 的首个授权目录）</span><input id="aiEngineCliWorkspace" placeholder="/Users/you/Desktop/Keduoduo_private"></label>
               <label class="wide"><span>指定 Runner（留空自动选择在线机器）</span><select id="aiEngineRunner"><option value="">自动选择在线的 Runner</option></select></label>
             </div>
             <p class="system-setting-help"><b>模型决定 CLI 有多聪明。</b>本机 CLI 没配过模型时默认使用 fast-model（最快档，但思考最少，做背调、写开发信这类需要判断力的任务会显得「变傻」）。建议这类任务选 deep-model 或具体强模型；资料识别等纯抽取任务保持「跟随 CLI 默认」即可。<br>CLI 通道是「读为主」的执行：任务以只读模式在本机运行，超时上限 24 小时（1440 分钟）。机器没配对或离线时，把来源切回 AI API 或 CRM 本地分析即可继续工作，不影响已有数据。</p>
@@ -31424,7 +31418,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div style="border-top:1px solid var(--border,#e0e4e8);margin-top:16px;padding-top:16px;">
               <h3 style="font-size:14px;margin-bottom:12px;">镜像源配置</h3>
               <div style="display:flex;gap:8px;align-items:center;">
-                <input id="mirrorUrlInput" type="text" placeholder="https://gitee.com/your-name/meridian-crm-releases/raw/main/" style="flex:1;padding:8px 12px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:13px;">
+                <input id="mirrorUrlInput" type="text" placeholder="https://gitee.com/your-name/keduoduo-crm-releases/raw/main/" style="flex:1;padding:8px 12px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:13px;">
                 <button class="btn" id="saveMirrorBtn">保存</button>
               </div>
               <p style="font-size:12px;color:var(--text-2,#999);margin-top:8px;">填写带签名 manifest.json 所在目录。公网源必须使用 HTTPS；本地 Windows 测试可填绝对目录。正式更新会先备份数据库，备份失败时绝不覆盖程序。</p>

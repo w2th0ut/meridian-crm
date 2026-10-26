@@ -120,30 +120,30 @@ async function main() {
             summary: "接口契约已读取，正在按约束创建客户。",
             currentAction: "调用客户新增接口",
             askUser: "",
-            nextSteps: [{ tool: "api.write", title: "创建客户 meridian01", input: { method: "POST", path: "/api/customers", query: {}, body: { company: "meridian01", country: "未知", contact: "待维护", whatsapp: "", stage: "询盘", amount: 0, health: 72, grade: "C" } } }]
+            nextSteps: [{ tool: "api.write", title: "创建客户 keduoduo01", input: { method: "POST", path: "/api/customers", query: {}, body: { company: "keduoduo01", country: "未知", contact: "待维护", whatsapp: "", stage: "询盘", amount: 0, health: 72, grade: "C" } } }]
           })
         : evaluationRound >= 2
-          ? JSON.stringify({ done: true, progress: 100, summary: "客户 meridian01 已创建并核验。", currentAction: "", askUser: "", nextSteps: [] })
+          ? JSON.stringify({ done: true, progress: 100, summary: "客户 keduoduo01 已创建并核验。", currentAction: "", askUser: "", nextSteps: [] })
           : JSON.stringify({
           summary: "我会先读取客户接口契约，再按你的授权补齐安全默认值并创建。",
           askUser: "",
-          steps: [{ tool: "api.write", title: "创建客户 meridian01", input: { method: "POST", path: "/api/customers", query: {}, body: { company: "meridian01" } } }]
+          steps: [{ tool: "api.write", title: "创建客户 keduoduo01", input: { method: "POST", path: "/api/customers", query: {}, body: { company: "keduoduo01" } } }]
         });
     return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200, headers: { "content-type": "application/json" } });
   });
   try {
-    const closureRun = await createAgentPlan(closureStore, closureActor, "生成个客户，名叫meridian01，其它你编");
+    const closureRun = await createAgentPlan(closureStore, closureActor, "生成个客户，名叫keduoduo01，其它你编");
     assert.equal(closureRun.steps[0]?.tool, "api.write");
     const runner = new AgentBackgroundRunner(closureStore, {
       requestCrmApi: async (_actor, input) => {
         customerWrites += 1;
         assert.deepEqual(input.body, {
-          company: "meridian01", country: "未知", contact: "待维护", whatsapp: "", stage: "询盘", amount: 0,
-          health: 72, grade: "C", billingName: "meridian01", billingAddress: "", documentContact: "待维护",
+          company: "keduoduo01", country: "未知", contact: "待维护", whatsapp: "", stage: "询盘", amount: 0,
+          health: 72, grade: "C", billingName: "keduoduo01", billingAddress: "", documentContact: "待维护",
           phone: "", email: "", website: "",
           defaultPortDischarge: "", defaultIncoterm: "", defaultPaymentTerm: ""
         });
-        return { status: 200, method: "POST", path: "/api/customers", data: { customer: { id: "c_meridian01", ...input.body } }, uiAction: { type: "refresh", view: "customers" } };
+        return { status: 200, method: "POST", path: "/api/customers", data: { customer: { id: "c_keduoduo01", ...input.body } }, uiAction: { type: "refresh", view: "customers" } };
       }
     }, 1);
     await runner.synchronize();
@@ -154,7 +154,7 @@ async function main() {
     const createStep = closureDone.steps.find((item) => item.tool === "api.write");
     assert.equal(createStep?.status, "done");
     assert.ok(createStep?.approvedAt);
-    assert.equal((createStep?.result?.data as { customer?: { id?: string } } | undefined)?.customer?.id, "c_meridian01");
+    assert.equal((createStep?.result?.data as { customer?: { id?: string } } | undefined)?.customer?.id, "c_keduoduo01");
   } finally {
     setProviderHttpTestTransport(null);
   }

@@ -14,8 +14,8 @@ export {
 } from "./authorization.js";
 
 const scrypt = promisify(scryptCallback);
-const TOKEN_ISSUER = "meridian-crm";
-const TOKEN_AUDIENCE = "meridian-crm-web";
+const TOKEN_ISSUER = "keduoduo-crm";
+const TOKEN_AUDIENCE = "keduoduo-crm-web";
 const TOKEN_TTL_SECONDS = 8 * 60 * 60;
 
 /**

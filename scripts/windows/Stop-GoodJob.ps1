@@ -6,12 +6,12 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-Import-Module (Join-Path $PSScriptRoot "Meridian.Runtime.psm1") -Force
-$context = New-MeridianContext -PackageRoot $PackageRoot -DataRoot $DataRoot
-Start-MeridianLog -Context $context -Prefix "stop" | Out-Null
+Import-Module (Join-Path $PSScriptRoot "Keduoduo.Runtime.psm1") -Force
+$context = New-KeduoduoContext -PackageRoot $PackageRoot -DataRoot $DataRoot
+Start-KeduoduoLog -Context $context -Prefix "stop" | Out-Null
 try {
-    $state = Read-MeridianState -Context $context
-    if (-not $state) { Write-MeridianLog -Level WARN -Message "没有找到运行状态，服务可能已经停止"; exit 0 }
+    $state = Read-KeduoduoState -Context $context
+    if (-not $state) { Write-KeduoduoLog -Level WARN -Message "没有找到运行状态，服务可能已经停止"; exit 0 }
     $nodePath = [string](Get-StateValue -State $state -Name "nodePath")
     $crmPid = Get-StateValue -State $state -Name "crmPid"
     $communicationPid = Get-StateValue -State $state -Name "communicationPid"
@@ -22,14 +22,14 @@ try {
         @{ Name = "Communication"; Pid = $communicationPid; Path = $nodePath; StartedAt = [string](Get-StateValue -State $state -Name "communicationStartedAt") }
     )) {
         if ((Test-ProcessAlive -PidValue $owned.Pid) -and -not (Test-OwnedProcess -PidValue $owned.Pid -ExpectedPath $owned.Path -ExpectedStartedAt $owned.StartedAt)) {
-            throw "拒绝停止 $($owned.Name)：无法确认 PID $($owned.Pid) 属于 Meridian"
+            throw "拒绝停止 $($owned.Name)：无法确认 PID $($owned.Pid) 属于 Keduoduo"
         }
         Stop-OwnedProcess -PidValue $owned.Pid -Name $owned.Name -ExpectedPath $owned.Path -ExpectedStartedAt $owned.StartedAt
     }
     if (-not $KeepDatabase -and (Test-ProcessAlive -PidValue $databasePid)) {
         $databaseStartedAt = [string](Get-StateValue -State $state -Name "databaseStartedAt")
         if (-not (Test-OwnedProcess -PidValue $databasePid -ExpectedPath $databasePath -ExpectedStartedAt $databaseStartedAt)) {
-            throw "拒绝停止 MariaDB：无法确认 PID $databasePid 属于 Meridian"
+            throw "拒绝停止 MariaDB：无法确认 PID $databasePid 属于 Keduoduo"
         }
         if (Test-Path -LiteralPath $context.RootClientFile) {
             try { Invoke-ExternalProcess -FilePath $context.MariaAdminExe -Arguments @("--defaults-extra-file=$($context.RootClientFile)", "shutdown") | Out-Null } catch { }
@@ -39,8 +39,8 @@ try {
         }
     }
     if (-not $KeepDatabase) { Remove-Item -LiteralPath $context.StateFile -Force -ErrorAction SilentlyContinue }
-    Write-MeridianLog -Level OK -Message $(if ($KeepDatabase) { "应用服务已停止，数据库保持运行" } else { "Meridian CRM 已完全停止" })
+    Write-KeduoduoLog -Level OK -Message $(if ($KeepDatabase) { "应用服务已停止，数据库保持运行" } else { "Keduoduo CRM 已完全停止" })
 } catch {
-    Write-MeridianFailure -ErrorRecord $_ -Stage "停止服务"
+    Write-KeduoduoFailure -ErrorRecord $_ -Stage "停止服务"
     exit 1
 }

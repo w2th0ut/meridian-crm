@@ -330,7 +330,7 @@ export class ProspectWorkerService {
       await coordinator.start();
       this.coordinator = coordinator;
       console.log(
-        "Meridian CRM prospect queue coordination enabled with BullMQ"
+        "Keduoduo CRM prospect queue coordination enabled with BullMQ"
       );
     } catch (error) {
       if (this.queueRequired) {
@@ -339,7 +339,7 @@ export class ProspectWorkerService {
         throw error;
       }
       console.warn(
-        "Meridian CRM Redis/BullMQ unavailable, "
+        "Keduoduo CRM Redis/BullMQ unavailable, "
         + "prospect worker continues with MySQL polling"
       );
     }

@@ -83,7 +83,7 @@ function validateConnection(userAgent: string, baseUrl: string, phase: "search" 
   if (normalized.length < 8 || normalized.length > 200
     || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.split(/\s+/).at(-1) || "")) {
     throw providerError(
-      "SEC Fair Access 要求填写可识别的 User-Agent，例如 MeridianCRM admin@example.com",
+      "SEC Fair Access 要求填写可识别的 User-Agent，例如 KeduoduoCRM admin@example.com",
       "PROVIDER_CONNECTION_INVALID",
       phase
     );
@@ -286,7 +286,7 @@ export const SEC_EDGAR_PROVIDER = defineProvider({
   requiresKey: true,
   capabilities: ["company", "identity"],
   docsUrl: "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
-  keyHint: "这里不是填写 API Key。请按 SEC Fair Access 要求填写“系统名 联系邮箱”，例如 MeridianCRM admin@example.com。",
+  keyHint: "这里不是填写 API Key。请按 SEC Fair Access 要求填写“系统名 联系邮箱”，例如 KeduoduoCRM admin@example.com。",
   defaultBaseUrl: SEC_BASE_URL,
   costNote: "免费官方接口；用于核验美国上市及 SEC 申报企业，不提供联系人。",
   networkPolicy: {

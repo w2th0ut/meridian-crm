@@ -96,7 +96,7 @@ assert.equal(newDealTopic.topic, "deals");
 assert.equal(newDealTopic.relationToMission, "independent");
 assert.equal(resolveAgentMissionRoute(newDealTopic, waitingCustomerMission), "new");
 
-const slotAnswer = deterministicAgentTurnDecision("客户名称叫 Meridian 01，其他资料你编", [waitingCustomerMission]);
+const slotAnswer = deterministicAgentTurnDecision("客户名称叫 Keduoduo 01，其他资料你编", [waitingCustomerMission]);
 assert.equal(slotAnswer.speechAct, "answer_slot");
 assert.equal(slotAnswer.relationToMission, "answer");
 assert.equal(slotAnswer.missionId, waitingCustomerMission.id);

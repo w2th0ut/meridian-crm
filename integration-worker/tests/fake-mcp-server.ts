@@ -20,7 +20,7 @@ export async function startFakeMcpServer(options: { includeFailureTools?: boolea
   let schemaVersion: 1 | 2 = 1;
   let nextRateLimitSeconds = 0;
   let interruptNext = false;
-  const mcp = new McpServer({ name: "meridian-fake-mcp", version: "1.0.0" });
+  const mcp = new McpServer({ name: "keduoduo-fake-mcp", version: "1.0.0" });
   mcp.registerTool(
     "company.lookup",
     {

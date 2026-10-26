@@ -27,7 +27,7 @@ assertDatabaseProfile(process.env, databaseUrl);
 const originalEnabled = process.env.MYSQL_LOCAL_BACKUP_ENABLED;
 const originalDirectory = process.env.MYSQL_LOCAL_BACKUP_DIR;
 const originalRetention = process.env.MYSQL_LOCAL_BACKUP_RETENTION_DAYS;
-const backupDirectory = await mkdtemp(join(tmpdir(), "meridian-database-maintenance-"));
+const backupDirectory = await mkdtemp(join(tmpdir(), "keduoduo-database-maintenance-"));
 const table = `gj_maintenance_${Date.now().toString(36)}`;
 const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 1 });
 let backupId = "";
@@ -153,8 +153,8 @@ try {
   }));
 } finally {
   await pool.query(`DROP TABLE IF EXISTS \`${table}\``).catch(() => undefined);
-  if (importId) await pool.query("DELETE FROM meridian_data_import_jobs WHERE id=?", [importId]).catch(() => undefined);
-  if (failureImportId) await pool.query("DELETE FROM meridian_data_import_jobs WHERE id=?", [failureImportId]).catch(() => undefined);
+  if (importId) await pool.query("DELETE FROM keduoduo_data_import_jobs WHERE id=?", [importId]).catch(() => undefined);
+  if (failureImportId) await pool.query("DELETE FROM keduoduo_data_import_jobs WHERE id=?", [failureImportId]).catch(() => undefined);
   if (backupId) {
     process.env.MYSQL_LOCAL_BACKUP_ENABLED = "true";
     await deleteDatabaseBackup(backupId).catch(() => undefined);

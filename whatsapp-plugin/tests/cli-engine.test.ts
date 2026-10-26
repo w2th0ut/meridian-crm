@@ -323,7 +323,7 @@ describe("CliEngine 执行", () => {
  * 所以这里既验「解析到哪」，也验「真的下发给了子进程」。
  */
 describe("自动回复技能装载", () => {
-  it("默认解析到插件自带的 skills/，并扫出 meridian-auto-reply", () => {
+  it("默认解析到插件自带的 skills/，并扫出 keduoduo-auto-reply", () => {
     const dirs = resolveSkillsDirs("");
     expect(dirs).toBe(path.resolve(process.cwd(), "skills"));
     expect(listInstalledSkills(dirs)).toContain(AUTO_REPLY_SKILL);

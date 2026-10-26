@@ -34,14 +34,14 @@ async function startProspectWorker() {
   const store = await createMysqlStore({ processRole: "worker" });
   const service = new ProspectWorkerService({ store });
   await service.start();
-  console.log("Meridian CRM independent prospect worker started");
+  console.log("Keduoduo CRM independent prospect worker started");
 
   let shuttingDown = false;
   const shutdown = async (signal: NodeJS.Signals) => {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(
-      `Meridian CRM prospect worker received ${signal}, shutting down`
+      `Keduoduo CRM prospect worker received ${signal}, shutting down`
     );
     try {
       await service.stop();
@@ -49,7 +49,7 @@ async function startProspectWorker() {
       process.exit(0);
     } catch (error) {
       console.error(
-        "Meridian CRM prospect worker shutdown failed: "
+        "Keduoduo CRM prospect worker shutdown failed: "
         + (error instanceof Error ? error.message : String(error))
       );
       process.exit(1);
@@ -62,7 +62,7 @@ async function startProspectWorker() {
 if (process.env.NODE_ENV !== "test") {
   void startProspectWorker().catch((error) => {
     console.error(
-      "Meridian CRM prospect worker startup failed: "
+      "Keduoduo CRM prospect worker startup failed: "
       + (error instanceof Error ? error.message : String(error))
     );
     process.exit(1);

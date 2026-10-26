@@ -35,7 +35,7 @@ async function request(path: string, token = "", init: RequestInit = {}) {
 async function login(email: string) {
   const response = await request("/api/auth/login", "", {
     method: "POST",
-    body: JSON.stringify({ email, password: "meridian123" })
+    body: JSON.stringify({ email, password: "keduoduo123" })
   });
   assert.equal(response.status, 200, `login failed: ${email}`);
   return String((await response.json()).token || "");
@@ -54,7 +54,7 @@ function testDocument(id: string, ownerId: string, teamId: string, status: Trade
     buyer: "Northstar Test Buyer",
     buyerAddress: "10 Harbor Road, London",
     buyerContact: "Ava / ava@example.test",
-    seller: "Meridian Test Seller",
+    seller: "Keduoduo Test Seller",
     sellerAddress: "Shanghai, China",
     currency: "USD",
     incoterm: "FOB",
@@ -170,12 +170,12 @@ function testVariableTemplatePackage(buffer: Buffer) {
   for (const value of [
     "PI-variable-template",
     "Northstar Test Buyer",
-    "Meridian Export Limited",
+    "Keduoduo Export Limited",
     "Verification Light",
     "Control Enclosure",
     "Precision Bracket",
     "London",
-    "MERIDIAN TEST BANK"
+    "KEDUODUO TEST BANK"
   ]) assert.ok(text.includes(value), `generated variable template must contain ${value}`);
   for (const forbidden of ["{{", "#REF!", "#NAME?", "#VALUE!", "#DIV/0!", "2607-3753", "PT202537", "Nelly Huang", "Römerstrasse"]) {
     assert.ok(!text.includes(forbidden), `generated variable template must not contain ${forbidden}`);
@@ -211,8 +211,8 @@ try {
   const otherAdmin: User = {
     id: "u_excel_other_admin",
     name: "Excel Other Admin",
-    email: "excel-other-admin@meridian.com",
-    password: "meridian123",
+    email: "excel-other-admin@keduoduo.com",
+    password: "keduoduo123",
     role: "admin",
     teamId: "excel-other-team",
     avatar: "EO",
@@ -266,8 +266,8 @@ try {
   const anonymousSettings = await request("/api/system-settings");
   assert.equal(anonymousSettings.status, 401, "system settings must require authentication");
 
-  const admin = await login("admin@meridian.com");
-  const sales = await login("shirley@meridian.com");
+  const admin = await login("admin@keduoduo.com");
+  const sales = await login("shirley@keduoduo.com");
   const otherTeam = await login(otherAdmin.email);
 
   const anonymousAssets = await request("/api/document-assets");
@@ -280,7 +280,7 @@ try {
   assert.equal(invalidUpload.status, 400, "forged image mime must be rejected");
 
   const templateRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../resources/document-templates");
-  const visualOutput = process.env.MERIDIAN_EXCEL_TEST_OUTPUT?.trim();
+  const visualOutput = process.env.KEDUODUO_EXCEL_TEST_OUTPUT?.trim();
   const visualBaseFiles = unzipSync(new Uint8Array(await readFile(path.join(templateRoot, "proforma-invoice-variable-base.xlsx"))));
   const logoPng = Buffer.from(visualBaseFiles["xl/media/image1.png"]);
   const productPng = Buffer.from(unzipSync(new Uint8Array(await readFile(path.join(templateRoot, "quotation.xlsx"))))["xl/media/image10.png"]);
@@ -307,7 +307,7 @@ try {
 
   const letterheadResponse = await request("/api/document-assets/letterheads", admin, {
     method: "POST",
-    body: JSON.stringify({ name: "Export HQ", companyName: "Meridian Export Limited", address: "88 Harbour Road, Hong Kong", bankInfo: "MERIDIAN TEST BANK", logoUrl, logoPlacement: { horizontal: "right", vertical: "bottom", offsetX: -12, offsetY: -8, scale: 125 }, isDefault: true, enabled: true })
+    body: JSON.stringify({ name: "Export HQ", companyName: "Keduoduo Export Limited", address: "88 Harbour Road, Hong Kong", bankInfo: "KEDUODUO TEST BANK", logoUrl, logoPlacement: { horizontal: "right", vertical: "bottom", offsetX: -12, offsetY: -8, scale: 125 }, isDefault: true, enabled: true })
   });
   assert.equal(letterheadResponse.status, 200);
   const letterhead = (await letterheadResponse.json()).asset;
@@ -383,8 +383,8 @@ try {
   });
   assert.equal(selectedOptions.status, 200, "valid Excel options must save");
   const selectedDocument = (await selectedOptions.json()).document as TradeDocument;
-  assert.equal(selectedDocument.seller, "Meridian Test Seller", "selecting a letterhead must not overwrite document business data");
-  assert.equal(selectedDocument.letterheadSnapshot?.bankInfo, "MERIDIAN TEST BANK");
+  assert.equal(selectedDocument.seller, "Keduoduo Test Seller", "selecting a letterhead must not overwrite document business data");
+  assert.equal(selectedDocument.letterheadSnapshot?.bankInfo, "KEDUODUO TEST BANK");
   assert.deepEqual(selectedDocument.letterheadSnapshot?.logoPlacement, letterhead.logoPlacement);
   assert.equal(selectedDocument.stampSnapshot?.imageUrl, stampUrl);
   assert.deepEqual(selectedDocument.stampSnapshot?.placement, stamp.placement);
@@ -429,15 +429,15 @@ try {
     body: JSON.stringify({ templateId: "proforma-invoice-dual-currency" })
   });
   assert.equal(directExport.status, 200, "draft Excel must export when approval is disabled");
-  const directHash = directExport.headers.get("x-meridian-excel-sha256");
+  const directHash = directExport.headers.get("x-keduoduo-excel-sha256");
   assert.match(directHash || "", /^[a-f0-9]{64}$/);
   const directBytes = Buffer.from(await directExport.arrayBuffer());
   assert.equal(directBytes.subarray(0, 2).toString(), "PK", "download must be a valid XLSX package");
   const directFiles = unzipSync(new Uint8Array(directBytes));
   const directPackage = packageText(directFiles);
-  assert.match(directPackage, /MeridianLetterheadLogo/u, "an export without a configured logo must use the Meridian default logo");
+  assert.match(directPackage, /KeduoduoLetterheadLogo/u, "an export without a configured logo must use the Keduoduo default logo");
   assert.doesNotMatch(directPackage, /ProtoTech|Spreadsheet123|huawei|VNN\.R9/iu, "default export metadata and XML must be brand-safe");
-  assert.match(strFromU8(directFiles["docProps/core.xml"]), /Meridian CRM/u, "export metadata must identify Meridian CRM");
+  assert.match(strFromU8(directFiles["docProps/core.xml"]), /Keduoduo CRM/u, "export metadata must identify Keduoduo CRM");
 
   const snapshotExport = await request(`/api/trade-documents/${snapshotImageDocument.id}/export-xlsx`, admin, {
     method: "POST",
@@ -445,8 +445,8 @@ try {
   });
   assert.equal(snapshotExport.status, 200, "document item image snapshot must export without a product-library id");
   const snapshotFiles = unzipSync(new Uint8Array(await snapshotExport.arrayBuffer()));
-  assert.match(packageText(snapshotFiles), /MeridianProduct1/, "snapshot image must be placed in the Excel drawing");
-  assert.ok(Object.keys(snapshotFiles).some((filePath) => filePath.includes("MeridianProduct1")), "snapshot image media must exist in the Excel package");
+  assert.match(packageText(snapshotFiles), /KeduoduoProduct1/, "snapshot image must be placed in the Excel drawing");
+  assert.ok(Object.keys(snapshotFiles).some((filePath) => filePath.includes("KeduoduoProduct1")), "snapshot image media must exist in the Excel package");
 
   const templatesResponse = await request("/api/trade-document-templates", admin);
   assert.equal(templatesResponse.status, 200);
@@ -464,7 +464,7 @@ try {
     body: JSON.stringify({ templateId: "packing-list-sample" })
   });
   assert.equal(dynamicPackingPreview.status, 200, "packing list preview must accept more than three items");
-  const dynamicPackingPreviewHash = dynamicPackingPreview.headers.get("x-meridian-excel-sha256");
+  const dynamicPackingPreviewHash = dynamicPackingPreview.headers.get("x-keduoduo-excel-sha256");
   const dynamicPackingPreviewBytes = Buffer.from(await dynamicPackingPreview.arrayBuffer());
   assert.equal(dynamicPackingPreviewBytes.subarray(0, 4).toString(), "%PDF");
   assert.ok(dynamicPackingPreviewBytes.length > 1_000, "dynamic packing preview must not be empty");
@@ -474,7 +474,7 @@ try {
     body: JSON.stringify({ templateId: "packing-list-sample" })
   });
   assert.equal(dynamicPackingExport.status, 200, "packing list export must accept more than three items");
-  assert.equal(dynamicPackingExport.headers.get("x-meridian-excel-sha256"), dynamicPackingPreviewHash, "packing preview and export must use identical XLSX bytes");
+  assert.equal(dynamicPackingExport.headers.get("x-keduoduo-excel-sha256"), dynamicPackingPreviewHash, "packing preview and export must use identical XLSX bytes");
   const dynamicPackingBytes = Buffer.from(await dynamicPackingExport.arrayBuffer());
   const dynamicPackingFiles = unzipSync(new Uint8Array(dynamicPackingBytes));
   const dynamicPackingPackage = packageText(dynamicPackingFiles);
@@ -484,10 +484,10 @@ try {
   assert.match(strFromU8(dynamicPackingFiles["xl/workbook.xml"]), /F(?:\$|&#x24;)29/, "packing print area must expand with item rows");
   assert.match(strFromU8(dynamicPackingFiles["xl/workbook.xml"]), /_xlnm\.Print_Titles/, "packing list must repeat its item header on later pages");
   const dynamicPackingDrawing = strFromU8(dynamicPackingFiles["xl/drawings/drawing1.xml"]);
-  assert.match(dynamicPackingDrawing, /MeridianProduct12/, "packing list must place the 12th product image");
+  assert.match(dynamicPackingDrawing, /KeduoduoProduct12/, "packing list must place the 12th product image");
   const dynamicPackingStampAnchor = [...dynamicPackingDrawing.matchAll(/<xdr:oneCellAnchor>[\s\S]*?<\/xdr:oneCellAnchor>/gu)]
     .map((match) => match[0])
-    .find((anchor) => anchor.includes("MeridianStamp")) || "";
+    .find((anchor) => anchor.includes("KeduoduoStamp")) || "";
   assert.match(dynamicPackingStampAnchor, /<xdr:row>28<\/xdr:row>/u, "packing stamp must move below expanded item rows");
   if (visualOutput) {
     await mkdir(visualOutput, { recursive: true });
@@ -514,7 +514,7 @@ try {
   });
   assert.equal(variablePreview.status, 200, "variable template preview must succeed");
   assert.equal(variablePreview.headers.get("content-type"), "application/pdf");
-  const variablePreviewHash = variablePreview.headers.get("x-meridian-excel-sha256");
+  const variablePreviewHash = variablePreview.headers.get("x-keduoduo-excel-sha256");
   const variablePreviewBytes = Buffer.from(await variablePreview.arrayBuffer());
   assert.equal(variablePreviewBytes.subarray(0, 4).toString(), "%PDF");
   assert.ok(variablePreviewBytes.length > 1_000, "variable template preview PDF must not be empty");
@@ -524,25 +524,25 @@ try {
     body: JSON.stringify({ templateId: "proforma-invoice-variable-base" })
   });
   assert.equal(variableExport.status, 200, "variable template export must succeed");
-  assert.equal(variableExport.headers.get("x-meridian-excel-sha256"), variablePreviewHash, "variable preview and export must use identical XLSX bytes");
+  assert.equal(variableExport.headers.get("x-keduoduo-excel-sha256"), variablePreviewHash, "variable preview and export must use identical XLSX bytes");
   const variableBytes = Buffer.from(await variableExport.arrayBuffer());
   const variableFiles = testVariableTemplatePackage(variableBytes);
   const drawing1 = strFromU8(variableFiles["xl/drawings/drawing1.xml"]);
   const drawing2 = strFromU8(variableFiles["xl/drawings/drawing2.xml"]);
   for (const drawing of [drawing1, drawing2]) {
-    assert.match(drawing, /MeridianLetterheadLogo/);
-    assert.match(drawing, /MeridianProduct1/);
-    assert.match(drawing, /MeridianProduct2/);
-    assert.match(drawing, /MeridianProduct3/);
-    assert.match(drawing, /MeridianStamp/);
-    assert.match(drawing, /MeridianSignature/);
-    const stampAnchor = [...drawing.matchAll(/<xdr:oneCellAnchor>[\s\S]*?<\/xdr:oneCellAnchor>/gu)].map((match) => match[0]).find((anchor) => anchor.includes("MeridianStamp")) || "";
+    assert.match(drawing, /KeduoduoLetterheadLogo/);
+    assert.match(drawing, /KeduoduoProduct1/);
+    assert.match(drawing, /KeduoduoProduct2/);
+    assert.match(drawing, /KeduoduoProduct3/);
+    assert.match(drawing, /KeduoduoStamp/);
+    assert.match(drawing, /KeduoduoSignature/);
+    const stampAnchor = [...drawing.matchAll(/<xdr:oneCellAnchor>[\s\S]*?<\/xdr:oneCellAnchor>/gu)].map((match) => match[0]).find((anchor) => anchor.includes("KeduoduoStamp")) || "";
     assert.match(stampAnchor, /<xdr:col>1<\/xdr:col>/u, "custom stamp alignment must change the drawing column");
     assert.match(stampAnchor, /<xdr:ext cx="533400" cy="533400"\/>/u, "75% stamp scale must change the drawing dimensions");
   }
-  assert.ok(Object.keys(variableFiles).some((filePath) => filePath.includes("MeridianProduct1")), "product image media must exist");
-  assert.ok(Object.keys(variableFiles).some((filePath) => filePath.includes("MeridianStamp")), "stamp media must exist");
-  assert.ok(Object.keys(variableFiles).some((filePath) => filePath.includes("MeridianSignature")), "signature media must exist");
+  assert.ok(Object.keys(variableFiles).some((filePath) => filePath.includes("KeduoduoProduct1")), "product image media must exist");
+  assert.ok(Object.keys(variableFiles).some((filePath) => filePath.includes("KeduoduoStamp")), "stamp media must exist");
+  assert.ok(Object.keys(variableFiles).some((filePath) => filePath.includes("KeduoduoSignature")), "signature media must exist");
   if (visualOutput) {
     await mkdir(visualOutput, { recursive: true });
     await writeFile(path.join(visualOutput, "PI-assets-verification.xlsx"), variableBytes);
@@ -559,7 +559,7 @@ try {
       body: JSON.stringify({ templateId })
     });
     assert.equal(oversizedPreview.status, 200, `${templateId} must preview an 11-item document`);
-    const previewHash = oversizedPreview.headers.get("x-meridian-excel-sha256");
+    const previewHash = oversizedPreview.headers.get("x-keduoduo-excel-sha256");
     const previewBytes = Buffer.from(await oversizedPreview.arrayBuffer());
     assert.equal(previewBytes.subarray(0, 4).toString(), "%PDF", `${templateId} 11-item preview must be PDF`);
 
@@ -568,7 +568,7 @@ try {
       body: JSON.stringify({ templateId })
     });
     assert.equal(oversizedExport.status, 200, `${templateId} must export an 11-item document`);
-    assert.equal(oversizedExport.headers.get("x-meridian-excel-sha256"), previewHash, `${templateId} 11-item preview and export must match`);
+    assert.equal(oversizedExport.headers.get("x-keduoduo-excel-sha256"), previewHash, `${templateId} 11-item preview and export must match`);
     const packageXml = packageText(unzipSync(new Uint8Array(await oversizedExport.arrayBuffer())));
     assert.match(packageXml, /Dynamic PI Product 11/, `${templateId} must retain the 11th item`);
     assert.match(packageXml, /DYNAMIC-11/, `${templateId} must retain the 11th item model`);
@@ -593,14 +593,14 @@ try {
     assert.equal(previewBuffer.subarray(0, 4).toString(), "%PDF", `${testCase.templateId} preview must be PDF`);
     const pageCount = [...previewBuffer.toString("latin1").matchAll(/\/Type\s*\/Page\b/g)].length;
     assert.equal(pageCount, testCase.expectedPages, `${testCase.templateId} preview must preserve the template page count`);
-    const previewSha = String(previewResponse.headers.get("x-meridian-excel-sha256") || "");
+    const previewSha = String(previewResponse.headers.get("x-keduoduo-excel-sha256") || "");
 
     const exportResponse = await request(`/api/trade-documents/${testCase.document.id}/export-xlsx`, admin, {
       method: "POST",
       body: JSON.stringify({ templateId: testCase.templateId })
     });
     assert.equal(exportResponse.status, 200, `${testCase.templateId} export must succeed`);
-    assert.equal(exportResponse.headers.get("x-meridian-excel-sha256"), previewSha, `${testCase.templateId} preview/export XLSX must match`);
+    assert.equal(exportResponse.headers.get("x-keduoduo-excel-sha256"), previewSha, `${testCase.templateId} preview/export XLSX must match`);
     const xlsxBuffer = Buffer.from(await exportResponse.arrayBuffer());
     const files = unzipSync(new Uint8Array(xlsxBuffer));
     const packageXml = packageText(files);
@@ -619,14 +619,14 @@ try {
       assert.match(packageXml, /Aluminum 6061-T6/, `${testCase.templateId} must export optional Material`);
       assert.match(packageXml, /Black anodized/, `${testCase.templateId} must export optional Finish`);
     }
-    assert.match(packageXml, /MeridianLetterheadLogo/, `${testCase.templateId} must contain selected letterhead logo`);
-    assert.match(packageXml, /MeridianStamp/, `${testCase.templateId} must contain selected stamp`);
-    assert.match(packageXml, /MeridianSignature/, `${testCase.templateId} must contain selected signature`);
-    if (testCase.productImages) assert.match(packageXml, /MeridianProduct1/, `${testCase.templateId} must contain selected product image`);
-    else assert.ok(!packageXml.includes("MeridianProduct1"), `${testCase.templateId} must not place products over a template without an image column`);
-    assert.ok(Object.keys(files).some((filePath) => filePath.includes("MeridianStamp")), `${testCase.templateId} stamp media must exist`);
-    assert.ok(Object.keys(files).some((filePath) => filePath.includes("MeridianSignature")), `${testCase.templateId} signature media must exist`);
-    if (testCase.productImages) assert.ok(Object.keys(files).some((filePath) => filePath.includes("MeridianProduct1")), `${testCase.templateId} product media must exist`);
+    assert.match(packageXml, /KeduoduoLetterheadLogo/, `${testCase.templateId} must contain selected letterhead logo`);
+    assert.match(packageXml, /KeduoduoStamp/, `${testCase.templateId} must contain selected stamp`);
+    assert.match(packageXml, /KeduoduoSignature/, `${testCase.templateId} must contain selected signature`);
+    if (testCase.productImages) assert.match(packageXml, /KeduoduoProduct1/, `${testCase.templateId} must contain selected product image`);
+    else assert.ok(!packageXml.includes("KeduoduoProduct1"), `${testCase.templateId} must not place products over a template without an image column`);
+    assert.ok(Object.keys(files).some((filePath) => filePath.includes("KeduoduoStamp")), `${testCase.templateId} stamp media must exist`);
+    assert.ok(Object.keys(files).some((filePath) => filePath.includes("KeduoduoSignature")), `${testCase.templateId} signature media must exist`);
+    if (testCase.productImages) assert.ok(Object.keys(files).some((filePath) => filePath.includes("KeduoduoProduct1")), `${testCase.templateId} product media must exist`);
     assert.ok(files["[Content_Types].xml"]?.length, `${testCase.templateId} package must contain content types`);
     if (visualOutput) {
       await writeFile(path.join(visualOutput, `${testCase.templateId}.xlsx`), xlsxBuffer);
@@ -654,7 +654,7 @@ try {
   });
   assert.equal(preview.status, 200, "preview must remain available without approval");
   assert.equal(preview.headers.get("content-type"), "application/pdf");
-  const previewHash = preview.headers.get("x-meridian-excel-sha256");
+  const previewHash = preview.headers.get("x-keduoduo-excel-sha256");
   const previewBytes = Buffer.from(await preview.arrayBuffer());
   assert.equal(previewBytes.subarray(0, 4).toString(), "%PDF");
   assert.ok(previewBytes.length > 1_000, "preview PDF must not be empty");
@@ -666,7 +666,7 @@ try {
     body: JSON.stringify({ templateId: "proforma-invoice-dual-currency" })
   });
   assert.equal(approvedExport.status, 200, "approved Excel must export when approval is enabled");
-  assert.equal(approvedExport.headers.get("x-meridian-excel-sha256"), previewHash, "preview and download must use the same generated XLSX bytes");
+  assert.equal(approvedExport.headers.get("x-keduoduo-excel-sha256"), previewHash, "preview and download must use the same generated XLSX bytes");
 
   const otherSettingsResponse = await request("/api/system-settings", otherTeam);
   assert.equal(otherSettingsResponse.status, 200);

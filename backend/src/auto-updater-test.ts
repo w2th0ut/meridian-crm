@@ -5,7 +5,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-const temporary = mkdtempSync(path.join(tmpdir(), "meridian-updater-test-"));
+const temporary = mkdtempSync(path.join(tmpdir(), "keduoduo-updater-test-"));
 const appDirectory = path.join(temporary, "app");
 const publicKeyFile = path.join(temporary, "update-public-key.pem");
 mkdirSync(appDirectory, { recursive: true });
@@ -13,9 +13,9 @@ writeFileSync(path.join(appDirectory, "package.json"), JSON.stringify({ version:
 
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");
 writeFileSync(publicKeyFile, publicKey.export({ type: "spki", format: "pem" }));
-process.env.MERIDIAN_DATA_DIR = path.join(temporary, "data");
-process.env.MERIDIAN_APP_DIR = appDirectory;
-process.env.MERIDIAN_UPDATE_PUBLIC_KEY = publicKeyFile;
+process.env.KEDUODUO_DATA_DIR = path.join(temporary, "data");
+process.env.KEDUODUO_APP_DIR = appDirectory;
+process.env.KEDUODUO_UPDATE_PUBLIC_KEY = publicKeyFile;
 
 function manifest(overrides: Record<string, unknown> = {}) {
   return {
@@ -27,7 +27,7 @@ function manifest(overrides: Record<string, unknown> = {}) {
         date: "2026-08-02",
         databaseCompatibility: "backward-compatible",
         windows: {
-          url: "releases/1.2.5/meridian-app-1.2.5-win-x64.zip",
+          url: "releases/1.2.5/keduoduo-app-1.2.5-win-x64.zip",
           size: 2048,
           sha256: "a".repeat(64)
         },
@@ -89,13 +89,13 @@ try {
   assert.match(belowMinimum.error || "", /低于热更新最低版本/u);
 
   const unsafeAsset = manifest();
-  unsafeAsset.releases["1.2.5"].windows.url = "http://downloads.example.com/meridian.zip";
+  unsafeAsset.releases["1.2.5"].windows.url = "http://downloads.example.com/keduoduo.zip";
   manifestBytes = Buffer.from(JSON.stringify(unsafeAsset, null, 2));
   signature = sign(null, manifestBytes, privateKey).toString("base64");
   const unsafeAssetResult = await updater.checkForUpdate();
   assert.match(unsafeAssetResult.error || "", /必须使用 HTTPS/u);
 
-  assert.throws(() => updater.setMirrorUrl("http://updates.example.com/meridian"), /必须使用 HTTPS/u);
+  assert.throws(() => updater.setMirrorUrl("http://updates.example.com/keduoduo"), /必须使用 HTTPS/u);
   if (process.platform !== "win32") {
     assert.deepEqual(await updater.applyUpdate(), { success: false, message: "一键热更新目前只在 Windows 便携版启用" });
   }

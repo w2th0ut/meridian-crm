@@ -243,7 +243,7 @@ function hmac(secret: string, value: unknown) {
 
 function rawEnvelopeKey(secret: string) {
   return createHash("sha256")
-    .update("meridian-provider-raw-envelope-key-v1\u001f")
+    .update("keduoduo-provider-raw-envelope-key-v1\u001f")
     .update(secret)
     .digest();
 }

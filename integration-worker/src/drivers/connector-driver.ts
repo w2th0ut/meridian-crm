@@ -2,7 +2,7 @@ import type { CallToolResult } from "@modelcontextprotocol/client";
 import type {
   ConnectorDriverContract,
   DriverHealthResult
-} from "@meridian/integration-connector-sdk";
+} from "@keduoduo/integration-connector-sdk";
 import type { DiscoveredToolSnapshot } from "../mcp/tool-schema.js";
 import type { OAuthTransactionContext, StoredOAuthCredential } from "../oauth/oauth-types.js";
 import type { WorkerConnectorManifest } from "../repository.js";

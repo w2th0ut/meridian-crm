@@ -120,7 +120,7 @@ export function createPlatformMfaService(pool: mysql.Pool): PlatformMfaService {
       await pool.query(`DELETE FROM platform_mfa_recovery_codes WHERE operator_id = ?`, [current.id]);
       for (const code of recoveryCodes) await pool.query(`INSERT INTO platform_mfa_recovery_codes (id, operator_id, code_hash, created_at) VALUES (?, ?, ?, NOW(3))`, [`mfrc_${randomUUID()}`, current.id, hashRecoveryCode(code)]);
       const label = encodeURIComponent(actor.email);
-      return { secret, otpauthUrl: `otpauth://totp/Meridian%20CRM:${label}?secret=${secret}&issuer=Meridian%20CRM`, recoveryCodes };
+      return { secret, otpauthUrl: `otpauth://totp/Keduoduo%20CRM:${label}?secret=${secret}&issuer=Keduoduo%20CRM`, recoveryCodes };
     },
     async confirmEnrollment(actor, code) {
       const current = await operator(pool, actor);

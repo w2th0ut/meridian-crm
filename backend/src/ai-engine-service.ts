@@ -247,7 +247,7 @@ export function engineRunnerOfflineIssue(hint: string, code = ""): EngineCliIssu
       code: "cli_failed",
       title: "这台 Runner 上暂时用不了本机 CLI",
       detail: hint || "Runner 在线，但当前探测不到可用的本机 CLI。",
-      command: "① 终端执行 /opt/homebrew/bin/codebuddy --version 确认 CLI 可用（用哪个账号都行）　② 刚切换过 CLI 账号就等十几秒，Runner 会自动重新探测并恢复　③ 仍不行则重启 Runner：launchctl kickstart -k gui/$(id -u)/com.meridian.local-runner"
+      command: "① 终端执行 /opt/homebrew/bin/codebuddy --version 确认 CLI 可用（用哪个账号都行）　② 刚切换过 CLI 账号就等十几秒，Runner 会自动重新探测并恢复　③ 仍不行则重启 Runner：launchctl kickstart -k gui/$(id -u)/com.keduoduo.local-runner"
     };
   }
   const title = code === "AI_ENGINE_RUNNER_OFFLINE" ? "设置里指定的 Runner 当前不可用"
@@ -258,7 +258,7 @@ export function engineRunnerOfflineIssue(hint: string, code = ""): EngineCliIssu
     code: "cli_failed",
     title,
     detail: hint || "CRM 里没有在线的本地 Runner，任务无法派给本机 CLI。",
-    command: "cd ~/Desktop/Meridian_private/meridian-runner && node dist/cli.js start（或在系统里重新启动 com.meridian.local-runner 服务）"
+    command: "cd ~/Desktop/Keduoduo_private/keduoduo-runner && node dist/cli.js start（或在系统里重新启动 com.keduoduo.local-runner 服务）"
   };
 }
 
@@ -274,7 +274,7 @@ export interface RunnableEngineCliTask {
 /**
  * 把「模型 / 思考档位」合并进任务提示词首行的执行档位标记。
  *
- * 标记协议由 Runner 解析（meridian-runner/src/workbuddy-adapter.ts）：
+ * 标记协议由 Runner 解析（keduoduo-runner/src/workbuddy-adapter.ts）：
  *   [[gj-cli-options {"model":"deep-model","effort":"high","maxTurns":6,"disallowedTools":[...]}]]
  *
  * 两种情形：

@@ -45,7 +45,7 @@ export function providerRequestFingerprint(value: unknown) {
     || process.env.JWT_SECRET
     || process.env.DATABASE_URL
     || process.env.MYSQL_URL
-    || "meridian-provider-request-fingerprint-development";
+    || "keduoduo-provider-request-fingerprint-development";
   return createHmac("sha256", secret)
     .update(JSON.stringify(stableValue(value)))
     .digest("hex");

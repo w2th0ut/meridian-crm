@@ -26,18 +26,18 @@ try {
   const login = await request("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({
-      email: "shirley@meridian.com",
-      password: "meridian123"
+      email: "shirley@keduoduo.com",
+      password: "keduoduo123"
     })
   });
   assert.equal(login.response.ok, true);
   const token = String(login.json.token || "");
   const store = getStore();
   const owner = store.users.find((item) =>
-    item.email === "shirley@meridian.com"
+    item.email === "shirley@keduoduo.com"
   );
   const otherOwner = store.users.find((item) =>
-    item.email === "mia@meridian.com"
+    item.email === "mia@keduoduo.com"
   );
   assert.ok(owner);
   assert.ok(otherOwner);

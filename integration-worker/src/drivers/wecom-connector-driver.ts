@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { validateConnectorManifest } from "@meridian/integration-connector-sdk";
+import { validateConnectorManifest } from "@keduoduo/integration-connector-sdk";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/client";
 import { createValidatedFetch, validateMcpEndpoint } from "../network-policy.js";
 import { normalizeToolList } from "../mcp/tool-schema.js";
@@ -218,7 +218,7 @@ export class WeComConnectorDriver extends OfficialApiConnectorDriver {
   private async fetchJson(context: DriverRuntimeContext, url: URL, init: RequestInit = {}) {
     const headers = new Headers(init.headers);
     headers.set("accept", "application/json");
-    headers.set("user-agent", "Meridian-Integration-Worker/1.0");
+    headers.set("user-agent", "Keduoduo-Integration-Worker/1.0");
     if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json; charset=utf-8");
     const response = await createValidatedFetch(this.policy(context))(url, {
       ...init, headers, signal: AbortSignal.timeout(context.timeoutMs)

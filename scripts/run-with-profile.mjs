@@ -49,7 +49,7 @@ const childEnv = { ...process.env };
 delete childEnv.DATABASE_URL;
 delete childEnv.MYSQL_URL;
 Object.assign(childEnv, profileEnv, {
-  MERIDIAN_ENV_FILE: envPath
+  KEDUODUO_ENV_FILE: envPath
 });
 
 const selectedDatabase = (() => {
@@ -60,7 +60,7 @@ const selectedDatabase = (() => {
     return "配置无效";
   }
 })();
-console.log(`Meridian CRM 启动档位：${profile}；数据库：${selectedDatabase}`);
+console.log(`Keduoduo CRM 启动档位：${profile}；数据库：${selectedDatabase}`);
 
 const child = spawn(command[0], command.slice(1), {
   cwd: projectRoot,

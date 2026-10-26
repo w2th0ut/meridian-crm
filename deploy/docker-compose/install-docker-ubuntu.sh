@@ -30,5 +30,5 @@ systemctl enable --now docker
 docker version
 docker compose version
 printf '\nDocker、Compose、SVN 已安装。下一步执行：\n'
-printf '  svn checkout svn://gitee.com/sendoh-huang/good-job-private /opt/meridiancrm-src\n'
-printf '  cd /opt/meridiancrm-src && ./update-docker.sh\n'
+printf '  svn checkout svn://gitee.com/sendoh-huang/good-job-private /opt/keduoduocrm-src\n'
+printf '  cd /opt/keduoduocrm-src && ./update-docker.sh\n'

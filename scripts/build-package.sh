@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ════════════════════════════════════════════════════════════════
-#  Meridian CRM 一键启动包构建脚本
+#  Keduoduo CRM 一键启动包构建脚本
 #  用法: ./scripts/build-package.sh [mac|win] [version]
 #  示例: ./scripts/build-package.sh mac 1.0.0
 # ════════════════════════════════════════════════════════════════
@@ -28,7 +28,7 @@ warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 err() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # ── 前置检查 ──────────────────────────────────────────────────────
-log "开始构建 Meridian CRM v${VERSION} for ${PLATFORM}"
+log "开始构建 Keduoduo CRM v${VERSION} for ${PLATFORM}"
 
 if [ ! -f "$PROJECT_ROOT/backend/package.json" ]; then
   err "未找到 backend/package.json，请在项目根目录运行"
@@ -136,7 +136,7 @@ log "Production 依赖准备完成"
 
 # ── Step 5: 组装包结构 ───────────────────────────────────────────
 log "Step 5/7: 组装包结构..."
-PACKAGE_DIR="$BUILD_DIR/meridian-crm"
+PACKAGE_DIR="$BUILD_DIR/keduoduo-crm"
 rm -rf "$PACKAGE_DIR"
 mkdir -p "$PACKAGE_DIR"
 
@@ -158,8 +158,8 @@ cp -r "$PROD_MODULES_DIR" "$PACKAGE_DIR/backend/node_modules"
 # 5.4 数据库 schema
 cp "$PROJECT_ROOT/backend/schema.mysql.sql" "$PACKAGE_DIR/backend/"
 # 全量数据 (首次初始化用)
-if [ -f "$PROJECT_ROOT/backend/meridian_crm.full.sql" ]; then
-  cp "$PROJECT_ROOT/backend/meridian_crm.full.sql" "$PACKAGE_DIR/backend/"
+if [ -f "$PROJECT_ROOT/backend/keduoduo_crm.full.sql" ]; then
+  cp "$PROJECT_ROOT/backend/keduoduo_crm.full.sql" "$PACKAGE_DIR/backend/"
 fi
 
 # 5.5 agent-knowledge
@@ -175,7 +175,7 @@ fi
 # 5.7 版本信息
 cat > "$PACKAGE_DIR/package.json" << EOF
 {
-  "name": "meridian-crm",
+  "name": "keduoduo-crm",
   "version": "${VERSION}",
   "platform": "${PLATFORM}",
   "buildDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -261,14 +261,14 @@ log "Step 7/7: 打包压缩..."
 mkdir -p "$DIST_DIR"
 
 if [ "$PLATFORM" = "mac" ]; then
-  OUTPUT_FILE="$DIST_DIR/meridian-crm-v${VERSION}-mac.tar.gz"
+  OUTPUT_FILE="$DIST_DIR/keduoduo-crm-v${VERSION}-mac.tar.gz"
   cd "$BUILD_DIR"
-  tar -czf "$OUTPUT_FILE" meridian-crm
+  tar -czf "$OUTPUT_FILE" keduoduo-crm
   log "打包完成: $OUTPUT_FILE"
 elif [ "$PLATFORM" = "win" ]; then
-  OUTPUT_FILE="$DIST_DIR/meridian-crm-v${VERSION}-win.zip"
+  OUTPUT_FILE="$DIST_DIR/keduoduo-crm-v${VERSION}-win.zip"
   cd "$BUILD_DIR"
-  zip -r "$OUTPUT_FILE" meridian-crm
+  zip -r "$OUTPUT_FILE" keduoduo-crm
   log "打包完成: $OUTPUT_FILE"
 fi
 

@@ -18,7 +18,7 @@ async function request(path: string, options: RequestInit = {}) {
 async function login(email: string) {
   const result = await request("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password: "meridian123" })
+    body: JSON.stringify({ email, password: "keduoduo123" })
   });
   if (!result.response.ok) throw new Error(`login failed: ${email}`);
   return result.json.token as string;
@@ -37,8 +37,8 @@ try {
   store.users.push({
     id: "u_manager_other_team",
     name: "Other Team Manager",
-    email: "other-manager@meridian.com",
-    password: "meridian123",
+    email: "other-manager@keduoduo.com",
+    password: "keduoduo123",
     role: "manager",
     teamId: "other-team",
     avatar: "OT",
@@ -49,10 +49,10 @@ try {
   const unauthenticated = await request("/api/daily-reports");
   assert(unauthenticated.response.status === 401, "daily report API must require authentication");
 
-  const shirleyToken = await login("shirley@meridian.com");
-  const miaToken = await login("mia@meridian.com");
-  const alexToken = await login("alex@meridian.com");
-  const otherManagerToken = await login("other-manager@meridian.com");
+  const shirleyToken = await login("shirley@keduoduo.com");
+  const miaToken = await login("mia@keduoduo.com");
+  const alexToken = await login("alex@keduoduo.com");
+  const otherManagerToken = await login("other-manager@keduoduo.com");
   const reportDate = "2026-07-16";
 
   const systemMessageKey = `self-test:system-message:${Date.now()}`;

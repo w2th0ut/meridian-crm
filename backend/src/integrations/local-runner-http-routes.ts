@@ -124,10 +124,10 @@ webRouter.get("/local-runners", handle(async (req, res) => {
 webRouter.post("/local-runners/pairings", handle(async (req, res) => {
   const body = z.object({ deviceName: z.string().trim().max(160).default("我的电脑") }).strict().parse(req.body || {});
   const pairing = await service().createPairing(req.user!, body.deviceName);
-  const publicBase = String(process.env.MERIDIAN_PUBLIC_URL || `${req.protocol}://${req.get("host") || "localhost:4188"}`).replace(/\/$/u, "");
+  const publicBase = String(process.env.KEDUODUO_PUBLIC_URL || `${req.protocol}://${req.get("host") || "localhost:4188"}`).replace(/\/$/u, "");
   envelope(req, res, {
     ...pairing,
-    command: `meridian-runner pair --server ${JSON.stringify(publicBase)} --code ${JSON.stringify(pairing.pairingCode)} --workspace ${JSON.stringify("/path/to/workspace")}`
+    command: `keduoduo-runner pair --server ${JSON.stringify(publicBase)} --code ${JSON.stringify(pairing.pairingCode)} --workspace ${JSON.stringify("/path/to/workspace")}`
   }, 201);
 }));
 

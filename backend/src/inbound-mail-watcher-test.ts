@@ -37,7 +37,7 @@ async function main() {
     id: `oel_${Date.now()}`,
     teamId: lead.teamId,
     ownerId: user.id,
-    messageId: "<batch-send-001@meridian>",
+    messageId: "<batch-send-001@keduoduo>",
     entityType: "lead",
     entityId: lead.id,
     to: lead.email,
@@ -52,10 +52,10 @@ async function main() {
   // ---- 真实需求回复：打 lastEmailReplyAt 标记 + 写线索活动 + 生成待办 ----
   const replySource = rawReplyEmail({
     from: lead.email,
-    to: user.email || "sales@meridian.example",
+    to: user.email || "sales@keduoduo.example",
     subject: "Re: Potential cooperation",
     body: "Please send us your quotation and price list for fasteners, we need samples first.",
-    inReplyTo: "<batch-send-001@meridian>"
+    inReplyTo: "<batch-send-001@keduoduo>"
   });
   const applied = await watcher.applyMessage(user, Buffer.from(replySource, "utf8"));
   assert.equal(applied, "reply", `回复应被识别：${applied}`);
@@ -76,7 +76,7 @@ async function main() {
       id: `oel_${Date.now()}_b`,
       teamId: anotherLead.teamId,
       ownerId: user.id,
-      messageId: "<batch-send-002@meridian>",
+      messageId: "<batch-send-002@keduoduo>",
       entityType: "lead",
       entityId: anotherLead.id,
       to: anotherLead.email,
@@ -87,7 +87,7 @@ async function main() {
     });
     const bounceSource = [
       "From: Mailer Daemon <mailer-daemon@mail.example>",
-      `To: ${user.email || "sales@meridian.example"}`,
+      `To: ${user.email || "sales@keduoduo.example"}`,
       "Subject: Undelivered Mail Returned to Sender",
       "Content-Type: text/plain; charset=utf-8",
       "",

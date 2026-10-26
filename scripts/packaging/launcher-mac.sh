@@ -1,6 +1,6 @@
 #!/bin/bash
 # ════════════════════════════════════════════════════════════════
-#  Meridian CRM Mac 启动器
+#  Keduoduo CRM Mac 启动器
 #  功能: 启动 MariaDB → 启动 Node.js 后端 → 打开浏览器
 # ════════════════════════════════════════════════════════════════
 
@@ -8,13 +8,13 @@ set -euo pipefail
 
 # ── 路径定位 ──────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_NAME="Meridian CRM"
-DATA_DIR="${MERIDIAN_DATA_DIR:-$HOME/.meridian-crm}"
+APP_NAME="Keduoduo CRM"
+DATA_DIR="${KEDUODUO_DATA_DIR:-$HOME/.keduoduo-crm}"
 LOG_FILE="$DATA_DIR/launcher.log"
 
 # 端口配置
-API_PORT="${MERIDIAN_API_PORT:-4188}"
-MYSQL_PORT="${MERIDIAN_MYSQL_PORT:-13306}"
+API_PORT="${KEDUODUO_API_PORT:-4188}"
+MYSQL_PORT="${KEDUODUO_MYSQL_PORT:-13306}"
 
 # 颜色
 RED='\033[0;31m'
@@ -148,9 +148,9 @@ start_mariadb() {
 
 # ── 数据库初始化 ──────────────────────────────────────────────────
 init_database() {
-  local DB_NAME="meridian_crm"
-  local DB_USER="meridian"
-  local DB_PASS="meridian_local"
+  local DB_NAME="keduoduo_crm"
+  local DB_USER="keduoduo"
+  local DB_PASS="keduoduo_local"
 
   # 检查数据库是否已存在
   local db_exists
@@ -181,10 +181,10 @@ EOF
     fi
 
     # 导入种子数据
-    if [ -f "$SCRIPT_DIR/backend/meridian_crm.full.sql" ]; then
+    if [ -f "$SCRIPT_DIR/backend/keduoduo_crm.full.sql" ]; then
       log "导入种子数据..."
       "$MYSQL_CLIENT" --socket="$DATA_DIR/mysql.sock" -u root "$DB_NAME" \
-        < "$SCRIPT_DIR/backend/meridian_crm.full.sql" 2>&1 | tee -a "$LOG_FILE"
+        < "$SCRIPT_DIR/backend/keduoduo_crm.full.sql" 2>&1 | tee -a "$LOG_FILE"
     fi
 
     log "数据库初始化完成"
@@ -237,10 +237,10 @@ EOF
   export PROSPECT_WORKER_ENABLED=false
   export PROSPECT_QUEUE_REQUIRED=false
   export REDIS_URL=""
-  export DATABASE_URL="mysql://meridian:meridian_local@127.0.0.1:$MYSQL_PORT/meridian_crm"
+  export DATABASE_URL="mysql://keduoduo:keduoduo_local@127.0.0.1:$MYSQL_PORT/keduoduo_crm"
   export FRONTEND_DIST="$SCRIPT_DIR/frontend/dist"
   export AGENT_SKILLS_DIR="$SCRIPT_DIR/agent-skills"
-  export INITIAL_ADMIN_EMAIL="admin@meridian.local"
+  export INITIAL_ADMIN_EMAIL="admin@keduoduo.local"
   export INITIAL_ADMIN_PASSWORD="admin123456"
   export INITIAL_ADMIN_NAME="Admin"
 
@@ -302,7 +302,7 @@ log ""
 log "═══════════════════════════════════════════"
 log "  $APP_NAME 已启动!"
 log "  访问地址: http://127.0.0.1:$API_PORT"
-log "  默认账号: admin@meridian.local"
+log "  默认账号: admin@keduoduo.local"
 log "  默认密码: admin123456"
 log "  数据目录: $DATA_DIR"
 log "  日志目录: $DATA_DIR/logs/"

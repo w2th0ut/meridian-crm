@@ -17,7 +17,7 @@ async function request(path: string, options: RequestInit = {}) {
 async function login(email: string) {
   const result = await request("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password: "meridian123" })
+    body: JSON.stringify({ email, password: "keduoduo123" })
   });
   if (!result.response.ok) throw new Error(`login failed: ${email}`);
   return result.json.token as string;
@@ -34,8 +34,8 @@ async function createLead(token: string, suffix: string) {
 }
 
 try {
-  const ownerToken = await login("shirley@meridian.com");
-  const otherToken = await login("mia@meridian.com");
+  const ownerToken = await login("shirley@keduoduo.com");
+  const otherToken = await login("mia@keduoduo.com");
 
   const plainLeadId = await createLead(ownerToken, `plain-${Date.now()}`);
   const crossOwnerDelete = await request(`/api/leads/${plainLeadId}`, {

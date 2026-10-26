@@ -5,7 +5,7 @@ interface ClientOptions {
   token?: string;
 }
 
-export class MeridianRunnerClient {
+export class KeduoduoRunnerClient {
   constructor(private readonly options: ClientOptions) {}
 
   private async request<T>(path: string, input: object, authenticated = true): Promise<T> {

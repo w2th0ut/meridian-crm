@@ -40,7 +40,7 @@ export function excelBufferSha256(buffer: Buffer) {
 }
 
 export async function renderExcelBufferToPdf(excelBuffer: Buffer) {
-  const workDir = await mkdtemp(path.join(tmpdir(), "meridian-excel-preview-"));
+  const workDir = await mkdtemp(path.join(tmpdir(), "keduoduo-excel-preview-"));
   const inputPath = path.join(workDir, "document.xlsx");
   const outputPath = path.join(workDir, "document.pdf");
   const profileDir = path.join(workDir, "lo-profile");

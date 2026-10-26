@@ -89,8 +89,8 @@ describe("POST /api/v1/auto-chat/compose", () => {
 
   const ownerToken = jwt.sign({ ver: 1 }, SECRET, {
     subject: OWNER,
-    issuer: "meridian-crm",
-    audience: "meridian-crm-web",
+    issuer: "keduoduo-crm",
+    audience: "keduoduo-crm-web",
     expiresIn: "2h",
     algorithm: "HS256"
   });
@@ -129,7 +129,7 @@ process.stdin.on("end", () => {
     ["followup", ${JSON.stringify(ACTIVITY_MARKER)}],
     ["quote", ${JSON.stringify(QUOTE_MARKER)}],
     ["knowledge", ${JSON.stringify(KNOWLEDGE_MARKER)}],
-    ["engineName", "meridian-auto-reply"]
+    ["engineName", "keduoduo-auto-reply"]
   ];
   const reply = probes.map(([name, needle]) => (prompt.includes(needle) ? name + "=1" : name + "=0")).join(" ");
   const text = JSON.stringify({ reply, replyZh: "中文稿：" + reply, confidence: 0.88, reason: "probe", language: "en" });
@@ -167,7 +167,7 @@ process.stdin.on("end", () => {
       let subject = "";
       let authorized = false;
       try {
-        const payload = jwt.verify(token, SECRET, { issuer: "meridian-crm", audience: "meridian-crm-web" });
+        const payload = jwt.verify(token, SECRET, { issuer: "keduoduo-crm", audience: "keduoduo-crm-web" });
         subject = String((payload as { sub?: string }).sub ?? "");
         authorized = Boolean(subject);
       } catch {

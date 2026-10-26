@@ -85,7 +85,7 @@ export function decryptWeComMessage(encrypted: string, encodingAesKey: string, e
   return message;
 }
 
-export function encryptWeComMessage(message: string, config: WeComCallbackConfig, timestamp = String(Math.floor(Date.now() / 1000)), nonce = "meridian") {
+export function encryptWeComMessage(message: string, config: WeComCallbackConfig, timestamp = String(Math.floor(Date.now() / 1000)), nonce = "keduoduo") {
   const key = paddedKey(config.encodingAesKey);
   const content = Buffer.from(message, "utf8");
   const corpId = Buffer.from(config.corpId, "utf8");

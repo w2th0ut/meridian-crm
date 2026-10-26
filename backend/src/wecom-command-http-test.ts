@@ -12,10 +12,10 @@ import type { WecomCommandEndpoint, WecomMemberBinding } from "./types.js";
 
 const config = {
   corpId: "ww_http_test_corp",
-  callbackToken: "meridian-http-callback-token",
+  callbackToken: "keduoduo-http-callback-token",
   encodingAesKey: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
 };
-const masterKey = process.env.INTEGRATION_CREDENTIAL_KEY || "meridian-wecom-http-test-master-key-at-least-32";
+const masterKey = process.env.INTEGRATION_CREDENTIAL_KEY || "keduoduo-wecom-http-test-master-key-at-least-32";
 const endpoint: WecomCommandEndpoint = {
   id: "wce_http_test",
   connectionId: "wecom_connection_http_test",
@@ -85,7 +85,7 @@ try {
   const salesLogin = await fetch(`${baseUrl}/api/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: "shirley@meridian.com", password: "meridian123" })
+    body: JSON.stringify({ email: "shirley@keduoduo.com", password: "keduoduo123" })
   });
   assert.equal(salesLogin.status, 200);
   const salesLoginBody = await salesLogin.json() as { token?: string };

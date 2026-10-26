@@ -1,6 +1,4 @@
-import './trade-workspace.css';
-import './trade-overhaul.css';
-import './trade-polish.css';
+import './theme-keduoduo.css';
 
 /** View-only navigation and data presentation controller; core business actions remain in prototype-api.ts. */
 const root = document.documentElement;
@@ -41,10 +39,16 @@ function updateChrome() {
   const active = $('.workspace > .view.active') || $('.main > .view.active');
   const activeLabel=labelForActiveView();
   if (breadcrumb && breadcrumb.textContent !== activeLabel) breadcrumb.textContent = activeLabel;
-  if (active) document.title = `${labelForActiveView()} · Meridian 全球航贸工作台`;
+  if (active && document.body.classList.contains('is-authenticated')) {
+    document.title = `${activeLabel} · 客多多`;
+  } else if (!document.body.classList.contains('is-authenticated')) {
+    document.title = '客多多 · 外贸客户经营台';
+  }
 }
 $$('.view').forEach(view => new MutationObserver(updateChrome).observe(view,{attributes:true,attributeFilter:['class']}));
 if (breadcrumb) new MutationObserver(updateChrome).observe(breadcrumb,{childList:true,characterData:true,subtree:true});
+// 登录态变化后重新同步文档标题与面包屑。
+new MutationObserver(updateChrome).observe(document.body,{attributes:true,attributeFilter:['class']});
 updateChrome();
 
 // The waypoint display is driven only by CRM-visible customers; it never fabricates shipments.
@@ -75,11 +79,6 @@ const coordinateAliases: Record<string,{code:string;name:string;lon:number;lat:n
  '新西兰':{code:'NZ',name:'新西兰',lon:172,lat:-41}, nz:{code:'NZ',name:'新西兰',lon:172,lat:-41}, newzealand:{code:'NZ',name:'新西兰',lon:172,lat:-41},
  '南非':{code:'ZA',name:'南非',lon:24,lat:-29}, za:{code:'ZA',name:'南非',lon:24,lat:-29}, southafrica:{code:'ZA',name:'南非',lon:24,lat:-29}
 };
-const shanghai = {x:50,y:47.5};
-function coordinatesFor(market:MarketRoute) {
- const delta=((market.lon-121.47+540)%360)-180;
- return {x:50+delta/3.6,y:47.5-(market.lat-31.23)*.53};
-}
 export function publishTradeWorkbenchSnapshot(customers:Array<{country?:string}>) {
  const counts=new Map<string,{location:NonNullable<typeof coordinateAliases[string]>;count:number}>();
  for(const customer of customers){
@@ -89,39 +88,34 @@ export function publishTradeWorkbenchSnapshot(customers:Array<{country?:string}>
   const current=counts.get(location.code);counts.set(location.code,{location,count:(current?.count||0)+1});
  }
  currentCustomerCount=customers.length;
- currentMarkets=Array.from(counts.values()).map(item=>({...item.location,count:item.count})).sort((a,b)=>b.count-a.count).slice(0,5);
+ currentMarkets=Array.from(counts.values()).map(item=>({...item.location,count:item.count})).sort((a,b)=>b.count-a.count).slice(0,6);
  const marketCount=Array.from(counts.values()).length;
  const summary=$<HTMLElement>('#tradeRouteSummary');
- if(summary)summary.textContent=!customers.length?'当前没有客户记录':marketCount?`${customers.length} 家可见客户 · ${marketCount} 个可定位市场`:`${customers.length} 家可见客户 · 暂无可定位的客户国家`;
+ if(summary)summary.textContent=!customers.length?'当前没有客户记录':marketCount?`${customers.length} 家可见客户 · ${marketCount} 个目的市场`:`${customers.length} 家可见客户 · 暂无可归集的客户国家`;
  drawRoute();
 }
 function esc(value: string) { return value.replace(/[&<>"']/g,char=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[char]!)); }
 function drawRoute() {
   if (!hero) return;
   const routes = currentMarkets;
-  const svg = hero.querySelector<SVGSVGElement>('.trade-route-svg');
-  const empty = hero.querySelector<HTMLElement>('.trade-route-empty');
-  const grid = hero.querySelector<SVGGElement>('.trade-route-points');
-  if (!svg || !grid) return;
-  const selected = routes.slice(0,5);
+  const empty = $<HTMLElement>('.trade-route-empty');
+  const hint = $<HTMLElement>('.trade-route-hint');
+  const selected = routes.slice(0, 6);
   if (!selected.length) {
-    grid.replaceChildren();
+    hero.replaceChildren();
     if (empty) empty.hidden = false;
-    svg.setAttribute('aria-label','当前没有可视化的目的市场。现有的全球航线页仍可查看运输记录。');
-    const hint=hero.querySelector<HTMLElement>('.trade-route-hint'); if(hint)hint.textContent=`${currentCustomerCount} 家客户 · 暂无可定位的目的市场；完整全球航线仍可查看运输记录`;
+    hero.setAttribute('aria-label', '当前没有可归集的客户市场');
+    if (hint) hint.textContent = '';
     return;
   }
   if (empty) empty.hidden = true;
-  const anchor=shanghai;
-  grid.innerHTML=selected.map(route=>{
-    const point=coordinatesFor(route),x=point.x,y=point.y;
-    const c1=(anchor.x+x)/2,c2=(anchor.y+y)/2-9;
-    const labelAnchor=x>68?'end':'start',labelX=x>68?x-2:x+2;
-    const title=`${route.name} · ${route.count} 家客户`;
-    return `<g class="trade-route-link" tabindex="0" role="img" aria-label="${esc(title)}"><path d="M ${anchor.x} ${anchor.y} Q ${c1.toFixed(1)} ${c2.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)}"/><circle class="route-pulse" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.1"/><circle class="route-core" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r=".82"/><text x="${labelX.toFixed(1)}" y="${(y-2).toFixed(1)}" text-anchor="${labelAnchor}">${esc(route.name)}</text><title>${esc(title)}</title></g>`;
+  // 唛头带：每个目的市场一枚“唛头”，以客户数排序，最大的一枚用印章红。
+  hero.innerHTML = selected.map((route, index) => {
+    const title = `${route.name} · ${route.count} 家客户`;
+    return `<div class="mh-mark trade-route-link" role="listitem" tabindex="0" data-rank="${index + 1}" aria-label="${esc(title)}" style="animation-delay:${index * 45}ms"><span class="mh-code">${esc(route.code)}</span><b class="mh-count">${route.count}</b><span class="mh-name">${esc(route.name)}</span></div>`;
   }).join('');
-  svg.setAttribute('aria-label',`从上海出发的真实客户市场：${selected.map(item=>`${item.name} ${item.count} 家`).join('，')}`);
-  const hint=hero.querySelector<HTMLElement>('.trade-route-hint');if(hint)hint.textContent=`${currentCustomerCount} 家真实客户 · ${routes.length} 个可定位市场`;
+  hero.setAttribute('aria-label', `客户目的市场：${selected.map(item => `${item.name} ${item.count} 家`).join('，')}`);
+  if (hint) hint.textContent = `${currentCustomerCount} 家客户 · ${routes.length} 个市场`;
 }
 drawRoute();
 

@@ -1,0 +1,1391 @@
+/*
+ * 客多多 Keduoduo · 外贸客户经营台
+ * 视觉语言：纸（单据纸白）/ 墨（通栏与正文）/ 印章红（唯一的动作色）
+ * 结构语言：墨色通栏做页首，正文用单据式分栏 + 细线，不用漂浮卡片。
+ * 仅表现层：所有视图 DOM 契约、业务行为保持不变。
+ */
+html[data-ui="trade"] {
+  /* 纸墨印章 */
+  --paper: #f1f2ee;
+  --leaf: #ffffff;
+  --ink: #16191b;
+  --ink-2: #2a2f31;
+  --graphite: #5d666b;
+  --graphite-2: #8b9499;
+  --rule: #d9ddd6;
+  --rule-soft: #e7eae4;
+  --seal: var(--brand, #cc2118);
+  --seal-deep: var(--brand-strong, #a71812);
+  --seal-wash: var(--brand-tint, #fdeceb);
+  --jade: #10654e;
+  --jade-wash: #e8f2ee;
+  --amber: #9e5f17;
+  --amber-wash: #fbf1e2;
+
+  /* 版式 */
+  --font-ui: "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  --pad-x: 30px;
+  --pad-top: 26px;
+
+  /* 兼容旧模块引用的令牌名 */
+  --bg: var(--paper);
+  --surface: var(--leaf);
+  --surface-2: #fafbf8;
+  --surface-3: #eceee9;
+  --ink-legacy: var(--ink);
+  --text: #23282a;
+  --muted: var(--graphite);
+  --line: var(--rule);
+  --line-soft: var(--rule-soft);
+  --green: var(--jade);
+  --green-tint: var(--jade-wash);
+  --rose: var(--seal);
+  --rose-tint: var(--seal-wash);
+  --aqua: #145d70;
+  --violet: #4d5560;
+  --radius: 2px;
+  --radius-sm: 2px;
+  --radius-xs: 2px;
+  --shadow: none;
+  --shadow-soft: none;
+  --shadow-sm: none;
+  --shadow-xs: none;
+  --trade-accent: var(--seal);
+  --trade-accent-strong: var(--seal-deep);
+  --trade-accent-tint: var(--seal-wash);
+  --trade-accent-ring: rgb(204 33 24 / 18%);
+  --trade-nav-width: 236px;
+  color-scheme: light;
+}
+
+html[data-theme="trade"] {
+  --brand: #cc2118;
+  --brand-strong: #a71812;
+  --brand-2: #e0492f;
+  --brand-tint: #fdeceb;
+  --brand-ring: rgb(204 33 24 / 18%);
+  --nav: #16191b;
+}
+
+/* ── 基础 ───────────────────────────────────────────── */
+html[data-ui="trade"] body {
+  min-width: 320px;
+  margin: 0;
+  color: var(--text);
+  background: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.65;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+html[data-ui="trade"] :is(button, input, select, textarea) { font-family: inherit; }
+html[data-ui="trade"] :is(h1, h2, h3, h4) { color: var(--ink); letter-spacing: -.03em; }
+html[data-ui="trade"] [hidden] { display: none !important; }
+html[data-ui="trade"] ::selection { color: #fff; background: var(--seal); }
+html[data-ui="trade"] :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--seal);
+  outline-offset: 2px;
+}
+html[data-ui="trade"] .trade-skip-link {
+  position: fixed; z-index: 9999; top: 0; left: 0; transform: translateY(-120%);
+  padding: 10px 16px; color: #fff; background: var(--ink); font-size: 12px; letter-spacing: .04em;
+}
+html[data-ui="trade"] .trade-skip-link:focus { transform: translateY(0); }
+
+/* ── 应用骨架：纸色导轨 ──────────────────────────────── */
+html[data-ui="trade"] .shell {
+  display: grid; width: 100%; height: 100dvh; min-height: 100dvh;
+  grid-template-columns: var(--trade-nav-width) minmax(0, 1fr);
+  background: var(--paper); overflow: hidden;
+}
+html[data-ui="trade"] .sidebar {
+  position: relative; z-index: 80; display: flex; flex-direction: column;
+  width: auto; height: 100dvh; min-height: 0; gap: 0; padding: 0;
+  border: 0; border-right: 1px solid var(--rule);
+  color: var(--ink); background: var(--paper); box-shadow: none; overflow: hidden;
+}
+html[data-ui="trade"] .sidebar::before,
+html[data-ui="trade"] .sidebar::after { display: none; }
+
+/* 品牌：印章 */
+html[data-ui="trade"] .brand {
+  position: relative; display: flex; align-items: center; gap: 11px;
+  min-height: 74px; flex: 0 0 auto; padding: 18px 16px 16px;
+}
+html[data-ui="trade"] .brand::after {
+  position: absolute; right: 16px; bottom: 0; left: 16px; height: 1px;
+  background: var(--rule); content: "";
+}
+html[data-ui="trade"] .brand-mark {
+  display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px;
+  border: 0; border-radius: 3px; color: #fff; background: var(--seal);
+  box-shadow: none; transform: rotate(-3deg);
+}
+html[data-ui="trade"] .brand-mark::after { display: none; }
+html[data-ui="trade"] .brand-mark span:first-child {
+  display: block; color: #fff; font-size: 19px; font-weight: 800; line-height: 1;
+}
+html[data-ui="trade"] .brand-mark span:last-child { display: none; }
+html[data-ui="trade"] .brand > div:last-child strong {
+  display: block; color: var(--ink); font-size: 17px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2;
+}
+html[data-ui="trade"] .brand > div:last-child span {
+  display: block; margin-top: 3px; color: var(--graphite); font-size: 10.5px; letter-spacing: .1em;
+}
+
+/* 导航：无药丸，当前项用印章红竖标 */
+html[data-ui="trade"] .nav {
+  min-height: 0; flex: 1 1 auto; gap: 0; padding: 10px 0 14px;
+  overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #c8ccc5 transparent;
+}
+html[data-ui="trade"] .nav-primary { display: grid; gap: 0; }
+html[data-ui="trade"] .nav button {
+  position: relative; display: grid; width: 100%; height: auto; min-height: 34px;
+  grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 9px;
+  padding: 7px 16px; border: 0; border-radius: 0; color: var(--ink-2); background: transparent;
+  font-size: 12.5px; font-weight: 500; text-align: left; cursor: pointer;
+  transition: color .14s ease, background-color .14s ease;
+}
+html[data-ui="trade"] .nav button::before,
+html[data-ui="trade"] .nav button::after { display: none; }
+html[data-ui="trade"] .nav button > svg { width: 16px; height: 16px; color: currentColor; opacity: .62; }
+html[data-ui="trade"] .nav button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-ui="trade"] .nav button:hover { color: var(--ink); background: #e9ebe5; }
+html[data-ui="trade"] .nav button:hover > svg { opacity: .86; }
+html[data-ui="trade"] .nav button.active {
+  color: var(--ink); background: var(--leaf); font-weight: 650; box-shadow: none;
+}
+html[data-ui="trade"] .nav button.active::before {
+  position: absolute; top: 6px; bottom: 6px; left: 0; display: block; width: 3px;
+  background: var(--seal); content: "";
+}
+html[data-ui="trade"] .nav button.active > svg { color: var(--seal); opacity: 1; }
+html[data-ui="trade"] .nav em {
+  padding: 0; border-radius: 0; color: var(--graphite-2); background: transparent;
+  font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: .04em;
+}
+html[data-ui="trade"] .nav button.active em { color: var(--seal); letter-spacing: .04em; }
+
+/* 分组 */
+html[data-ui="trade"] .nav-section { margin: 0; }
+html[data-ui="trade"] .nav-section-title {
+  display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 8px 16px;
+  border: 0; border-radius: 0; color: var(--graphite); background: transparent;
+  font-size: 11px; font-weight: 650; letter-spacing: .06em; cursor: pointer;
+}
+html[data-ui="trade"] .nav-section-title::before { display: none; }
+html[data-ui="trade"] .nav-section-title span { flex: 1; }
+html[data-ui="trade"] .nav-section-title svg { width: 15px; height: 15px; color: var(--graphite-2); }
+html[data-ui="trade"] .nav-section-title:hover,
+html[data-ui="trade"] .nav-section[open] .nav-section-title { color: var(--ink); background: #e9ebe5; }
+html[data-ui="trade"] .nav-section:has(.nav-secondary-button.active) .nav-section-title { color: var(--ink); background: transparent; }
+html[data-ui="trade"] .nav-chevron {
+  width: 5px; height: 5px; border: solid var(--graphite-2); border-width: 0 1.5px 1.5px 0;
+  border-radius: 0; background: transparent; transform: rotate(45deg);
+}
+html[data-ui="trade"] .nav-section[open] .nav-chevron { border-color: var(--ink); background: transparent; }
+html[data-ui="trade"] .nav-secondary-grid { margin: 2px 0 6px; padding: 0; border: 0; }
+html[data-ui="trade"] .nav button.nav-secondary-button {
+  min-height: 30px; padding: 5px 16px 5px 47px; border-radius: 0;
+  color: var(--graphite); font-size: 12px; font-weight: 450;
+}
+html[data-ui="trade"] .nav button.nav-secondary-button.active {
+  color: var(--ink); background: var(--leaf); font-weight: 650;
+}
+html[data-ui="trade"] .nav button.nav-secondary-button.active::before {
+  position: absolute; top: 5px; bottom: 5px; left: 0; display: block; width: 3px;
+  background: var(--seal); content: "";
+}
+html[data-ui="trade"] .trade-sidebar-profile { display: none !important; }
+
+/* ── 主区 ───────────────────────────────────────────── */
+html[data-ui="trade"] .main {
+  min-width: 0; height: 100dvh; overflow-y: auto; overflow-x: hidden;
+  background: var(--paper); scrollbar-width: thin; scrollbar-color: #c8ccc5 transparent;
+}
+html[data-ui="trade"] .topbar {
+  position: sticky; z-index: 70; top: 0; display: flex; height: 58px; min-height: 58px;
+  align-items: center; gap: 16px; padding: 0 var(--pad-x);
+  border: 0; border-bottom: 1px solid var(--rule); background: var(--paper); box-shadow: none;
+  backdrop-filter: none;
+}
+html[data-ui="trade"] .top-core { min-width: 0; gap: 14px; align-items: center; }
+html[data-ui="trade"] .trade-crumb { display: flex; align-items: center; gap: 7px; color: var(--graphite-2); font-size: 11.5px; }
+html[data-ui="trade"] .trade-crumb svg { display: none; }
+html[data-ui="trade"] .trade-crumb strong { color: var(--ink); font-weight: 650; letter-spacing: -.01em; }
+html[data-ui="trade"] .command {
+  display: flex; align-items: center; gap: 8px; width: auto; min-width: 190px; max-width: 300px;
+  height: 32px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] .command:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px rgb(22 25 27 / 7%); }
+html[data-ui="trade"] .command input { min-width: 0; height: auto; border: 0; background: transparent; color: var(--ink); font-size: 12px; box-shadow: none; }
+html[data-ui="trade"] .command input::placeholder { color: var(--graphite-2); }
+html[data-ui="trade"] .trade-search-shortcut {
+  padding: 0 5px; border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--graphite-2); background: var(--paper); font-size: 10px;
+}
+html[data-ui="trade"] .top-tabs {
+  display: flex; min-width: 0; max-width: min(420px, 30vw); gap: 0; padding: 0;
+  border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: hidden;
+}
+html[data-ui="trade"] .top-tab {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px;
+  border: 0; border-right: 1px solid var(--rule); border-radius: 0; background: transparent;
+  color: var(--graphite); font-size: 11.5px; font-weight: 500;
+}
+html[data-ui="trade"] .top-tab:hover { color: var(--ink); background: #e9ebe5; box-shadow: none; }
+html[data-ui="trade"] .top-tab.active { color: var(--ink); background: var(--leaf); font-weight: 650; box-shadow: inset 0 -2px 0 var(--seal); }
+html[data-ui="trade"] .top-tab-close { width: 15px; height: 15px; border-radius: 0; font-size: 11px; }
+html[data-ui="trade"] .top-status { color: var(--graphite); }
+html[data-ui="trade"] .top-pill {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px;
+  border: 1px solid var(--rule); border-radius: 2px; color: var(--graphite); background: var(--leaf); font-size: 11px;
+}
+html[data-ui="trade"] .top-pill b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+html[data-ui="trade"] .top-actions { gap: 8px; margin-left: auto; align-items: center; }
+html[data-ui="trade"] .user-menu { gap: 8px; padding-left: 12px; border-left: 1px solid var(--rule); }
+html[data-ui="trade"] .profile-entry { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; }
+html[data-ui="trade"] .user-identity b { display: block; color: var(--ink); font-size: 12px; font-weight: 650; line-height: 1.25; }
+html[data-ui="trade"] .user-identity > span { display: block; color: var(--graphite-2); font-size: 10px; letter-spacing: .03em; }
+html[data-ui="trade"] .avatar {
+  width: 28px; height: 28px; border-radius: 2px; color: #fff; background: var(--ink);
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+}
+html[data-ui="trade"] .notification-bell { border-radius: 2px; }
+html[data-ui="trade"] .trade-menu-toggle {
+  display: none; width: 32px; height: 32px; padding: 6px; place-items: center;
+  border: 1px solid var(--rule); border-radius: 2px; background: var(--leaf);
+}
+html[data-ui="trade"] .trade-menu-toggle svg { width: 18px; height: 18px; fill: none; stroke: var(--ink); stroke-width: 1.6; }
+html[data-ui="trade"] .trade-nav-scrim { display: none; }
+
+/* ── 墨色通栏（全站页首） ────────────────────────────── */
+html[data-ui="trade"] .view {
+  padding: var(--pad-top) var(--pad-x) 44px;
+  animation: none;
+}
+html[data-ui="trade"] .workspace { width: 100%; max-width: none; padding: 0; }
+html[data-ui="trade"] main.main > .view { width: 100%; min-width: 0; background: var(--paper); }
+
+html[data-ui="trade"] :is(
+  .view > .page-head,
+  .view > .pc-head,
+  .view > .sh-head,
+  .view > .lg-head,
+  .view > .file-center-head,
+  .view > .exam-workspace-head,
+  .view > .approval-head,
+  .view > .customer-pool-head,
+  .view > .th-page-head,
+  .view > .kb-head,
+  #dashboard.dashboard-v2 > .dashboard-masthead
+) {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
+  margin: calc(-1 * var(--pad-top)) calc(-1 * var(--pad-x)) 25px;
+  padding: 24px var(--pad-x) 21px;
+  border: 0; border-radius: 0;
+  color: #fff; background: var(--ink);
+  box-shadow: none;
+}
+html[data-ui="trade"] :is(
+  .view > .page-head,
+  .view > .pc-head,
+  .view > .sh-head,
+  .view > .lg-head,
+  .view > .file-center-head,
+  .view > .exam-workspace-head,
+  .view > .approval-head,
+  .view > .customer-pool-head,
+  .view > .th-page-head,
+  .view > .kb-head,
+  #dashboard.dashboard-v2 > .dashboard-masthead
+)::after { display: none; }
+
+html[data-ui="trade"] :is(.page-head, .pc-head, .sh-head, .lg-head, .file-center-head,
+  .exam-workspace-head, .approval-head, .customer-pool-head, .th-page-head, .kb-head,
+  .dashboard-masthead) :is(h1, h2, .pc-h1, .sh-h1, .th-h1, .dashboard-heading h1) {
+  margin: 0; color: #fff; font-size: 26px; font-weight: 800; line-height: 1.16; letter-spacing: -.045em;
+}
+html[data-ui="trade"] :is(.page-head, .pc-head, .sh-head, .lg-head, .file-center-head,
+  .exam-workspace-head, .approval-head, .customer-pool-head, .th-page-head, .kb-head,
+  .dashboard-masthead) :is(.sub, .view-sub, .pc-sub, .sh-sub, .lg-sub, .th-sub,
+  .dashboard-subline, .file-center-head span, .exam-workspace-head span, p) {
+  max-width: 62ch; margin: 7px 0 0; color: #9aa3a6; font-size: 12px; line-height: 1.6;
+}
+html[data-ui="trade"] :is(.page-head, .pc-head, .sh-head, .lg-head, .file-center-head,
+  .exam-workspace-head, .approval-head, .customer-pool-head, .th-page-head, .kb-head,
+  .dashboard-masthead) :is(.eyebrow, .pc-eyebrow, .sh-eyebrow, .th-eyebrow,
+  .dashboard-kicker, .dashboard-index, .dashboard-live-mark) { display: none; }
+
+/* 通栏里的动作：幽灵按钮，主按钮用印章 */
+html[data-ui="trade"] :is(.page-head, .pc-head, .sh-head, .lg-head, .file-center-head,
+  .exam-workspace-head, .approval-head, .customer-pool-head, .th-page-head, .kb-head,
+  .dashboard-masthead) :is(.head-actions, .page-head-actions, .customer-head-actions,
+  .lead-page-actions, .approval-head-actions, .dashboard-masthead-side, .view-actions, .kb-head-actions) {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px;
+  flex: 0 0 auto;
+}
+html[data-ui="trade"] :is(.page-head, .pc-head, .sh-head, .lg-head, .file-center-head,
+  .exam-workspace-head, .approval-head, .customer-pool-head, .th-page-head, .kb-head,
+  .dashboard-masthead) .btn {
+  min-height: 32px; border-color: rgb(255 255 255 / 22%); border-radius: 2px;
+  color: #e8ebec; background: transparent; font-size: 11.5px;
+}
+html[data-ui="trade"] :is(.page-head, .pc-head, .sh-head, .lg-head, .file-center-head,
+  .exam-workspace-head, .approval-head, .customer-pool-head, .th-page-head, .kb-head,
+  .dashboard-masthead) .btn:hover { border-color: #fff; color: #fff; background: rgb(255 255 255 / 9%); }
+html[data-ui="trade"] :is(.page-head, .pc-head, .sh-head, .lg-head, .file-center-head,
+  .exam-workspace-head, .approval-head, .customer-pool-head, .th-page-head, .kb-head,
+  .dashboard-masthead) .btn.primary {
+  border-color: var(--seal); color: #fff; background: var(--seal);
+}
+html[data-ui="trade"] :is(.page-head, .pc-head, .sh-head, .lg-head, .file-center-head,
+  .exam-workspace-head, .approval-head, .customer-pool-head, .th-page-head, .kb-head,
+  .dashboard-masthead) .btn.primary:hover { border-color: #e2493a; background: #b81d13; }
+html[data-ui="trade"] :is(.page-head, .dashboard-masthead) :is(.badge, .scope-tag) {
+  border-color: rgb(255 255 255 / 20%); color: #d5dadb; background: transparent;
+}
+html[data-ui="trade"] .trade-date-chip {
+  color: #9aa3a6; font-size: 11.5px; letter-spacing: .02em; font-variant-numeric: tabular-nums;
+}
+
+/* ── 通用控件 ───────────────────────────────────────── */
+html[data-ui="trade"] .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 33px; padding: 0 13px;
+  border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--ink); background: var(--leaf); box-shadow: none;
+  font-size: 12px; font-weight: 550; letter-spacing: -.005em; white-space: nowrap;
+  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+}
+html[data-ui="trade"] .btn:hover { transform: none; border-color: var(--ink); background: #fafbf8; box-shadow: none; }
+html[data-ui="trade"] .btn.primary { border-color: var(--seal); color: #fff; background: var(--seal); }
+html[data-ui="trade"] .btn.primary:hover { border-color: var(--seal-deep); background: var(--seal-deep); box-shadow: none; }
+html[data-ui="trade"] .btn.danger { border-color: #e4c3bf; color: #a31812; background: #fdf3f2; }
+html[data-ui="trade"] .btn.danger:hover { border-color: #c8302a; background: #fbe8e6; }
+html[data-ui="trade"] .btn.icon-only { min-width: 33px; padding: 0 8px; }
+html[data-ui="trade"] .btn:disabled, html[data-ui="trade"] .btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+html[data-ui="trade"] .view :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+  min-height: 33px; padding: 0 9px;
+  border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--ink); background: var(--leaf); box-shadow: none; font-size: 12.5px;
+}
+html[data-ui="trade"] .view textarea { min-height: 84px; padding: 8px 9px; line-height: 1.6; }
+html[data-ui="trade"] .view :is(input, select, textarea):hover { border-color: #b9beb7; }
+html[data-ui="trade"] .view :is(input, select, textarea):focus {
+  border-color: var(--ink); box-shadow: 0 0 0 3px rgb(22 25 27 / 7%);
+}
+html[data-ui="trade"] .view :is(input, textarea)::placeholder { color: var(--graphite-2); }
+html[data-ui="trade"] .view :is(label, .form-field label) {
+  color: var(--graphite); font-size: 11px; font-weight: 600; letter-spacing: .02em;
+}
+html[data-ui="trade"] .view :is(.form-field, .lead-field) { gap: 5px; }
+html[data-ui="trade"] .view :is(.form-field small, .field-hint, .lead-field small) { color: var(--graphite-2); font-size: 11px; line-height: 1.5; }
+html[data-ui="trade"] input[type="checkbox"], html[data-ui="trade"] input[type="radio"] { accent-color: var(--seal); }
+html[data-ui="trade"] .form-grid { gap: 11px; }
+
+/* 面：单据分栏，不用卡片 */
+html[data-ui="trade"] .view :is(.panel, .section, .dense-card, .stat-card, .commission-card,
+  .summary-card, .upload-card, .case-detail > .panel, .intel-detail > .panel) {
+  border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] .view :is(.panel, .section):hover { border-color: var(--rule); box-shadow: none; }
+html[data-ui="trade"] .view :is(.section, .panel) { padding: 18px 20px; }
+html[data-ui="trade"] .view .section-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  margin: 0 0 15px; padding: 0 0 11px; border-bottom: 1px solid var(--rule-soft);
+}
+html[data-ui="trade"] .view .section-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
+html[data-ui="trade"] .view .section-title .icon {
+  display: none;
+}
+html[data-ui="trade"] .view .section-title h2 {
+  margin: 0; color: var(--ink); font-size: 14px; font-weight: 700; letter-spacing: -.02em;
+}
+html[data-ui="trade"] .view .section-title p {
+  margin: 3px 0 0; color: var(--graphite-2); font-size: 11px; line-height: 1.5;
+}
+html[data-ui="trade"] .view .panel-index { display: none; }
+html[data-ui="trade"] .view :is(.dense-grid, .kpis, .stat-grid, .collab-kpis, .lead-command-strip) { gap: 0; margin-bottom: 18px; }
+html[data-ui="trade"] .view :is(.dense-grid, .kpis, .stat-grid, .collab-kpis, .lead-command-strip) > * {
+  border: 0; border-left: 1px solid var(--rule); border-radius: 0; box-shadow: none; background: transparent;
+}
+html[data-ui="trade"] .view :is(.dense-grid, .kpis, .stat-grid, .collab-kpis, .lead-command-strip) > *:first-child { border-left: 0; padding-left: 0; }
+html[data-ui="trade"] .view :is(.dense-card, .kpi, .stat-card) {
+  min-height: 0; padding: 4px 18px 6px;
+}
+html[data-ui="trade"] .view :is(.dense-card span, .kpi label, .stat-card label) {
+  color: var(--graphite); font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+}
+html[data-ui="trade"] .view :is(.dense-card b, .kpi strong, .stat-card strong) {
+  display: block; margin-top: 7px; color: var(--ink);
+  font-size: 27px; font-weight: 750; line-height: 1.05; letter-spacing: -.04em; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] .view :is(.dense-card small, .kpi p, .stat-card p) {
+  margin-top: 5px; color: var(--graphite-2); font-size: 10.5px;
+}
+
+/* 标签：印章式小方标 */
+html[data-ui="trade"] .view :is(.badge, .scope-tag, .lead-job-status, .status-pill) {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 19px; padding: 1px 6px;
+  border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--graphite); background: transparent;
+  font-size: 10.5px; font-weight: 650; letter-spacing: .04em;
+}
+html[data-ui="trade"] .view .badge:not(.red):not(.green):not(.amber):not(.blue):not(.aqua):not(.gray) {
+  border-color: #e0bab6; color: var(--seal-deep); background: var(--seal-wash);
+}
+html[data-ui="trade"] .view .badge.green { border-color: #bcd6cc; color: var(--jade); background: var(--jade-wash); }
+html[data-ui="trade"] .view .badge.amber { border-color: #e5cfae; color: var(--amber); background: var(--amber-wash); }
+html[data-ui="trade"] .view .badge.red { border-color: #e0bab6; color: var(--seal-deep); background: var(--seal-wash); }
+html[data-ui="trade"] .view :is(.badge.blue, .badge.aqua, .badge.gray) { border-color: var(--rule); color: var(--graphite); background: transparent; }
+
+/* 表格：单据台账 */
+html[data-ui="trade"] .view :is(.table-wrap, .lead-table-wrap, .website-table-wrap, .problem-table-scroll,
+  .account-table-wrap, .deal-archive-list, .customer-pool-list, .file-list-panel) {
+  overflow: auto; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] .view table:not(.doc-paper *) { border-spacing: 0; font-size: 12px; }
+html[data-ui="trade"] .view table:not(.doc-paper *) th {
+  padding: 9px 12px; border-bottom: 1px solid var(--ink);
+  color: var(--graphite); background: var(--leaf);
+  font-size: 10.5px; font-weight: 650; letter-spacing: .06em; white-space: nowrap;
+}
+html[data-ui="trade"] .view table:not(.doc-paper *) td {
+  padding: 11px 12px; border-bottom: 1px solid var(--rule-soft);
+  color: var(--text); font-size: 12px; line-height: 1.5;
+}
+html[data-ui="trade"] .view table:not(.doc-paper *) tbody tr:last-child td { border-bottom: 0; }
+html[data-ui="trade"] .view table:not(.doc-paper *) tbody tr:hover td { background: #fafbf8; }
+html[data-ui="trade"] .view table:not(.doc-paper *) tbody tr.selected td { background: var(--seal-wash); }
+html[data-ui="trade"] .view table:not(.doc-paper *) :is(b, strong) { color: var(--ink); font-weight: 650; }
+html[data-ui="trade"] .view :is(.amount, td .amount) { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* 空状态：像一张空白单据 */
+html[data-ui="trade"] .view :is(.empty-cell, .todo-history-empty, .collab-empty, .empty-state) {
+  display: grid; place-items: center; align-content: center; gap: 6px; min-height: 96px; padding: 22px;
+  color: var(--graphite-2); background: transparent; font-size: 11.5px; text-align: center;
+}
+html[data-ui="trade"] .view :is(.empty-cell, .todo-history-empty, .collab-empty, .empty-state) :is(b, strong) {
+  color: var(--graphite); font-size: 12.5px; font-weight: 650;
+}
+
+/* 工具栏：保持纯行内，不加盒（快捷联系条需贴右端 ≤2px） */
+html[data-ui="trade"] .view :is(.customer-filter-row, .pipeline-toolbar, .prospect-toolbar,
+  .prospect-toolbar-v2, .file-center-toolbar, .pc-toolbar, .sh-boardbar, .lg-toolbar,
+  .oj-toolbar, .quote-history-filters, .document-history-filters) {
+  gap: 8px; padding: 10px 12px; margin-bottom: 14px;
+  border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] .view :is(.filter, .chip, .todo-chip, .lead-chip, .prospect-tabs button,
+  .reminder-filters button, .lead-result-view-tabs button) {
+  min-height: 29px; padding: 0 10px;
+  border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--graphite); background: var(--leaf); font-size: 11.5px; font-weight: 550;
+}
+html[data-ui="trade"] .view :is(.filter:hover, .chip:hover, .todo-chip:hover, .lead-chip:hover,
+  .prospect-tabs button:hover, .reminder-filters button:hover, .lead-result-view-tabs button:hover) {
+  border-color: var(--ink); color: var(--ink); background: #fafbf8;
+}
+html[data-ui="trade"] .view :is(.filter.active, .chip.active, .todo-chip.active, .lead-chip.active,
+  .prospect-tabs button.active, .reminder-filters button.active, .lead-result-view-tabs button.active) {
+  border-color: var(--ink); color: #fff; background: var(--ink); font-weight: 650;
+}
+
+/* ── 工作台：唛头带 ─────────────────────────────────── */
+html[data-ui="trade"] #dashboard.dashboard-v2 {
+  --kinetic-bg: var(--paper); --kinetic-surface: var(--leaf); --kinetic-surface-2: #fafbf8;
+  --kinetic-ink: var(--ink); --kinetic-muted: var(--graphite); --kinetic-dim: var(--graphite-2);
+  --kinetic-line: var(--rule); --kinetic-accent: var(--seal); --kinetic-danger: var(--seal-deep); --kinetic-cyan: #145d70;
+  --gj-funnel-line: var(--ink); --gj-funnel-label: var(--graphite); --gj-funnel-marker-ring: var(--leaf);
+  --gj-funnel-entered: #d9ddd6; --gj-funnel-pending: #b6bcb3; --gj-funnel-valid: #8d948b;
+  --gj-funnel-customer: var(--ink); --gj-funnel-deal: var(--seal);
+  width: auto; max-width: none; min-height: 0;
+  margin: 0; padding: var(--pad-top) var(--pad-x) 44px;
+  overflow: visible; color: var(--text); background: var(--paper);
+}
+html[data-ui="trade"] body:has(#dashboard.active) :is(.main, .workspace) { background: var(--paper); }
+html[data-ui="trade"] #dashboard.dashboard-v2 > :is(.dashboard-masthead, .scope-banner, .morning-panel,
+  .command-center, .dashboard-grid, .dashboard-footer-note, .tender-daily-panel, .mh-band, .dashboard-ticker) {
+  max-width: none; margin-right: 0; margin-left: 0;
+}
+
+/* 唛头带 */
+html[data-ui="trade"] .mh-band {
+  margin: 0 0 20px; padding: 0;
+  border: 1px solid var(--rule); border-radius: 0; background: var(--leaf);
+}
+html[data-ui="trade"] .mh-band-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 18px;
+  padding: 15px 20px 13px; border-bottom: 1px solid var(--rule);
+}
+html[data-ui="trade"] .mh-band-head h2 {
+  display: flex; align-items: baseline; gap: 9px; margin: 0;
+  color: var(--ink); font-size: 15px; font-weight: 700; letter-spacing: -.02em;
+}
+html[data-ui="trade"] .mh-origin {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px;
+  color: #fff; background: var(--seal); font-size: 11px; font-weight: 700; letter-spacing: .04em;
+}
+html[data-ui="trade"] .mh-band-head p { margin: 0; color: var(--graphite-2); font-size: 11.5px; }
+html[data-ui="trade"] .mh-marks {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(88px, 1fr);
+  gap: 0; overflow-x: auto; scrollbar-width: thin;
+}
+html[data-ui="trade"] .mh-mark {
+  display: grid; gap: 3px; padding: 16px 18px 15px;
+  border-left: 1px solid var(--rule); text-align: left;
+  animation: mhStamp .34s cubic-bezier(.16, 1, .3, 1) both;
+}
+html[data-ui="trade"] .mh-mark:first-child { border-left: 0; }
+html[data-ui="trade"] .mh-mark .mh-code {
+  color: var(--graphite-2); font-size: 10px; font-weight: 700; letter-spacing: .16em;
+}
+html[data-ui="trade"] .mh-mark .mh-count {
+  color: var(--ink); font-size: 30px; font-weight: 750; line-height: 1;
+  letter-spacing: -.05em; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] .mh-mark .mh-name { color: var(--graphite); font-size: 11.5px; font-weight: 500; }
+html[data-ui="trade"] .mh-mark:hover .mh-count { color: var(--seal); }
+html[data-ui="trade"] .mh-mark[data-rank="1"] .mh-count { color: var(--seal); }
+html[data-ui="trade"] .mh-mark:focus-visible { outline-offset: -3px; }
+@keyframes mhStamp {
+  from { opacity: 0; transform: translateY(-6px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+html[data-ui="trade"] .trade-route-empty {
+  display: grid; place-items: center; min-height: 108px; padding: 24px;
+  color: var(--graphite-2); font-size: 12px; line-height: 1.7; text-align: center;
+}
+html[data-ui="trade"] .trade-route-empty[hidden] { display: none; }
+html[data-ui="trade"] .mh-band-foot {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+  padding: 12px 20px; border-top: 1px solid var(--rule); background: #fafbf8;
+}
+html[data-ui="trade"] .mh-band-foot :is(#tradeRouteSummary, .trade-route-hint) {
+  color: var(--graphite); font-size: 11.5px; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] .mh-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+html[data-ui="trade"] .mh-actions .btn { min-height: 30px; font-size: 11.5px; }
+
+/* 汇率行 */
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker {
+  height: auto; min-height: 38px; margin: 0 0 16px; overflow-x: auto;
+  border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); color: var(--graphite); mask-image: none;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker-track {
+  display: flex; width: max-content; min-height: 36px; align-items: center; gap: 0;
+  padding: 0; color: var(--graphite); background: transparent;
+  font: 11.5px/1.3 var(--font-ui); letter-spacing: 0; animation: none;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker-segment { display: flex; align-items: center; gap: 0; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker-segment[aria-hidden="true"] { display: none; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker-label {
+  padding: 0 14px; color: var(--graphite); font-size: 10.5px; font-weight: 650; letter-spacing: .06em;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker-track > b,
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker-segment > b {
+  display: none;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-rate {
+  display: inline-flex; align-items: baseline; gap: 6px; padding: 0 14px;
+  border-left: 1px solid var(--rule);
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-rate-key { color: var(--graphite-2); font-size: 10.5px; letter-spacing: .06em; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-rate-value {
+  color: var(--ink); font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-rate-meta {
+  padding: 0 14px; border-left: 1px solid var(--rule); color: var(--graphite-2); font-size: 10.5px;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-rate-empty { padding: 0 14px; color: var(--graphite-2); font-size: 11.5px; }
+
+/* 业务范围行 */
+html[data-ui="trade"] #dashboard.dashboard-v2 .scope-banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  min-height: 0; margin: 0 0 18px; padding: 0 0 14px;
+  border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+  color: var(--graphite); background: transparent; box-shadow: none; font-size: 11.5px;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .scope-banner b { color: var(--ink); font-weight: 650; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .scope-tags { display: flex; gap: 6px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .scope-tag { border-color: var(--rule); color: var(--graphite); background: transparent; }
+
+/* 晨会带 */
+html[data-ui="trade"] #dashboard.dashboard-v2 .morning-panel {
+  margin-bottom: 18px; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .morning-panel .section-title .icon { display: none; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .morning-grid { gap: 0; margin-top: 14px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .morning-card {
+  min-height: 0; padding: 2px 16px; border: 0; border-left: 1px solid var(--rule); border-radius: 0; background: transparent;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .morning-card:first-child { padding-left: 0; border-left: 0; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .morning-card span { color: var(--graphite-2); font-size: 10.5px; font-weight: 600; letter-spacing: .05em; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .morning-card b { display: block; margin-top: 6px; color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.45; }
+
+/* 判断 + 漏斗 */
+html[data-ui="trade"] #dashboard.dashboard-v2 .command-center,
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid {
+  display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
+  gap: 16px; margin: 0 0 16px;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .command-center > *,
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid > * { min-width: 0; grid-column: auto; }
+html[data-ui="trade"] #dashboard.dashboard-v2 :is(.panel, .focus-panel, .lead-funnel-panel, .dashboard-grid > .panel) {
+  border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none; color: var(--text);
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .panel:hover { border-color: var(--rule); box-shadow: none; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-panel {
+  position: relative; min-height: 0; padding: 20px 22px 22px; border-top: 0;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-panel::before {
+  position: absolute; top: 0; bottom: 0; left: 0; display: block; width: 3px;
+  background: var(--seal); border-radius: 0; box-shadow: none; content: "";
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-panel::after { display: none; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-period-tabs {
+  display: inline-flex; padding: 0; border: 1px solid var(--rule); border-radius: 2px; background: transparent;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-period-tabs button {
+  min-height: 27px; padding: 0 12px; border: 0; border-left: 1px solid var(--rule); border-radius: 0;
+  color: var(--graphite); background: transparent; font-size: 11.5px; font-weight: 550;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-period-tabs button:first-child { border-left: 0; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-period-tabs button.active {
+  color: #fff; background: var(--ink); box-shadow: none;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-top > span {
+  padding: 0; border: 0; color: var(--graphite-2); background: transparent;
+  font: 10.5px/1.4 var(--font-ui); letter-spacing: .03em; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-title h2 {
+  max-width: 34ch; margin: 0; color: var(--ink);
+  font-size: 25px; font-weight: 800; line-height: 1.34; letter-spacing: -.04em;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-title p {
+  max-width: 62ch; margin: 7px 0 0; color: var(--graphite); font-size: 12px; line-height: 1.7;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0;
+  margin: 18px 0 0; padding: 14px 0; border: 0; border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft);
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why > div,
+html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why > div + div {
+  min-width: 0; padding: 0 14px; border: 0; border-left: 1px solid var(--rule-soft); border-radius: 0; background: transparent;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why > div:first-child { padding-left: 0; border-left: 0; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why b {
+  display: block; color: var(--graphite-2); font-size: 10.5px; font-weight: 650; letter-spacing: .06em;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why span {
+  display: block; margin-top: 6px; color: var(--text); font-size: 11.5px; line-height: 1.6;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metrics {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0; margin-top: 16px; border: 0;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric {
+  min-width: 0; padding: 0 14px; border: 0; border-left: 1px solid var(--rule-soft);
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric:first-child { padding-left: 0; border-left: 0; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric span {
+  display: block; overflow: hidden; color: var(--graphite-2); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric b {
+  display: block; margin-top: 7px; overflow: hidden; color: var(--ink);
+  font-size: 22px; font-weight: 750; line-height: 1.1; letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric small {
+  display: block; margin-top: 5px; overflow: hidden; color: var(--graphite-2); font-size: 10px;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 线索漏斗 */
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-panel { min-height: 0; padding: 20px 22px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-panel .section-head { margin-bottom: 14px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-live {
+  display: inline-flex; align-items: center; gap: 6px; color: var(--graphite-2); font-size: 10.5px; letter-spacing: .05em;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-live::before {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--jade); box-shadow: none;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-chart-wrap { height: 120px; border-bottom: 1px solid var(--rule-soft); }
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-stage-row {
+  min-height: 27px; padding: 4px 0; border-radius: 0; color: var(--text); font-size: 11.5px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-stage-row:hover { color: var(--ink); background: transparent; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-stage-row small { color: var(--graphite-2); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-summary { border-top: 1px solid var(--rule-soft); }
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-summary span { color: var(--graphite-2); font-size: 10.5px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-summary b { color: var(--ink); font-size: 18px; font-weight: 750; font-variant-numeric: tabular-nums; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .lead-funnel-filtered { color: var(--graphite-2); font-size: 10.5px; }
+
+/* 待办队列 / 管道健康 */
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid > .panel { min-height: 0; padding: 20px 22px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .task-list,
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .bars { display: grid; gap: 0; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .task {
+  display: grid; grid-template-columns: 3px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  min-height: 0; padding: 12px 0; margin: 0;
+  border: 0; border-bottom: 1px solid var(--rule-soft); border-radius: 0; background: transparent; box-shadow: none;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .task:hover { border-color: var(--rule-soft); background: #fafbf8; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .task-line { width: 3px; height: 26px; background: var(--accent, var(--seal)); }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .task h3 { color: var(--ink); font-size: 12.5px; font-weight: 650; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .task p { color: var(--graphite-2); font-size: 11px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .task .btn { min-height: 27px; font-size: 11px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .bar-row {
+  display: grid; grid-template-columns: minmax(84px, 116px) minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  min-height: 0; padding: 10px 0; border-bottom: 1px solid var(--rule-soft);
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .bar-row > span { color: var(--graphite); font-size: 11.5px; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .bar-row > b { color: var(--ink); font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .track { height: 4px; border-radius: 0; background: var(--rule-soft); }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .fill { border-radius: 0; background: var(--ink); }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .fill.amber { background: var(--amber); }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid .fill.red { background: var(--seal); }
+
+/* 竞标日报 / 页脚 */
+html[data-ui="trade"] #dashboard.dashboard-v2 .tender-daily-panel {
+  margin-bottom: 16px; padding: 20px 22px; border: 1px solid var(--rule); border-top: 3px solid var(--ink);
+  border-radius: 0; background: var(--leaf);
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .tender-daily-sub { margin: 8px 0 0; color: var(--graphite); font-size: 11.5px; line-height: 1.65; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-footer-note {
+  display: flex; justify-content: space-between; gap: 12px; padding-top: 14px;
+  border-top: 1px solid var(--rule); color: var(--graphite-2);
+  font: 10.5px/1.6 var(--font-ui); letter-spacing: .04em;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-footer-note span:first-child { color: var(--graphite); }
+
+/* ── 待办中心 ───────────────────────────────────────── */
+html[data-ui="trade"] #todo.todo-view { padding: var(--pad-top) var(--pad-x) 44px; }
+html[data-ui="trade"] #todo.todo-view .todo-page-head { align-items: flex-end; }
+html[data-ui="trade"] #todo.todo-view .todo-live-state {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 9px;
+  border: 1px solid rgb(255 255 255 / 20%); border-radius: 2px; color: #d5dadb; background: transparent;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+}
+html[data-ui="trade"] #todo.todo-view .todo-live-state i { width: 5px; height: 5px; background: #7fc0a6; box-shadow: none; }
+html[data-ui="trade"] #todo.todo-view .todo-board { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 16px; margin: 0; align-items: start; }
+html[data-ui="trade"] #todo.todo-view .todo-board > .panel { padding: 20px 22px; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none; }
+html[data-ui="trade"] #todo.todo-view .todo-toolbar { display: grid; gap: 10px; margin: 0 0 14px; }
+html[data-ui="trade"] #todo.todo-view .quick-add {
+  display: flex; align-items: center; gap: 9px; width: 100%; height: 38px; flex: none; padding: 0 12px;
+  border: 1px solid var(--rule); border-radius: 2px; background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] #todo.todo-view .quick-add:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px rgb(22 25 27 / 7%); }
+html[data-ui="trade"] #todo.todo-view .quick-add input { font-size: 12px; }
+html[data-ui="trade"] #todo.todo-view .todo-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+html[data-ui="trade"] #todo.todo-view .todo-chip { height: 28px; }
+html[data-ui="trade"] #todo.todo-view .todo-list { display: grid; gap: 0; }
+html[data-ui="trade"] #todo.todo-view .todo-row {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  min-height: 0; padding: 12px 0; border: 0; border-bottom: 1px solid var(--rule-soft); border-radius: 0;
+  background: transparent; box-shadow: none;
+}
+html[data-ui="trade"] #todo.todo-view .todo-row::before { display: none; }
+html[data-ui="trade"] #todo.todo-view .todo-row:hover { border-color: var(--rule-soft); background: #fafbf8; box-shadow: none; }
+html[data-ui="trade"] #todo.todo-view .todo-row.in-progress { background: var(--seal-wash); }
+html[data-ui="trade"] #todo.todo-view .todo-check { width: 17px; height: 17px; border: 1px solid #b9beb7; border-radius: 2px; background: var(--leaf); }
+html[data-ui="trade"] #todo.todo-view .todo-main h3 { color: var(--ink); font-size: 12.5px; font-weight: 600; }
+html[data-ui="trade"] #todo.todo-view .todo-meta { margin-top: 4px; color: var(--graphite-2); font-size: 10.5px; }
+html[data-ui="trade"] #todo.todo-view .todo-side { display: flex; align-items: center; gap: 10px; min-width: 0; }
+html[data-ui="trade"] #todo.todo-view .todo-actions { border: 1px solid var(--rule); border-radius: 2px; background: var(--leaf); }
+html[data-ui="trade"] #todo.todo-view .todo-run.active { background: var(--seal); box-shadow: none; }
+html[data-ui="trade"] #todo.todo-view .subtask-bar { width: 90px; height: 3px; background: var(--rule-soft); }
+html[data-ui="trade"] #todo.todo-view .subtask-bar i { background: var(--ink); }
+html[data-ui="trade"] #todo.todo-view .todo-history { margin-top: 16px; border: 1px solid var(--rule); border-radius: 0; background: #fafbf8; }
+html[data-ui="trade"] #todo.todo-view .todo-history-head h3 { color: var(--ink); font-size: 12.5px; font-weight: 650; }
+html[data-ui="trade"] #todo.todo-view .history-stats b { border-radius: 2px; color: var(--graphite); background: transparent; font-size: 10.5px; }
+html[data-ui="trade"] #todo.todo-view .todo-history-row { border: 0; border-bottom: 1px solid var(--rule-soft); border-radius: 0; background: transparent; }
+html[data-ui="trade"] #todo.todo-view .todo-insights { display: grid; gap: 16px; }
+html[data-ui="trade"] #todo.todo-view .todo-score { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+html[data-ui="trade"] #todo.todo-view .todo-score-card {
+  min-height: 0; padding: 2px 14px; border: 0; border-left: 1px solid var(--rule-soft); border-radius: 0; background: transparent;
+}
+html[data-ui="trade"] #todo.todo-view .todo-score-card:nth-child(odd) { padding-left: 0; border-left: 0; }
+html[data-ui="trade"] #todo.todo-view .todo-score-card:nth-child(n+3) { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule-soft); }
+html[data-ui="trade"] #todo.todo-view .todo-score-card span { color: var(--graphite-2); font-size: 10.5px; font-weight: 600; letter-spacing: .05em; }
+html[data-ui="trade"] #todo.todo-view .todo-score-card b { display: block; margin-top: 6px; color: var(--ink); font-size: 24px; font-weight: 750; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+html[data-ui="trade"] #todo.todo-view .mini-table { border: 0; border-radius: 0; background: transparent; }
+html[data-ui="trade"] #todo.todo-view .mini-table th { border-bottom: 1px solid var(--rule); color: var(--graphite-2); background: transparent; font-size: 10.5px; }
+html[data-ui="trade"] #todo.todo-view .mini-table td { border-bottom: 1px solid var(--rule-soft); color: var(--text); font-size: 11.5px; }
+html[data-ui="trade"] #todo.todo-view .todo-calendar { padding: 12px 0 0; border: 0; border-top: 1px solid var(--rule-soft); border-radius: 0; background: transparent; }
+html[data-ui="trade"] #todo.todo-view .todo-day { color: var(--graphite); font-size: 11.5px; }
+
+/* ── 单据类模块的通用收束 ────────────────────────────── */
+html[data-ui="trade"] :is(#products, #shipments, #logs, #theme) {
+  --pc-ink: var(--ink); --pc-ink-2: var(--graphite); --pc-paper: var(--paper); --pc-paper-2: var(--leaf);
+  --pc-line: var(--rule); --pc-line-2: var(--rule-soft); --pc-amber: var(--amber); --pc-amber-soft: var(--amber-wash);
+  --pc-teal: var(--seal); --pc-blue: var(--ink); --pc-red: var(--seal); --pc-green: var(--jade); --pc-muted: var(--graphite);
+  --pc-display: var(--font-ui); --pc-sans: var(--font-ui); --pc-mono: var(--font-ui);
+  font-family: var(--font-ui);
+}
+html[data-ui="trade"] :is(.pc-head, .sh-head) { padding: 0; border: 0; background: transparent; }
+html[data-ui="trade"] :is(.pc-head, .sh-head)::after { display: none; }
+html[data-ui="trade"] :is(.pc-eyebrow, .sh-eyebrow) { display: none; }
+html[data-ui="trade"] :is(.pc-h1, .sh-h1) { color: #fff; font: 800 26px/1.16 var(--font-ui); letter-spacing: -.045em; }
+html[data-ui="trade"] :is(.pc-sub, .sh-sub) { color: #9aa3a6; font-size: 12px; }
+html[data-ui="trade"] :is(.pc-stat, .sh-stat, .lg-stat) {
+  min-width: 0; padding: 2px 16px; border: 0; border-left: 1px solid var(--rule); border-radius: 0; background: transparent; box-shadow: none;
+}
+html[data-ui="trade"] :is(.pc-stat, .sh-stat, .lg-stat):first-child { padding-left: 0; border-left: 0; }
+html[data-ui="trade"] :is(.pc-stat-num, .sh-stat-num, .lg-stat b) {
+  color: var(--ink); font: 750 26px/1.1 var(--font-ui); letter-spacing: -.04em; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] :is(.pc-stat-label, .sh-stat-label) { color: var(--graphite-2); font-size: 10.5px; font-weight: 600; letter-spacing: .05em; }
+html[data-ui="trade"] .pc-layout { border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); overflow: hidden; }
+html[data-ui="trade"] .pc-rail { border-right: 1px solid var(--rule); background: #fafbf8; }
+html[data-ui="trade"] .pc-rail-title { color: var(--graphite-2); font: 650 10.5px var(--font-ui); letter-spacing: .06em; }
+html[data-ui="trade"] .pc-cat { border-radius: 2px; font: 12px var(--font-ui); }
+html[data-ui="trade"] :is(.pc-cat.is-active, .pc-toggle-btn.is-active) {
+  border-color: var(--ink); color: #fff; background: var(--ink);
+}
+html[data-ui="trade"] .pc-card { border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none; }
+html[data-ui="trade"] .pc-card:hover { transform: none; border-color: var(--ink); box-shadow: none; }
+html[data-ui="trade"] .pc-name { color: var(--ink); font: 650 13.5px/1.45 var(--font-ui); }
+html[data-ui="trade"] :is(.pc-tag, .pc-badge) { border: 1px solid var(--rule); border-radius: 2px; color: var(--graphite); background: transparent; font-family: var(--font-ui); font-size: 10.5px; }
+html[data-ui="trade"] .pc-price { color: var(--ink); font: 700 17px/1.3 var(--font-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+html[data-ui="trade"] .pc-card-foot { border-top: 1px solid var(--rule-soft); }
+html[data-ui="trade"] .sh-boardbar { padding: 11px 12px; margin-bottom: 14px; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); }
+html[data-ui="trade"] .sh-chip { padding: 5px 10px; border: 1px solid var(--rule); border-radius: 2px; font: 11.5px var(--font-ui); }
+html[data-ui="trade"] .sh-chip.is-active { border-color: var(--ink); color: #fff; background: var(--ink); box-shadow: none; }
+html[data-ui="trade"] .sh-chip.is-active i { color: #fff; background: transparent; }
+html[data-ui="trade"] .sh-row { border: 0; border-bottom: 1px solid var(--rule-soft); border-radius: 0; background: transparent; box-shadow: none; }
+html[data-ui="trade"] .sh-row:hover { transform: none; border-color: var(--rule-soft); background: #fafbf8; box-shadow: none; }
+html[data-ui="trade"] .sh-board { padding: 0; }
+html[data-ui="trade"] :is(.pc-drawer, .sh-drawer) { border: 1px solid var(--rule); background: var(--leaf); }
+html[data-ui="trade"] :is(.pc-drawer-head, .sh-drawer-head) { border-bottom: 1px solid var(--rule); }
+html[data-ui="trade"] .lg-head { padding: 0; }
+html[data-ui="trade"] .lg-head .eyebrow { display: none; }
+html[data-ui="trade"] .lg-toolbar { padding: 11px 12px; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); }
+html[data-ui="trade"] .lg-chips { border: 1px solid var(--rule); border-radius: 2px; background: transparent; }
+html[data-ui="trade"] .lg-chip { border-radius: 2px; font: 11.5px var(--font-ui); }
+html[data-ui="trade"] .lg-chip.is-active { color: #fff; background: var(--ink); box-shadow: none; }
+html[data-ui="trade"] .lg-row { border: 0; border-bottom: 1px solid var(--rule-soft); border-radius: 0; box-shadow: none; }
+html[data-ui="trade"] .lg-row:hover { transform: none; border-color: var(--rule-soft); background: #fafbf8; box-shadow: none; }
+
+/* 单据预览：纸就是纸，绝不重排 */
+html[data-ui="trade"] #documents .doc-studio { gap: 16px; }
+html[data-ui="trade"] #documents .doc-preview-shell { border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none; }
+html[data-ui="trade"] #documents .doc-preview-toolbar { border-bottom: 1px solid var(--rule); background: #fafbf8; }
+html[data-ui="trade"] :is(.doc-list-card, .doc-workflow-bar) { border-color: var(--rule); }
+html[data-ui="trade"] .doc-list-card { border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); }
+html[data-ui="trade"] .doc-list-card.active { border-color: var(--ink); background: #fff; box-shadow: inset 3px 0 0 var(--seal); }
+html[data-ui="trade"] .doc-editor { border: 1px solid var(--rule); border-radius: 0; }
+html[data-ui="trade"] .doc-drawer { border: 1px solid var(--rule); border-radius: 0; }
+
+/* 客户 / 商机 / 线索 */
+html[data-ui="trade"] #customers .customer-list-workspace,
+html[data-ui="trade"] #pipeline .pipeline-active-panel,
+html[data-ui="trade"] #pipeline .pipeline-archive-panel { border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none; }
+html[data-ui="trade"] #customers .customer-filter-row { padding: 10px 12px; margin-bottom: 14px; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); }
+html[data-ui="trade"] #customers .customer-pagination { border-top: 1px solid var(--rule); color: var(--graphite); }
+html[data-ui="trade"] #customers .customer-drawer-backdrop,
+html[data-ui="trade"] #peers .customer-drawer-backdrop,
+html[data-ui="trade"] #leads .lead-drawer-backdrop,
+html[data-ui="trade"] #problems .problem-drawer-backdrop,
+html[data-ui="trade"] #dealDrawerBackdrop { background: rgb(22 25 27 / 34%); backdrop-filter: blur(2px); }
+html[data-ui="trade"] :is(#customers .drawer, #peers .drawer, #leads #leadDrawer, #problems .problem-drawer, #dealDrawer) {
+  border: 1px solid var(--rule); border-left: 3px solid var(--seal); border-radius: 0; background: var(--leaf);
+  box-shadow: -24px 0 60px rgb(22 25 27 / 14%);
+}
+html[data-ui="trade"] #pipeline .pipeline-summary { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; margin-bottom: 16px; border: 1px solid var(--rule); background: var(--leaf); }
+html[data-ui="trade"] #pipeline .pipeline-summary-item { min-height: 0; padding: 13px 16px; border: 0; border-left: 1px solid var(--rule); border-radius: 0; background: transparent; box-shadow: none; }
+html[data-ui="trade"] #pipeline .pipeline-summary-item:first-child { border-left: 0; }
+html[data-ui="trade"] #pipeline .pipeline-stage-tabs { display: flex; gap: 0; padding: 0; margin-bottom: 14px; overflow-x: auto; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); }
+html[data-ui="trade"] #pipeline .pipeline-stage-tabs button {
+  min-height: 33px; padding: 0 14px; border: 0; border-left: 1px solid var(--rule); border-radius: 0;
+  color: var(--graphite); background: transparent; font-size: 11.5px; font-weight: 550; white-space: nowrap;
+}
+html[data-ui="trade"] #pipeline .pipeline-stage-tabs button:first-child { border-left: 0; }
+html[data-ui="trade"] #pipeline .pipeline-stage-tabs button.active { color: #fff; background: var(--ink); box-shadow: none; }
+html[data-ui="trade"] #pipeline .stage { border: 0; border-right: 1px solid var(--rule); border-radius: 0; background: transparent; }
+html[data-ui="trade"] #pipeline .stage:last-child { border-right: 0; }
+html[data-ui="trade"] #pipeline .deal { border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none; }
+html[data-ui="trade"] #pipeline .deal:hover { border-color: var(--ink); box-shadow: none; }
+html[data-ui="trade"] #pipeline .deal-actions .btn { min-height: 44px; border-radius: 2px; font-size: 12px; }
+html[data-ui="trade"] #pipeline .deal-actions { gap: 7px; }
+html[data-ui="trade"] #pipeline .deal-secondary-actions { gap: 7px; }
+html[data-ui="trade"] #leads .lead-list-panel { border: 1px solid var(--rule); border-radius: 0; }
+
+/* 工具中心 */
+html[data-ui="trade"] #tools .tool-launch { max-width: 1180px; margin-inline: auto; }
+html[data-ui="trade"] #tools .tool-launch-hero {
+  display: flex; align-items: flex-end; gap: 18px; padding: 0 0 18px; margin-bottom: 20px;
+  border: 0; border-bottom: 1px solid var(--ink);
+}
+html[data-ui="trade"] #tools .tool-launch-hero-mark {
+  display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px;
+  border: 0; border-radius: 3px; color: #fff; background: var(--ink); transform: rotate(-3deg);
+}
+html[data-ui="trade"] #tools .tool-launch-hero-mark svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 1.6; }
+html[data-ui="trade"] #tools .tool-launch-hero-text h1 { margin: 0; color: var(--ink); font-size: 26px; font-weight: 800; letter-spacing: -.045em; }
+html[data-ui="trade"] #tools .tool-launch-hero-text p { margin: 5px 0 0; color: var(--graphite); font-size: 12px; }
+html[data-ui="trade"] #tools .tool-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0; border-top: 1px solid var(--rule); }
+html[data-ui="trade"] #tools .tool-card {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px 12px; align-content: start;
+  min-height: 0; padding: 20px 20px 18px; margin: 0 -1px -1px 0;
+  border: 0; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); border-radius: 0;
+  color: var(--text); background: transparent; box-shadow: none; text-align: left;
+}
+html[data-ui="trade"] #tools .tool-card:hover { transform: none; border-color: var(--rule); background: var(--leaf); box-shadow: none; }
+html[data-ui="trade"] #tools .tool-card-icon {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 2px;
+  color: var(--seal); background: var(--seal-wash);
+}
+html[data-ui="trade"] #tools .tool-card-icon svg { width: 17px; height: 17px; }
+html[data-ui="trade"] #tools .tool-card-title { color: var(--ink); font-size: 14px; font-weight: 700; letter-spacing: -.02em; }
+html[data-ui="trade"] #tools .tool-card-desc { margin-top: 4px; color: var(--graphite); font-size: 11.5px; line-height: 1.6; }
+html[data-ui="trade"] #tools .tool-card-badge {
+  grid-column: 2; justify-self: start; margin-top: 2px; padding: 0 6px;
+  border: 1px solid var(--rule); border-radius: 2px; color: var(--graphite-2); background: transparent;
+  font-size: 10px; letter-spacing: .05em;
+}
+html[data-ui="trade"] #tools .tool-card-go { display: none; }
+
+/* AI / 沟通 / 知识 */
+html[data-ui="trade"] :is(#ai-agent .agent-chat-shell, #whatsapp .instant-communication-shell) {
+  border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] #ai-agent .agent-chat-sidebar { border-right: 1px solid var(--rule); background: #fafbf8; }
+html[data-ui="trade"] #ai-agent .agent-chat-main { background: var(--leaf); }
+html[data-ui="trade"] #ai-agent .agent-chat-composer { border-top: 1px solid var(--rule); background: #fafbf8; }
+html[data-ui="trade"] #ai-agent .agent-chat-avatar { width: 32px; height: 32px; padding: 0; border: 1px solid var(--rule); border-radius: 2px; background: var(--leaf); }
+html[data-ui="trade"] #ai-agent .agent-chat-avatar img { width: 100%; height: 100%; border-radius: 2px; object-fit: cover; }
+html[data-ui="trade"] #knowledge :is(.file-center-metrics, .file-category-panel, .file-list-panel, .file-detail-panel) { border: 1px solid var(--rule); border-radius: 0; box-shadow: none; }
+html[data-ui="trade"] #knowledge .file-center-metrics { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin-bottom: 14px; background: var(--leaf); }
+html[data-ui="trade"] #knowledge .file-center-metrics > div { padding: 13px 16px; border: 0; border-left: 1px solid var(--rule); }
+html[data-ui="trade"] #knowledge .file-center-metrics > div:first-child { border-left: 0; }
+html[data-ui="trade"] #knowledge .file-center-metrics b { color: var(--ink); font-size: 24px; font-weight: 750; letter-spacing: -.04em; }
+html[data-ui="trade"] #knowledge .file-category-list button { border-radius: 2px; }
+html[data-ui="trade"] #knowledge .file-category-list button.active { color: #fff; background: var(--ink); }
+html[data-ui="trade"] #knowledge .file-table-head { border-bottom: 1px solid var(--rule); color: var(--graphite-2); background: transparent; font-size: 10.5px; letter-spacing: .05em; }
+
+/* 协作：日报 / 消息 */
+html[data-ui="trade"] #daily-reports :is(.dy-auto, .collab-kpis, .daily-report-layout, .collab-rail, .collab-reading),
+html[data-ui="trade"] #inbox .notification-center-shell {
+  border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] #daily-reports .collab-kpis { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 0; }
+html[data-ui="trade"] #daily-reports .collab-kpis > div { padding: 13px 16px; border: 0; border-left: 1px solid var(--rule); }
+html[data-ui="trade"] #daily-reports .collab-kpis > div:first-child { border-left: 0; }
+html[data-ui="trade"] #daily-reports .collab-kpis b { color: var(--ink); font-size: 22px; font-weight: 750; letter-spacing: -.04em; }
+html[data-ui="trade"] #daily-reports .daily-report-layout { display: grid; gap: 0; overflow: hidden; }
+html[data-ui="trade"] #daily-reports .collab-rail { border: 0; border-right: 1px solid var(--rule); background: #fafbf8; padding: 14px; }
+html[data-ui="trade"] #daily-reports .collab-reading { border: 0; padding: 20px 22px; }
+html[data-ui="trade"] #daily-reports .daily-report-row { border: 0; border-bottom: 1px solid var(--rule-soft); border-radius: 0; background: transparent; }
+html[data-ui="trade"] #daily-reports .daily-report-row.active { border-bottom-color: var(--rule-soft); background: var(--leaf); box-shadow: inset 3px 0 0 var(--seal); }
+html[data-ui="trade"] #inbox .notification-center-head { border-bottom: 1px solid var(--rule); background: transparent; }
+html[data-ui="trade"] #inbox .notification-message-row { border: 0; border-bottom: 1px solid var(--rule-soft); border-radius: 0; }
+html[data-ui="trade"] #inbox .notification-message-row:hover { background: #fafbf8; }
+
+/* 档案与设置 */
+html[data-ui="trade"] #profile .profile-grid { gap: 16px; }
+html[data-ui="trade"] #profile .profile-hero-panel {
+  border: 1px solid var(--ink); border-radius: 0; color: #fff; background: var(--ink); box-shadow: none;
+}
+html[data-ui="trade"] #profile .profile-hero-panel :is(h2, b) { color: #fff; }
+html[data-ui="trade"] #profile .profile-hero-panel :is(p, span) { color: #9aa3a6; }
+html[data-ui="trade"] #profile .profile-avatar-xl { border: 0; border-radius: 3px; color: #fff; background: var(--seal); }
+html[data-ui="trade"] #profile .profile-info-row { border-bottom: 1px solid var(--rule-soft); }
+html[data-ui="trade"] :is(#settings .settings-grid, #database-maintenance .database-workspace, #database-maintenance .database-status-strip) { border-color: var(--rule); }
+html[data-ui="trade"] #database-maintenance .database-status-strip { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; overflow: hidden; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); }
+html[data-ui="trade"] #database-maintenance .database-status-strip > div { padding: 13px 16px; border: 0; border-left: 1px solid var(--rule); }
+html[data-ui="trade"] #database-maintenance .database-status-strip > div:first-child { border-left: 0; }
+html[data-ui="trade"] #database-maintenance .database-workspace { overflow: hidden; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none; }
+html[data-ui="trade"] #database-maintenance .database-operation-pane { border-right: 1px solid var(--rule); }
+html[data-ui="trade"] #integration-center .integration-head { padding: 0 0 18px; border-bottom: 1px solid var(--ink); }
+html[data-ui="trade"] #integration-center :is(.integration-launch-card, .integration-app-card, .integration-tab-panel) { border: 1px solid var(--rule); border-radius: 0; box-shadow: none; }
+html[data-ui="trade"] #integration-center .integration-app-card:hover { border-color: var(--ink); box-shadow: none; }
+
+/* 考场 / 题库 / 培训等深色重模块：统一纸墨 */
+html[data-ui="trade"] :is(.exam-list-panel, .exam-inspector, .exam-result-exams, .exam-result-detail, .exam-task-card) { border: 1px solid var(--rule); border-radius: 0; box-shadow: none; }
+html[data-ui="trade"] :is(.exam-metric-strip, .file-center-metrics) { border-radius: 0; }
+html[data-ui="trade"] :is(.exam-table-head, .exam-result-row.head) { color: var(--graphite-2); background: var(--leaf); border-bottom: 1px solid var(--ink); }
+html[data-ui="trade"] .exam-table-row { border-bottom: 1px solid var(--rule-soft); }
+html[data-ui="trade"] .exam-table-row.selected { background: var(--seal-wash); box-shadow: inset 3px 0 0 var(--seal); }
+
+/* 地球 / 关系网：墨色深面 */
+html[data-ui="trade"] #global-map { border: 1px solid var(--ink); border-radius: 0; color: #dfe3e4; background: var(--ink); }
+html[data-ui="trade"] #global-map .gm-eyebrow { color: #9aa3a6; }
+html[data-ui="trade"] #global-map :is(.gm-eyebrow b, .gm-title em) { color: #f0857c; }
+html[data-ui="trade"] #global-map .gm-title { color: #fff; }
+html[data-ui="trade"] #global-map .gm-map-wrap { border: 1px solid #2f3437; border-radius: 0; background: #101314; box-shadow: none; }
+html[data-ui="trade"] #global-map .gm-land { fill: url(#gmLandTex); stroke: #ffffff14; }
+html[data-ui="trade"] #global-map .gm-port-label { fill: #dfe3e4; }
+html[data-ui="trade"] #global-map .gm-port-src { fill: #f0857c; }
+html[data-ui="trade"] #global-map :is(.gm-legend, .gm-tip) { border: 1px solid #2f3437; border-radius: 0; background: #16191b; }
+html[data-ui="trade"] #global-map :is(.gm-chip, .gm-play) { border: 1px solid #3a4043; border-radius: 2px; color: #cfd4d5; background: #1c2022; }
+html[data-ui="trade"] #global-map .gm-chip.is-on { border-color: var(--seal); color: #fff; background: var(--seal); box-shadow: none; }
+html[data-ui="trade"] :is(.rg-head, .kpi-head) { padding: 0 0 16px; border-bottom: 1px solid var(--ink); }
+html[data-ui="trade"] :is(.rg-title, .kpi-title) { color: var(--ink); font-size: 26px; font-weight: 800; letter-spacing: -.045em; }
+html[data-ui="trade"] :is(.rg-stat, .kpi-card, .cl-inputs, .cl-result) { border: 1px solid var(--rule); border-radius: 0; box-shadow: none; }
+
+/* ── 浮层 ───────────────────────────────────────────── */
+html[data-ui="trade"] :is(.modal-backdrop, .drawer-backdrop) { background: rgb(22 25 27 / 40%); backdrop-filter: blur(2px); }
+html[data-ui="trade"] :is(.modal, dialog) {
+  border: 1px solid var(--ink); border-radius: 0; background: var(--leaf);
+  box-shadow: 0 32px 80px rgb(22 25 27 / 22%);
+}
+html[data-ui="trade"] :is(.modal-head, .modal-foot) { border-color: var(--rule); }
+html[data-ui="trade"] :is(.modal-head, .modal-heading) h2 { color: var(--ink); font-size: 16px; font-weight: 750; letter-spacing: -.03em; }
+html[data-ui="trade"] .modal-body { padding: 18px 20px; }
+html[data-ui="trade"] .modal-foot { padding: 14px 20px; background: #fafbf8; }
+html[data-ui="trade"] .modal-head { padding: 16px 20px; background: var(--ink); }
+html[data-ui="trade"] .modal-head :is(h1, h2, h3, b, strong) { color: #fff; }
+html[data-ui="trade"] .modal-head :is(p, small, span) { color: #9aa3a6; }
+html[data-ui="trade"] :is(.modal-close, .modal-head button) {
+  border: 1px solid rgb(255 255 255 / 22%); border-radius: 2px; color: #dfe3e4; background: transparent;
+}
+html[data-ui="trade"] :is(.modal-close, .modal-head button):hover { border-color: #fff; color: #fff; background: rgb(255 255 255 / 10%); }
+html[data-ui="trade"] .drawer { border-left: 1px solid var(--rule); }
+
+/* 命令面板 */
+html[data-ui="trade"] .trade-command-dialog {
+  width: min(540px, calc(100vw - 28px)); margin: 12vh auto auto; padding: 0; overflow: hidden;
+  border: 1px solid var(--ink); border-radius: 0; background: var(--leaf);
+  box-shadow: 0 32px 80px rgb(22 25 27 / 26%);
+}
+html[data-ui="trade"] .trade-command-dialog::backdrop { background: rgb(22 25 27 / 48%); backdrop-filter: blur(2px); }
+html[data-ui="trade"] .trade-command-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--rule); }
+html[data-ui="trade"] .trade-command-head input {
+  min-width: 0; flex: 1; height: 30px; padding: 0; border: 0; outline: 0;
+  color: var(--ink); background: transparent; font-size: 13px; box-shadow: none;
+}
+html[data-ui="trade"] .trade-command-head button {
+  padding: 2px 6px; border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--graphite); background: var(--paper); font-size: 10px; cursor: pointer;
+}
+html[data-ui="trade"] .trade-command-results { max-height: 400px; padding: 6px; overflow: auto; }
+html[data-ui="trade"] .trade-command-results button {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%;
+  min-height: 36px; padding: 8px 10px; border: 0; border-radius: 0;
+  color: var(--ink); background: transparent; font-size: 12.5px; text-align: left; cursor: pointer;
+}
+html[data-ui="trade"] .trade-command-results button:hover,
+html[data-ui="trade"] .trade-command-results button:focus-visible { color: var(--ink); background: var(--seal-wash); outline: none; box-shadow: inset 3px 0 0 var(--seal); }
+html[data-ui="trade"] .trade-command-results small { color: var(--graphite-2); font-size: 10px; letter-spacing: .05em; }
+html[data-ui="trade"] .trade-command-empty { margin: 18px 10px; color: var(--graphite-2); font-size: 12px; }
+
+/* ── 登录：墨色左屏 + 印章 ──────────────────────────── */
+html[data-ui="trade"] .login-screen {
+  display: grid; min-height: 100dvh; grid-template-columns: minmax(0, 1.05fr) minmax(400px, .95fr);
+  gap: 0; padding: 0; overflow: auto; background: var(--leaf);
+}
+html[data-ui="trade"] body.is-authenticated .login-screen { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+html[data-ui="trade"] .login-screen::before, html[data-ui="trade"] .login-screen::after { display: none; }
+html[data-ui="trade"] .login-visual {
+  position: relative; min-height: 100dvh; padding: 38px 46px 30px; overflow: hidden;
+  border: 0; border-radius: 0; background: var(--ink); box-shadow: none;
+}
+html[data-ui="trade"] .login-visual::before, html[data-ui="trade"] .login-visual::after { display: none; }
+html[data-ui="trade"] .login-brand { display: flex; align-items: center; gap: 12px; }
+html[data-ui="trade"] .login-brand-mark {
+  display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 3px;
+  background: var(--seal); box-shadow: none; transform: rotate(-3deg);
+}
+html[data-ui="trade"] .login-brand-mark::before {
+  position: static; inset: auto; display: block; width: auto; height: auto; border: 0; transform: none;
+  color: #fff; background: transparent; content: "客"; font: 800 21px/1 var(--font-ui); text-align: center;
+}
+html[data-ui="trade"] .login-brand-mark::after { display: none; }
+html[data-ui="trade"] .login-brand strong { color: #fff; font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+html[data-ui="trade"] .login-brand span { display: block; margin-top: 3px; color: #8b9499; font-size: 10px; letter-spacing: .16em; }
+html[data-ui="trade"] .login-visual-content { display: flex; min-height: 0; flex: 1; flex-direction: column; align-items: flex-start; justify-content: center; gap: 30px; padding: 40px 0 20px; }
+html[data-ui="trade"] .login-copy { position: relative; z-index: 3; }
+html[data-ui="trade"] .login-copy h1 {
+  max-width: 15ch; margin: 0; color: #fff;
+  font-size: clamp(32px, 3.6vw, 46px); font-weight: 800; line-height: 1.22; letter-spacing: -.045em;
+}
+html[data-ui="trade"] .login-copy p { max-width: 44ch; margin: 14px 0 0; color: #9aa3a6; font-size: 13px; line-height: 1.85; }
+html[data-ui="trade"] .trade-login-chart {
+  position: relative; z-index: 1; width: min(100%, 520px); height: clamp(200px, 30vh, 300px); align-self: stretch;
+  overflow: hidden; border: 1px solid #2f3437; border-radius: 0; background: #101314;
+}
+html[data-ui="trade"] .trade-login-chart::before {
+  position: absolute; inset: 0; background-image: linear-gradient(#ffffff08 1px, transparent 1px), linear-gradient(90deg, #ffffff08 1px, transparent 1px);
+  background-size: 34px 34px; content: ""; opacity: 1;
+}
+html[data-ui="trade"] .trade-login-route { position: absolute; inset: 0; width: 100%; height: 100%; }
+html[data-ui="trade"] .trade-login-route .grid { fill: none; stroke: #ffffff0d; stroke-width: 1; }
+html[data-ui="trade"] .trade-login-route .path { fill: none; stroke: #6d7477; stroke-width: 1; stroke-dasharray: 3 5; }
+html[data-ui="trade"] .trade-login-route circle { fill: #f0857c; stroke: var(--ink); stroke-width: 1.5; }
+html[data-ui="trade"] .trade-login-art { display: none; }
+html[data-ui="trade"] .trade-login-caption {
+  position: absolute; right: 14px; bottom: 12px; left: auto; color: #8b9499; font-size: 10px; letter-spacing: .06em;
+}
+html[data-ui="trade"] .trade-login-footer { position: relative; z-index: 3; display: flex; flex-wrap: wrap; gap: 22px; color: #8b9499; font-size: 10.5px; letter-spacing: .04em; }
+html[data-ui="trade"] .trade-login-footer svg { display: none; }
+html[data-ui="trade"] .login-panel {
+  display: flex; flex-direction: column; justify-content: center; align-self: stretch;
+  width: 100%; max-width: none; margin: 0; padding: 44px clamp(28px, 6vw, 84px);
+  border: 0; border-radius: 0; background: var(--leaf); box-shadow: none;
+}
+html[data-ui="trade"] .login-panel::before { display: none; }
+html[data-ui="trade"] .login-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+html[data-ui="trade"] .login-panel h2 { margin: 0; color: var(--ink); font-size: 27px; font-weight: 800; line-height: 1.25; letter-spacing: -.045em; }
+html[data-ui="trade"] .login-panel-status {
+  padding: 2px 7px; border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--graphite); background: transparent; font-size: 10px; letter-spacing: .05em;
+}
+html[data-ui="trade"] .login-panel-status::before { display: none; }
+html[data-ui="trade"] .login-panel > p { margin: 0 0 30px; color: var(--graphite); font-size: 12.5px; line-height: 1.7; }
+html[data-ui="trade"] .login-field { margin-bottom: 16px; }
+html[data-ui="trade"] .login-field label { display: block; margin-bottom: 6px; color: var(--graphite); font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+html[data-ui="trade"] .login-field :is(input, select) {
+  width: 100%; height: 44px; padding: 0 12px;
+  border: 1px solid var(--rule); border-radius: 2px; background: var(--leaf); font-size: 13.5px;
+}
+html[data-ui="trade"] .login-field :is(input, select):focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgb(22 25 27 / 7%); }
+html[data-ui="trade"] #loginButton {
+  width: 100%; min-height: 44px; margin-top: 8px;
+  border: 0; border-radius: 2px; color: #fff; background: var(--seal);
+  box-shadow: none; font-size: 13.5px; font-weight: 650; letter-spacing: .04em;
+}
+html[data-ui="trade"] #loginButton::before { display: none; }
+html[data-ui="trade"] #loginButton:hover { background: var(--seal-deep); transform: none; box-shadow: none; }
+html[data-ui="trade"] .login-test-hint { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 0; background: #fafbf8; }
+html[data-ui="trade"] .login-product-version {
+  margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--rule);
+  color: var(--graphite-2); font-size: 10.5px; letter-spacing: .04em;
+}
+html[data-ui="trade"] .login-signature { display: none; }
+
+/* ── 响应式 ─────────────────────────────────────────── */
+@media (min-width: 1560px) {
+  html[data-ui="trade"] { --pad-x: 38px; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .focus-title h2 { font-size: 28px; }
+}
+@media (max-width: 1180px) {
+  html[data-ui="trade"] { --trade-nav-width: 214px; --pad-x: 21px; }
+  html[data-ui="trade"] .topbar { padding-inline: 18px; }
+  html[data-ui="trade"] .top-tabs { max-width: 22vw; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .command-center,
+  html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+  html[data-ui="trade"] #todo.todo-view .todo-board { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  html[data-ui="trade"] { --trade-nav-width: 0px; --pad-x: 19px; --pad-top: 20px; }
+  html[data-ui="trade"] .shell { display: block; }
+  html[data-ui="trade"] .sidebar {
+    position: fixed; z-index: 210; inset: 0 auto 0 0; width: 282px; height: 100dvh;
+    visibility: hidden; transform: translateX(-102%); transition: none;
+    background: var(--paper); box-shadow: none;
+  }
+  html[data-ui="trade"] .nav { display: block; width: 100%; max-width: 100%; overflow-x: hidden; overflow-y: auto; }
+  html[data-ui="trade"] .nav-primary { display: grid; width: 100%; gap: 0; }
+  html[data-ui="trade"] .nav .nav-section { display: block; margin: 0; }
+  html[data-ui="trade"] .nav .nav-section-title { display: flex; }
+  html[data-ui="trade"] .nav .nav-secondary-grid { display: block; width: 100%; margin: 2px 0 6px; padding: 0; border: 0; }
+  html[data-ui="trade"] .nav button { width: 100%; height: auto; min-height: 38px; flex: 0 0 auto; }
+  html[data-ui="trade"] body.trade-navigation-open .sidebar { visibility: visible; transform: translateX(0); box-shadow: 24px 0 60px rgb(22 25 27 / 18%); }
+  html[data-ui="trade"] body.trade-navigation-open .trade-nav-scrim {
+    position: fixed; z-index: 200; inset: 0; display: block; width: 100%; height: 100%;
+    border: 0; background: rgb(22 25 27 / 40%); backdrop-filter: blur(2px);
+  }
+  html[data-ui="trade"] .trade-menu-toggle { display: inline-grid; flex: 0 0 32px; }
+  html[data-ui="trade"] .topbar { height: 56px; min-height: 56px; padding-inline: 14px; }
+  html[data-ui="trade"] .top-tabs { max-width: 26vw; }
+  html[data-ui="trade"] :is(.view > .page-head, .view > .pc-head, .view > .sh-head, .view > .lg-head,
+    .view > .file-center-head, .view > .exam-workspace-head, .view > .approval-head,
+    .view > .customer-pool-head, .view > .th-page-head, .view > .kb-head,
+    #dashboard.dashboard-v2 > .dashboard-masthead) { padding: 20px var(--pad-x) 18px; }
+  html[data-ui="trade"] :is(.page-head, .dashboard-masthead) h1 { font-size: 23px; }
+  html[data-ui="trade"] .login-screen { grid-template-columns: minmax(0, 1fr) minmax(340px, .9fr); }
+  html[data-ui="trade"] .login-visual { padding-inline: 30px; }
+  html[data-ui="trade"] .login-panel { padding: 34px 30px; }
+}
+@media (max-width: 640px) {
+  html[data-ui="trade"] { --pad-x: 13px; --pad-top: 14px; }
+  html[data-ui="trade"] .topbar { height: 52px; min-height: 52px; gap: 8px; padding-inline: 10px; }
+  html[data-ui="trade"] .trade-crumb > span,
+  html[data-ui="trade"] #topSearchWrap,
+  html[data-ui="trade"] .top-status,
+  html[data-ui="trade"] .user-identity,
+  html[data-ui="trade"] #logoutButton,
+  html[data-ui="trade"] #topActionContext { display: none; }
+  html[data-ui="trade"] .top-actions { gap: 6px; }
+  html[data-ui="trade"] .user-menu { padding: 0; border: 0; }
+  html[data-ui="trade"] .top-tabs { max-width: 40vw; }
+  html[data-ui="trade"] .top-tab { height: 28px; padding: 0 8px; font-size: 11px; }
+  html[data-ui="trade"] :is(.view > .page-head, .view > .pc-head, .view > .sh-head, .view > .lg-head,
+    .view > .file-center-head, .view > .exam-workspace-head, .view > .approval-head,
+    .view > .customer-pool-head, .view > .th-page-head, .view > .kb-head,
+    #dashboard.dashboard-v2 > .dashboard-masthead) {
+    flex-direction: column; align-items: flex-start; gap: 14px; padding: 18px var(--pad-x) 16px;
+  }
+  html[data-ui="trade"] :is(.page-head, .dashboard-masthead) h1 { font-size: 21px; }
+  html[data-ui="trade"] :is(.page-head, .dashboard-masthead) :is(.head-actions, .page-head-actions,
+    .customer-head-actions, .lead-page-actions, .dashboard-masthead-side) { width: 100%; justify-content: flex-start; }
+  html[data-ui="trade"] .view :is(.section, .panel) { padding: 14px; }
+  html[data-ui="trade"] .view :is(.dense-grid, .kpis, .stat-grid, .collab-kpis) {
+    grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0;
+  }
+  html[data-ui="trade"] .view :is(.dense-grid, .kpis, .stat-grid, .collab-kpis) > * {
+    padding: 12px 14px; border-left: 0; border-top: 1px solid var(--rule-soft);
+  }
+  html[data-ui="trade"] .view :is(.dense-grid, .kpis, .stat-grid, .collab-kpis) > *:nth-child(-n+2) { border-top: 0; }
+  html[data-ui="trade"] .view :is(.dense-grid, .kpis, .stat-grid, .collab-kpis) > *:nth-child(odd) { padding-left: 0; }
+  html[data-ui="trade"] .view :is(.dense-grid, .kpis, .stat-grid, .collab-kpis) > *:nth-child(even) { border-left: 1px solid var(--rule-soft); }
+  html[data-ui="trade"] .mh-band-head { padding: 13px 14px 11px; }
+  html[data-ui="trade"] .mh-marks { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-columns: auto; }
+  html[data-ui="trade"] .mh-mark { padding: 12px 12px 11px; border-top: 1px solid var(--rule); }
+  html[data-ui="trade"] .mh-mark:nth-child(-n+3) { border-top: 0; }
+  html[data-ui="trade"] .mh-mark:nth-child(3n+1) { border-left: 0; }
+  html[data-ui="trade"] .mh-mark .mh-count { font-size: 23px; }
+  html[data-ui="trade"] .mh-band-foot { padding: 11px 14px; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .focus-title h2 { font-size: 19px; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why { grid-template-columns: minmax(0, 1fr); }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why > div { padding: 11px 0; border-left: 0; border-top: 1px solid var(--rule-soft); }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .briefing-why > div:first-child { border-top: 0; padding-top: 0; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric { padding: 12px 12px 0 0; border-left: 0; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric:nth-child(even) { padding-left: 12px; border-left: 1px solid var(--rule-soft); }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric:nth-child(n+3) { border-top: 1px solid var(--rule-soft); }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .focus-metric b { font-size: 19px; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .morning-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .morning-card { padding: 2px 12px; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .morning-card:nth-child(odd) { padding-left: 0; border-left: 0; }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .morning-card:nth-child(n+3) { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule-soft); }
+  html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-footer-note { flex-direction: column; gap: 3px; }
+  html[data-ui="trade"] #pipeline .pipeline-summary { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="trade"] #pipeline .pipeline-summary-item { border-left: 0; border-top: 1px solid var(--rule); }
+  html[data-ui="trade"] #pipeline .pipeline-summary-item:nth-child(-n+2) { border-top: 0; }
+  html[data-ui="trade"] #knowledge .file-center-metrics { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="trade"] #knowledge .file-center-metrics > div { border-left: 0; border-top: 1px solid var(--rule); }
+  html[data-ui="trade"] #knowledge .file-center-metrics > div:nth-child(-n+2) { border-top: 0; }
+  html[data-ui="trade"] #daily-reports .collab-kpis { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="trade"] #daily-reports .collab-kpis > div { border-left: 0; border-top: 1px solid var(--rule); }
+  html[data-ui="trade"] #daily-reports .collab-kpis > div:nth-child(-n+2) { border-top: 0; }
+  html[data-ui="trade"] #daily-reports .daily-report-layout { grid-template-columns: minmax(0, 1fr); }
+  html[data-ui="trade"] #daily-reports .collab-rail { border-right: 0; border-bottom: 1px solid var(--rule); }
+  html[data-ui="trade"] #tools .tool-cards { grid-template-columns: minmax(0, 1fr); }
+  html[data-ui="trade"] #tools .tool-card { border-right: 0; }
+  html[data-ui="trade"] .pc-layout { grid-template-columns: minmax(0, 1fr); }
+  html[data-ui="trade"] .pc-rail { border-right: 0; border-bottom: 1px solid var(--rule); padding: 12px; }
+  html[data-ui="trade"] .pc-cats { display: flex; flex-direction: row; overflow-x: auto; }
+  html[data-ui="trade"] .pc-cat { width: auto; flex: 0 0 auto; white-space: nowrap; }
+  html[data-ui="trade"] .pc-board { padding: 10px; }
+  html[data-ui="trade"] .pc-grid { grid-template-columns: minmax(0, 1fr); }
+  html[data-ui="trade"] :is(.pc-stats, .sh-stats) { width: 100%; gap: 0; }
+  html[data-ui="trade"] :is(.pc-stat, .sh-stat) { min-width: 0; flex: 1; padding: 2px 10px; }
+  html[data-ui="trade"] .sh-boardbar { align-items: flex-start; flex-direction: column; gap: 9px; }
+  html[data-ui="trade"] .sh-toolbar-right { width: 100%; flex-wrap: wrap; }
+  html[data-ui="trade"] .sh-search { width: 100%; min-width: 0; }
+  html[data-ui="trade"] .sh-row { grid-template-columns: auto minmax(0, 1fr); gap: 9px; padding: 11px; }
+  html[data-ui="trade"] .sh-row-actions { grid-column: 2; }
+  html[data-ui="trade"] .lg-toolbar { align-items: flex-start; flex-direction: column; gap: 9px; }
+  html[data-ui="trade"] .lg-chips { max-width: calc(100vw - 46px); flex-wrap: wrap; }
+  html[data-ui="trade"] .lg-actions, html[data-ui="trade"] .lg-search { width: 100%; min-width: 0; }
+  html[data-ui="trade"] .customer-filter-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  html[data-ui="trade"] .customer-filter-row input { width: 100%; min-width: 0; grid-column: 1/-1; }
+  html[data-ui="trade"] .customer-filter-row select { width: 100%; min-width: 0; }
+  html[data-ui="trade"] :is(.table-wrap, .account-table-wrap, .lead-table-wrap, .website-table-wrap) { max-width: 100%; }
+  html[data-ui="trade"] #todo.todo-view .todo-row { grid-template-columns: 20px minmax(0, 1fr); }
+  html[data-ui="trade"] #todo.todo-view .todo-side { grid-column: 2; }
+  html[data-ui="trade"] .login-screen { grid-template-columns: minmax(0, 1fr); }
+  html[data-ui="trade"] .login-visual { min-height: 0; padding: 24px 22px 22px; }
+  html[data-ui="trade"] .login-visual-content { padding: 24px 0 4px; gap: 16px; }
+  html[data-ui="trade"] .login-copy h1 { font-size: 27px; }
+  html[data-ui="trade"] .login-copy p { margin-top: 9px; font-size: 12px; }
+  html[data-ui="trade"] .trade-login-chart { height: 132px; }
+  html[data-ui="trade"] .trade-login-caption { display: none; }
+  html[data-ui="trade"] .trade-login-footer { display: none; }
+  html[data-ui="trade"] .login-panel { padding: 26px 22px 32px; justify-content: flex-start; }
+  html[data-ui="trade"] .login-panel h2 { font-size: 23px; }
+  html[data-ui="trade"] .login-panel > p { margin-bottom: 22px; }
+  html[data-ui="trade"] :is(.modal, dialog) { width: calc(100vw - 20px); max-width: calc(100vw - 20px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="trade"] *, html[data-ui="trade"] *::before, html[data-ui="trade"] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* ── 墨色通栏在旧 `#dashboard.dashboard-v2 …` ID 规则之上的定向覆盖 ──
+   旧工作台样式含多段 ID 选择器，通用 :is() 规则胜不过它们；
+   这里用 #id.class + 属性前缀提到同级之上，且只覆盖表现。 */
+html[data-ui="trade"] #dashboard.dashboard-v2 > .dashboard-masthead {
+  display: flex; grid-template-columns: none; align-items: flex-end; justify-content: space-between;
+  min-height: 0; gap: 24px; padding: 24px var(--pad-x) 21px;
+  border: 0; border-bottom: 0; background: var(--ink); color: #fff;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 > .dashboard-masthead::after { display: none; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-heading h1 {
+  margin: 0; color: #fff; font-size: 26px; font-weight: 800; line-height: 1.16;
+  letter-spacing: -.045em; text-transform: none;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-heading h1 em { color: #f0857c; font-style: normal; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-subline {
+  max-width: 62ch; margin: 7px 0 0; color: #9aa3a6; font-size: 12px; line-height: 1.6;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-masthead-side {
+  display: flex; align-items: center; justify-items: initial; gap: 12px; padding-bottom: 0;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 :is(.dashboard-index, .dashboard-kicker, .dashboard-live-mark) { display: none; }
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-masthead .btn {
+  min-height: 30px; border-color: rgb(255 255 255 / 22%); color: #e8ebec; background: transparent; font-size: 11.5px;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-masthead .btn:hover { border-color: #fff; color: #fff; background: rgb(255 255 255 / 9%); }
+html[data-ui="trade"] #dashboard.dashboard-v2 .focus-title h2 {
+  color: var(--ink); font-size: 25px; font-weight: 800; line-height: 1.34; letter-spacing: -.04em;
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker {
+  margin: 0 0 16px; border: 1px solid var(--rule); background: var(--leaf); color: var(--graphite);
+}
+html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker-track { padding: 0; color: var(--graphite); }
+
+/* 待办页：同一套墨色通栏（旧 #todo.todo-view ID 规则的定向覆盖） */
+html[data-ui="trade"] #todo.todo-view > .todo-page-head {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;
+  margin: calc(-1 * var(--pad-top)) calc(-1 * var(--pad-x)) 22px;
+  padding: 24px var(--pad-x) 21px; border: 0; border-radius: 0;
+  background: var(--ink); box-shadow: none;
+}
+html[data-ui="trade"] #todo.todo-view .todo-heading h1 {
+  margin: 0; color: #fff; font-size: 26px; font-weight: 800; line-height: 1.16; letter-spacing: -.045em;
+}
+html[data-ui="trade"] #todo.todo-view .todo-heading .sub { max-width: 62ch; margin: 7px 0 0; color: #9aa3a6; font-size: 12px; line-height: 1.6; }
+html[data-ui="trade"] #todo.todo-view .todo-heading .dashboard-kicker { display: none; }
+html[data-ui="trade"] #todo.todo-view .todo-live-state {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 9px;
+  border: 1px solid rgb(255 255 255 / 20%); border-radius: 2px; color: #d5dadb; background: transparent;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+}
+html[data-ui="trade"] #todo.todo-view .todo-live-state i { width: 5px; height: 5px; background: #7fc0a6; box-shadow: none; }
+html[data-ui="trade"] #todo.todo-view .todo-board { grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 16px; }
+html[data-ui="trade"] #todo.todo-view .todo-board > .panel { padding: 20px 22px; border: 1px solid var(--rule); border-radius: 0; background: var(--leaf); box-shadow: none; }
+html[data-ui="trade"] #todo.todo-view .todo-board > aside.panel { background: #fafbf8; }
+html[data-ui="trade"] #todo.todo-view .todo-chip { border: 1px solid var(--rule); border-radius: 2px; color: var(--graphite); background: var(--leaf); }
+html[data-ui="trade"] #todo.todo-view .todo-chip.active { border-color: var(--ink); color: #fff; background: var(--ink); }
+html[data-ui="trade"] #todo.todo-view .todo-row { border: 0; border-bottom: 1px solid var(--rule-soft); border-radius: 0; background: transparent; box-shadow: none; }
+
+/* ── 抽屉打开时侧栏仍可点：导航不被遮罩挡住 ───────────────
+   契约：详情抽屉可以盖住内容，但不能盖住模块导航。 */
+html[data-ui="trade"] body:is(.customer-drawer-open, .lead-drawer-open, .problem-drawer-open,
+  .lead-verification-drawer-open, .agent-skill-drawer-open) .sidebar { z-index: 91; }
+html[data-ui="trade"] :is(#customers .drawer, #peers .drawer, #leads #leadDrawer,
+  #problems .problem-drawer, #dealDrawer, .lead-verification-drawer) { z-index: 92; }
+html[data-ui="trade"] :is(.customer-drawer-backdrop, .lead-drawer-backdrop, .problem-drawer-backdrop,
+  .lead-verification-backdrop) { z-index: 89; }
+@media (max-width: 900px) {
+  html[data-ui="trade"] body:is(.customer-drawer-open, .lead-drawer-open, .problem-drawer-open,
+    .lead-verification-drawer-open, .agent-skill-drawer-open) .sidebar { z-index: 210; }
+}

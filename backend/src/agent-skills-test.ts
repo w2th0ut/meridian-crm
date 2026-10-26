@@ -58,7 +58,7 @@ const tradeDocuments = compileAgentSkillEnvelope("帮我给 Kanto Retail 的需�
 assert.ok(tradeDocuments.some((skill) => skill.id === "trade-documents"));
 assert.ok(agentSkillToolRefs("制作 PI 并下载").includes("api.write"));
 
-const fixtureRoot = mkdtempSync(join(tmpdir(), "meridian-agent-skills-"));
+const fixtureRoot = mkdtempSync(join(tmpdir(), "keduoduo-agent-skills-"));
 const previousSkillsDirectory = process.env.AGENT_SKILLS_DIR;
 try {
   const externalDirectory = join(fixtureRoot, "external-catalog-skill");
@@ -75,7 +75,7 @@ try {
     acquisitionMethod: "供应商下载页",
     downloadUrl: "https://downloads.example.com/skill.zip",
     extractionCode: "A7K9",
-    installCommand: "meridian skill install ./skill.zip",
+    installCommand: "keduoduo skill install ./skill.zip",
     acquisitionInstructions: "下载后核验发布者，再由管理员离线安装。",
     homepageUrl: "https://example.com/skill",
     author: "Example Vendor",
@@ -102,7 +102,7 @@ try {
   assert.equal(externalSkills.length, 1);
   assert.equal(externalSkills[0]?.downloadUrl, "https://downloads.example.com/skill.zip");
   assert.equal(externalSkills[0]?.extractionCode, "A7K9");
-  assert.equal(externalSkills[0]?.installCommand, "meridian skill install ./skill.zip");
+  assert.equal(externalSkills[0]?.installCommand, "keduoduo skill install ./skill.zip");
   assert.equal(externalSkills.some((skill) => skill.id === "unsafe-download-skill"), false);
 } finally {
   if (previousSkillsDirectory === undefined) delete process.env.AGENT_SKILLS_DIR;

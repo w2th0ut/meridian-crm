@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { runConnectorDriverComplianceSuite, type ConnectorManifest } from "@meridian/integration-connector-sdk";
+import { runConnectorDriverComplianceSuite, type ConnectorManifest } from "@keduoduo/integration-connector-sdk";
 import { ErpNextConnectorDriver } from "../src/drivers/erpnext-connector-driver.js";
 import { EasyPostConnectorDriver } from "../src/drivers/easypost-connector-driver.js";
 import { GoogleDriveConnectorDriver } from "../src/drivers/google-drive-connector-driver.js";
@@ -36,10 +36,10 @@ const server = createServer(async (request, response) => {
   if (url.pathname === "/easy/v2/trackers/trk_new") return response.end(JSON.stringify({ id: "trk_new", tracking_code: "1ZNEW", carrier: "UPS", status: "pre_transit", tracking_details: [] }));
 
   if (url.pathname === "/google/drive/v3/about") return response.end(JSON.stringify({ user: { displayName: "Seller", emailAddress: "seller@example.test" }, storageQuota: { usage: "100" } }));
-  if (url.pathname === "/google/drive/v3/files" && request.method === "GET") return response.end(JSON.stringify({ files: [{ id: "file_1", name: "PI-001.pdf", mimeType: "application/pdf", appProperties: { meridianCrm: "true", crmObjectId: "opp_1" } }], nextPageToken: "" }));
+  if (url.pathname === "/google/drive/v3/files" && request.method === "GET") return response.end(JSON.stringify({ files: [{ id: "file_1", name: "PI-001.pdf", mimeType: "application/pdf", appProperties: { keduoduoCrm: "true", crmObjectId: "opp_1" } }], nextPageToken: "" }));
   if (url.pathname === "/google/drive/v3/files" && request.method === "POST") return response.end(JSON.stringify({ id: "folder_1", name: String(body.name || "Trade Docs"), mimeType: "application/vnd.google-apps.folder" }));
   if (url.pathname === "/google/upload/drive/v3/files" && request.method === "POST") return response.end(JSON.stringify({ id: "file_new", name: "PI-NEW.pdf", mimeType: "application/pdf" }));
-  if (url.pathname === "/google/drive/v3/files/file_1" || url.pathname === "/google/drive/v3/files/file_new") return response.end(JSON.stringify({ id: url.pathname.endsWith("new") ? "file_new" : "file_1", name: "PI-001.pdf", mimeType: "application/pdf", appProperties: { meridianCrm: "true" } }));
+  if (url.pathname === "/google/drive/v3/files/file_1" || url.pathname === "/google/drive/v3/files/file_new") return response.end(JSON.stringify({ id: url.pathname.endsWith("new") ? "file_new" : "file_1", name: "PI-001.pdf", mimeType: "application/pdf", appProperties: { keduoduoCrm: "true" } }));
   if (url.pathname === "/google/drive/v3/files/file_1/permissions" && request.method === "POST") return response.end(JSON.stringify({ id: "perm_1", type: "user", role: "reader", emailAddress: "buyer@example.com" }));
 
   response.statusCode = 404;

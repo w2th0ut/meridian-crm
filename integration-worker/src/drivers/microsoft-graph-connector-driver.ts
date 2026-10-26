@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { validateConnectorManifest } from "@meridian/integration-connector-sdk";
+import { validateConnectorManifest } from "@keduoduo/integration-connector-sdk";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/client";
 import { createValidatedFetch, validateMcpEndpoint } from "../network-policy.js";
 import { normalizeToolList } from "../mcp/tool-schema.js";
@@ -231,7 +231,7 @@ function parseAttachments(input: Record<string, unknown>) {
 }
 
 function fixedRequestId(value = "") {
-  const hex = createHash("sha256").update(value || "meridian-integration-call").digest("hex").slice(0, 32);
+  const hex = createHash("sha256").update(value || "keduoduo-integration-call").digest("hex").slice(0, 32);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20)}`;
 }
 
@@ -285,7 +285,7 @@ export class MicrosoftGraphConnectorDriver extends OfficialApiConnectorDriver {
     const headers = new Headers(init.headers);
     headers.set("authorization", `Bearer ${context.accessToken}`);
     headers.set("accept", "application/json");
-    headers.set("user-agent", "Meridian-Integration-Worker/1.0");
+    headers.set("user-agent", "Keduoduo-Integration-Worker/1.0");
     if (context.requestId) {
       headers.set("client-request-id", fixedRequestId(context.requestId));
       headers.set("return-client-request-id", "true");
@@ -387,7 +387,7 @@ export class MicrosoftGraphConnectorDriver extends OfficialApiConnectorDriver {
         toRecipients: graphRecipients(to),
         ccRecipients: graphRecipients(cc),
         attachments: parseAttachments(input),
-        internetMessageHeaders: [{ name: "X-Meridian-Request-Id", value: fixedRequestId(context.requestId) }]
+        internetMessageHeaders: [{ name: "X-Keduoduo-Request-Id", value: fixedRequestId(context.requestId) }]
       }
     };
   }

@@ -13,7 +13,7 @@ import {
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("mysql-data-import-test 需要 DATABASE_URL");
 assertDatabaseProfile(process.env, url);
-process.env.MYSQL_DATA_IMPORT_TOKEN ||= "meridian-mysql-import-test-token-20260724";
+process.env.MYSQL_DATA_IMPORT_TOKEN ||= "keduoduo-mysql-import-test-token-20260724";
 
 assertMysqlDataImportToken(process.env.MYSQL_DATA_IMPORT_TOKEN);
 assert.throws(
@@ -33,7 +33,7 @@ assert.deepEqual(schema.customers.columns, ["id", "company", "amount"]);
 
 const skipJob = await beginMysqlDataImport({
   actorId: "u_test",
-  fileName: "old-meridian.sql",
+  fileName: "old-keduoduo.sql",
   fileSize: 1024,
   fileSha256: "a".repeat(64),
   conflictMode: "skip"
@@ -61,7 +61,7 @@ assert.equal(completedSkip.skippedRows, 1);
 
 const overwriteJob = await beginMysqlDataImport({
   actorId: "u_test",
-  fileName: "old-meridian.sql",
+  fileName: "old-keduoduo.sql",
   fileSize: 1024,
   fileSha256: "b".repeat(64),
   conflictMode: "overwrite"
@@ -82,7 +82,7 @@ assert.equal(customer.company, "New Company");
 assert.equal(Number(customer.amount), 88);
 
 const [auditColumns] = await pool.query(
-  "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='meridian_data_import_jobs'"
+  "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='keduoduo_data_import_jobs'"
 );
 assert.equal(
   (auditColumns as Array<{ COLUMN_NAME: string }>).some((row) => /content|sql|raw|data/i.test(row.COLUMN_NAME)),

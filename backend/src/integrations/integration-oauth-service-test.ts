@@ -18,7 +18,7 @@ const connector: ConnectorDefinition = {
     approvedHosts: ["mcp.example.test", "auth.example.test"],
     allowedPorts: [443],
     authentication: "oauth2",
-    oauth: { clientId: "meridian-test", scopes: ["mcp.tools.read"] }
+    oauth: { clientId: "keduoduo-test", scopes: ["mcp.tools.read"] }
   })
 };
 

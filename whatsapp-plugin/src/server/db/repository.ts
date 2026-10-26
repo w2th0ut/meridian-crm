@@ -2484,11 +2484,11 @@ export class Repository {
     await this.database.query(
       this.database.kind === "mysql"
         ? `INSERT INTO crm_contacts(id,phone,name,source,source_contact_id,created_at)
-           VALUES($1,$2,$3,'meridian_crm',$4,$5)
-           ON DUPLICATE KEY UPDATE name=$3,source='meridian_crm',source_contact_id=$4`
+           VALUES($1,$2,$3,'keduoduo_crm',$4,$5)
+           ON DUPLICATE KEY UPDATE name=$3,source='keduoduo_crm',source_contact_id=$4`
         : `INSERT INTO crm_contacts(id,phone,name,source,source_contact_id,created_at)
-           VALUES($1,$2,$3,'meridian_crm',$4,$5)
-           ON CONFLICT(phone) DO UPDATE SET name=EXCLUDED.name,source='meridian_crm',source_contact_id=EXCLUDED.source_contact_id`,
+           VALUES($1,$2,$3,'keduoduo_crm',$4,$5)
+           ON CONFLICT(phone) DO UPDATE SET name=EXCLUDED.name,source='keduoduo_crm',source_contact_id=EXCLUDED.source_contact_id`,
       [id, input.phone, input.name, input.id, dbTime(now())]
     );
     return (await this.listCrmContacts()).find((item) => item.phone === input.phone)!;

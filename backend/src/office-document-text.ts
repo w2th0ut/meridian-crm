@@ -242,7 +242,7 @@ sys.stdout.buffer.write(json.dumps(capabilities).encode("utf-8"))
  */
 function officePythonCandidates() {
   const candidates: string[] = [];
-  const explicit = (process.env.MERIDIAN_OFFICE_PYTHON || "").trim();
+  const explicit = (process.env.KEDUODUO_OFFICE_PYTHON || "").trim();
   if (explicit) candidates.push(explicit);
   candidates.push("python3", "/usr/bin/python3", "/opt/homebrew/bin/python3", "/usr/local/bin/python3");
   const home = process.env.HOME || "";

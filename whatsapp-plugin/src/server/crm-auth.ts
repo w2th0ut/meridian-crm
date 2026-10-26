@@ -43,7 +43,7 @@ export function verifyCrmToken(secret: string | undefined, token: string): CrmId
     const parsedHeader = JSON.parse(header) as { alg?: string };
     const claims = JSON.parse(payload) as { sub?: string; ver?: number; iss?: string; aud?: string; exp?: number; nbf?: number };
     const now = Math.floor(Date.now() / 1000);
-    if (parsedHeader.alg !== "HS256" || claims.iss !== "meridian-crm" || claims.aud !== "meridian-crm-web"
+    if (parsedHeader.alg !== "HS256" || claims.iss !== "keduoduo-crm" || claims.aud !== "keduoduo-crm-web"
       || !claims.sub || !Number.isFinite(claims.exp) || (claims.exp as number) <= now
       || (claims.nbf !== undefined && claims.nbf > now)) return null;
     const expected = createHmac("sha256", secret).update(`${encodedHeader}.${encodedPayload}`).digest();

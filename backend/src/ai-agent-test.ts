@@ -61,7 +61,7 @@ async function main() {
   assert.equal(greetingProgress[1]?.requestKind, "conversation");
   assert.equal(greetingRun.status, "completed");
   assert.equal(greetingRun.steps.length, 0);
-  assert.match(greetingRun.summary, /你好|Meridian CRM/u);
+  assert.match(greetingRun.summary, /你好|Keduoduo CRM/u);
   assert.equal(greetingRun.events.some((item) => item.message.includes("商机")), false);
 
   const readRun = await createAgentPlan(fixture.store, admin, "检查当前商机管道");
@@ -169,13 +169,13 @@ async function main() {
   assert.equal(naturalCustomerFollowupDone.status, "running");
   assert.equal((naturalCustomerFollowupDone.steps.at(-1)?.input.body as { company?: string })?.company, "Followup Add Ltd");
 
-  const generatedCustomerIntent = await createAgentPlan(fixture.store, admin, "生成个客户，名叫meridian01，其它你编", { conversationId: "agc_generated_customer_test" });
+  const generatedCustomerIntent = await createAgentPlan(fixture.store, admin, "生成个客户，名叫keduoduo01，其它你编", { conversationId: "agc_generated_customer_test" });
   assert.equal(generatedCustomerIntent.status, "running");
   assert.equal(generatedCustomerIntent.steps[0]?.tool, "api.write");
   assert.equal(generatedCustomerIntent.steps[0]?.status, "ready");
   assert.deepEqual(generatedCustomerIntent.steps[0]?.input.body, {
-    company: "meridian01", country: "未知", contact: "待维护", whatsapp: "", stage: "询盘", amount: 0,
-    health: 72, grade: "C", billingName: "meridian01", billingAddress: "", documentContact: "待维护",
+    company: "keduoduo01", country: "未知", contact: "待维护", whatsapp: "", stage: "询盘", amount: 0,
+    health: 72, grade: "C", billingName: "keduoduo01", billingAddress: "", documentContact: "待维护",
     phone: "", email: "", website: "",
     defaultPortDischarge: "", defaultIncoterm: "", defaultPaymentTerm: ""
   });

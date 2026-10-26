@@ -12,7 +12,7 @@ import {
 const productionEnvironment = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
   NODE_ENV: "production",
   DATABASE_CLIENT: "mysql",
-  DATABASE_URL: "mysql://app:password@db.example.test:3306/meridian_crm",
+  DATABASE_URL: "mysql://app:password@db.example.test:3306/keduoduo_crm",
   SESSION_MASTER_KEY: Buffer.alloc(32, 7).toString("base64"),
   WEB_ORIGIN: "https://crm.example.test",
   ...overrides

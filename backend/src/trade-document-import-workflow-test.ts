@@ -33,7 +33,7 @@ async function request(apiPath: string, token = "", init: RequestInit = {}) {
 }
 
 async function login(email: string) {
-  const response = await request("/api/auth/login", "", { method: "POST", body: JSON.stringify({ email, password: "meridian123" }) });
+  const response = await request("/api/auth/login", "", { method: "POST", body: JSON.stringify({ email, password: "keduoduo123" }) });
   assert.equal(response.status, 200, `login failed: ${email}`);
   return String((await response.json()).token || "");
 }
@@ -43,7 +43,7 @@ function importWorkbook() {
   const sheet = XLSX.utils.aoa_to_sheet([
     ["PROFORMA INVOICE"],
     ["Invoice No", "PI-IMPORT-001", "Invoice Date", "August 13, 2026"],
-    ["Seller", "Meridian Export Limited", "Buyer", "Northstar Distribution LLC"],
+    ["Seller", "Keduoduo Export Limited", "Buyer", "Northstar Distribution LLC"],
     ["Seller Address", "88 Harbour Road, Hong Kong", "Buyer Address", "10 Market Street, Seattle, USA"],
     ["Buyer Contact", "Ava / ava@northstar.example", "Currency", "USD"],
     ["Incoterm", "FOB", "Payment Term", "30% deposit, 70% before shipment"],
@@ -142,8 +142,8 @@ try {
   const otherAdmin: User = {
     id: "u_import_other_admin",
     name: "Import Other Admin",
-    email: "import-other-admin@meridian.com",
-    password: "meridian123",
+    email: "import-other-admin@keduoduo.com",
+    password: "keduoduo123",
     role: "admin",
     teamId: "import-other-team",
     avatar: "IO",
@@ -151,7 +151,7 @@ try {
     authVersion: 1
   };
   store.users.push(otherAdmin);
-  const admin = await login("admin@meridian.com");
+  const admin = await login("admin@keduoduo.com");
   const otherTeam = await login(otherAdmin.email);
 
   const anonymous = await request("/api/trade-document-imports");
@@ -177,7 +177,7 @@ try {
   assert.equal(analyzedBody.duplicate, false);
   assert.equal(analysis.detectedType, "PI");
   assert.equal(analysis.extractedDocument.number, "PI-IMPORT-001");
-  assert.equal(analysis.extractedDocument.seller, "Meridian Export Limited");
+  assert.equal(analysis.extractedDocument.seller, "Keduoduo Export Limited");
   assert.equal(analysis.extractedDocument.buyer, "Northstar Distribution LLC");
   assert.equal(analysis.extractedDocument.items.length, 2);
   assert.equal(analysis.extractedDocument.items[0]?.hsCode, "940542");
@@ -187,7 +187,7 @@ try {
   assert.equal(analysis.declaredTotal, 370);
   assert.ok(analysis.confidence > 0.8);
 
-  const csv = Buffer.from("PROFORMA INVOICE,,,,,,,\nInvoice No,PI-CSV-001,Invoice Date,2026-08-13,,,,,\nSeller,Meridian Export Limited,Buyer,Northstar Distribution LLC,,,,,\nDescription,Model,HS Code,Quantity,Unit,Unit Price,Amount,Country of Origin\nLED Flood Light,FL-200,940542,10,PCS,25,250,China\nGrand Total,250,,,,,,\n");
+  const csv = Buffer.from("PROFORMA INVOICE,,,,,,,\nInvoice No,PI-CSV-001,Invoice Date,2026-08-13,,,,,\nSeller,Keduoduo Export Limited,Buyer,Northstar Distribution LLC,,,,,\nDescription,Model,HS Code,Quantity,Unit,Unit Price,Amount,Country of Origin\nLED Flood Light,FL-200,940542,10,PCS,25,250,China\nGrand Total,250,,,,,,\n");
   const csvResponse = await request("/api/trade-document-imports/analyze", otherTeam, {
     method: "POST",
     headers: { "content-type": "application/octet-stream", "x-file-name": encodeURIComponent("sample.csv"), "x-file-type": "text/csv" },
@@ -309,19 +309,19 @@ try {
 } finally {
   server.close();
   if (createdAnalysisId) {
-    const importsDir = path.resolve(process.env.MERIDIAN_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"), ".trade-document-imports");
+    const importsDir = path.resolve(process.env.KEDUODUO_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"), ".trade-document-imports");
     await rm(path.join(importsDir, `${createdAnalysisId}.xlsx`), { force: true }).catch(() => undefined);
   }
   if (secondAnalysisId) {
-    const importsDir = path.resolve(process.env.MERIDIAN_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"), ".trade-document-imports");
+    const importsDir = path.resolve(process.env.KEDUODUO_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"), ".trade-document-imports");
     await rm(path.join(importsDir, `${secondAnalysisId}.xlsx`), { force: true }).catch(() => undefined);
   }
   if (csvAnalysisId) {
-    const importsDir = path.resolve(process.env.MERIDIAN_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"), ".trade-document-imports");
+    const importsDir = path.resolve(process.env.KEDUODUO_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"), ".trade-document-imports");
     await rm(path.join(importsDir, `${csvAnalysisId}.csv`), { force: true }).catch(() => undefined);
   }
   if (pdfAnalysisId) {
-    const importsDir = path.resolve(process.env.MERIDIAN_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"), ".trade-document-imports");
+    const importsDir = path.resolve(process.env.KEDUODUO_UPLOADS_DIR?.trim() || path.resolve(process.cwd(), "uploads"), ".trade-document-imports");
     await rm(path.join(importsDir, `${pdfAnalysisId}.pdf`), { force: true }).catch(() => undefined);
   }
 }

@@ -19,7 +19,7 @@ import { WeComConnectorDriver } from "./drivers/wecom-connector-driver.js";
 
 const config = loadIntegrationWorkerConfig();
 if (!config.enabled) {
-  console.log("Meridian Integration Worker disabled by INTEGRATION_ENABLED=false");
+  console.log("Keduoduo Integration Worker disabled by INTEGRATION_ENABLED=false");
   process.exit(0);
 }
 
@@ -56,7 +56,7 @@ const server = createServer((request, response) => {
 });
 
 server.listen(config.port, config.host, () => {
-  console.log(`Meridian Integration Worker listening on http://${config.host}:${config.port}`);
+  console.log(`Keduoduo Integration Worker listening on http://${config.host}:${config.port}`);
 });
 
 let closing = false;

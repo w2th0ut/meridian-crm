@@ -4,11 +4,11 @@ umask 027
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="${SOURCE_DIR:-$SCRIPT_DIR}"
-APP_ROOT="${APP_ROOT:-/opt/meridian-crm}"
-APP_USER="${APP_USER:-meridian-crm}"
-SERVICE_NAME="${SERVICE_NAME:-meridian-crm}"
-DB_NAME="${DB_NAME:-meridian_crm}"
-DB_USER="${DB_USER:-meridian}"
+APP_ROOT="${APP_ROOT:-/opt/keduoduo-crm}"
+APP_USER="${APP_USER:-keduoduo-crm}"
+SERVICE_NAME="${SERVICE_NAME:-keduoduo-crm}"
+DB_NAME="${DB_NAME:-keduoduo_crm}"
+DB_USER="${DB_USER:-keduoduo}"
 DB_PASSWORD="${DB_PASSWORD:-}"
 JWT_SECRET="${JWT_SECRET:-}"
 PROVIDER_CREDENTIAL_KEY="${PROVIDER_CREDENTIAL_KEY:-}"
@@ -67,7 +67,7 @@ die() {
 
 usage() {
   cat <<'EOF'
-Meridian CRM Ubuntu 无 Docker 一键部署脚本
+Keduoduo CRM Ubuntu 无 Docker 一键部署脚本
 
 用法：
   sudo bash deploy-ubuntu.sh
@@ -76,12 +76,12 @@ Meridian CRM Ubuntu 无 Docker 一键部署脚本
 
 常用环境变量：
   SOURCE_DIR           源码目录，默认是脚本所在目录
-  APP_ROOT             部署根目录，默认 /opt/meridian-crm
+  APP_ROOT             部署根目录，默认 /opt/keduoduo-crm
   DOMAIN               域名；留空时使用服务器 IP
   ENABLE_HTTPS         true/false，默认 false
   LETSENCRYPT_EMAIL    申请 HTTPS 证书使用的邮箱
-  DB_NAME              数据库名，默认 meridian_crm
-  DB_USER              数据库用户，默认 meridian
+  DB_NAME              数据库名，默认 keduoduo_crm
+  DB_USER              数据库用户，默认 keduoduo
   DB_PASSWORD          数据库密码；首次部署留空会自动生成
   JWT_SECRET           会话签名密钥；留空自动生成并持久化
   PROVIDER_CREDENTIAL_KEY Provider 连接密钥加密主密钥；留空自动生成并持久化
@@ -483,7 +483,7 @@ log "读取 MySQL 现有结构并执行幂等增量迁移（不创建数据库�
 runuser -u "$APP_USER" -- env \
   HOME="/var/lib/$APP_USER" \
   DATABASE_URL="$database_url" \
-  MERIDIAN_RELEASE_ID="$RELEASE_ID" \
+  KEDUODUO_RELEASE_ID="$RELEASE_ID" \
   node "$RELEASE_DIR/backend/dist/migrate-mysql.js"
 
 SERVER_IP="${SERVER_IP:-$(hostname -I | awk '{print $1}')}"
@@ -516,7 +516,7 @@ INBOUND_MAIL_LOOKBACK_DAYS=7
 INBOUND_MAIL_MAX_MESSAGES_PER_POLL=100
 INBOUND_MAIL_MAX_SOURCE_BYTES=2097152
 EMAIL_TRACKING_BASE_URL=$([[ -n "$DOMAIN" ]] && is_true "$ENABLE_HTTPS" && printf 'https://%s' "$DOMAIN")
-EMAIL_MESSAGE_ID_DOMAIN=${DOMAIN:-meridian-crm.local}
+EMAIL_MESSAGE_ID_DOMAIN=${DOMAIN:-keduoduo-crm.local}
 OUTBOUND_EMAIL_DAILY_LIMIT=50
 OUTBOUND_EMAIL_DOMAIN_WINDOW_MINUTES=10
 OUTBOUND_EMAIL_DOMAIN_WINDOW_LIMIT=5
@@ -541,7 +541,7 @@ ln -sfn "$ENV_FILE" "$RELEASE_DIR/.env"
 log "6/9 配置 systemd 服务"
 cat > "/etc/systemd/system/$SERVICE_NAME.service" <<EOF
 [Unit]
-Description=Meridian CRM API
+Description=Keduoduo CRM API
 After=network-online.target mysql.service
 Wants=network-online.target
 Requires=mysql.service
@@ -679,7 +679,7 @@ if is_true "$ENABLE_HTTPS"; then
   access_url="https://$DOMAIN"
 fi
 
-printf '\n\033[1;32mMeridian CRM 部署成功。\033[0m\n'
+printf '\n\033[1;32mKeduoduo CRM 部署成功。\033[0m\n'
 printf '访问地址：%s\n' "$access_url"
 printf '服务状态：systemctl status %s\n' "$SERVICE_NAME"
 printf '实时日志：journalctl -u %s -f\n' "$SERVICE_NAME"

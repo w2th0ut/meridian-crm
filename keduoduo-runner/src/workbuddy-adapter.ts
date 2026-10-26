@@ -30,11 +30,11 @@ export interface WorkBuddyExecutionResult {
 
 /**
  * 解析 WorkBuddy CLI 可执行文件：
- * 1) MERIDIAN_WORKBUDDY_BIN 显式指定；
+ * 1) KEDUODUO_WORKBUDDY_BIN 显式指定；
  * 2) macOS 上 WorkBuddy.app 自带的 codebuddy；
  * 3) 回退到 PATH 里的 codebuddy（未安装时版本探测会返回空，能力自动关闭）。
  */
-export function resolveWorkbuddyBinary(configured = process.env.MERIDIAN_WORKBUDDY_BIN || "") {
+export function resolveWorkbuddyBinary(configured = process.env.KEDUODUO_WORKBUDDY_BIN || "") {
   if (configured) return configured;
   // 独立版 CLI（npm 安装，支持 /login 与完整 headless）优先；
   // 桌面端内置 CLI 是 headless-only 且无法 /login（2026-10-06 实锤：
@@ -149,8 +149,8 @@ export function workbuddyProcessEnvironment(): NodeJS.ProcessEnv {
  * 根因（2026-10-10 实测定位）：CLI（CodeBuddy Code）自己只扫描
  * `<cwd>/.codebuddy/skills/`、`~/.codebuddy/skills/` 与 connector 目录，
  * **不认 WorkBuddy 桌面版约定的 `.workbuddy/skills/`**。同仓对照实验：
- * 同时放 `.codebuddy/skills/meridian-alpha` 与 `.workbuddy/skills/meridian-beta`，
- * CLI 自报 alpha 已注册、beta MISSING。也就是说四个 meridian 技能包虽然
+ * 同时放 `.codebuddy/skills/keduoduo-alpha` 与 `.workbuddy/skills/keduoduo-beta`，
+ * CLI 自报 alpha 已注册、beta MISSING。也就是说四个 keduoduo 技能包虽然
  * 放在仓库里并进了版本控制，**在 CLI 任务中从未被加载过**（此前所有
  * 「技能评分/重写」都作用不到真实任务上）。
  *
@@ -160,11 +160,11 @@ export function workbuddyProcessEnvironment(): NodeJS.ProcessEnv {
  * 把路径喂过去。（技能内容自 2026-10-10 r42 起**不进版本库**，改为独立成品包
  * 分发——本函数只关心「目录在哪」，不关心它从哪来。）
  *
- * 覆盖顺序：`MERIDIAN_SKILLS_DIRS`（部署方显式指定，支持多目录）> `<workspace>/.workbuddy/skills`。
+ * 覆盖顺序：`KEDUODUO_SKILLS_DIRS`（部署方显式指定，支持多目录）> `<workspace>/.workbuddy/skills`。
  * 目录不存在时返回空串，不注入——让 CLI 保持默认行为，不因为一个空路径报错。
  */
 export function workbuddySkillDirs(workspace: string): string {
-  const configured = String(process.env.MERIDIAN_SKILLS_DIRS || "").trim();
+  const configured = String(process.env.KEDUODUO_SKILLS_DIRS || "").trim();
   if (configured) return configured;
   const local = join(workspace, ".workbuddy", "skills");
   return existsSync(local) ? local : "";

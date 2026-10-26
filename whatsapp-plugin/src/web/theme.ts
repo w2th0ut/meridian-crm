@@ -8,7 +8,7 @@
  *
  * 通道有两条，互为兜底：
  *  1. 首次装载：宿主在 iframe 的 URL 上带 `?brand=…&brandStrong=…&brandTint=…&brandRing=…`。
- *  2. 装载后换肤：宿主 `postMessage({ type: "meridian:theme", tokens })`，插件即时覆盖。
+ *  2. 装载后换肤：宿主 `postMessage({ type: "keduoduo:theme", tokens })`，插件即时覆盖。
  *
  * 刻意**不**在插件里复制 CRM 的 15 套预设：CRM 还支持自定义取色（把 `--brand` 等
  * 以行内样式挂在 `<html>` 上，见宿主 `applyTheme()`），预设表既复制不过来、也必然过期。
@@ -23,7 +23,7 @@ export type HostThemeTokens = Partial<{
 }>;
 
 /** 宿主 → iframe 的主题消息类型。宿主侧同名常量见 frontend/src/prototype-api.ts。 */
-export const HOST_THEME_MESSAGE = "meridian:theme";
+export const HOST_THEME_MESSAGE = "keduoduo:theme";
 
 /**
  * 宿主令牌名 → 插件令牌名。

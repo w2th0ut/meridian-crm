@@ -4,7 +4,7 @@ import path from "node:path";
 import type { RunnerConfig } from "./types.js";
 
 export function runnerConfigPath() {
-  return process.env.MERIDIAN_RUNNER_CONFIG || path.join(homedir(), ".meridian", "runner.json");
+  return process.env.KEDUODUO_RUNNER_CONFIG || path.join(homedir(), ".keduoduo", "runner.json");
 }
 
 export function normalizeServerUrl(raw: string) {
@@ -39,7 +39,7 @@ export async function loadConfig() {
   try {
     parsed = JSON.parse(await readFile(runnerConfigPath(), "utf8"));
   } catch {
-    throw new Error("尚未配对，请先在 CRM 创建配对码并执行 meridian-runner pair");
+    throw new Error("尚未配对，请先在 CRM 创建配对码并执行 keduoduo-runner pair");
   }
   const value = parsed as Partial<RunnerConfig>;
   if (!value.serverUrl || !value.runnerId || !value.token || !Array.isArray(value.workspaces) || !value.workspaces.length) {

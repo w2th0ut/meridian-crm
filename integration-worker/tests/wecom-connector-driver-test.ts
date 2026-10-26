@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { runConnectorDriverComplianceSuite, type ConnectorManifest } from "@meridian/integration-connector-sdk";
+import { runConnectorDriverComplianceSuite, type ConnectorManifest } from "@keduoduo/integration-connector-sdk";
 import { WeComConnectorDriver } from "../src/drivers/wecom-connector-driver.js";
 import type { DriverRuntimeContext } from "../src/drivers/connector-driver.js";
 
@@ -32,11 +32,11 @@ const server = createServer(async (request, response) => {
   }
 
   if (url.pathname === "/wecom/cgi-bin/agent/get" && url.searchParams.get("access_token") === "app-token") {
-    return response.end(JSON.stringify({ errcode: 0, errmsg: "ok", agentid: 1000002, name: "Meridian CRM" }));
+    return response.end(JSON.stringify({ errcode: 0, errmsg: "ok", agentid: 1000002, name: "Keduoduo CRM" }));
   }
   if (url.pathname === "/wecom/cgi-bin/department/list" && url.searchParams.get("access_token") === "app-token") {
     return response.end(JSON.stringify({ errcode: 0, errmsg: "ok", department: [
-      { id: 1, name: "Meridian", parentid: 0, order: 100 },
+      { id: 1, name: "Keduoduo", parentid: 0, order: 100 },
       { id: 2, name: "外贸一部", parentid: 1, order: 90 }
     ] }));
   }

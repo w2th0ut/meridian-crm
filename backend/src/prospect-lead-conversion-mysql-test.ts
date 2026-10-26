@@ -945,7 +945,7 @@ async function main() {
   const adminUrl = new URL(adminConnectionUrl);
   const appUrl = new URL(applicationUrl);
   const databaseName =
-    `meridian_conversion_test_${
+    `keduoduo_conversion_test_${
       randomUUID().replaceAll("-", "").slice(0, 16)
     }`;
   const admin = await mysql.createConnection(connectionOptions(adminUrl));

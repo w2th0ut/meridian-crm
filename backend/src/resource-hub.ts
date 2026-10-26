@@ -43,7 +43,7 @@ export const MAX_VECTOR_CANDIDATES = 200;
 /** 检索内部预算；超时返回已完成的部分 + warnings，绝不 500。 */
 export const RESOURCE_SEARCH_BUDGET_MS = 2_000;
 /** 向量模型标识。批 2 的补齐任务与检索两侧必须用同一个值，否则查不到向量。 */
-export const RESOURCE_HUB_EMBEDDING_MODEL = "meridian-resource-hub-v1";
+export const RESOURCE_HUB_EMBEDDING_MODEL = "keduoduo-resource-hub-v1";
 /** 排序权重（四路和为 1）。 */
 export const RESOURCE_SCORE_WEIGHTS = { lexical: 0.52, structured: 0.2, semantic: 0.16, vector: 0.12 } as const;
 

@@ -8,7 +8,7 @@ function Test-IsWindowsPlatform {
     return [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
 }
 
-function New-MeridianContext {
+function New-KeduoduoContext {
     param(
         [Parameter(Mandatory = $true)][string]$PackageRoot,
         [string]$DataRoot = ""
@@ -17,7 +17,7 @@ function New-MeridianContext {
     if ([string]::IsNullOrWhiteSpace($DataRoot)) {
         $localData = [Environment]::GetEnvironmentVariable("LOCALAPPDATA")
         if ([string]::IsNullOrWhiteSpace($localData)) { throw "无法确定当前用户的 LOCALAPPDATA 目录" }
-        $DataRoot = Join-Path $localData "MeridianCRM"
+        $DataRoot = Join-Path $localData "KeduoduoCRM"
     }
     $resolvedDataRoot = [IO.Path]::GetFullPath($DataRoot)
     $context = [ordered]@{
@@ -57,7 +57,7 @@ function New-MeridianContext {
     return $context
 }
 
-function Initialize-MeridianDirectories {
+function Initialize-KeduoduoDirectories {
     param([Parameter(Mandatory = $true)]$Context)
     @(
         $Context.ConfigRoot, $Context.DatabaseRoot, $Context.UploadsRoot,
@@ -66,16 +66,16 @@ function Initialize-MeridianDirectories {
     ) | ForEach-Object { [IO.Directory]::CreateDirectory($_) | Out-Null }
 }
 
-function Start-MeridianLog {
+function Start-KeduoduoLog {
     param([Parameter(Mandatory = $true)]$Context, [string]$Prefix = "launcher")
-    Initialize-MeridianDirectories -Context $Context
+    Initialize-KeduoduoDirectories -Context $Context
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $script:LogFile = Join-Path $Context.LogsRoot "$Prefix-$stamp.log"
     New-Item -ItemType File -Path $script:LogFile -Force | Out-Null
     return $script:LogFile
 }
 
-function Write-MeridianLog {
+function Write-KeduoduoLog {
     param(
         [Parameter(Mandatory = $true)][string]$Message,
         [ValidateSet("INFO", "OK", "WARN", "ERROR")][string]$Level = "INFO",
@@ -95,10 +95,10 @@ function Write-MeridianLog {
     if ($script:LogFile) { Add-Content -LiteralPath $script:LogFile -Value $line -Encoding UTF8 }
 }
 
-function Write-MeridianFailure {
+function Write-KeduoduoFailure {
     param([Parameter(Mandatory = $true)]$ErrorRecord, [string]$Stage = "未分类")
     $message = if ($ErrorRecord.Exception) { $ErrorRecord.Exception.Message } else { [string]$ErrorRecord }
-    Write-MeridianLog -Level ERROR -Message "$Stage：$message"
+    Write-KeduoduoLog -Level ERROR -Message "$Stage：$message"
     if ($script:LogFile) {
         Add-Content -LiteralPath $script:LogFile -Value ($ErrorRecord | Out-String) -Encoding UTF8
         Write-Host "详细日志：$script:LogFile" -ForegroundColor Yellow
@@ -123,7 +123,7 @@ function New-SafePassword {
     return -join ($buffer | ForEach-Object { $alphabet[$_ % $alphabet.Length] })
 }
 
-function Protect-MeridianFile {
+function Protect-KeduoduoFile {
     param([Parameter(Mandatory = $true)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) { return }
     if (Test-IsWindowsPlatform) {
@@ -158,7 +158,7 @@ function Set-ProcessEnvironment {
     }
 }
 
-function Initialize-MeridianConfiguration {
+function Initialize-KeduoduoConfiguration {
     param([Parameter(Mandatory = $true)]$Context)
     if (-not (Test-Path -LiteralPath $Context.SecretsFile)) {
         $dbPassword = New-SafePassword
@@ -180,23 +180,23 @@ function Initialize-MeridianConfiguration {
             "ORGANIZATION_IDENTITY_MASTER_SECRET=$(New-SecureToken -Bytes 32)"
             "PROSPECT_SOURCE_RAW_ENVELOPE_SECRET=$(New-SecureToken -Bytes 32)"
             "PROSPECT_COVERAGE_MASTER_SECRET=$(New-SecureToken -Bytes 32)"
-            "INITIAL_ADMIN_EMAIL=admin@meridian.local"
+            "INITIAL_ADMIN_EMAIL=admin@keduoduo.local"
             "INITIAL_ADMIN_PASSWORD=$adminPassword"
-            "INITIAL_ADMIN_NAME=Meridian Admin"
+            "INITIAL_ADMIN_NAME=Keduoduo Admin"
         ) -join "`n"
         Write-Utf8File -Path $Context.SecretsFile -Content ($content + "`n")
-        Protect-MeridianFile -Path $Context.SecretsFile
+        Protect-KeduoduoFile -Path $Context.SecretsFile
         $credentialFile = Join-Path $Context.ConfigRoot "首次登录账号.txt"
-        Write-Utf8File -Path $credentialFile -Content "Meridian CRM 首次登录账号`r`n账号：admin@meridian.local`r`n密码：$adminPassword`r`n`r`n登录后请立即修改密码。`r`n"
-        Protect-MeridianFile -Path $credentialFile
+        Write-Utf8File -Path $credentialFile -Content "Keduoduo CRM 首次登录账号`r`n账号：admin@keduoduo.local`r`n密码：$adminPassword`r`n`r`n登录后请立即修改密码。`r`n"
+        Protect-KeduoduoFile -Path $credentialFile
     }
     if (-not (Test-Path -LiteralPath $Context.EnvironmentFile)) {
         $content = @(
             "API_PORT=$($Context.ApiPort)"
             "COMMUNICATION_PORT=$($Context.CommunicationPort)"
             "DATABASE_PORT=$($Context.DatabasePort)"
-            "DB_NAME=meridian_crm"
-            "DB_USER=meridian_app"
+            "DB_NAME=keduoduo_crm"
+            "DB_USER=keduoduo_app"
         ) -join "`n"
         Write-Utf8File -Path $Context.EnvironmentFile -Content ($content + "`n")
     }
@@ -205,7 +205,7 @@ function Initialize-MeridianConfiguration {
     }
 }
 
-function Convert-MeridianVersion {
+function Convert-KeduoduoVersion {
     param([string]$Value)
     $match = [regex]::Match($Value, '^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$')
     if (-not $match.Success) { throw "版本号格式无效：$Value" }
@@ -215,10 +215,10 @@ function Convert-MeridianVersion {
     }
 }
 
-function Compare-MeridianVersion {
+function Compare-KeduoduoVersion {
     param([string]$Left, [string]$Right)
-    $leftVersion = Convert-MeridianVersion -Value $Left
-    $rightVersion = Convert-MeridianVersion -Value $Right
+    $leftVersion = Convert-KeduoduoVersion -Value $Left
+    $rightVersion = Convert-KeduoduoVersion -Value $Right
     for ($index = 0; $index -lt 3; $index++) {
         if ($leftVersion.core[$index] -gt $rightVersion.core[$index]) { return 1 }
         if ($leftVersion.core[$index] -lt $rightVersion.core[$index]) { return -1 }
@@ -249,7 +249,7 @@ function Compare-MeridianVersion {
     return 0
 }
 
-function Get-MeridianConfiguration {
+function Get-KeduoduoConfiguration {
     param([Parameter(Mandatory = $true)]$Context)
     $values = Read-DotEnvFile -Path $Context.EnvironmentFile
     foreach ($entry in (Read-DotEnvFile -Path $Context.SecretsFile).GetEnumerator()) { $values[$entry.Key] = $entry.Value }
@@ -267,7 +267,7 @@ function Get-ActiveAppDirectory {
                 if (Test-Path -LiteralPath $bundled) {
                     $activeVersion = Get-AppVersion -AppDirectory $activeDirectory
                     $bundledVersion = Get-AppVersion -AppDirectory $bundled
-                    if ((Compare-MeridianVersion -Left $bundledVersion -Right $activeVersion) -gt 0) { return $bundled }
+                    if ((Compare-KeduoduoVersion -Left $bundledVersion -Right $activeVersion) -gt 0) { return $bundled }
                 }
                 return $activeDirectory
             }
@@ -298,7 +298,7 @@ function Test-PortAvailable {
     try { $listener.Start(); return $true } catch { return $false } finally { try { $listener.Stop() } catch { } }
 }
 
-function Assert-MeridianPorts {
+function Assert-KeduoduoPorts {
     param([Parameter(Mandatory = $true)]$Context, [switch]$AllowDatabaseInUse)
     $ports = @(
         @{ Name = "CRM"; Port = [int]$Context.ApiPort; Allow = $false },
@@ -347,7 +347,7 @@ function Test-OwnedProcess {
     } catch { return $false }
 }
 
-function Read-MeridianState {
+function Read-KeduoduoState {
     param([Parameter(Mandatory = $true)]$Context)
     if (-not (Test-Path -LiteralPath $Context.StateFile)) { return $null }
     try { return Get-Content -LiteralPath $Context.StateFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { return $null }
@@ -441,19 +441,19 @@ function Stop-OwnedProcess {
     $process = Get-Process -Id ([int]$PidValue) -ErrorAction SilentlyContinue
     if (-not $process) { return }
     if (-not (Test-OwnedProcess -PidValue $PidValue -ExpectedPath $ExpectedPath -ExpectedStartedAt $ExpectedStartedAt)) {
-        Write-MeridianLog -Level WARN -Message "拒绝停止 $Name：无法确认 PID $PidValue 属于 Meridian"
+        Write-KeduoduoLog -Level WARN -Message "拒绝停止 $Name：无法确认 PID $PidValue 属于 Keduoduo"
         return
     }
-    Write-MeridianLog -Message "正在停止 $Name（PID $PidValue）"
+    Write-KeduoduoLog -Message "正在停止 $Name（PID $PidValue）"
     try { $process.CloseMainWindow() | Out-Null } catch { }
     try { Stop-Process -Id ([int]$PidValue) -ErrorAction SilentlyContinue } catch { }
     try { Wait-Process -Id ([int]$PidValue) -Timeout $TimeoutSeconds -ErrorAction SilentlyContinue } catch { }
     if (Test-ProcessAlive -PidValue $PidValue) { Stop-Process -Id ([int]$PidValue) -Force -ErrorAction SilentlyContinue }
 }
 
-function Set-MeridianRuntimeEnvironment {
+function Set-KeduoduoRuntimeEnvironment {
     param([Parameter(Mandatory = $true)]$Context, [Parameter(Mandatory = $true)][string]$AppDirectory)
-    $config = Get-MeridianConfiguration -Context $Context
+    $config = Get-KeduoduoConfiguration -Context $Context
     $dbPasswordEncoded = [Uri]::EscapeDataString([string]$config.DB_PASSWORD)
     $databaseUrl = "mysql://$($config.DB_USER):$dbPasswordEncoded@127.0.0.1:$($Context.DatabasePort)/$($config.DB_NAME)"
     $values = @{
@@ -467,15 +467,15 @@ function Set-MeridianRuntimeEnvironment {
         COMMUNICATION_API_ORIGIN = "http://127.0.0.1:$($Context.CommunicationPort)"
         AGENT_SKILLS_DIR = (Join-Path $AppDirectory "agent-skills")
         AGENT_KNOWLEDGE_DIR = (Join-Path $AppDirectory "agent-knowledge")
-        MERIDIAN_DATA_DIR = $Context.DataRoot; MERIDIAN_APP_DIR = $AppDirectory
-        MERIDIAN_PACKAGE_ROOT = $Context.PackageRoot; MERIDIAN_UPLOADS_DIR = $Context.UploadsRoot
-        MERIDIAN_UPDATER_SCRIPT = (Join-Path $Context.PackageRoot "runtime\Update-Meridian.ps1")
-        MERIDIAN_UPDATE_CONFIG_FILE = $Context.UpdateConfigFile
-        MERIDIAN_UPDATE_PROGRESS_FILE = $Context.UpdateProgressFile
-        MERIDIAN_UPDATE_PUBLIC_KEY = (Join-Path $Context.PackageRoot "runtime\update-public-key.pem")
+        KEDUODUO_DATA_DIR = $Context.DataRoot; KEDUODUO_APP_DIR = $AppDirectory
+        KEDUODUO_PACKAGE_ROOT = $Context.PackageRoot; KEDUODUO_UPLOADS_DIR = $Context.UploadsRoot
+        KEDUODUO_UPDATER_SCRIPT = (Join-Path $Context.PackageRoot "runtime\Update-Keduoduo.ps1")
+        KEDUODUO_UPDATE_CONFIG_FILE = $Context.UpdateConfigFile
+        KEDUODUO_UPDATE_PROGRESS_FILE = $Context.UpdateProgressFile
+        KEDUODUO_UPDATE_PUBLIC_KEY = (Join-Path $Context.PackageRoot "runtime\update-public-key.pem")
         MYSQL_LOCAL_BACKUP_ENABLED = "true"; MYSQL_LOCAL_BACKUP_DIR = $Context.BackupsRoot
         MYSQL_LOCAL_BACKUP_RETENTION_DAYS = "30"; MYSQLDUMP_BIN = $Context.MariaDumpExe
-        MERIDIAN_MYSQL_CLIENT = $Context.MariaExe
+        KEDUODUO_MYSQL_CLIENT = $Context.MariaExe
         INITIAL_ADMIN_EMAIL = [string]$config.INITIAL_ADMIN_EMAIL
         INITIAL_ADMIN_PASSWORD = [string]$config.INITIAL_ADMIN_PASSWORD
         INITIAL_ADMIN_NAME = [string]$config.INITIAL_ADMIN_NAME
@@ -501,7 +501,7 @@ function Write-UpdateProgress {
     $payload = [ordered]@{ stage = $Stage; message = $Message; percent = $Percent; updatedAt = [DateTime]::UtcNow.ToString("o") }
     foreach ($entry in $Details.GetEnumerator()) { $payload[$entry.Key] = $entry.Value }
     Write-JsonAtomic -Path $Context.UpdateProgressFile -Value $payload
-    Write-MeridianLog -Message "$Message（$Percent%）"
+    Write-KeduoduoLog -Message "$Message（$Percent%）"
 }
 
 Export-ModuleMember -Function *

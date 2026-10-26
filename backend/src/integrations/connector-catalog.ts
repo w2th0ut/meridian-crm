@@ -2,7 +2,7 @@ import {
   canonicalManifestJson,
   connectorManifestHash,
   validateConnectorManifest
-} from "@meridian/integration-connector-sdk";
+} from "@keduoduo/integration-connector-sdk";
 import type { MysqlIntegrationControlRepository } from "./integration-control-repository.js";
 import type { ConnectorDefinition, ConnectorStatus, ConnectorType } from "./integration-types.js";
 

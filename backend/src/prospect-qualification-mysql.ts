@@ -36,8 +36,8 @@ import type {
 } from "./types.js";
 
 const PERSISTENCE_SCHEMA_VERSION = "prospect-qualification-mysql-v1";
-const SCHEMA_LOCK = "meridian_prospect_qualification_schema_v1";
-const HKDF_SALT = Buffer.from("meridian-prospect-qualification-v1", "utf8");
+const SCHEMA_LOCK = "keduoduo_prospect_qualification_schema_v1";
+const HKDF_SALT = Buffer.from("keduoduo-prospect-qualification-v1", "utf8");
 
 type QuerySource = Pick<mysql.Pool | mysql.PoolConnection, "query">;
 

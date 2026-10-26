@@ -422,7 +422,7 @@ describe("WhatsApp CRM Plugin API", () => {
     expect(second.body.conversation.id).toBe(first.body.conversation.id);
   });
 
-  it("imports a contact supplied by the parent Meridian CRM and preserves its external identity", async () => {
+  it("imports a contact supplied by the parent Keduoduo CRM and preserves its external identity", async () => {
     const response = await request(runtime.app)
       .post(`/api/v1/crm/contacts/gj_customer_42/import`)
       .send({
@@ -430,7 +430,7 @@ describe("WhatsApp CRM Plugin API", () => {
         externalContact: { id: "gj_customer_42", name: "Parent CRM buyer", phone: "+14155550199" }
       })
       .expect(201);
-    expect(response.body.crmContact).toMatchObject({ source: "meridian_crm", sourceContactId: "gj_customer_42", phone: "+14155550199" });
+    expect(response.body.crmContact).toMatchObject({ source: "keduoduo_crm", sourceContactId: "gj_customer_42", phone: "+14155550199" });
     expect(response.body.contact.crmContactId).toBe(response.body.crmContact.id);
   });
 

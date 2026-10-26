@@ -48,11 +48,11 @@ for (const [path, operations] of Object.entries(document.paths || {})) {
 
 const customerCreate = agentApiOperationContract("POST", "/api/customers", undefined, "write");
 assert.equal(customerCreate.authorizationPolicy, "direct_user_intent");
-assert.doesNotThrow(() => assertAgentOperationInput(customerCreate, { company: "meridian01" }));
-assert.throws(() => assertAgentOperationInput(customerCreate, { company: "meridian01", fabricatedPhone: "+15551234567" }), /不在接口契约/u);
+assert.doesNotThrow(() => assertAgentOperationInput(customerCreate, { company: "keduoduo01" }));
+assert.throws(() => assertAgentOperationInput(customerCreate, { company: "keduoduo01", fabricatedPhone: "+15551234567" }), /不在接口契约/u);
 assert.throws(() => assertAgentOperationInput(customerCreate, {}), /company/u);
 assert.doesNotThrow(() => assertAgentCompletionEvidence(customerCreate, { customer: { id: "c_1" } }));
-assert.throws(() => assertAgentCompletionEvidence(customerCreate, { customer: { company: "meridian01" } }), /缺少完成证据/u);
+assert.throws(() => assertAgentCompletionEvidence(customerCreate, { customer: { company: "keduoduo01" } }), /缺少完成证据/u);
 
 const bulkDelete = agentApiOperationContract("POST", "/api/customers/bulk-delete", undefined, "write");
 assert.equal(bulkDelete.authorizationPolicy, "explicit_confirmation");

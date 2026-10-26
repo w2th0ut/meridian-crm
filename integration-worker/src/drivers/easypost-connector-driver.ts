@@ -1,4 +1,4 @@
-import { validateConnectorManifest } from "@meridian/integration-connector-sdk";
+import { validateConnectorManifest } from "@keduoduo/integration-connector-sdk";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/client";
 import { createValidatedFetch, validateMcpEndpoint } from "../network-policy.js";
 import { normalizeToolList } from "../mcp/tool-schema.js";
@@ -111,7 +111,7 @@ export class EasyPostConnectorDriver extends OfficialApiConnectorDriver {
     const headers = new Headers(init.headers);
     headers.set("authorization", `Basic ${Buffer.from(`${apiKey}:`).toString("base64")}`);
     headers.set("accept", "application/json");
-    headers.set("user-agent", "Meridian-Integration-Worker/1.0");
+    headers.set("user-agent", "Keduoduo-Integration-Worker/1.0");
     if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
     if (context.requestId) headers.set("x-client-request-id", context.requestId.slice(0, 120));
     const response = await createValidatedFetch(this.policy(context))(url, { ...init, headers, signal: AbortSignal.timeout(context.timeoutMs) });

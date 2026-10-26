@@ -59,20 +59,20 @@ export function engineOutputContract() {
 /**
  * CLI 领域技能包的注册名 —— **唯一来源**。
  *
- * 这些名字必须与技能包（`Meridian-CLI-Skills-*.zip`，**独立分发、不在代码仓库里**）
+ * 这些名字必须与技能包（`Keduoduo-CLI-Skills-*.zip`，**独立分发、不在代码仓库里**）
  * 中 `.workbuddy/skills/<name>/SKILL.md` 的 frontmatter `name` 逐字一致；
  * Runner 把 `.workbuddy/skills/` 目录注入 CLI 的技能扫描路径
- * （`CODEBUDDY_SESSION_SKILL_DIRS`，见 meridian-runner/src/workbuddy-adapter.ts），
+ * （`CODEBUDDY_SESSION_SKILL_DIRS`，见 keduoduo-runner/src/workbuddy-adapter.ts），
  * 技能名对不上就等于没加载——**而且不会报错**，只表现为输出质量静默降档。
  *
  * 改名时改这里一处，四个提示词一起生效；`ai-engine-test.ts` 有断言把名字钉死在
  * 真实目录上（本机装了技能包就逐字核对 frontmatter），所以改名漏改会被测试挡住。
  */
 export const ENGINE_CLI_SKILLS = {
-  research: "meridian-company-research",
-  acquisition: "meridian-lead-acquisition",
-  tender: "meridian-tender-daily",
-  email: "meridian-outreach-email"
+  research: "keduoduo-company-research",
+  acquisition: "keduoduo-lead-acquisition",
+  tender: "keduoduo-tender-daily",
+  email: "keduoduo-outreach-email"
 } as const;
 
 /**
@@ -174,7 +174,7 @@ export function buildEmailCliPrompt(prompt: string) {
 }
 
 /**
- * 获客提示词包装：口径与 meridian-lead-acquisition（获客技能，见 ENGINE_CLI_SKILLS）一致——
+ * 获客提示词包装：口径与 keduoduo-lead-acquisition（获客技能，见 ENGINE_CLI_SKILLS）一致——
  * 只用公开来源、禁止编造、先核实再产出。CLI 拿到的是一次自包含的获客任务。
  */
 export function buildAcquisitionCliPrompt(input: {

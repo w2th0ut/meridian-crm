@@ -50,13 +50,13 @@ try {
   const login = await request("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({
-      email: "shirley@meridian.com",
-      password: "meridian123"
+      email: "shirley@keduoduo.com",
+      password: "keduoduo123"
     })
   });
   assert.equal(login.response.ok, true);
   const token = String(login.json.token || "");
-  const owner = store.users.find((item) => item.email === "shirley@meridian.com");
+  const owner = store.users.find((item) => item.email === "shirley@keduoduo.com");
   assert.ok(owner);
   const companyProfile = store.companyProfiles.find((item) =>
     item.teamId === owner.teamId
@@ -64,17 +64,17 @@ try {
   if (companyProfile) {
     originalCompanyProfile = structuredClone(companyProfile);
     Object.assign(companyProfile, {
-      companyName: "Meridian Test Exporter",
+      companyName: "Keduoduo Test Exporter",
       productSummary: "Industrial test products",
-      website: "https://meridian.example.test"
+      website: "https://keduoduo.example.test"
     });
   } else {
     insertedCompanyProfile = true;
     store.companyProfiles.push({
       teamId: owner.teamId,
-      companyName: "Meridian Test Exporter",
+      companyName: "Keduoduo Test Exporter",
       productSummary: "Industrial test products",
-      website: "https://meridian.example.test",
+      website: "https://keduoduo.example.test",
       address: "",
       phone: "",
       email: "",
@@ -111,9 +111,9 @@ try {
     smtpSecure: owner.smtpSecure
   };
   Object.assign(owner, {
-    outboundEmail: owner.outboundEmail || "sales@meridian.example.test",
-    smtpHost: owner.smtpHost || "smtp.meridian.example.test",
-    smtpUser: owner.smtpUser || "sales@meridian.example.test",
+    outboundEmail: owner.outboundEmail || "sales@keduoduo.example.test",
+    smtpHost: owner.smtpHost || "smtp.keduoduo.example.test",
+    smtpUser: owner.smtpUser || "sales@keduoduo.example.test",
     smtpPassword: owner.smtpPassword || "test-password",
     smtpPort: owner.smtpPort ?? 465,
     smtpSecure: owner.smtpSecure ?? true
@@ -345,7 +345,7 @@ try {
 } finally {
   setOutboundEmailDispatchObserverForTest(null);
   if (ownerMailOriginal) {
-    const ownerNow = store.users.find((item) => item.email === "shirley@meridian.com");
+    const ownerNow = store.users.find((item) => item.email === "shirley@keduoduo.com");
     if (ownerNow) Object.assign(ownerNow, ownerMailOriginal);
   }
   if (candidate) {

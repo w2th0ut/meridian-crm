@@ -1,11 +1,11 @@
 {
-  "name": "@meridian/local-runner",
+  "name": "@keduoduo/local-runner",
   "version": "0.1.0",
-  "description": "Meridian CRM local execution bridge",
+  "description": "Keduoduo CRM local execution bridge",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "meridian-runner": "dist/cli.js"
+    "keduoduo-runner": "dist/cli.js"
   },
   "files": [
     "dist",

@@ -14,7 +14,7 @@ export function deriveWebhookSecret(masterKey: string, context: {
 }) {
   if (masterKey.trim().length < 32) webhookError("INTEGRATION_WEBHOOK_NOT_CONFIGURED", "Webhook 主密钥无效", 503);
   return createHmac("sha256", masterKey)
-    .update(`meridian-webhook-v1\n${context.teamId}\n${context.ownerId}\n${context.connectionId}\n${context.webhookPublicId}`)
+    .update(`keduoduo-webhook-v1\n${context.teamId}\n${context.ownerId}\n${context.connectionId}\n${context.webhookPublicId}`)
     .digest("base64url");
 }
 

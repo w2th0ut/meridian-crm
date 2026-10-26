@@ -6,23 +6,23 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-Import-Module (Join-Path $PSScriptRoot "Meridian.Runtime.psm1") -Force
-$context = New-MeridianContext -PackageRoot $PackageRoot -DataRoot $DataRoot
-$log = Start-MeridianLog -Context $context -Prefix "launcher"
+Import-Module (Join-Path $PSScriptRoot "Keduoduo.Runtime.psm1") -Force
+$context = New-KeduoduoContext -PackageRoot $PackageRoot -DataRoot $DataRoot
+$log = Start-KeduoduoLog -Context $context -Prefix "launcher"
 $stage = "启动前检查"
 $mariaProcess = $null
 $communicationProcess = $null
 $crmProcess = $null
 
 try {
-    Write-MeridianLog -Message "Meridian CRM Windows 便携版启动" -Step 1 -Total 12
+    Write-KeduoduoLog -Message "Keduoduo CRM Windows 便携版启动" -Step 1 -Total 12
     if (-not (Test-IsWindowsPlatform)) { throw "一键启动器只支持 Windows 10/11 x64" }
     if (-not [Environment]::Is64BitOperatingSystem) { throw "仅支持 Windows x64 系统" }
     if ([Environment]::OSVersion.Version.Build -lt 17763) { throw "需要 Windows 10 1809 或更高版本" }
-    Initialize-MeridianDirectories -Context $context
+    Initialize-KeduoduoDirectories -Context $context
 
     $stage = "包完整性检查"
-    Write-MeridianLog -Message "检查内嵌 Node.js、MariaDB 与应用文件" -Step 2 -Total 12
+    Write-KeduoduoLog -Message "检查内嵌 Node.js、MariaDB 与应用文件" -Step 2 -Total 12
     @($context.NodeExe, $context.MariaExe, $context.MariaAdminExe, $context.MariaDumpExe) | ForEach-Object {
         if (-not (Test-Path -LiteralPath $_)) { throw "安装包缺少文件：$_" }
     }
@@ -33,14 +33,14 @@ try {
     }
 
     $stage = "配置初始化"
-    Write-MeridianLog -Message "创建独立数据目录并生成随机密钥" -Step 3 -Total 12
-    Initialize-MeridianConfiguration -Context $context
-    $config = Get-MeridianConfiguration -Context $context
+    Write-KeduoduoLog -Message "创建独立数据目录并生成随机密钥" -Step 3 -Total 12
+    Initialize-KeduoduoConfiguration -Context $context
+    $config = Get-KeduoduoConfiguration -Context $context
     $context.ApiPort = [int]$config.API_PORT
     $context.CommunicationPort = [int]$config.COMMUNICATION_PORT
     $context.DatabasePort = [int]$config.DATABASE_PORT
 
-    $existingState = Read-MeridianState -Context $context
+    $existingState = Read-KeduoduoState -Context $context
     $existingCrmPid = Get-StateValue -State $existingState -Name "crmPid"
     $existingNodePath = [string](Get-StateValue -State $existingState -Name "nodePath")
     $existingCrmStartedAt = [string](Get-StateValue -State $existingState -Name "crmStartedAt")
@@ -49,7 +49,7 @@ try {
             throw "状态文件中的 CRM PID $existingCrmPid 已被其他程序复用。请运行诊断并删除失效状态后重试"
         }
         if (Wait-HttpReady -Url "http://127.0.0.1:$($context.ApiPort)/api/health" -TimeoutSeconds 3) {
-            Write-MeridianLog -Level OK -Message "Meridian CRM 已经在运行"
+            Write-KeduoduoLog -Level OK -Message "Keduoduo CRM 已经在运行"
             if (-not $NoBrowser) { Start-Process "http://127.0.0.1:$($context.ApiPort)" }
             exit 0
         }
@@ -66,11 +66,11 @@ try {
     $databasePid = if ($databaseAlreadyRunning) { [int]$existingDatabasePid } else { 0 }
 
     $stage = "端口检查"
-    Write-MeridianLog -Message "确认三个本地端口不会连接到其他服务" -Step 4 -Total 12
-    Assert-MeridianPorts -Context $context -AllowDatabaseInUse:$databaseAlreadyRunning
+    Write-KeduoduoLog -Message "确认三个本地端口不会连接到其他服务" -Step 4 -Total 12
+    Assert-KeduoduoPorts -Context $context -AllowDatabaseInUse:$databaseAlreadyRunning
 
     $stage = "MariaDB 初始化"
-    Write-MeridianLog -Message "初始化包内 MariaDB 数据目录" -Step 5 -Total 12
+    Write-KeduoduoLog -Message "初始化包内 MariaDB 数据目录" -Step 5 -Total 12
     $databaseInitialized = Test-Path -LiteralPath (Join-Path $context.DatabaseRoot "mysql")
     if (-not $databaseInitialized -and -not $databaseAlreadyRunning) {
         $installCandidates = @($context.MariaInstallExe, (Join-Path $context.MariaRoot "bin\mysql_install_db.exe"))
@@ -101,9 +101,9 @@ pid-file=$((Join-Path $context.StateRoot 'mariadb.pid').Replace('\','/'))
     Write-Utf8File -Path $context.DatabaseConfigFile -Content $myIni
 
     $stage = "MariaDB 启动"
-    Write-MeridianLog -Message "启动仅监听 127.0.0.1 的便携数据库" -Step 6 -Total 12
+    Write-KeduoduoLog -Message "启动仅监听 127.0.0.1 的便携数据库" -Step 6 -Total 12
     if ($databaseAlreadyRunning) {
-        Write-MeridianLog -Message "复用由 Meridian 启动的 MariaDB（PID $databasePid）"
+        Write-KeduoduoLog -Message "复用由 Keduoduo 启动的 MariaDB（PID $databasePid）"
     } else {
         $mariaProcess = Start-LoggedProcess -FilePath $context.MariaServerExe -Arguments @("--defaults-file=$($context.DatabaseConfigFile)", "--console") -WorkingDirectory $context.MariaRoot -LogBase (Join-Path $context.LogsRoot "mariadb")
         $databasePid = $mariaProcess.Id
@@ -122,7 +122,7 @@ pid-file=$((Join-Path $context.StateRoot 'mariadb.pid').Replace('\','/'))
     if (-not $ready) { throw "MariaDB 在 30 秒内未就绪，请查看 mariadb-error.log" }
 
     $stage = "数据库账号初始化"
-    Write-MeridianLog -Message "创建独立数据库与最小权限账号" -Step 7 -Total 12
+    Write-KeduoduoLog -Message "创建独立数据库与最小权限账号" -Step 7 -Total 12
     if (-not (Test-Path -LiteralPath $context.RootClientFile)) {
         $sql = @"
 CREATE DATABASE IF NOT EXISTS ``$($config.DB_NAME)`` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -135,19 +135,19 @@ FLUSH PRIVILEGES;
         Invoke-ExternalProcess -FilePath $context.MariaExe -Arguments @("--protocol=tcp", "--host=127.0.0.1", "--port=$($context.DatabasePort)", "--user=root") -StandardInput $sql -LogPath $log | Out-Null
         Write-Utf8File -Path $context.RootClientFile -Content "[client]`nhost=127.0.0.1`nport=$($context.DatabasePort)`nprotocol=tcp`nuser=root`npassword=$($config.DB_ROOT_PASSWORD)`n"
         Write-Utf8File -Path $context.AppClientFile -Content "[client]`nhost=127.0.0.1`nport=$($context.DatabasePort)`nprotocol=tcp`nuser=$($config.DB_USER)`npassword=$($config.DB_PASSWORD)`n"
-        Protect-MeridianFile -Path $context.RootClientFile
-        Protect-MeridianFile -Path $context.AppClientFile
+        Protect-KeduoduoFile -Path $context.RootClientFile
+        Protect-KeduoduoFile -Path $context.AppClientFile
     }
 
     $appDirectory = Get-ActiveAppDirectory -Context $context
-    Set-MeridianRuntimeEnvironment -Context $context -AppDirectory $appDirectory | Out-Null
+    Set-KeduoduoRuntimeEnvironment -Context $context -AppDirectory $appDirectory | Out-Null
 
     $stage = "CRM 数据迁移"
-    Write-MeridianLog -Message "执行幂等数据库迁移" -Step 8 -Total 12
+    Write-KeduoduoLog -Message "执行幂等数据库迁移" -Step 8 -Total 12
     Invoke-ExternalProcess -FilePath $context.NodeExe -Arguments @((Join-Path $appDirectory "backend\dist\migrate-mysql.js")) -WorkingDirectory (Join-Path $appDirectory "backend") -LogPath $log | Out-Null
 
     $stage = "Communication 数据迁移"
-    Write-MeridianLog -Message "核验 Communication 表结构" -Step 9 -Total 12
+    Write-KeduoduoLog -Message "核验 Communication 表结构" -Step 9 -Total 12
     [Environment]::SetEnvironmentVariable("DATABASE_CLIENT", "mysql", "Process")
     [Environment]::SetEnvironmentVariable("AUTO_MIGRATE", "false", "Process")
     [Environment]::SetEnvironmentVariable("SESSION_MASTER_KEY", [string]$config.SESSION_MASTER_KEY, "Process")
@@ -158,7 +158,7 @@ FLUSH PRIVILEGES;
     Invoke-ExternalProcess -FilePath $context.NodeExe -Arguments @((Join-Path $appDirectory "communication\dist-server\server\scripts\migrate.js")) -WorkingDirectory (Join-Path $appDirectory "communication") -LogPath $log | Out-Null
 
     $stage = "服务启动"
-    Write-MeridianLog -Message "启动 Communication 与 CRM" -Step 10 -Total 12
+    Write-KeduoduoLog -Message "启动 Communication 与 CRM" -Step 10 -Total 12
     $communicationProcess = Start-LoggedProcess -FilePath $context.NodeExe -Arguments @((Join-Path $appDirectory "communication\dist-server\server\index.js")) -WorkingDirectory (Join-Path $appDirectory "communication") -LogBase (Join-Path $context.LogsRoot "communication")
     [Environment]::SetEnvironmentVariable("PORT", [string]$context.ApiPort, "Process")
     [Environment]::SetEnvironmentVariable("HOST", $null, "Process")
@@ -174,18 +174,18 @@ FLUSH PRIVILEGES;
     })
 
     $stage = "健康检查"
-    Write-MeridianLog -Message "等待两个服务通过健康检查" -Step 11 -Total 12
+    Write-KeduoduoLog -Message "等待两个服务通过健康检查" -Step 11 -Total 12
     if (-not (Wait-HttpReady -Url "http://127.0.0.1:$($context.CommunicationPort)/api/health/ready" -TimeoutSeconds 60)) { throw "Communication 健康检查超时" }
     if (-not (Wait-HttpReady -Url "http://127.0.0.1:$($context.ApiPort)/api/health" -TimeoutSeconds 90)) { throw "CRM 健康检查超时" }
 
-    Write-MeridianLog -Level OK -Message "Meridian CRM 已启动：http://127.0.0.1:$($context.ApiPort)" -Step 12 -Total 12
+    Write-KeduoduoLog -Level OK -Message "Keduoduo CRM 已启动：http://127.0.0.1:$($context.ApiPort)" -Step 12 -Total 12
     Write-Host "数据目录：$($context.DataRoot)"
     Write-Host "日志目录：$($context.LogsRoot)"
     Write-Host "首次账号：$(Join-Path $context.ConfigRoot '首次登录账号.txt')"
     if (-not $NoBrowser) { Start-Process "http://127.0.0.1:$($context.ApiPort)" }
 } catch {
-    Write-MeridianFailure -ErrorRecord $_ -Stage $stage
-    $state = Read-MeridianState -Context $context
+    Write-KeduoduoFailure -ErrorRecord $_ -Stage $stage
+    $state = Read-KeduoduoState -Context $context
     if ($state) {
         $stateNodePath = [string](Get-StateValue -State $state -Name "nodePath")
         Stop-OwnedProcess -PidValue (Get-StateValue -State $state -Name "crmPid") -Name "CRM" -ExpectedPath $stateNodePath -ExpectedStartedAt ([string](Get-StateValue -State $state -Name "crmStartedAt"))

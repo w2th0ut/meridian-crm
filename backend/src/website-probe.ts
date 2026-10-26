@@ -23,7 +23,7 @@ import type {
 } from "./types.js";
 
 const POLICY_VERSION = "website-probe-policy-v5-foreign-only" as const;
-const USER_AGENT = "MeridianCRM-WebsiteProbe/1.0";
+const USER_AGENT = "KeduoduoCRM-WebsiteProbe/1.0";
 const MAX_RESPONSE_BYTES = Math.max(
   64 * 1024,
   Math.min(512 * 1024, Number(process.env.WEBSITE_PROBE_MAX_RESPONSE_BYTES) || 256 * 1024)
@@ -1139,7 +1139,7 @@ async function executeAttempt(
     }
     const html = await bodyResponse.text();
     const responseBytes = Buffer.byteLength(html);
-    const bodyTruncated = bodyResponse.headers.get("x-meridian-response-truncated") === "true";
+    const bodyTruncated = bodyResponse.headers.get("x-keduoduo-response-truncated") === "true";
     const observedAt = nowIso();
     const homeEvidence = extractEvidence(
       html,
@@ -1190,7 +1190,7 @@ async function executeAttempt(
             const contactHtml = await contactResponse.text();
             contactHtmlForAi = contactHtml;
             contactBytes = Buffer.byteLength(contactHtml);
-            const contactTruncated = contactResponse.headers.get("x-meridian-response-truncated") === "true";
+            const contactTruncated = contactResponse.headers.get("x-keduoduo-response-truncated") === "true";
             contactEvidence = extractEvidence(
               contactHtml,
               contactResponse.url || selectedContactUrl,

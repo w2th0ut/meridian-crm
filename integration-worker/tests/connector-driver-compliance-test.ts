@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { runConnectorDriverComplianceSuite, type ConnectorManifest } from "@meridian/integration-connector-sdk";
+import { runConnectorDriverComplianceSuite, type ConnectorManifest } from "@keduoduo/integration-connector-sdk";
 import { NativeMcpConnectorDriver } from "../src/drivers/native-mcp-connector-driver.js";
 import { McpSessionManager } from "../src/mcp/mcp-session-manager.js";
 import type { DriverRuntimeContext } from "../src/drivers/connector-driver.js";

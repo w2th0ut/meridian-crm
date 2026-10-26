@@ -5,19 +5,19 @@ VERSION="${1:?用法：make-update.sh <version> <mirror-output-dir> [asset-base-
 MIRROR_DIR="${2:?请提供镜像源输出目录}"
 ASSET_BASE_URL="${3:-}"
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-PORTABLE_ZIP="$PROJECT_ROOT/dist-packages/Meridian-CRM-v$VERSION-Windows-x64-Portable.zip"
-PRIVATE_KEY="${MERIDIAN_UPDATE_PRIVATE_KEY:-}"
+PORTABLE_ZIP="$PROJECT_ROOT/dist-packages/Keduoduo-CRM-v$VERSION-Windows-x64-Portable.zip"
+PRIVATE_KEY="${KEDUODUO_UPDATE_PRIVATE_KEY:-}"
 
 [[ -f "$PORTABLE_ZIP" ]] || "$PROJECT_ROOT/scripts/build-windows-portable.sh" "$VERSION"
 [[ -n "$PRIVATE_KEY" && -f "$PRIVATE_KEY" ]] || {
-  printf '错误：需要设置 MERIDIAN_UPDATE_PRIVATE_KEY=/path/to/ed25519-private-key.pem\n' >&2
+  printf '错误：需要设置 KEDUODUO_UPDATE_PRIVATE_KEY=/path/to/ed25519-private-key.pem\n' >&2
   exit 1
 }
 
 mkdir -p "$MIRROR_DIR"
 MIRROR_DIR="$(cd "$MIRROR_DIR" && pwd)"
 mkdir -p "$MIRROR_DIR/releases/$VERSION"
-ASSET_NAME="meridian-app-$VERSION-win-x64.zip"
+ASSET_NAME="keduoduo-app-$VERSION-win-x64.zip"
 ASSET_PATH="$MIRROR_DIR/releases/$VERSION/$ASSET_NAME"
 TEMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TEMP_ROOT"' EXIT
@@ -44,7 +44,7 @@ cat > "$MIRROR_DIR/manifest.json" <<JSON
         "sha256": "$ASSET_SHA"
       },
       "changelog": "请填写本次更新内容",
-      "credits": "<p>Meridian CRM 安全更新：数据库备份成功后才会切换版本。</p>"
+      "credits": "<p>Keduoduo CRM 安全更新：数据库备份成功后才会切换版本。</p>"
     }
   }
 }
