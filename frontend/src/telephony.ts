@@ -448,7 +448,12 @@ function callDetail(call: CallRecord, voices: VoiceProfile[]): string {
 
 function bindCalls(root: HTMLElement) {
   root.querySelectorAll<HTMLElement>("[data-phone-tab]").forEach((button) => {
-    button.addEventListener("click", () => { activeTab = button.dataset.phoneTab || "calls"; renderCalls(root); });
+    button.addEventListener("click", () => {
+      activeTab = button.dataset.phoneTab || "calls";
+      // 「按对象」是聚合视图，切过去时重新取一次，避免看到旧快照
+      if (activeTab === "contacts") void loadPhone();
+      else renderCalls(root);
+    });
   });
   root.querySelectorAll<HTMLElement>("[data-call-open]").forEach((node) => {
     node.addEventListener("click", () => { selectedCallId = node.dataset.callOpen || ""; renderCalls(root); });
