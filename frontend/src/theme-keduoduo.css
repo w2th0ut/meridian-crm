@@ -1704,3 +1704,16 @@ html[data-ui="trade"] .kd-voice-greeting { color: var(--text) !important; font-s
   html[data-ui="trade"] .kd-run { grid-template-columns: 1fr auto; }
   html[data-ui="trade"] .kd-run p { grid-column: 1 / -1; }
 }
+
+/* 话机：对象维度 */
+html[data-ui="trade"] .kd-contact-list { display: grid; gap: 0; max-height: 62vh; overflow-y: auto; }
+html[data-ui="trade"] .kd-contact-filter {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 9px; padding: 7px 10px; border: 1px solid var(--rule); background: var(--seal-wash);
+  color: var(--graphite); font-size: 11px;
+}
+html[data-ui="trade"] .kd-contact-filter b { color: var(--seal-deep); font-weight: 650; }
+html[data-ui="trade"] .kd-contact-filter button {
+  margin-left: auto; padding: 2px 8px; border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--ink); background: var(--leaf); font-size: 10.5px; cursor: pointer;
+}

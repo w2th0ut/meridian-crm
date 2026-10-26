@@ -30,6 +30,13 @@ interface Strategy {
   target: { grades: string[]; countries: string[]; categories: string[]; tags: string[]; idleDays: number; limit: number };
   voiceProfileId: string; script: string; enabled: boolean; nextRunAt: string; lastRunAt: string; generatedCount: number;
 }
+interface ContactSummary {
+  key: string; customerId: string; customerName: string; numbers: string[];
+  calls: number; answered: number; durationSec: number; lastCallAt: string;
+  categories: Array<{ name: string; count: number }>;
+  tags: Array<{ name: string; count: number }>;
+  maxRound: number; strategyCalls: number; latestCallId: string;
+}
 interface RunLog { id: string; strategyId: string; at: string; dispatched: number; skipped: string; callIds: string[]; round: number }
 interface TelephonySettingsView {
   provider: "aliyun" | "simulator"; aliyunCccInstanceId: string; aliyunSkillGroupId: string;
@@ -43,6 +50,7 @@ interface Snapshot {
   calls: CallRecord[];
   strategies: Strategy[];
   runs: RunLog[];
+  contacts?: ContactSummary[];
 }
 
 const VOICE_OPTIONS: Array<{ code: string; label: string }> = [
@@ -68,6 +76,7 @@ const CATEGORY_TONE: Record<string, string> = {
 let snapshot: Snapshot | null = null;
 let selectedCallId = "";
 let activeTab = "calls";
+let contactFilter = "";
 let pollTimer = 0;
 
 function esc(value: unknown): string {
@@ -295,21 +304,26 @@ function bindWorkspace(root: HTMLElement) {
 function renderCalls(root: HTMLElement) {
   const calls = snapshot?.calls || [];
   const selected = calls.find((call) => call.id === selectedCallId) || calls[0] || null;
-  const tabs = [
+  const contacts = snapshot?.contacts || [];
+  const tabs: Array<[string, string]> = [
     ["calls", "全部"],
     ["completed", "已接通"],
     ["no_answer", "未接听"],
-    ["strategy", "回访任务"]
+    ["strategy", "回访任务"],
+    ["contacts", "按对象"]
   ];
+  const byContact = contactFilter
+    ? calls.filter((call) => (call.customerId || `number:${call.toNumber}`) === contactFilter)
+    : calls;
   const filtered = activeTab === "strategy"
-    ? calls.filter((call) => Boolean(call.strategyId))
-    : activeTab === "calls" ? calls : calls.filter((call) => call.status === activeTab);
+    ? byContact.filter((call) => Boolean(call.strategyId))
+    : activeTab === "calls" ? byContact : activeTab === "contacts" ? byContact : byContact.filter((call) => call.status === activeTab);
 
   root.innerHTML = `
     <header class="page-head">
       <div>
         <h1>通话记录</h1>
-        <p class="sub">每段对话都可播放、逐句查看、打标签并分类；转写可人工修正。</p>
+        <p class="sub">每段对话都可播放、逐句查看、打标签并分类；「按对象」可按客户看累计分类与标签。</p>
       </div>
       <div class="head-actions">
         <button class="btn" type="button" data-phone-refresh>刷新</button>
@@ -320,11 +334,22 @@ function renderCalls(root: HTMLElement) {
     <div class="kd-calls-layout">
       <section class="panel section kd-calls-pane">
         <div class="kd-calls-tabs" role="tablist">
-          ${tabs.map(([key, label]) => `<button type="button" role="tab" class="${activeTab === key ? "active" : ""}" data-phone-tab="${key}">${label}<b>${key === "strategy" ? calls.filter((c) => c.strategyId).length : key === "calls" ? calls.length : calls.filter((c) => c.status === key).length}</b></button>`).join("")}
+          ${tabs.map(([key, label]) => {
+            const count = key === "contacts" ? contacts.length
+              : key === "strategy" ? calls.filter((c) => c.strategyId).length
+              : key === "calls" ? calls.length
+              : calls.filter((c) => c.status === key).length;
+            return `<button type="button" role="tab" class="${activeTab === key ? "active" : ""}" data-phone-tab="${key}">${label}<b>${count}</b></button>`;
+          }).join("")}
         </div>
-        <div class="kd-call-list kd-call-list-tall">
-          ${filtered.length ? filtered.map(callRow).join("") : `<div class="empty-cell">没有符合条件的通话</div>`}
-        </div>
+        ${contactFilter ? `<div class="kd-contact-filter">当前对象：<b>${esc(contacts.find((item) => item.key === contactFilter)?.customerName || contactFilter)}</b><button type="button" data-contact-clear>查看全部对象</button></div>` : ""}
+        ${activeTab === "contacts"
+          ? `<div class="kd-contact-list">
+              ${contacts.length ? contacts.map(contactRow).join("") : `<div class="empty-cell">还没有对象记录。拨出一通电话后，这里会按客户聚合。</div>`}
+            </div>`
+          : `<div class="kd-call-list kd-call-list-tall">
+              ${filtered.length ? filtered.map(callRow).join("") : `<div class="empty-cell">没有符合条件的通话</div>`}
+            </div>`}
       </section>
       <section class="panel section kd-call-detail" id="kdCallDetail">
         ${selected ? callDetail(selected, snapshot?.voiceProfiles || []) : `<div class="empty-cell">选择一条通话查看录音与转写</div>`}
@@ -332,6 +357,22 @@ function renderCalls(root: HTMLElement) {
     </div>`;
 
   bindCalls(root);
+}
+
+function contactRow(contact: ContactSummary): string {
+  const topCategory = contact.categories[0];
+  const tags = contact.tags.slice(0, 3).map((tag) => `<span class="kd-tag is-auto">${esc(tag.name)}${tag.count > 1 ? ` ×${tag.count}` : ""}</span>`).join("");
+  return `<button type="button" class="kd-call-row" data-contact-open="${esc(contact.key)}">
+    <span class="kd-call-main">
+      <b>${esc(contact.customerName)}</b>
+      <small>${contact.calls} 通 · 接通 ${contact.answered} · 累计 ${seconds(contact.durationSec)} · 最近 ${esc(clock(contact.lastCallAt))}${contact.maxRound ? ` · 第 ${contact.maxRound} 轮` : ""}</small>
+    </span>
+    <span class="kd-call-meta">
+      ${topCategory ? `<span class="kd-category${toneClass(CATEGORY_TONE[topCategory.name])}">${esc(topCategory.name)} ×${topCategory.count}</span>` : ""}
+      ${tags}
+    </span>
+    <span class="kd-status is-muted">${contact.numbers.length} 个号码</span>
+  </button>`;
 }
 
 function callDetail(call: CallRecord, voices: VoiceProfile[]): string {
@@ -411,6 +452,19 @@ function bindCalls(root: HTMLElement) {
   });
   root.querySelectorAll<HTMLElement>("[data-call-open]").forEach((node) => {
     node.addEventListener("click", () => { selectedCallId = node.dataset.callOpen || ""; renderCalls(root); });
+  });
+  root.querySelectorAll<HTMLElement>("[data-contact-open]").forEach((node) => {
+    node.addEventListener("click", () => {
+      contactFilter = node.dataset.contactOpen || "";
+      activeTab = "calls";
+      const latest = (snapshot?.contacts || []).find((item) => item.key === contactFilter)?.latestCallId;
+      if (latest) selectedCallId = latest;
+      renderCalls(root);
+    });
+  });
+  root.querySelector<HTMLElement>("[data-contact-clear]")?.addEventListener("click", () => {
+    contactFilter = "";
+    renderCalls(root);
   });
   root.querySelector<HTMLElement>("[data-phone-refresh]")?.addEventListener("click", () => void loadPhone(true));
   root.querySelector<HTMLElement>("[data-phone-goto]")?.addEventListener("click", (event) => {
@@ -859,6 +913,10 @@ const VIEW_RENDERERS: Record<string, (root: HTMLElement) => void> = {
 export async function loadPhone(showToast = false): Promise<void> {
   try {
     snapshot = await api<Snapshot>("/api/telephony/snapshot");
+    // 对象维度单独聚合（按客户累计通话/分类/标签）
+    snapshot.contacts = await api<{ contacts: ContactSummary[] }>("/api/telephony/contacts")
+      .then((result) => result.contacts)
+      .catch(() => snapshot?.contacts || []);
     if (showToast) toast("话机数据已刷新");
     renderActiveView();
   } catch (error) {

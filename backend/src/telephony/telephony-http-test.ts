@@ -235,6 +235,14 @@ async function main() {
     assert.equal(attempt.status, 403);
   });
 
+  await step("对象维度接口按客户聚合通话", async () => {
+    const contacts = await call<{ contacts: Array<{ calls: number; categories: Array<{ name: string }>; tags: Array<{ name: string }> }> }>(admin, "/api/telephony/contacts");
+    assert.equal(contacts.status, 200);
+    assert.ok(contacts.data.contacts.length >= 1, "应至少聚合出一个对象");
+    const first = contacts.data.contacts[0];
+    assert.ok(first.calls >= 1);
+  });
+
   await step("健康自检可用", async () => {
     const health = await call<{ ok: boolean; provider: string; store: string }>(admin, "/api/telephony/health");
     assert.equal(health.status, 200);

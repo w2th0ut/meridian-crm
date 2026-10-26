@@ -344,6 +344,85 @@ export class TelephonyService {
     return (await this.store()).listCalls(filter);
   }
 
+  /**
+   * 「对象」维度：按客户聚合通话——通话次数、累计时长、分类分布、标签分布、回访轮次。
+   * 没有客户 ID 的（纯号码外呼）按被叫号码归为一个对象。
+   */
+  async listContacts(filter: { ownerId?: string; teamId?: string; limit?: number } = {}) {
+    const calls = await this.listCalls({ ...filter, limit: 500 });
+    const groups = new Map<string, {
+      key: string;
+      customerId: string;
+      customerName: string;
+      numbers: Set<string>;
+      calls: number;
+      answered: number;
+      durationSec: number;
+      lastCallAt: string;
+      categories: Map<string, number>;
+      tags: Map<string, number>;
+      maxRound: number;
+      strategyCalls: number;
+      latestCallId: string;
+    }>();
+
+    for (const call of calls) {
+      const key = call.customerId || `number:${call.toNumber}`;
+      const current = groups.get(key) || {
+        key,
+        customerId: call.customerId,
+        customerName: call.customerName || call.toNumber,
+        numbers: new Set<string>(),
+        calls: 0,
+        answered: 0,
+        durationSec: 0,
+        lastCallAt: "",
+        categories: new Map<string, number>(),
+        tags: new Map<string, number>(),
+        maxRound: 0,
+        strategyCalls: 0,
+        latestCallId: ""
+      };
+      current.calls += 1;
+      if (call.status === "completed") current.answered += 1;
+      current.durationSec += call.durationSec || 0;
+      current.numbers.add(call.toNumber);
+      const at = call.startedAt || call.createdAt;
+      if (at > current.lastCallAt) {
+        current.lastCallAt = at;
+        current.latestCallId = call.id;
+        if (!call.customerId) current.customerName = call.customerName || call.toNumber;
+      }
+      if (call.category) current.categories.set(call.category, (current.categories.get(call.category) || 0) + 1);
+      for (const tag of call.tags || []) current.tags.set(tag.label, (current.tags.get(tag.label) || 0) + 1);
+      current.maxRound = Math.max(current.maxRound, call.strategyRound || 0);
+      if (call.strategyId) current.strategyCalls += 1;
+      groups.set(key, current);
+    }
+
+    const toPairs = (map: Map<string, number>) => [...map.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .map(([name, count]) => ({ name, count }));
+
+    return [...groups.values()]
+      .map((group) => ({
+        key: group.key,
+        customerId: group.customerId,
+        customerName: group.customerName,
+        numbers: [...group.numbers],
+        calls: group.calls,
+        answered: group.answered,
+        durationSec: group.durationSec,
+        lastCallAt: group.lastCallAt,
+        categories: toPairs(group.categories),
+        tags: toPairs(group.tags),
+        maxRound: group.maxRound,
+        strategyCalls: group.strategyCalls,
+        latestCallId: group.latestCallId
+      }))
+      .sort((left, right) => right.lastCallAt.localeCompare(left.lastCallAt));
+  }
+
   async getCall(id: string): Promise<CallRecord | null> {
     return (await this.store()).getCall(id);
   }

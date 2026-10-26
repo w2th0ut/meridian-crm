@@ -326,6 +326,29 @@ async function main() {
     assert.ok(team.length >= mine.length);
   });
 
+  await counted("对象维度：同一客户多通电话聚合出次数/时长/分类/标签", async () => {
+    const first = await service.placeCall({ toNumber: "+492119900011", customerId: "c_object_1", customerName: "Objekt Test GmbH", ownerId: "u_sales_1", teamId: "europe" });
+    const second = await service.placeCall({ toNumber: "+492119900011", customerId: "c_object_1", customerName: "Objekt Test GmbH", ownerId: "u_sales_1", teamId: "europe" });
+    await new Promise((resolve) => setTimeout(resolve, 6500));
+    await service.syncCall(first.id);
+    await service.syncCall(second.id);
+    const contacts = await service.listContacts({ teamId: "europe" });
+    const hit = contacts.find((item) => item.key === "c_object_1");
+    assert.ok(hit, "应聚合出该对象");
+    assert.ok(hit!.calls >= 2, "通话次数应累计");
+    assert.ok(hit!.numbers.includes("+492119900011"));
+    assert.ok(hit!.latestCallId.length > 0, "应能定位最近一通");
+    // 纯号码外呼也要单独归为一个对象
+    const anonymous = await service.placeCall({ toNumber: "+492119900022", ownerId: "u_sales_1", teamId: "europe" });
+    const afterAnonymous = await service.listContacts({ teamId: "europe" });
+    const numeric = afterAnonymous.find((item) => item.key === "number:+492119900022");
+    assert.ok(numeric, "无客户 ID 的应按号码聚合");
+    assert.equal(numeric!.customerName, "+492119900022");
+    await service.deleteCall(first.id);
+    await service.deleteCall(second.id);
+    await service.deleteCall(anonymous.id);
+  });
+
   await counted("快照接口一次性返回配置/声音/通话/策略/下发，且密钥为空", async () => {
     const snapshot = await service.snapshot({ teamId: "europe" });
     assert.ok(snapshot.voiceProfiles.length >= 2);

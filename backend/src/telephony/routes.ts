@@ -151,6 +151,11 @@ export function createTelephonyRouter(deps: TelephonyRouterDeps): Router {
     response.json({ ok: true });
   }));
 
+  router.get("/contacts", asyncRoute(async (request, response) => {
+    actor(request);
+    response.json({ contacts: await telephonyService.listContacts({ ...scope(request), limit: 500 }) });
+  }));
+
   router.get("/calls", asyncRoute(async (request, response) => {
     const calls = await telephonyService.listCalls({ ...scope(request), limit: Number(request.query.limit || 100) });
     response.json({ calls });

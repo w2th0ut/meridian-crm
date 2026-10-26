@@ -131,6 +131,33 @@ test.describe("话机 CRM", () => {
     expect(await detail.locator(".kd-tag").count()).toBeGreaterThanOrEqual(2);
   });
 
+  test("按对象查看：同一客户的通话聚合成一条，点开可筛选", async ({ page }) => {
+    test.setTimeout(90_000);
+    const customer = `E2E 对象 ${Date.now()}`;
+    for (let index = 0; index < 2; index += 1) {
+      await openView(page, "phone-workspace");
+      await page.locator("#kdDialNumber").fill("+492119900055");
+      await page.locator("#kdDialName").fill(customer);
+      await page.locator("#kdDialButton").click();
+      await expect(page.locator("#phone-calls")).toHaveClass(/active/);
+      await page.waitForTimeout(1500);
+    }
+    await expect
+      .poll(async () => page.locator("#phone-calls .kd-call-list .kd-call-row").count(), { timeout: 30_000 })
+      .toBeGreaterThanOrEqual(2);
+
+    await page.locator('[data-phone-tab="contacts"]').click();
+    const row = page.locator("#phone-calls .kd-contact-list .kd-call-row", { hasText: customer }).first();
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("通");
+    await row.click();
+    await expect(page.locator(".kd-contact-filter")).toContainText(customer);
+    await expect(page.locator('[data-phone-tab="contacts"]')).not.toHaveClass(/active/);
+    expect(await page.locator("#phone-calls .kd-call-list .kd-call-row").count()).toBeGreaterThanOrEqual(2);
+    await page.locator("[data-contact-clear]").click();
+    await expect(page.locator(".kd-contact-filter")).toHaveCount(0);
+  });
+
   test("回访策略：可建、可立即下发，并留下下发记录", async ({ page }) => {
     test.setTimeout(90_000);
     // 先造一个有号码的 A 级客户，保证有可下发对象
