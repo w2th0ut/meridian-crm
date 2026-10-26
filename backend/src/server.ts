@@ -297,6 +297,8 @@ import {
 import { createMysqlStore } from "./mysql-store.js";
 import { validateIntegrationControlPlaneConfig } from "./integrations/integration-runtime-config.js";
 import { integrationHttpRouter } from "./integrations/integration-http-routes.js";
+import { createTelephonyRouter } from "./telephony/routes.js";
+import { telephonyService } from "./telephony/service.js";
 import { getExchangeRepository } from "./exchange/exchange-repository.js";
 import { getKbTrainingRepository, type KbTrainingCandidate } from "./kb-training/kb-training-repository.js";
 import {
@@ -775,6 +777,30 @@ const websiteLeadLimiter = rateLimit({
 });
 app.use("/api/integrations", integrationHttpRouter);
 
+// 话机 CRM：阿里云云呼叫中心 / 语音服务，或本地模拟器（无凭证也能跑通全链路）
+app.use("/api/telephony", createTelephonyRouter({
+  requireAuth: requireAuth as never,
+  currentUser: (request) => {
+    const user = request.user;
+    return user ? { id: user.id, role: String(user.role), teamId: user.teamId } : null;
+  },
+  listCustomers: async (request) => {
+    const user = request.user;
+    if (!user) return [];
+    // 与 /api/customers 使用同一套 IAM 可见范围，避免"策略挑不到人"
+    await assignIamDataScope(user, "customer.read");
+    const scoped = ownedCustomersFor(user, "team");
+    return scoped.map((customer) => ({
+      id: customer.id,
+      company: customer.company,
+      country: customer.country,
+      grade: customer.grade || "",
+      phone: customer.phone || "",
+      whatsapp: customer.whatsapp || ""
+    }));
+  }
+}));
+
 function iamBusinessPermission(req: Request) {
   const pathName = req.originalUrl.split("?")[0];
   const method = req.method.toUpperCase();
@@ -807,6 +833,26 @@ function iamBusinessPermission(req: Request) {
   return "";
 }
 
+/** 解析并挂载 IAM 数据范围；/api/customers 之外的模块（如话机）也需要同一套可见性。 */
+async function assignIamDataScope(user: NonNullable<Request["user"]>, permissionCode: string) {
+  if (getStore().resolveIamDataScope) {
+    user.iamDataScope = {
+      permissionCode,
+      ...await getStore().resolveIamDataScope!(user, permissionCode)
+    };
+    return;
+  }
+  const scopes = user.iamPermissions?.[permissionCode] || [];
+  const organizationWide = scopes.includes("org_unit") || scopes.includes("org_subtree");
+  user.iamDataScope = {
+    permissionCode,
+    tenantWide: scopes.includes("tenant"),
+    ownerIds: organizationWide
+      ? getStore().users.filter((item) => item.teamId === user.teamId && item.status === "active").map((item) => item.id)
+      : scopes.includes("self") ? [user.id] : []
+  };
+}
+
 async function enforceIamTenantPermission(req: Request, res: Response, next: NextFunction, permissionCode: string) {
   if (isPlatformIdentity(req.user)) {
     res.status(403).json({ message: "平台运维身份不能直接访问公司业务数据，请使用租户支持流程", permissionCode });
@@ -816,22 +862,7 @@ async function enforceIamTenantPermission(req: Request, res: Response, next: Nex
     res.status(403).json({ message: "当前账号没有执行该业务操作的权限", permissionCode });
     return;
   }
-  if (getStore().resolveIamDataScope) {
-    req.user!.iamDataScope = {
-      permissionCode,
-      ...await getStore().resolveIamDataScope!(req.user!, permissionCode)
-    };
-  } else {
-    const scopes = req.user!.iamPermissions?.[permissionCode] || [];
-    const organizationWide = scopes.includes("org_unit") || scopes.includes("org_subtree");
-    req.user!.iamDataScope = {
-      permissionCode,
-      tenantWide: scopes.includes("tenant"),
-      ownerIds: organizationWide
-        ? getStore().users.filter((user) => user.teamId === req.user!.teamId && user.status === "active").map((user) => user.id)
-        : scopes.includes("self") ? [req.user!.id] : []
-    };
-  }
+  await assignIamDataScope(req.user!, permissionCode);
   res.setHeader("X-Authorization-Source", "iam");
   next();
 }
@@ -28833,6 +28864,32 @@ async function startServer() {
   // 批量/方案的「按背调 + 按阶段」正文补写工序（缺背调补跑 → 引擎重写）
   startOutreachLetterEnrichmentScheduler();
 
+  // 话机：周期回访下发 + 超期录音清理
+  const telephonyStrategyTimer = setInterval(() => {
+    void (async () => {
+      try {
+        const store = getStore();
+        const customers = store.customers.map((customer) => ({
+          id: customer.id,
+          company: customer.company,
+          country: customer.country,
+          grade: customer.grade || "",
+          phone: customer.phone || "",
+          whatsapp: customer.whatsapp || ""
+        }));
+        const dispatched = await telephonyService.tickStrategies(customers);
+        if (dispatched > 0) console.log(`Keduoduo CRM telephony strategies dispatched ${dispatched} call(s)`);
+      } catch (error) {
+        console.error(`话机回访策略下发失败：${error instanceof Error ? error.message : String(error)}`);
+      }
+    })();
+  }, 60_000);
+  telephonyStrategyTimer.unref?.();
+  const telephonyPruneTimer = setInterval(() => {
+    void telephonyService.pruneRecordings().catch(() => undefined);
+  }, 6 * 60 * 60 * 1000);
+  telephonyPruneTimer.unref?.();
+
   let shuttingDown = false;
   const shutdown = async (signal: NodeJS.Signals) => {
     if (shuttingDown) return;
@@ -28841,6 +28898,8 @@ async function startServer() {
     try {
       activeInboundMailWatcher?.stop();
       activeInboundMailWatcher = null;
+      clearInterval(telephonyStrategyTimer);
+      clearInterval(telephonyPruneTimer);
       await stopReminderRuleScheduler();
       await stopResourceEventPruneScheduler();
       stopAiEngineRecoveryScheduler();

@@ -131,3 +131,36 @@
   不在就停在列表顶部——**不猜测筛选口径**（试过自动切「逾期」，但该筛选口径与到期日无关，会把人带到空列表）。
 - 数据只来自 `todos[].dueAt`；完成的不显示。窄屏转为横向吸附滚动（`scroll-snap: x`）。
 - 与既有契约无冲突：只**新增**一块，未改动任何被测试断言的节点。
+
+## 话机 CRM（`backend/src/telephony/` + `frontend/src/telephony.ts`）
+
+把 CRM 改造成"话机 CRM"：接入阿里云话机、按话务员声音配置外呼、每通电话留录音与转写、
+自动分类与打标、按策略做周期回访。
+
+### 后端
+| 文件 | 职责 |
+| --- | --- |
+| `provider.ts` | `AliyunProvider`（真实云）+ `SimulatorProvider`（无凭证也能验收）。阿里云侧实现 CSC/语音服务的 RPC 签名（RFC3986 编码 + 字典序 + HMAC-SHA1），调用 `StartBack2BackCall` / `StartPredictiveCall`、`GetCallDetailRecord`、`SingleCallByTts`、`QueryCallDetailByCallId` |
+| `store.ts` | 自带 5 张表（`telephony_settings / voice_profiles / calls / strategies / strategy_runs`）；无 MySQL 时退化为进程内存，开发与 E2E 同样能跑通 |
+| `service.ts` | 外呼 → 状态推进 → 录音落盘 `/uploads/telephony` → 转写 → 自动分类/打标 → 人工结论；以及周期回访的下发、节奏判定、去重与记录 |
+| `classifier.ts` | 规则分类（报价/样品/交期/付款/质量/合同/未接通），输出分类、置信度、摘要、标签与命中证据 |
+| `routes.ts` | `/api/telephony/*` REST，含鉴权、可见范围（业务员只见自己）、管理员才能改配置 |
+
+关键行为：
+- **状态真实推进**：发起即 `dialing`，前端每 3 秒同步，走到 `connected` → `completed`；未接听落 `no_answer` 并写明原因。
+- **声音配置**：音色/语速/音量/音调/背景音/开场白/挂机语；团队默认唯一；外呼时快照写入通话记录，便于复盘"这通电话用的是谁的声音"。
+- **录音与转写**：录音文件真实写盘（WAV，RFC 可播）；转写按句保存（说话人/起止秒/文本），支持人工修正。
+- **打标与分类**：自动标签与人工标签分开存（人工优先展示，互不覆盖）；人工改过分类后自动分类不再覆盖。
+- **周期回访**：策略 = 节奏（第 3/7/15 天）+ 轮次上限 + 筛选（分级/国家/分类/标签/闲置天数/上限）+ 话术 + 声音；到期由 60 秒定时器下发，生成带轮次的呼叫任务；未到节奏、无号码、已完成轮次都会写进下发记录的跳过原因。
+
+### 前端
+四个视图：`phone-workspace`（拨号/进行中/最近/本周速览）、`phone-calls`（列表 + 详情：音频播放器、逐句转写、标签、分类、结论）、`phone-strategies`（策略编辑 + 立即下发 + 下发记录）、`phone-config`（阿里云接入、密钥只写不读、声音库、连通性自检）。
+
+### 验证
+- `backend/src/telephony/telephony-test.ts`：24 项（签名规范化、无凭证报错、WAV 头、录音落盘、分类、标签、轮次、去重、可见范围）
+- `backend/src/telephony/telephony-http-test.ts`：13 项真实 HTTP（401、403、密钥不回显、录音可下载、人工分类不被覆盖、下发成功）
+- `frontend/tests/telephony.spec.ts`：7 项 E2E（四视图、声音保存、呼叫推进、打标改分类、策略下发、健康自检、移动端无溢出）
+- 生产（MySQL）：5 张表落库；25 秒录音 782KB 经 nginx 下载为 RIFF；定时器完成第 2 轮周期下发，`generated_count=2`，`next_run_at` 推进到 +12 天
+
+### 阿里云接入前提
+在「话机配置」填入 AccessKeyId/Secret、CCC 实例 ID、技能组、外显号码并把提供方切到「阿里云话机」，即走真实云；否则保持模拟器（全部功能可用，标注为模拟器）。

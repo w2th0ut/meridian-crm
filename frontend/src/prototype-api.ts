@@ -1,4 +1,5 @@
 import { publishTradeWorkbenchSnapshot } from "./trade-workspace";
+import { initTelephony, isPhoneView, loadPhone, startPhonePolling, stopPhonePolling } from "./telephony";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -4175,6 +4176,10 @@ const viewLabels: Record<string, string> = {
   "email-return-flow": "开发信回流",
   pipeline: "商机",
   reminders: "跟进提醒",
+  "phone-workspace": "话机工作台",
+  "phone-calls": "通话记录",
+  "phone-strategies": "回访策略",
+  "phone-config": "话机配置",
   "plan-growth": "计划任务",
   documents: "单据平台",
   commission: "提成对账",
@@ -44963,6 +44968,15 @@ function installEvents() {
     prefillLoginCredentials();
     toast("已退出登录");
   });
+  // 话机 CRM：注入鉴权 API 与提示，视图切换时由 activateNavView 触发加载
+  initTelephony({
+    api: <T>(path: string, init?: { method?: string; body?: unknown }) =>
+      api<T>(path, {
+        method: init?.method,
+        body: init?.body === undefined ? undefined : JSON.stringify(init.body)
+      } as RequestInit),
+    toast: (message: string, tone?: "ok" | "error") => toast(message, tone as never)
+  });
   qs<HTMLButtonElement>("#profileEntryButton")?.addEventListener("click", () => activateNavView("profile", () => renderProfile()));
   qs<HTMLButtonElement>("#profileSaveButton")?.addEventListener("click", (event) => void saveProfileEmailBinding(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#profileChangePasswordButton")?.addEventListener("click", (event) => void changeProfilePassword(event.currentTarget as HTMLButtonElement));
@@ -47661,6 +47675,12 @@ function activateNavView(view: string, after?: () => void) {
   }
   if (view === "peers") {
     renderPeers();
+  }
+  if (isPhoneView(view)) {
+    void loadPhone();
+    startPhonePolling();
+  } else {
+    stopPhonePolling();
   }
   if (view === "reports") {
     void refreshExecutiveReport();

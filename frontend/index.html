@@ -25600,6 +25600,9 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <button data-view="whatsapp" title="即刻沟通">
             <svg viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-12.7 7.4L3 20l1.2-4.7A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 8.2c.5 3.4 2.4 5.3 5.8 5.8"/><path d="M8.5 8.2l1.4-.7 1 2-1.1.8"/><path d="M14.3 14l.7-1.2 2 .9-.7 1.5"/></svg><span>客户沟通</span><em id="waNavUnread" hidden>0</em>
           </button>
+          <button data-view="phone-workspace" title="话机工作台">
+            <svg viewBox="0 0 24 24"><path d="M6.5 3h2.2l1.6 4-2 1.4a12 12 0 0 0 5.3 5.3l1.4-2 4 1.6v2.2a2.5 2.5 0 0 1-2.7 2.5A16.5 16.5 0 0 1 4 5.7 2.5 2.5 0 0 1 6.5 3z"/></svg><span>话机工作台</span><em>拨号</em>
+          </button>
           <button data-view="exchange" title="对接中心">
             <svg viewBox="0 0 24 24"><path d="M4 7h11M4 7l3-3M4 7l3 3"/><path d="M20 17H9M20 17l-3-3M20 17l-3 3"/></svg><span>对接中心</span>
           </button>
@@ -25635,6 +25638,15 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <button class="nav-secondary-button" data-view="global-map" title="全球航线"><span>全球航线</span></button>
             <button class="nav-secondary-button" data-view="email-return-flow" title="开发信回流"><span>开发信回流</span></button>
             <button class="nav-secondary-button" data-view="tools" title="小工具"><span>小工具</span></button>
+          </div>
+        </details>
+
+        <details class="nav-section" aria-label="话机中心">
+          <summary class="nav-section-title"><svg viewBox="0 0 24 24"><path d="M4 4h16v12H7l-3 3z"/><path d="M8 9h8"/><path d="M8 12h5"/></svg><span>话机中心</span><i class="nav-chevron"></i></summary>
+          <div class="nav-secondary-grid">
+            <button class="nav-secondary-button" data-view="phone-calls" title="通话记录与录音"><span>通话记录</span></button>
+            <button class="nav-secondary-button" data-view="phone-strategies" title="周期回访策略"><span>回访策略</span></button>
+            <button class="nav-secondary-button" data-view="phone-config" title="阿里云接入与声音配置"><span>话机配置</span></button>
           </div>
         </details>
 
@@ -29013,6 +29025,11 @@ body.platform-mode .workspace-tabs { display:none !important; }
           .customs-footer-notice .notice-content p { margin: 6px 0; font-size: 13px; color: var(--text); line-height: 1.6; }
           .customs-footer-notice .notice-warning { color: #8a5a00; font-weight: 500; margin-top: 10px; }
         </style>
+        <div class="view" id="phone-workspace"><div class="kd-phone-root"></div></div>
+        <div class="view" id="phone-calls"><div class="kd-phone-root"></div></div>
+        <div class="view" id="phone-strategies"><div class="kd-phone-root"></div></div>
+        <div class="view" id="phone-config"><div class="kd-phone-root"></div></div>
+
         <div class="view" id="whatsapp">
           <div class="instant-communication-shell">
             <section class="instant-communication-state is-loading" id="instantCommunicationState" aria-live="polite">
@@ -31950,6 +31967,10 @@ body.platform-mode .workspace-tabs { display:none !important; }
       whatsapp: "即刻沟通",
       pipeline: "商机",
       reminders: "跟进提醒",
+      "phone-workspace": "话机工作台",
+      "phone-calls": "通话记录",
+      "phone-strategies": "回访策略",
+      "phone-config": "话机配置",
       "plan-growth": "计划任务",
       documents: "单据平台",
       commission: "提成对账",
