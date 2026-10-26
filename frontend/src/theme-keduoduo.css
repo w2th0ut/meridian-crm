@@ -137,9 +137,14 @@ html[data-ui="trade"] .brand > div:last-child span {
 
 /* 导航：无药丸，当前项用印章红竖标 */
 html[data-ui="trade"] .nav {
-  min-height: 0; flex: 1 1 auto; gap: 0; padding: 10px 0 14px;
-  overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #c8ccc5 transparent;
+  display: block;
+  min-height: 0; flex: 1 1 auto; padding: 10px 0 14px;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: #c4c8c1 transparent;
 }
+html[data-ui="trade"] .nav::-webkit-scrollbar { width: 8px; }
+html[data-ui="trade"] .nav::-webkit-scrollbar-thumb { background: #cfd3cc; }
+html[data-ui="trade"] .nav::-webkit-scrollbar-thumb:hover { background: #b6bbb3; }
 html[data-ui="trade"] .nav-primary { display: grid; gap: 0; }
 html[data-ui="trade"] .nav button {
   position: relative; display: grid; width: 100%; height: auto; min-height: 34px;
@@ -188,7 +193,9 @@ html[data-ui="trade"] .nav-chevron {
 html[data-ui="trade"] .nav-section[open] .nav-chevron { border-color: var(--ink); background: transparent; }
 html[data-ui="trade"] .nav-secondary-grid { margin: 2px 0 6px; padding: 0; border: 0; }
 html[data-ui="trade"] .nav button.nav-secondary-button {
-  min-height: 30px; padding: 5px 16px 5px 47px; border-radius: 0;
+  /* 二级菜单没有图标：单列 + 右列留给计数，避免标签被挤进图标列截断 */
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 30px; padding: 5px 13px 5px 46px; border-radius: 0;
   color: var(--graphite); font-size: 12px; font-weight: 450;
 }
 html[data-ui="trade"] .nav button.nav-secondary-button.active {

@@ -1060,4 +1060,8 @@ assert.match(adminDeck, /select\.addEventListener\('change'/, "改授权范围�
 assert.match(adminCss, /\.kd-rail-cell\[data-tone="danger"\]/, "状态带必须能用信号色表达危险");
 assert.match(adminCss, /--deck: #101315/, "后台必须是独立于业务区的深色甲板");
 
+// 左侧导航：二级菜单没有图标，标签不能被排进图标列；导航必须能滚动到底
+assert.match(themeCss, /\.nav button\.nav-secondary-button \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/, "二级菜单必须单列+计数列，避免标签被截断");
+assert.match(themeCss, /\.nav \{[^}]*display: block/, "导航必须是块级流：grid 会压缩行高导致 scrollHeight 失真、底部菜单切掉且无法滚动");
+
 console.log(JSON.stringify({ ok: true, checked: required.length }, null, 2));
