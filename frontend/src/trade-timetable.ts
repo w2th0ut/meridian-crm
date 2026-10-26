@@ -64,14 +64,13 @@ function eventMarkup(todo: TimetableTodo, due: Date | null, bucket = 'day'): str
 }
 
 /** 跳转到待办中心并高亮这条待办（真实动作，不是装饰）。 */
-function openTodo(id: string, bucket: string): void {
+function openTodo(id: string): void {
   const navButton = document.querySelector<HTMLButtonElement>('.sidebar button[data-view="todo"]');
   if (navButton) {
     const section = navButton.closest('details');
     if (section) section.open = true;
     navButton.click();
   }
-  let switched = false;
   const highlight = (attempt: number) => {
     const row = document.querySelector<HTMLElement>(`.todo-row[data-todo-id="${CSS.escape(id)}"]`);
     if (row) {
@@ -80,15 +79,8 @@ function openTodo(id: string, bucket: string): void {
       window.setTimeout(() => row.classList.remove('kd-flash'), 1600);
       return;
     }
-    // 逾期项默认不在「今天」筛选里：等列表就绪后切到「逾期」，否则永远找不到那一行。
-    if (!switched && bucket === 'overdue' && attempt >= 8) {
-      const overdueChip = Array.from(document.querySelectorAll<HTMLElement>('#todo .todo-chip'))
-        .find((chip) => chip.dataset.todoFilter === 'overdue');
-      if (overdueChip) {
-        switched = true;
-        overdueChip.click();
-      }
-    }
+    // 不猜筛选口径：只负责把用户带到待办中心；
+    // 该行若在当前筛选里就滚过去高亮，不在就停在列表顶部（由用户自己切筛选）。
     // 慢网络下待办列表渲染更久，给足 10 秒定位窗口
     if (attempt < 40) window.setTimeout(() => highlight(attempt + 1), 250);
   };
@@ -99,7 +91,7 @@ function bindEvents(root: HTMLElement): void {
   root.querySelectorAll<HTMLButtonElement>('.kd-event[data-todo-id]').forEach((button) => {
     button.addEventListener('click', () => {
       const id = button.dataset.todoId;
-      if (id) openTodo(id, button.dataset.bucket || 'day');
+      if (id) openTodo(id);
     });
   });
 }
