@@ -79,7 +79,8 @@ function openTodo(id: string): void {
       window.setTimeout(() => row.classList.remove('kd-flash'), 1600);
       return;
     }
-    if (attempt < 12) window.setTimeout(() => highlight(attempt + 1), 160);
+    // 待办中心首次加载受网络影响，给足 10 秒定位窗口
+    if (attempt < 40) window.setTimeout(() => highlight(attempt + 1), 250);
   };
   highlight(0);
 }
