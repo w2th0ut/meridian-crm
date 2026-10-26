@@ -93,10 +93,6 @@ html[data-ui="trade"] .nav-section[open] .nav-chevron { border-color: #d5e2ef; b
 html[data-ui="trade"] .nav-secondary-grid { margin: 1px 0 4px 17px; border-left: 1px solid #ffffff1c; }
 html[data-ui="trade"] .nav button.nav-secondary-button { min-height: 33px; padding-left: 12px; border-radius: 0 5px 5px 0; color: #aebed0; font-size: 11px; }
 html[data-ui="trade"] .nav button.nav-secondary-button.active { color: #fff; background: var(--trade-accent); }
-html[data-ui="trade"] .trade-sidebar-profile { min-height: 54px; gap: 10px; padding: 9px 8px 2px; border-top: 1px solid #ffffff17; }
-html[data-ui="trade"] .trade-sidebar-profile img { width: 34px; height: 34px; border-color: #ffffff24; border-radius: 7px; }
-html[data-ui="trade"] .trade-sidebar-profile strong { color: #edf3fa; font-size: 11px; font-weight: 550; }
-html[data-ui="trade"] .trade-sidebar-profile small { color: #9eb1c4; font-size: 10px; }
 
 /* Persistent topbar and page rhythm */
 html[data-ui="trade"] .main { min-width: 0; height: 100dvh; overflow: auto; background: var(--bg); scrollbar-color: #c2cfdd transparent; scrollbar-width: thin; }

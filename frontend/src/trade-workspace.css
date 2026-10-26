@@ -460,10 +460,6 @@ html[data-ui="trade"] .login-signature { display:none; }
   html[data-ui="trade"] *,html[data-ui="trade"] *::before,html[data-ui="trade"] *::after { scroll-behavior:auto!important; animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; }
 }
 /* Brand marks and route preview details. */
-html[data-ui="trade"] .trade-sidebar-profile { display:flex; align-items:center; gap:9px; flex:0 0 auto; padding:11px 8px 4px; border-top:1px solid #ffffff12; }
-html[data-ui="trade"] .trade-sidebar-profile img { width:34px; height:34px; object-fit:cover; border:1px solid #ffffff1d; border-radius:8px; }
-html[data-ui="trade"] .trade-sidebar-profile strong { display:block; color:#d9e6f3; font-size:10px; font-weight:550; }
-html[data-ui="trade"] .trade-sidebar-profile small { display:block; margin-top:2px; color:#8ea7c0; font-size:8px; }
 .trade-hero-meta { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:11px; color:#92abc4; font-size:9px; }
 .trade-hero-meta span { display:flex; align-items:center; gap:5px; }
 .trade-hero-meta i { width:5px; height:5px; border-radius:50%; background:#74c09f; box-shadow:0 0 0 3px #74c09f1f; }
@@ -500,7 +496,6 @@ html[data-ui="trade"] .th-h1 { font-size:23px; }
 html[data-ui="trade"] .th-preset { border-radius:8px; box-shadow:none; }
 html[data-ui="trade"] .th-preset.is-active { box-shadow:0 0 0 3px var(--brand-ring); }
 @media(max-width:640px) {
-  html[data-ui="trade"] .trade-sidebar-profile { padding-bottom:2px; }
   .trade-route-map { min-height:179px; }
   html[data-ui="trade"] .trade-hero-meta { gap:7px; }
   html[data-ui="trade"] .trade-hero-meta span { font-size:8px; }
