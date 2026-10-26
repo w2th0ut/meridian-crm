@@ -14,6 +14,7 @@ const tradeMotion = readFileSync(new URL("./trade-motion.ts", import.meta.url), 
 const themeCss = readFileSync(new URL("./theme-keduoduo.css", import.meta.url), "utf8");
 const adminDeck = readFileSync(new URL("./admin-deck.ts", import.meta.url), "utf8");
 const adminCss = readFileSync(new URL("./theme-keduoduo-admin.css", import.meta.url), "utf8");
+const timetable = readFileSync(new URL("./trade-timetable.ts", import.meta.url), "utf8");
 const integrationCenter = readFileSync(new URL("./integrations/integration-center.ts", import.meta.url), "utf8");
 const productConfig = JSON.parse(readFileSync(new URL("../public/product-config.json", import.meta.url), "utf8")) as {
   productName?: string;
@@ -1063,5 +1064,14 @@ assert.match(adminCss, /--deck: #101315/, "后台必须是独立于业务区的�
 // 左侧导航：二级菜单没有图标，标签不能被排进图标列；导航必须能滚动到底
 assert.match(themeCss, /\.nav button\.nav-secondary-button \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/, "二级菜单必须单列+计数列，避免标签被截断");
 assert.match(themeCss, /\.nav \{[^}]*display: block/, "导航必须是块级流：grid 会压缩行高导致 scrollHeight 失真、底部菜单切掉且无法滚动");
+
+// 跟进船期表：只用真实到期日，四段归位，且能跳回待办
+assert.match(timetable, /const DAYS = 7/, "船期表固定七天");
+assert.match(timetable, /dueDay\.getTime\(\) < today\.getTime\(\)/, "早于今天的待办必须进逾期闸口，不能混入日列");
+assert.match(timetable, /未排期/, "没有到期日的待办必须单独归入未排期，不得编造时间");
+assert.match(timetable, /data-todo-id/, "排期事件必须带真实待办 id");
+assert.match(timetable, /\.todo-row\[data-todo-id=/, "点击排期必须能定位回待办中心的具体行");
+assert.match(prototype, /id="kdBoardTrack"/, "工作台必须提供船期表容器");
+assert.match(themeCss, /\.kd-day\.is-today \{[\s\S]*background: var\(--ink\)/, "今天必须是唯一的墨底列（页面焦点）");
 
 console.log(JSON.stringify({ ok: true, checked: required.length }, null, 2));

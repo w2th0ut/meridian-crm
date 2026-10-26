@@ -2,6 +2,7 @@ import './theme-keduoduo.css';
 import { playMarketsIntro, playViewEnter, resetMotionState } from './trade-motion';
 import './theme-keduoduo-admin.css';
 import { refreshAdminDeck } from './admin-deck';
+import { publishTimetable, type TimetableTodo } from './trade-timetable';
 
 /** View-only navigation and data presentation controller; core business actions remain in prototype-api.ts. */
 const root = document.documentElement;
@@ -89,7 +90,8 @@ const coordinateAliases: Record<string,{code:string;name:string;lon:number;lat:n
  '新西兰':{code:'NZ',name:'新西兰',lon:172,lat:-41}, nz:{code:'NZ',name:'新西兰',lon:172,lat:-41}, newzealand:{code:'NZ',name:'新西兰',lon:172,lat:-41},
  '南非':{code:'ZA',name:'南非',lon:24,lat:-29}, za:{code:'ZA',name:'南非',lon:24,lat:-29}, southafrica:{code:'ZA',name:'南非',lon:24,lat:-29}
 };
-export function publishTradeWorkbenchSnapshot(customers:Array<{country?:string}>) {
+export function publishTradeWorkbenchSnapshot(customers:Array<{country?:string}>, todos:TimetableTodo[] = []) {
+ publishTimetable(todos);
  const counts=new Map<string,{location:NonNullable<typeof coordinateAliases[string]>;count:number}>();
  for(const customer of customers){
   const raw=String(customer.country||'').trim(); if(!raw||raw==='未知')continue;

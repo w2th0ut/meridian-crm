@@ -1395,3 +1395,112 @@ html[data-ui="trade"] :is(.customer-drawer-backdrop, .lead-drawer-backdrop, .pro
   html[data-ui="trade"] body:is(.customer-drawer-open, .lead-drawer-open, .problem-drawer-open,
     .lead-verification-drawer-open, .agent-skill-drawer-open) .sidebar { z-index: 210; }
 }
+
+/* ── 跟进船期表：工作台首屏的横向排期板 ──────────────────
+   外贸的日课是排期，不是卡片。左边一条"已逾期"闸口，右边从今天起七天，
+   今天那一列反白为墨底——整页只有一个焦点。 */
+html[data-ui="trade"] .kd-board {
+  margin: 0 0 16px; border: 1px solid var(--rule); background: var(--leaf);
+}
+html[data-ui="trade"] .kd-board-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px;
+  padding: 14px 18px 13px; border-bottom: 1px solid var(--rule);
+}
+html[data-ui="trade"] .kd-board-head h2 {
+  margin: 0; color: var(--ink); font-size: 15px; font-weight: 700; letter-spacing: -.02em;
+}
+html[data-ui="trade"] .kd-board-head p { margin: 0; color: var(--graphite-2); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+html[data-ui="trade"] .kd-board-track {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(118px, 1fr);
+  overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: thin; scrollbar-color: #c4c8c1 transparent;
+}
+html[data-ui="trade"] .kd-board-track::-webkit-scrollbar { height: 8px; }
+html[data-ui="trade"] .kd-board-track::-webkit-scrollbar-thumb { background: #cfd3cc; }
+
+html[data-ui="trade"] .kd-day {
+  display: flex; flex-direction: column; min-height: 176px;
+  padding: 12px 13px 14px; border-left: 1px solid var(--rule);
+}
+html[data-ui="trade"] .kd-day:first-child { border-left: 0; }
+html[data-ui="trade"] .kd-day-head {
+  display: flex; align-items: baseline; gap: 7px; margin-bottom: 10px;
+  padding-bottom: 9px; border-bottom: 1px solid var(--rule-soft);
+}
+html[data-ui="trade"] .kd-day-num {
+  color: var(--ink); font-size: 27px; font-weight: 750; line-height: 1;
+  letter-spacing: -.05em; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] .kd-day-wd { color: var(--graphite-2); font-size: 10.5px; font-weight: 600; letter-spacing: .08em; }
+html[data-ui="trade"] .kd-day-count {
+  margin-left: auto; padding: 0 5px; border: 1px solid var(--rule);
+  color: var(--graphite); font-size: 10px; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] .kd-day-body { display: grid; gap: 0; align-content: start; }
+
+/* 今天：唯一的墨底列，页面焦点 */
+html[data-ui="trade"] .kd-day.is-today {
+  background: var(--ink); border-left-color: var(--ink);
+}
+html[data-ui="trade"] .kd-day.is-today .kd-day-num,
+html[data-ui="trade"] .kd-day.is-today .kd-event span { color: #fff; }
+html[data-ui="trade"] .kd-day.is-today .kd-day-wd { color: #f0857c; }
+html[data-ui="trade"] .kd-day.is-today .kd-day-head { border-bottom-color: #33393c; }
+html[data-ui="trade"] .kd-day.is-today .kd-day-count { border-color: #3a4144; color: #b9c2c4; }
+html[data-ui="trade"] .kd-day.is-today .kd-event { border-top-color: #2b3235; }
+html[data-ui="trade"] .kd-day.is-today .kd-event time { color: #8b9499; }
+html[data-ui="trade"] .kd-day.is-today .kd-event:hover span { color: #f0857c; }
+html[data-ui="trade"] .kd-day.is-today .kd-day-none { color: #77817f; }
+
+/* 逾期闸口 */
+html[data-ui="trade"] .kd-day-gate { background: var(--seal-wash); border-left: 0; }
+html[data-ui="trade"] .kd-day-gate .kd-day-num { color: var(--seal); }
+html[data-ui="trade"] .kd-day-gate .kd-day-wd { color: var(--seal-deep); }
+html[data-ui="trade"] .kd-day-gate-empty { background: #fafbf8; }
+html[data-ui="trade"] .kd-day-gate-empty .kd-day-num { color: var(--graphite-2); }
+html[data-ui="trade"] .kd-day-gate-empty .kd-day-wd { color: var(--graphite-2); }
+
+/* 未排期 */
+html[data-ui="trade"] .kd-day-tail { background: #fafbf8; border-left-style: dashed; }
+
+/* 事件行 */
+html[data-ui="trade"] .kd-event {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: baseline; gap: 7px;
+  width: 100%; padding: 6px 0; border: 0; border-top: 1px solid var(--rule-soft);
+  background: none; text-align: left; cursor: pointer;
+}
+html[data-ui="trade"] .kd-event:first-child { border-top: 0; }
+html[data-ui="trade"] .kd-event time {
+  color: var(--graphite-2); font-size: 10px; letter-spacing: .02em; font-variant-numeric: tabular-nums;
+}
+html[data-ui="trade"] .kd-event span {
+  overflow: hidden; color: var(--ink-2); font-size: 11.5px; line-height: 1.45;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="trade"] .kd-event[data-priority="high"] span { font-weight: 650; }
+html[data-ui="trade"] .kd-event[data-priority="high"] span::before {
+  display: inline-block; width: 4px; height: 4px; margin-right: 5px; vertical-align: 2px;
+  background: var(--seal); content: "";
+}
+html[data-ui="trade"] .kd-event[data-priority="low"] span { color: var(--graphite); }
+html[data-ui="trade"] .kd-event:hover span { color: var(--seal-deep); }
+html[data-ui="trade"] .kd-day-none { margin: 4px 0 0; color: #8b9499; font-size: 10.5px; }
+html[data-ui="trade"] .kd-more { margin: 7px 0 0; color: var(--graphite-2); font-size: 10px; }
+
+/* 从排期跳到待办时的定位脉冲 */
+html[data-ui="trade"] .todo-row.kd-flash { box-shadow: inset 3px 0 0 var(--seal); background: var(--seal-wash); }
+
+@media (max-width: 900px) {
+  html[data-ui="trade"] .kd-board-track {
+    grid-auto-columns: minmax(150px, 62%); scroll-snap-type: x proximity;
+  }
+  html[data-ui="trade"] .kd-day { min-height: 156px; scroll-snap-align: start; }
+}
+@media (max-width: 640px) {
+  html[data-ui="trade"] .kd-board-head { padding: 12px 13px 11px; }
+  html[data-ui="trade"] .kd-day { padding: 10px 11px 12px; min-height: 142px; }
+  html[data-ui="trade"] .kd-day-num { font-size: 23px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="trade"] .todo-row.kd-flash { transition: none; }
+}

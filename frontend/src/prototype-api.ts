@@ -11401,7 +11401,7 @@ function refreshVisibleDashboard() {
 }
 
 function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Customer[], fromCache = false) {
-  publishTradeWorkbenchSnapshot(customers);
+  publishTradeWorkbenchSnapshot(customers, todos);
   const businessScopes = state.iamCapabilities?.permissions["workspace.dashboard.read"] || [];
   const roleBusinessScope = businessScopes.includes("tenant") ? "全公司业务"
     : businessScopes.includes("org_subtree") || businessScopes.includes("org_unit") ? "组织业务" : "本人业务";
