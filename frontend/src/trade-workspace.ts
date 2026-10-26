@@ -1,4 +1,5 @@
 import './theme-keduoduo.css';
+import { playMarketsIntro, playViewEnter, resetMotionState } from './trade-motion';
 
 /** View-only navigation and data presentation controller; core business actions remain in prototype-api.ts. */
 const root = document.documentElement;
@@ -35,10 +36,16 @@ function labelForActiveView(): string {
   if(active?.id==='dashboard') return '工作台';
   return heading?.textContent?.trim() || active?.querySelector<HTMLElement>('.pc-h1,.sh-h1')?.textContent?.trim() || active?.id || '工作台';
 }
+let lastActiveViewId = '';
 function updateChrome() {
   const active = $('.workspace > .view.active') || $('.main > .view.active');
   const activeLabel=labelForActiveView();
   if (breadcrumb && breadcrumb.textContent !== activeLabel) breadcrumb.textContent = activeLabel;
+  // 切换页面时让页首标题落位（只回答用户动作，240ms）。
+  if (active && active.id !== lastActiveViewId) {
+    lastActiveViewId = active.id;
+    playViewEnter(active);
+  }
   if (active && document.body.classList.contains('is-authenticated')) {
     document.title = `${activeLabel} · 客多多`;
   } else if (!document.body.classList.contains('is-authenticated')) {
@@ -106,16 +113,24 @@ function drawRoute() {
     if (empty) empty.hidden = false;
     hero.setAttribute('aria-label', '当前没有可归集的客户市场');
     if (hint) hint.textContent = '';
+    resetMotionState();
     return;
   }
   if (empty) empty.hidden = true;
   // 唛头带：每个目的市场一枚“唛头”，以客户数排序，最大的一枚用印章红。
   hero.innerHTML = selected.map((route, index) => {
     const title = `${route.name} · ${route.count} 家客户`;
-    return `<div class="mh-mark trade-route-link" role="listitem" tabindex="0" data-rank="${index + 1}" aria-label="${esc(title)}" style="animation-delay:${index * 45}ms"><span class="mh-code">${esc(route.code)}</span><b class="mh-count">${route.count}</b><span class="mh-name">${esc(route.name)}</span></div>`;
+    return `<div class="mh-mark trade-route-link" role="listitem" tabindex="0" data-rank="${index + 1}" aria-label="${esc(title)}"><span class="mh-code">${esc(route.code)}</span><b class="mh-count">${route.count}</b><span class="mh-name">${esc(route.name)}</span></div>`;
   }).join('');
   hero.setAttribute('aria-label', `客户目的市场：${selected.map(item => `${item.name} ${item.count} 家`).join('，')}`);
   if (hint) hint.textContent = `${currentCustomerCount} 家客户 · ${routes.length} 个市场`;
+  // 唯一一处非用户触发的动效：航线描出 → 唛头盖下 → 数量计数。
+  // 相同数据签名不重复播放（工作台每 60 秒重渲染）。
+  playMarketsIntro({
+    host: hero,
+    band: hero.closest<HTMLElement>('.mh-band'),
+    signature: selected.map(item => `${item.code}:${item.count}`).join('|')
+  });
 }
 drawRoute();
 

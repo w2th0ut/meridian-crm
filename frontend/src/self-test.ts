@@ -10,6 +10,8 @@ import {
 const prototype = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const apiLayer = readFileSync(new URL("./prototype-api.ts", import.meta.url), "utf8");
 const prospectRadar = readFileSync(new URL("./prospect-radar.ts", import.meta.url), "utf8");
+const tradeMotion = readFileSync(new URL("./trade-motion.ts", import.meta.url), "utf8");
+const themeCss = readFileSync(new URL("./theme-keduoduo.css", import.meta.url), "utf8");
 const integrationCenter = readFileSync(new URL("./integrations/integration-center.ts", import.meta.url), "utf8");
 const productConfig = JSON.parse(readFileSync(new URL("../public/product-config.json", import.meta.url), "utf8")) as {
   productName?: string;
@@ -1036,5 +1038,14 @@ if (kbBackendServer) {
     });
   }
 }
+
+// 动效必须由 TypeScript 驱动，且必须尊重 prefers-reduced-motion。
+assert.match(tradeMotion, /export function prefersReducedMotion/, "动效模块必须提供系统降级判断");
+assert.match(tradeMotion, /requestAnimationFrame/, "计数动画必须用 requestAnimationFrame 驱动");
+assert.match(tradeMotion, /Element\.prototype\.animate|element\.animate|\.animate\(/, "入场动效必须用 WAAPI 由 JS 编排");
+assert.match(tradeMotion, /playedSignature/, "同一份市场数据不得在轮询重渲染时重播入场动效");
+assert.match(tradeMotion, /svg\.replaceChildren\(\)/, "航线层每次重绘必须清空，避免路径叠加");
+assert.equal(/@keyframes\s+mhStamp/.test(themeCss), false, "唛头入场不得退回 CSS keyframes");
+assert.equal(/animation:\s*mhStamp/.test(themeCss), false, "唛头入场不得退回 CSS animation");
 
 console.log(JSON.stringify({ ok: true, checked: required.length }, null, 2));
