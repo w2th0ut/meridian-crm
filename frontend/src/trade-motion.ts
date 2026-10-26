@@ -75,8 +75,10 @@ function centerOf(box: DOMRect, hostBox: DOMRect): Point {
 }
 
 function ensureLineLayer(host: HTMLElement): SVGSVGElement {
-  if (lineLayer && lineLayer.isConnected && lineLayer.parentElement === host) return lineLayer;
-  lineLayer?.remove();
+  // 无论上一轮用的是哪个宿主，先把页面里所有旧航线层清掉：
+  // 只允许存在一层，且只挂在唛头带根节点上（避免回落成嵌套层叠加）。
+  document.querySelectorAll('.kd-route-layer').forEach((node) => node.remove());
+  lineLayer = null;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('aria-hidden', 'true');
   svg.classList.add('kd-route-layer');
@@ -99,6 +101,7 @@ function ensureLineLayer(host: HTMLElement): SVGSVGElement {
 function drawRouteLines(host: HTMLElement, animate: boolean): Array<SVGPathElement> {
   const origin = host.querySelector<HTMLElement>('.mh-origin');
   const marks = Array.from(host.querySelectorAll<HTMLElement>('.mh-mark'));
+  if (!host.classList.contains('mh-band')) return [];
   const svg = ensureLineLayer(host);
   // 每次重绘先清空，避免尺寸变化/重渲染后路径叠加。
   svg.replaceChildren();
