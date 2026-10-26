@@ -54,23 +54,24 @@ interface Bucket {
   items: TimetableTodo[];
 }
 
-function eventMarkup(todo: TimetableTodo, due: Date | null): string {
+function eventMarkup(todo: TimetableTodo, due: Date | null, bucket = 'day'): string {
   const tone = todo.priority === 'high' ? 'high' : todo.priority === 'low' ? 'low' : 'normal';
   const label = todo.related ? `${todo.title} · ${todo.related}` : todo.title;
-  return `<button type="button" class="kd-event" data-priority="${tone}" data-todo-id="${esc(todo.id)}" title="${esc(label)}${due ? ` · ${timeLabel(due)}` : ''}">
+  return `<button type="button" class="kd-event" data-priority="${tone}" data-bucket="${bucket}" data-todo-id="${esc(todo.id)}" title="${esc(label)}${due ? ` · ${timeLabel(due)}` : ''}">
     <time>${due ? timeLabel(due) : '—'}</time>
     <span>${esc(todo.title)}</span>
   </button>`;
 }
 
 /** 跳转到待办中心并高亮这条待办（真实动作，不是装饰）。 */
-function openTodo(id: string): void {
+function openTodo(id: string, bucket: string): void {
   const navButton = document.querySelector<HTMLButtonElement>('.sidebar button[data-view="todo"]');
   if (navButton) {
     const section = navButton.closest('details');
     if (section) section.open = true;
     navButton.click();
   }
+  let switched = false;
   const highlight = (attempt: number) => {
     const row = document.querySelector<HTMLElement>(`.todo-row[data-todo-id="${CSS.escape(id)}"]`);
     if (row) {
@@ -79,7 +80,16 @@ function openTodo(id: string): void {
       window.setTimeout(() => row.classList.remove('kd-flash'), 1600);
       return;
     }
-    // 待办中心首次加载受网络影响，给足 10 秒定位窗口
+    // 逾期项默认不在「今天」筛选里：等列表就绪后切到「逾期」，否则永远找不到那一行。
+    if (!switched && bucket === 'overdue' && attempt >= 8) {
+      const overdueChip = Array.from(document.querySelectorAll<HTMLElement>('#todo .todo-chip'))
+        .find((chip) => chip.dataset.todoFilter === 'overdue');
+      if (overdueChip) {
+        switched = true;
+        overdueChip.click();
+      }
+    }
+    // 慢网络下待办列表渲染更久，给足 10 秒定位窗口
     if (attempt < 40) window.setTimeout(() => highlight(attempt + 1), 250);
   };
   highlight(0);
@@ -89,7 +99,7 @@ function bindEvents(root: HTMLElement): void {
   root.querySelectorAll<HTMLButtonElement>('.kd-event[data-todo-id]').forEach((button) => {
     button.addEventListener('click', () => {
       const id = button.dataset.todoId;
-      if (id) openTodo(id);
+      if (id) openTodo(id, button.dataset.bucket || 'day');
     });
   });
 }
@@ -136,7 +146,7 @@ export function publishTimetable(todos: TimetableTodo[]): void {
   const overdueCell = overdue.length
     ? `<div class="kd-day kd-day-gate" data-gate="overdue">
         <div class="kd-day-head"><b class="kd-day-num">${overdue.length}</b><span class="kd-day-wd">已逾期</span></div>
-        <div class="kd-day-body">${overdue.slice(0, 6).map(({ todo, due }) => eventMarkup(todo, due)).join('')}${overdue.length > 6 ? `<p class="kd-more">另有 ${overdue.length - 6} 条</p>` : ''}</div>
+        <div class="kd-day-body">${overdue.slice(0, 6).map(({ todo, due }) => eventMarkup(todo, due, 'overdue')).join('')}${overdue.length > 6 ? `<p class="kd-more">另有 ${overdue.length - 6} 条</p>` : ''}</div>
       </div>`
     : `<div class="kd-day kd-day-gate kd-day-gate-empty" data-gate="overdue">
         <div class="kd-day-head"><b class="kd-day-num">0</b><span class="kd-day-wd">已逾期</span></div>
@@ -164,7 +174,7 @@ export function publishTimetable(todos: TimetableTodo[]): void {
   const undatedCell = undated.length
     ? `<div class="kd-day kd-day-tail">
         <div class="kd-day-head"><b class="kd-day-num">${undated.length}</b><span class="kd-day-wd">未排期</span></div>
-        <div class="kd-day-body">${undated.slice(0, 4).map((todo) => eventMarkup(todo, null)).join('')}${undated.length > 4 ? `<p class="kd-more">另有 ${undated.length - 4} 条</p>` : ''}</div>
+        <div class="kd-day-body">${undated.slice(0, 4).map((todo) => eventMarkup(todo, null, 'undated')).join('')}${undated.length > 4 ? `<p class="kd-more">另有 ${undated.length - 4} 条</p>` : ''}</div>
       </div>`
     : '';
 
