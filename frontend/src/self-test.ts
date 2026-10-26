@@ -12,6 +12,8 @@ const apiLayer = readFileSync(new URL("./prototype-api.ts", import.meta.url), "u
 const prospectRadar = readFileSync(new URL("./prospect-radar.ts", import.meta.url), "utf8");
 const tradeMotion = readFileSync(new URL("./trade-motion.ts", import.meta.url), "utf8");
 const themeCss = readFileSync(new URL("./theme-keduoduo.css", import.meta.url), "utf8");
+const adminDeck = readFileSync(new URL("./admin-deck.ts", import.meta.url), "utf8");
+const adminCss = readFileSync(new URL("./theme-keduoduo-admin.css", import.meta.url), "utf8");
 const integrationCenter = readFileSync(new URL("./integrations/integration-center.ts", import.meta.url), "utf8");
 const productConfig = JSON.parse(readFileSync(new URL("../public/product-config.json", import.meta.url), "utf8")) as {
   productName?: string;
@@ -1047,5 +1049,15 @@ assert.match(tradeMotion, /playedSignature/, "同一份市场数据不得在轮�
 assert.match(tradeMotion, /svg\.replaceChildren\(\)/, "航线层每次重绘必须清空，避免路径叠加");
 assert.equal(/@keyframes\s+mhStamp/.test(themeCss), false, "唛头入场不得退回 CSS keyframes");
 assert.equal(/animation:\s*mhStamp/.test(themeCss), false, "唛头入场不得退回 CSS animation");
+
+// 系统后台「控制台」：状态带与授权矩阵带的工程约束
+assert.match(adminDeck, /organizations|organization-structure/, "后台控制台必须覆盖组织架构页");
+assert.match(adminDeck, /\.main > \.workspace > \.view\.active, \.main > \.view\.active/, "后台视图分布在 workspace 与 main 两处，必须都能命中");
+assert.match(adminDeck, /rails\.slice\(1\)/, "状态带每次只允许存在一条，重复插入必须清理");
+assert.match(adminDeck, /head\.nextElementSibling !== existing/, "状态带位置必须紧随页首（首次渲染早于页首时要搬正）");
+assert.match(adminDeck, /SCOPE_LEVELS/, "授权范围必须映射成可读刻度");
+assert.match(adminDeck, /select\.addEventListener\('change'/, "改授权范围必须即时更新仪表与读数");
+assert.match(adminCss, /\.kd-rail-cell\[data-tone="danger"\]/, "状态带必须能用信号色表达危险");
+assert.match(adminCss, /--deck: #101315/, "后台必须是独立于业务区的深色甲板");
 
 console.log(JSON.stringify({ ok: true, checked: required.length }, null, 2));

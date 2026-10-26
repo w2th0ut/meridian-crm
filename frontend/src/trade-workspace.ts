@@ -1,5 +1,7 @@
 import './theme-keduoduo.css';
 import { playMarketsIntro, playViewEnter, resetMotionState } from './trade-motion';
+import './theme-keduoduo-admin.css';
+import { refreshAdminDeck } from './admin-deck';
 
 /** View-only navigation and data presentation controller; core business actions remain in prototype-api.ts. */
 const root = document.documentElement;
@@ -45,6 +47,7 @@ function updateChrome() {
   if (active && active.id !== lastActiveViewId) {
     lastActiveViewId = active.id;
     playViewEnter(active);
+    refreshAdminDeck();
   }
   if (active && document.body.classList.contains('is-authenticated')) {
     document.title = `${activeLabel} · 客多多`;

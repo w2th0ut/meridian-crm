@@ -1,0 +1,499 @@
+/*
+ * 客多多 · 系统后台「控制台」
+ *
+ * 业务区是纸（单据、客户账），后台是控制台（配置、授权、审计）。
+ * 后台的活儿是"检查与开关"：短时、高频、要看信号强弱，
+ * 所以这里不用纸白，改用深色甲板 + 信号灯，让"哪里开着、哪里危险"一眼可读。
+ *
+ * 唯一的红色仍是印章红，但后台里它只表示"需要处理 / 危险"，
+ * 正常与已授权用玉色，待确认用琥珀——仪表盘必须同时说三件事。
+ */
+html[data-ui="trade"] :is(
+  #settings,
+  #database-maintenance,
+  #logs,
+  #ai-config,
+  #theme,
+  #approval-workflows,
+  #member-management,
+  #organization-structure,
+  #role-management,
+  #ui-access,
+  #member-authorization,
+  #permission-audit,
+  #platform-operations
+) {
+  --deck: #101315;
+  --deck-panel: #181c1e;
+  --deck-panel-2: #1d2225;
+  --deck-line: #2a3134;
+  --deck-line-soft: #22282a;
+  --deck-fg: #e3e8e9;
+  --deck-fg-2: #aab3b6;
+  --deck-fg-3: #77817f;
+  --sig-ok: #4fa98a;
+  --sig-warn: #c98a3c;
+  --sig-danger: #e0483a;
+
+  /* 覆盖纸墨令牌，让已有组件整体落到甲板配色上 */
+  --paper: var(--deck);
+  --leaf: var(--deck-panel);
+  --surface: var(--deck-panel);
+  --surface-2: var(--deck-panel-2);
+  --surface-3: #232a2d;
+  --ink: var(--deck-fg);
+  --ink-2: var(--deck-fg);
+  --text: #c9d1d3;
+  --graphite: var(--deck-fg-2);
+  --graphite-2: var(--deck-fg-3);
+  --muted: var(--deck-fg-2);
+  --rule: var(--deck-line);
+  --rule-soft: var(--deck-line-soft);
+  --line: var(--deck-line);
+  --line-soft: var(--deck-line-soft);
+  --seal: var(--sig-danger);
+  --seal-deep: #c83226;
+  --seal-wash: #2a1715;
+  --jade: var(--sig-ok);
+  --jade-wash: #12241f;
+  --amber: var(--sig-warn);
+  --amber-wash: #241a10;
+  --pc-ink: var(--deck-fg);
+  --pc-ink-2: var(--deck-fg-2);
+  --pc-paper: var(--deck);
+  --pc-paper-2: var(--deck-panel);
+  --pc-line: var(--deck-line);
+
+  color: var(--text);
+  background: var(--deck);
+}
+
+/* 甲板底纹：细坐标网格，只在后台出现，用来暗示"这是仪表而不是纸" */
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 2.4%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 2.4%) 1px, transparent 1px);
+  background-size: 44px 44px;
+  background-position: -1px -1px;
+}
+
+/* ── 页首：立起来的信号条，而不是业务区的墨色通栏 ───────── */
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.page-head, .th-page-head, .approval-head, .file-center-head) {
+  position: relative;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 22px;
+  margin: 0 0 20px; padding: 0 0 16px 18px;
+  border: 0; border-bottom: 1px solid var(--deck-line);
+  background: transparent; box-shadow: none;
+}
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.page-head, .th-page-head, .approval-head, .file-center-head)::before {
+  position: absolute; top: 2px; bottom: 17px; left: 0; width: 3px;
+  background: linear-gradient(180deg, var(--sig-danger), #7a1f18);
+  content: "";
+}
+html[data-ui="trade"] :is(
+  #settings, #logs, #ai-config, #theme, #approval-workflows, #database-maintenance,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.page-head, .th-page-head, .approval-head) :is(h1, .th-h1) {
+  margin: 0; color: #fff; font-size: 25px; font-weight: 800; letter-spacing: -.045em; line-height: 1.14;
+}
+html[data-ui="trade"] :is(
+  #settings, #logs, #ai-config, #theme, #approval-workflows, #database-maintenance,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.page-head, .th-page-head, .approval-head) :is(.sub, .th-sub, p, .view-sub, .eyebrow) {
+  color: var(--deck-fg-3);
+}
+html[data-ui="trade"] :is(#settings, #logs, #database-maintenance, #ai-config, #theme,
+  #approval-workflows, #platform-operations) .eyebrow { display: none; }
+
+/* 权限类页面（由 .ac-root 渲染）的页首：与其它后台页同一信号条语言 */
+html[data-ui="trade"] .ac-page-head {
+  position: relative;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 22px;
+  margin: 0 0 18px; padding: 0 0 15px 18px;
+  border: 0; border-bottom: 1px solid var(--deck-line);
+}
+html[data-ui="trade"] .ac-page-head::before {
+  position: absolute; top: 2px; bottom: 16px; left: 0; width: 3px;
+  background: linear-gradient(180deg, var(--sig-danger), #7a1f18); content: "";
+}
+html[data-ui="trade"] .ac-page-head .ac-title-line { display: flex; align-items: baseline; gap: 10px; }
+html[data-ui="trade"] .ac-page-head h1 { margin: 0; color: #fff; font-size: 25px; font-weight: 800; letter-spacing: -.045em; line-height: 1.14; }
+html[data-ui="trade"] .ac-page-head p { margin: 7px 0 0; color: var(--deck-fg-3); font-size: 12px; }
+html[data-ui="trade"] .ac-boundary-state {
+  padding: 1px 7px; border: 1px solid var(--deck-line); border-radius: 1px;
+  color: var(--deck-fg-2); background: transparent; font-size: 10px; letter-spacing: .06em;
+}
+html[data-ui="trade"] .ac-page-head .ac-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+
+/* 后台主按钮：实心印章红；其余：甲板描边 */
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .btn {
+  min-height: 32px; border: 1px solid var(--deck-line); border-radius: 1px;
+  color: var(--deck-fg); background: var(--deck-panel); font-size: 12px; font-weight: 550;
+}
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .btn:hover { border-color: #4a5458; color: #fff; background: var(--deck-panel-2); }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .btn.primary { border-color: var(--sig-danger); color: #fff; background: var(--sig-danger); }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .btn.primary:hover { border-color: #c83226; background: #c83226; }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .btn.danger { border-color: #6d2a22; color: #f0958c; background: #241413; }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .btn:disabled { opacity: .38; }
+
+/* 控件 */
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+  border: 1px solid var(--deck-line); border-radius: 1px;
+  color: var(--deck-fg); background: #14181a; font-size: 12.5px;
+}
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(input, textarea)::placeholder { color: #5f6a6d; }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(input, select, textarea):focus {
+  border-color: var(--sig-warn); box-shadow: 0 0 0 2px rgb(201 138 60 / 18%);
+}
+
+/* 面板：甲板上的一格仪表 */
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.panel, .section, .ac-pane, .ac-shell, .company-profile-panel, .file-center-metrics, .th-preset) {
+  border: 1px solid var(--deck-line); border-radius: 1px;
+  background: var(--deck-panel); box-shadow: none;
+}
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.panel, .section) { padding: 18px; }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .section-head { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--deck-line); }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .section-title h2 { color: #fff; font-size: 13.5px; font-weight: 700; letter-spacing: -.02em; }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.section-title p, .section-subtitle, .system-setting-help) { color: var(--deck-fg-3); }
+
+/* 表格：控制台读数 */
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.table-wrap, .items-table, .ac-permission-table-wrap, .ac-member-table-wrap, .lg-board) {
+  border-color: var(--deck-line); border-radius: 0; background: transparent;
+}
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) table th {
+  border-bottom: 1px solid var(--deck-line); color: var(--deck-fg-3);
+  background: transparent; font-size: 10.5px; letter-spacing: .08em;
+}
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) table td { border-bottom: 1px solid var(--deck-line-soft); color: #b9c2c4; }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) table tbody tr:hover td { background: #1d2325; }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) table :is(b, strong) { color: #fff; }
+
+/* 状态徽章：仪表灯 */
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.badge, .ac-status-chip, .ac-scope-badge) {
+  border: 1px solid var(--deck-line); border-radius: 1px; color: var(--deck-fg-2); background: transparent;
+  font-size: 10.5px; letter-spacing: .05em;
+}
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .badge.green { border-color: #2f5c4e; color: #6fc2a4; background: var(--jade-wash); }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .badge.amber { border-color: #5f472a; color: #dca86a; background: var(--amber-wash); }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) .badge.red { border-color: #6d2a22; color: #f0958c; background: var(--seal-wash); }
+html[data-ui="trade"] :is(
+  #settings, #database-maintenance, #logs, #ai-config, #theme, #approval-workflows,
+  #member-management, #organization-structure, #role-management, #ui-access,
+  #member-authorization, #permission-audit, #platform-operations
+) :is(.empty-cell, .ac-table-empty, .ac-empty, .lg-empty, .todo-history-empty) {
+  color: var(--deck-fg-3); background: transparent;
+}
+
+/* ── 控制台状态带（由 admin-deck.ts 注入，数据全部取自页面真实内容） ── */
+html[data-ui="trade"] .ac-shell > .kd-rail { grid-column: 1 / -1; }
+html[data-ui="trade"] .kd-rail {
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 0;
+  margin: 0 0 18px; border: 1px solid var(--deck-line); background: #14181a;
+}
+html[data-ui="trade"] .kd-rail-cell {
+  display: flex; min-width: 0; flex: 1 1 0; align-items: center; gap: 10px;
+  padding: 11px 14px; border-left: 1px solid var(--deck-line);
+}
+html[data-ui="trade"] .kd-rail-cell:first-child { border-left: 0; }
+html[data-ui="trade"] .kd-rail-dot {
+  position: relative; flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--deck-fg-3);
+}
+html[data-ui="trade"] .kd-rail-cell[data-tone="ok"] .kd-rail-dot { background: var(--sig-ok); box-shadow: 0 0 0 3px rgb(79 169 138 / 14%); }
+html[data-ui="trade"] .kd-rail-cell[data-tone="warn"] .kd-rail-dot { background: var(--sig-warn); box-shadow: 0 0 0 3px rgb(201 138 60 / 14%); }
+html[data-ui="trade"] .kd-rail-cell[data-tone="danger"] .kd-rail-dot {
+  background: var(--sig-danger); box-shadow: 0 0 0 3px rgb(224 72 58 / 16%);
+  animation: kdBeacon 2.4s ease-in-out infinite;
+}
+@keyframes kdBeacon { 0%, 100% { opacity: 1; } 50% { opacity: .42; } }
+html[data-ui="trade"] .kd-rail-copy { min-width: 0; display: grid; gap: 2px; }
+html[data-ui="trade"] .kd-rail-label {
+  color: var(--deck-fg-3); font-size: 10px; font-weight: 650; letter-spacing: .09em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="trade"] .kd-rail-value {
+  color: #fff; font-size: 15px; font-weight: 750; line-height: 1.1;
+  letter-spacing: -.03em; font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="trade"] .kd-rail-value small { color: var(--deck-fg-3); font-size: 11px; font-weight: 500; letter-spacing: 0; }
+
+/* ── 授权范围矩阵带：把"选了下拉框"变成可读的仪表 ─────── */
+html[data-ui="trade"] .kd-scope {
+  display: inline-flex; align-items: center; gap: 3px; margin-left: 10px;
+  padding: 0; vertical-align: middle;
+}
+html[data-ui="trade"] .kd-scope i {
+  display: block; width: 16px; height: 5px; border-radius: 1px;
+  background: #2a3134; transition: background-color .18s ease;
+}
+html[data-ui="trade"] .kd-scope[data-level="1"] i:nth-child(-n+1),
+html[data-ui="trade"] .kd-scope[data-level="2"] i:nth-child(-n+2),
+html[data-ui="trade"] .kd-scope[data-level="3"] i:nth-child(-n+3),
+html[data-ui="trade"] .kd-scope[data-level="4"] i:nth-child(-n+4),
+html[data-ui="trade"] .kd-scope[data-level="5"] i:nth-child(-n+5) {
+  background: var(--sig-ok);
+}
+html[data-ui="trade"] .kd-scope[data-level="5"] i { background: var(--sig-danger); }
+html[data-ui="trade"] .kd-scope-caption {
+  margin-left: 7px; color: var(--deck-fg-3); font-size: 10px; letter-spacing: .05em;
+}
+html[data-ui="trade"] .kd-scope[data-level="0"] + .kd-scope-caption { color: #5f6a6d; }
+
+/* 权限表：模块分组像仪表分区 */
+html[data-ui="trade"] .ac-permission-table .ac-module-row td {
+  padding: 14px 12px 7px; border-bottom: 1px solid var(--deck-line); background: transparent;
+}
+html[data-ui="trade"] .ac-permission-table .ac-module-row span {
+  color: #fff; font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
+}
+html[data-ui="trade"] .ac-permission-table .ac-module-row small {
+  margin-left: 8px; color: var(--deck-fg-3); font-size: 10px;
+}
+html[data-ui="trade"] .ac-permission-table .ac-permission-name b { color: #e6ebec; font-size: 12.5px; }
+html[data-ui="trade"] .ac-permission-table .ac-permission-name small { color: #6d787b; font-size: 10px; letter-spacing: .03em; }
+html[data-ui="trade"] .ac-permission-table tbody tr:not(.ac-module-row):has(option[value="none"]:checked) { opacity: .62; }
+html[data-ui="trade"] .ac-permission-table tbody tr:not(.ac-module-row):has(option[value="tenant"]:checked) td:first-child {
+  box-shadow: inset 2px 0 0 var(--sig-danger);
+}
+html[data-ui="trade"] .ac-scope-select { min-width: 132px; }
+
+/* 角色列表：如通道选择器 */
+html[data-ui="trade"] .ac-role-list { display: grid; gap: 0; }
+html[data-ui="trade"] .ac-role-item {
+  display: grid; grid-template-columns: 26px minmax(0,1fr) auto; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 0; border-bottom: 1px solid var(--deck-line-soft); border-radius: 0;
+  color: var(--deck-fg-2); background: transparent; text-align: left;
+}
+html[data-ui="trade"] .ac-role-item:hover { background: #1d2325; color: #fff; }
+html[data-ui="trade"] .ac-role-item.active {
+  color: #fff; background: #1f2628; box-shadow: inset 3px 0 0 var(--sig-danger);
+}
+html[data-ui="trade"] .ac-role-symbol {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 1px;
+  color: #0e1113; background: var(--deck-fg-2); font-size: 12px; font-weight: 800;
+}
+html[data-ui="trade"] .ac-role-item.active .ac-role-symbol { background: var(--sig-danger); color: #fff; }
+html[data-ui="trade"] .ac-role-copy b { color: inherit; font-size: 12.5px; font-weight: 650; }
+html[data-ui="trade"] .ac-role-copy small { color: var(--deck-fg-3); font-size: 10.5px; }
+html[data-ui="trade"] .ac-count { color: var(--deck-fg-2); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+
+/* 角色统计三格：读数 */
+html[data-ui="trade"] .ac-role-stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--deck-line); }
+html[data-ui="trade"] .ac-role-stat { padding: 10px 14px; border-left: 1px solid var(--deck-line); }
+html[data-ui="trade"] .ac-role-stat:first-child { border-left: 0; }
+html[data-ui="trade"] .ac-role-stat span { color: var(--deck-fg-3); font-size: 10px; letter-spacing: .08em; }
+html[data-ui="trade"] .ac-role-stat b { display: block; margin-top: 4px; color: #fff; font-size: 22px; font-weight: 750; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+
+/* 设置页：开关做成闸刀 */
+html[data-ui="trade"] #settings .setting-row {
+  display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 14px;
+  padding: 13px 0; border-bottom: 1px solid var(--deck-line-soft);
+}
+html[data-ui="trade"] #settings .setting-row:last-child { border-bottom: 0; }
+html[data-ui="trade"] #settings :is(.setting-row b, .setting-row strong) { color: #e6ebec; font-size: 12.5px; }
+html[data-ui="trade"] #settings :is(.setting-row small, .setting-row p) { color: var(--deck-fg-3); font-size: 11px; }
+html[data-ui="trade"] #settings .system-setting-switch { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+html[data-ui="trade"] #settings .system-setting-switch input[type="checkbox"] {
+  appearance: none; width: 38px; height: 20px; border: 1px solid var(--deck-line); border-radius: 1px;
+  background: #14181a; cursor: pointer; position: relative; transition: background-color .16s ease, border-color .16s ease;
+}
+html[data-ui="trade"] #settings .system-setting-switch input[type="checkbox"]::after {
+  position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  background: #4c5659; content: ""; transition: transform .16s ease, background-color .16s ease;
+}
+html[data-ui="trade"] #settings .system-setting-switch input[type="checkbox"]:checked {
+  border-color: #2f5c4e; background: #16241f;
+}
+html[data-ui="trade"] #settings .system-setting-switch input[type="checkbox"]:checked::after {
+  background: var(--sig-ok); transform: translateX(18px);
+}
+
+/* 数据库维护：进度即仪表 */
+html[data-ui="trade"] #database-maintenance .database-status-strip { border-color: var(--deck-line); background: transparent; }
+html[data-ui="trade"] #database-maintenance .database-status-strip > div { border-color: var(--deck-line); }
+html[data-ui="trade"] #database-maintenance :is(.database-execution-head, .database-section-title) { border-bottom: 1px solid var(--deck-line); }
+html[data-ui="trade"] #database-maintenance .database-workspace { border-color: var(--deck-line); background: var(--deck-panel); }
+html[data-ui="trade"] #database-maintenance .database-operation-pane { border-right: 1px solid var(--deck-line); }
+html[data-ui="trade"] #database-maintenance :is(.database-file-picker, .database-backup-policy, .database-control-field input, .database-control-field select) {
+  border-color: var(--deck-line); background: #14181a; color: var(--deck-fg);
+}
+html[data-ui="trade"] #database-maintenance .database-progress-track { background: #232a2d; }
+html[data-ui="trade"] #database-maintenance .database-progress-track i { background: var(--sig-danger); }
+html[data-ui="trade"] #database-maintenance .database-stream { background: #0d1011; border: 1px solid var(--deck-line); color: #9fb0ae; }
+html[data-ui="trade"] #database-maintenance .database-run-status.is-idle { color: var(--deck-fg-3); }
+
+/* 日志：读数台 */
+html[data-ui="trade"] #logs .lg-board { border-color: var(--deck-line); background: var(--deck-panel); }
+html[data-ui="trade"] #logs .lg-chips { border-color: var(--deck-line); background: transparent; }
+html[data-ui="trade"] #logs .lg-chip { border: 1px solid transparent; border-radius: 1px; color: var(--deck-fg-2); background: transparent; }
+html[data-ui="trade"] #logs .lg-chip:hover { border-color: var(--deck-line); color: #fff; }
+html[data-ui="trade"] #logs .lg-chip.is-active { border-color: var(--sig-danger); color: #fff; background: #241413; }
+html[data-ui="trade"] #logs .lg-row { border-bottom: 1px solid var(--deck-line-soft); }
+html[data-ui="trade"] #logs .lg-row:hover { background: #1d2325; }
+html[data-ui="trade"] #logs .lg-drawer { border-color: var(--deck-line); background: var(--deck-panel); }
+
+/* 主题预设：色卡在甲板上发光 */
+html[data-ui="trade"] #theme .th-preset { border-color: var(--deck-line); background: var(--deck-panel); }
+html[data-ui="trade"] #theme .th-preset:hover { border-color: #4a5458; }
+html[data-ui="trade"] #theme .th-preset.is-active { border-color: var(--sig-danger); box-shadow: 0 0 0 1px var(--sig-danger) inset; }
+html[data-ui="trade"] #theme .th-preset-meta b { color: #fff; }
+html[data-ui="trade"] #theme .th-preset-meta small { color: var(--deck-fg-3); }
+
+/* 审批设置：流程库在甲板上 */
+html[data-ui="trade"] #approval-workflows :is(.approval-library-toolbar, .approval-workflow-table, .approval-designer, .approval-node-palette, .approval-canvas-shell, .approval-inspector) {
+  border-color: var(--deck-line); background: var(--deck-panel);
+}
+html[data-ui="trade"] #approval-workflows .approval-canvas { background: #0d1011; }
+html[data-ui="trade"] #approval-workflows .approval-metrics { border-color: var(--deck-line); background: transparent; }
+html[data-ui="trade"] #approval-workflows .approval-metric { border-color: var(--deck-line); }
+
+/* 平台运维 */
+html[data-ui="trade"] #platform-operations :is(.platform-head-row, .platform-account-notice) { border-color: var(--deck-line); }
+html[data-ui="trade"] #platform-operations .platform-account-notice { background: var(--amber-wash); }
+
+/* 组织架构树 / 界面开通 */
+html[data-ui="trade"] .ac-tree-row {
+  border: 0; border-bottom: 1px solid var(--deck-line-soft); border-radius: 0;
+  color: var(--deck-fg-2); background: transparent;
+}
+html[data-ui="trade"] .ac-tree-row:hover { background: #1d2325; color: #fff; }
+html[data-ui="trade"] .ac-tree-row.active { background: #1f2628; color: #fff; box-shadow: inset 3px 0 0 var(--sig-danger); }
+html[data-ui="trade"] .ac-tree-mark {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 1px;
+  color: var(--deck-fg-3); background: #232a2d; font-size: 10px;
+}
+html[data-ui="trade"] .ac-ui-card {
+  border: 1px solid var(--deck-line); border-radius: 1px; background: var(--deck-panel);
+}
+html[data-ui="trade"] .ac-ui-card.is-active { border-color: #2f5c4e; box-shadow: inset 3px 0 0 var(--sig-ok); }
+html[data-ui="trade"] .ac-ui-card.is-warning { border-color: #5f472a; box-shadow: inset 3px 0 0 var(--sig-warn); }
+html[data-ui="trade"] .ac-ui-legend i { border-radius: 1px; }
+
+@media (max-width: 900px) {
+  html[data-ui="trade"] .kd-rail { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  html[data-ui="trade"] .kd-rail-cell:nth-child(odd) { border-left: 0; }
+  html[data-ui="trade"] .kd-rail-cell:nth-child(n+3) { border-top: 1px solid var(--deck-line); }
+  html[data-ui="trade"] :is(.ac-role-layout, .ac-workbench) { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 640px) {
+  html[data-ui="trade"] :is(
+    #settings, #logs, #ai-config, #theme, #approval-workflows, #database-maintenance,
+    #member-management, #organization-structure, #role-management, #ui-access,
+    #member-authorization, #permission-audit, #platform-operations
+  ) :is(.page-head, .th-page-head, .approval-head) { flex-direction: column; align-items: flex-start; gap: 12px; padding-left: 14px; }
+  html[data-ui="trade"] .kd-rail { grid-template-columns: minmax(0,1fr); }
+  html[data-ui="trade"] .kd-rail-cell { border-left: 0; border-top: 1px solid var(--deck-line); }
+  html[data-ui="trade"] .kd-rail-cell:first-child { border-top: 0; }
+  html[data-ui="trade"] .kd-scope { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="trade"] .kd-rail-cell[data-tone="danger"] .kd-rail-dot { animation: none; }
+}
