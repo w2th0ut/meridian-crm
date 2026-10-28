@@ -10104,7 +10104,8 @@
     }
 
     #dashboardProspectRuns,
-    #dashboardPendingEmails { margin: 0 0 16px; }
+    #dashboardPendingEmails,
+    #dashboardRecentOutreach { margin: 0 0 16px; }
     .dashboard-prospect-row {
       display: grid;
       grid-template-columns: minmax(0, 1.4fr) minmax(88px, auto) minmax(140px, auto);
@@ -25932,6 +25933,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
               </div>
             </div>
             <div id="dashboardPendingEmailList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
+          <section class="panel section" id="dashboardRecentOutreach" aria-label="最近触达">
+            <div class="section-head">
+              <div class="section-title"><div><h2>最近触达</h2><p id="dashboardRecentOutreachScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardRecentOutreachRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <div id="dashboardRecentOutreachList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">

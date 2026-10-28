@@ -2744,6 +2744,22 @@ test.describe("Keduoduo CRM prototype pages", () => {
     await expect(page.locator("#prospectListRows .prospect-item", { hasText: "No Email GmbH" })).not.toContainText("可写开发信");
 
     await openView(page, "dashboard");
+    const recent = page.locator("#dashboardRecentOutreach");
+    await expect(recent).toContainText("最近触达");
+    await expect(recent.locator("[data-dashboard-recent-outreach]")).toHaveCount(1);
+    await expect(recent).toContainText("Already Sent GmbH");
+    await expect(recent).toContainText("已发开发信");
+    await expect(recent).toContainText("Earlier letter");
+    await expect(recent).not.toContainText("Ready Letter 01");
+    await expect(recent).not.toContainText("No Email GmbH");
+    await recent.locator("[data-dashboard-recent-outreach]").click();
+    await expect(page.locator("#prospect-list")).toHaveClass(/active/);
+    await expect(page.locator("#prospectDetail")).toContainText("Already Sent GmbH");
+    await expect(page.locator("#prospectListRows .prospect-item.active")).toContainText("已发开发信");
+    await expect(page.locator("#prospectMailWorkspace")).toHaveJSProperty("open", false);
+    await expect(page.locator(".toast").last()).toContainText("不会再次发送");
+
+    await openView(page, "dashboard");
     await queue.locator("[data-dashboard-pending-email]").first().click();
     await expect(page.locator("#prospect-list")).toHaveClass(/active/);
     await expect(page.locator("#prospectMailWorkspace")).toHaveJSProperty("open", true);
@@ -2769,6 +2785,183 @@ test.describe("Keduoduo CRM prototype pages", () => {
     await expect(queue).toContainText("没有可写开发信的候选");
     await expect(queue).toContainText("去智能获客或搜客清单，补齐可联系状态和邮箱");
     await expect(queue.locator("[data-dashboard-pending-email]")).toHaveCount(0);
+    const recent = page.locator("#dashboardRecentOutreach");
+    await expect(recent).toContainText("还没有已发开发信");
+    await expect(recent).toContainText("去待写开发信或搜客清单写一封");
+    await expect(recent.locator("[data-dashboard-recent-outreach]")).toHaveCount(0);
+  });
+
+  test("dashboard recent outreach lists only sent letters, newest first", async ({ page }) => {
+    const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+    const opportunities = [
+      {
+        id: `recent_empty_${runId}`,
+        company: `Waiting Letter ${runId} GmbH`,
+        business: "LED lighting",
+        country: "德国",
+        website: `https://waiting-${runId}.example`,
+        contact: "Alex Buyer",
+        contactInfo: `buyer@waiting-${runId}.example`,
+        description: "尚未发送",
+        ownerId: "u_manager_alex",
+        teamId: "europe",
+        status: "contactable",
+        shortlistedAt: at(1),
+        createdAt: at(1),
+        parseMode: "rule",
+        source: "gleif",
+        sourceLabel: "GLEIF",
+        sourceEvidence: []
+      },
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `recent_sent_${runId}_${index}`,
+        company: `Sent ${index} ${runId} GmbH`,
+        business: "LED lighting",
+        country: "德国",
+        website: `https://sent-${runId}-${index}.example`,
+        contact: "Alex Buyer",
+        contactInfo: `buyer-${index}@sent.example`,
+        description: "已发",
+        ownerId: "u_manager_alex",
+        teamId: "europe",
+        status: "contactable",
+        shortlistedAt: at(index + 2),
+        createdAt: at(index + 2),
+        lastDevelopmentEmailAt: at(index),
+        lastDevelopmentEmailSubject: `Letter ${index}`,
+        lastDevelopmentEmailTo: `buyer-${index}@sent.example`,
+        parseMode: "rule",
+        source: "gleif",
+        sourceLabel: "GLEIF",
+        sourceEvidence: []
+      }))
+    ];
+    await page.route("**/api/tools/website-opportunities", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ opportunities })
+      });
+    });
+    await page.reload();
+    await expect(page.locator("body")).toHaveClass(/is-authenticated/);
+    await openView(page, "dashboard");
+    const queue = page.locator("#dashboardPendingEmails");
+    const recent = page.locator("#dashboardRecentOutreach");
+    await expect(queue).toContainText(`Waiting Letter ${runId} GmbH`);
+    await expect(recent).toContainText("共 6 条，这里显示 5 条");
+    await expect(recent.locator("[data-dashboard-recent-outreach]")).toHaveCount(5);
+    await expect(recent.locator("[data-dashboard-recent-outreach]").first()).toContainText(`Sent 0 ${runId} GmbH`);
+    await expect(recent.locator("[data-dashboard-recent-outreach]").first()).toContainText("已发开发信");
+    await expect(recent.locator("[data-dashboard-recent-outreach]").first()).toContainText("Letter 0");
+    await expect(recent).not.toContainText(`Sent 5 ${runId} GmbH`);
+    await expect(recent).not.toContainText(`Waiting Letter ${runId} GmbH`);
+  });
+
+  test("confirming a prospect development email marks it sent and drops it from the pending queue", async ({ page }) => {
+    const at = new Date().toISOString();
+    const company = `Confirm Send ${runId} GmbH`;
+    const recipient = `buyer.${runId}@confirm.example`;
+    const candidate = {
+      id: `confirm_send_${runId}`,
+      company,
+      business: "LED lighting",
+      country: "德国",
+      website: `https://confirm-${runId}.example`,
+      contact: "Alex Buyer",
+      contactInfo: recipient,
+      description: "发送后应离开待写队列",
+      ownerId: "u_manager_alex",
+      teamId: "europe",
+      status: "contactable",
+      shortlistedAt: at,
+      createdAt: at,
+      parseMode: "rule",
+      source: "gleif",
+      sourceLabel: "GLEIF",
+      sourceEvidence: [] as unknown[]
+    };
+    let opportunities = [candidate];
+    let sendCount = 0;
+    await apiFromPage(page, "/api/profile/email-binding", {
+      method: "PATCH",
+      body: {
+        outboundEmail: `alex.sender.${runId}@example.com`,
+        emailSenderName: "Alex",
+        emailSignature: "Best regards,\nAlex",
+        smtpHost: "smtp.example.com",
+        smtpPort: 465,
+        smtpSecure: true,
+        smtpUser: `alex.sender.${runId}@example.com`,
+        smtpPassword: "test-app-password",
+        clearSmtpPassword: false
+      }
+    });
+    const me = await apiFromPage<{ user: { outboundEmail?: string } }>(page, "/api/auth/me");
+    await page.route("**/api/tools/website-opportunities", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ opportunities })
+      });
+    });
+    await page.route("**/api/prospect-list/**/send-development-email", async (route) => {
+      sendCount += 1;
+      const body = route.request().postDataJSON() as { subject?: string; to?: string };
+      const sent = {
+        ...candidate,
+        lastDevelopmentEmailAt: new Date().toISOString(),
+        lastDevelopmentEmailSubject: body.subject || "开发信",
+        lastDevelopmentEmailTo: body.to || recipient
+      };
+      opportunities = [sent];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          sent: { simulated: true, replayed: false },
+          opportunity: sent,
+          user: me.user
+        })
+      });
+    });
+    await page.reload();
+    await expect(page.locator("body")).toHaveClass(/is-authenticated/);
+    await openView(page, "dashboard");
+    const queue = page.locator("#dashboardPendingEmails");
+    const recent = page.locator("#dashboardRecentOutreach");
+    await expect(queue).toContainText(company);
+    await expect(recent).toContainText("还没有已发开发信");
+    await queue.locator("[data-dashboard-pending-email]").click();
+    await expect(page.locator("#prospectMailWorkspace")).toHaveJSProperty("open", true);
+    await expect(page.locator("#prospectMailTo")).toHaveValue(recipient);
+
+    await page.locator("#prospectSendMailButton").click();
+    await page.locator("#appModal [data-modal-cancel]").click();
+    await expect(page.locator("#prospectListRows .prospect-item", { hasText: company })).toContainText("可写开发信");
+    await expect(page.locator("#prospectListRows .prospect-item", { hasText: company })).not.toContainText("已发开发信");
+    await expect(queue).toContainText(company);
+    await expect(recent).not.toContainText(company);
+    expect(sendCount).toBe(0);
+
+    await page.locator("#prospectSendMailButton").click();
+    await page.locator("#confirmActionButton").click();
+    await expect(page.locator(".toast").last()).toContainText("开发信已发送");
+    await expect(page.locator("#prospectListRows .prospect-item", { hasText: company })).toContainText("已发开发信");
+    await expect(page.locator("#prospectListRows .prospect-item", { hasText: company })).not.toContainText("可写开发信");
+    await expect(queue).not.toContainText(company);
+    await expect(queue).toContainText("没有可写开发信的候选");
+    await expect(recent).toContainText(company);
+    await expect(recent).toContainText("已发开发信");
+    expect(sendCount).toBe(1);
+
+    await openView(page, "dashboard");
+    await recent.locator("[data-dashboard-recent-outreach]").click();
+    await expect(page.locator("#prospect-list")).toHaveClass(/active/);
+    await expect(page.locator("#prospectDetail")).toContainText(company);
+    await expect(page.locator("#prospectMailWorkspace")).toHaveJSProperty("open", false);
+    await expect(page.locator(".toast").last()).toContainText("不会再次发送");
+    expect(sendCount).toBe(1);
   });
 
   test("draft gap shortcut edits the candidate and returns to the same prefilled draft", async ({ page }) => {

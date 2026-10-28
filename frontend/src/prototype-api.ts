@@ -11470,6 +11470,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   ensureTenderDaily();
   renderDashboardProspectRuns();
   renderDashboardPendingEmails();
+  renderDashboardRecentOutreach();
 }
 
 async function loadBadges(containerId = "leaderboardBadges", tagId?: string) {
@@ -35576,6 +35577,26 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   });
 }
 
+/** 从工作台打开一条已发开发信：只选中候选，不打开发送区，也不再发。 */
+function openSentProspectFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt || !item.lastDevelopmentEmailAt) return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  activateNavView("prospect-list", () => {
+    renderProspectList();
+    const workspace = qs<HTMLDetailsElement>("#prospectMailWorkspace");
+    if (workspace) workspace.open = false;
+    toast("这是已发记录，打开后不会再次发送");
+  });
+}
+
 function renderProspectDetail(item?: WebsiteOpportunity | null) {
   const box = qs<HTMLElement>("#prospectDetail");
   const sender = qs<HTMLElement>("#prospectSenderStatus");
@@ -36187,6 +36208,7 @@ function renderProspectList() {
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
+  renderDashboardRecentOutreach();
 }
 
 function prospectsAsSyncRows(ids: string[]) {
@@ -37307,9 +37329,15 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     const scope = qs<HTMLElement>("#dashboardPendingEmailScope");
     const list = qs<HTMLElement>("#dashboardPendingEmailList");
     const message = error instanceof Error ? error.message : "候选暂时读不到";
+    const recentScope = qs<HTMLElement>("#dashboardRecentOutreachScope");
+    const recentList = qs<HTMLElement>("#dashboardRecentOutreachList");
     if (scope) scope.textContent = "候选暂时读不到";
+    if (recentScope) recentScope.textContent = "已发记录暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && recentList) {
+      recentList.innerHTML = `<div class="empty-cell">已发记录暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造记录。</div>`;
     }
   } finally {
     if (button) {
@@ -37317,6 +37345,51 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
       button.textContent = original || "刷新";
     }
   }
+}
+
+const RECENT_OUTREACH_LIMIT = 5;
+
+/** 最近触达只认搜客清单上已经发出的开发信，不把未发送候选算进去。 */
+function recentOutreachCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => Boolean(item.shortlistedAt) && Boolean(item.lastDevelopmentEmailAt))
+    .slice()
+    .sort((left, right) => {
+      const leftTime = new Date(left.lastDevelopmentEmailAt || "").getTime();
+      const rightTime = new Date(right.lastDevelopmentEmailAt || "").getTime();
+      const difference = (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+      return difference || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardRecentOutreach() {
+  const list = qs<HTMLElement>("#dashboardRecentOutreachList");
+  const scope = qs<HTMLElement>("#dashboardRecentOutreachScope");
+  if (!list || !scope) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const sent = recentOutreachCandidates();
+  if (!sent.length) {
+    scope.textContent = "当前没有已发开发信";
+    list.innerHTML = `<div class="empty-cell">还没有已发开发信。去待写开发信或搜客清单写一封，确认发送后才会出现在这里。这里不会编造记录。</div>`;
+    return;
+  }
+  const shown = sent.slice(0, RECENT_OUTREACH_LIMIT);
+  scope.textContent = sent.length > shown.length
+    ? `共 ${sent.length} 条，这里显示 ${shown.length} 条`
+    : `最近 ${shown.length} 条已发`;
+  list.innerHTML = shown.map((item) => {
+    const when = formatTime(item.lastDevelopmentEmailAt || "");
+    const subject = item.lastDevelopmentEmailSubject || "开发信";
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-recent-outreach="${escapeHtml(item.id)}" aria-label="查看已发开发信：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>已发开发信</span>
+      <em>${escapeHtml(when)} · ${escapeHtml(subject)}</em>
+    </button>`;
+  }).join("");
 }
 
 function renderDashboardProspectRuns() {
@@ -46290,6 +46363,15 @@ function installEvents() {
     const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardPendingEmail);
     if (!item || !prospectNeedsDevelopmentEmail(item)) return;
     openProspectDraftFromAcquisition(item);
+  });
+  qs<HTMLButtonElement>("#dashboardRecentOutreachRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardRecentOutreach")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-recent-outreach]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardRecentOutreach);
+    if (!item || !item.lastDevelopmentEmailAt) return;
+    openSentProspectFromDashboard(item);
   });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
