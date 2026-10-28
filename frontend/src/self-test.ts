@@ -640,6 +640,14 @@ assert.match(primaryNav, /data-view="dashboard"[\s\S]*data-view="lead-finder"[\s
 assert.doesNotMatch(primaryNav, /data-view="phone-workspace"/, "话机工作台不得留在主导航第一组");
 assert.match(prototype, /aria-label="话机（可选）"[\s\S]*data-view="phone-workspace"[\s\S]*data-view="phone-config"/, "话机入口必须保留在可选分组");
 assert.match(apiLayer, /id="prospectDraftEmailButton"/, "可联系候选必须能打开开发信草稿");
+assert.match(apiLayer, /function prospectOutreachDraftPrefill/, "开发信草稿必须按候选已知资料预填");
+assert.match(apiLayer, /applyProspectOutreachDraftPrefill\(item\)/, "写开发信必须把预填写进草稿区");
+assert.match(apiLayer, /未编造缺失项/, "缺字段时必须提示缺什么");
+assert.match(prototype, /id="prospectMailGaps"/, "搜客清单草稿区必须能显示缺字段");
+assert.match(apiLayer, /id="leadFinderWriteEmailButton"[\s\S]*写开发信/, "可联系的获客结果必须有写开发信入口");
+assert.match(apiLayer, /openProspectDraftFromAcquisition\(item\)/, "获客结果里的写开发信必须打开同一份预填草稿");
+assert.doesNotMatch(apiLayer, /international sourcing and distribution/, "预填不能把空业务编成泛泛的采购场景");
+assert.match(apiLayer, /sendProspectDevelopmentEmail[\s\S]*confirmAction\(/, "搜客清单发送开发信必须经过确认");
 assert.match(apiLayer, /先选定收件对象/, "未选对象时开发信页必须给出获客入口，而不是空白");
 assert.match(apiLayer, /不会自动发送/, "从候选打开 WhatsApp 不得表述成自动发送");
 

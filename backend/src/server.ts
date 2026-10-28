@@ -204,6 +204,7 @@ import {
   buildDevelopmentEmailFallback,
   buildDevelopmentEmailPrompt,
   checkDevelopmentEmailDraft,
+  containsCjk,
   developmentEmailMarketName,
   developmentEmailSignature,
   developmentEmailStagePlan,
@@ -8735,10 +8736,10 @@ function developmentEmailEntity(user: SessionUser, entityType: BackgroundResearc
       prospect: undefined,
       company: lead.company,
       companyFullName: lead.company,
-      contactName: lead.contact || "there",
+      contactName: lead.contact || "",
       email: lead.email || "",
       country: lead.country || "",
-      context: lead.remark || `${lead.intent || ""} intent · ${lead.source || "CRM lead"}`
+      context: developmentEmailContextText(lead.remark)
     };
   }
   if (entityType === "prospect") {
@@ -8754,10 +8755,10 @@ function developmentEmailEntity(user: SessionUser, entityType: BackgroundResearc
       prospect: candidate,
       company: candidate.company,
       companyFullName: candidate.company,
-      contactName: candidate.contact || "there",
+      contactName: candidate.contact || "",
       email,
       country: candidate.country || "",
-      context: candidate.business || candidate.description.slice(0, 200) || "product sourcing prospect"
+      context: developmentEmailContextText(candidate.business, candidate.description)
     };
   }
   const customer = store.customers.find((item) => item.id === entityId && canSeeOwner(user, item.ownerId, item.teamId));
@@ -8774,10 +8775,10 @@ function developmentEmailEntity(user: SessionUser, entityType: BackgroundResearc
     customer,
     prospect: undefined,
     company: customer.company,
-    contactName: customer.contact || "there",
+    contactName: customer.contact || "",
     email,
     country: customer.country || "",
-    context: deals[0]?.product || customer.defaultIncoterm || "existing business relationship"
+    context: developmentEmailContextText(deals[0]?.product, customer.defaultIncoterm)
   };
 }
 
@@ -8803,11 +8804,34 @@ function developmentEmailReadiness(user: ReturnType<typeof getStore>["users"][nu
   };
 }
 
+/** 只保留已经写在资料里的业务原文，不拿通用行业句充数。 */
+function developmentEmailContextText(...parts: Array<string | undefined | null>) {
+  for (const part of parts) {
+    const text = (part || "").replace(/\s+/gu, " ").trim();
+    if (!text) continue;
+    if (/^(product sourcing prospect|your sourcing and product development needs|existing business relationship|unknown|n\/a|待核实|待补充|待维护|待确认|—|-)$/iu.test(text)) continue;
+    return text.slice(0, 400);
+  }
+  return "";
+}
+
+/** 英文信里的称呼：没有可用姓名时用公司 team，不写 Dear there。 */
+function developmentEmailAddressName(contactName: string, company: string) {
+  const person = contactName.trim();
+  const usablePerson = Boolean(person)
+    && !containsCjk(person)
+    && !/^(待维护|待补充|待核实|待确认|未知|unknown|n\/a|there)$/iu.test(person);
+  if (usablePerson) return person;
+  const org = company.trim();
+  if (org && !containsCjk(org)) return `${org} team`;
+  return "your team";
+}
+
 function developmentEmailEnglishContext(value: string) {
   const text = value.trim();
-  return text && !/[\u3400-\u9fff]/u.test(text)
-    ? text
-    : "your sourcing and product development needs";
+  if (!text || containsCjk(text)) return "";
+  if (/^(product sourcing prospect|your sourcing and product development needs|existing business relationship)$/iu.test(text)) return "";
+  return text;
 }
 
 /** 市场名口径统一在开发信技能里（批量/方案成稿器共用同一份），这里只做转发，别再各写一份。 */
@@ -8832,11 +8856,12 @@ function developmentEmailBaseTemplate(input: {
   const greeting = `Dear ${input.recipientName},`;
   const senderLine = `I am ${input.senderName} from ${input.senderCompany}. We specialize in ${input.productSummary}.`;
   const close = `${input.signature}${input.websiteLine}`;
+  const regarding = input.outreachContext ? ` regarding ${input.outreachContext}` : "";
   switch (input.scenario) {
     case "daily_contact":
       return {
         subject: `Following up with ${input.recipientCompany}`,
-        content: [greeting, "", `I wanted to follow up with ${input.recipientCompany} regarding ${input.outreachContext}.`, "", `Please let me know if there is any product information or sourcing detail I can provide for your plans in ${input.outreachMarket}.`, "", close].join("\n")
+        content: [greeting, "", `I wanted to follow up with ${input.recipientCompany}${regarding}.`, "", `Please let me know if there is any product information or sourcing detail I can provide for your plans in ${input.outreachMarket}.`, "", close].join("\n")
       };
     case "holiday_greeting":
       return {
@@ -8851,12 +8876,12 @@ function developmentEmailBaseTemplate(input: {
     case "custom_goal":
       return {
         subject: `A note for ${input.recipientCompany}`,
-        content: [greeting, "", senderLine, "", `I am writing to ${input.recipientCompany} regarding ${input.outreachContext}.`, "", "I would welcome the opportunity to discuss how we may support your current priorities.", "", close].join("\n")
+        content: [greeting, "", senderLine, "", `I am writing to ${input.recipientCompany}${regarding}.`, "", "I would welcome the opportunity to discuss how we may support your current priorities.", "", close].join("\n")
       };
     default:
       return {
         subject: `Potential cooperation with ${input.recipientCompany}`,
-        content: [greeting, "", senderLine, "", `I am reaching out to ${input.recipientCompany} regarding ${input.outreachContext}. I would like to explore whether our products could support your current sourcing plans in ${input.outreachMarket}.`, "", "Would you be available for a brief conversation this week?", "", close].join("\n")
+        content: [greeting, "", senderLine, "", `I am reaching out to ${input.recipientCompany}${regarding}. I would like to explore whether our products could support your current plans in ${input.outreachMarket}.`, "", "Would you be available for a brief conversation this week?", "", close].join("\n")
       };
   }
 }
@@ -9417,7 +9442,7 @@ app.post("/api/development-email/draft", requireAuth, asyncRoute(async (req, res
     const baseTemplate = developmentEmailBaseTemplate({
       scenario: body.scenario,
       recipientCompany: entity.company,
-      recipientName: entity.contactName,
+      recipientName: developmentEmailAddressName(entity.contactName, entity.company),
       senderName,
       senderCompany: companyProfile.companyName || "[Company name]",
       productSummary: companyProfile.productSummary || "[Products and services]",
@@ -19665,13 +19690,16 @@ async function buildAgentDevelopmentEmail(actor: { id: string }, input: Record<s
   const requestedSubject = agentInputText(input, "subject");
   const requestedBody = agentInputText(input, "body");
   const requestedTo = agentInputText(input, "to");
+  const addressName = developmentEmailAddressName(entity.contactName, entity.company);
+  const outreachContext = developmentEmailEnglishContext(entity.context);
+  const regarding = outreachContext ? ` regarding ${outreachContext}` : "";
   let subject = requestedSubject || `Potential cooperation with ${entity.company}`;
   let body = requestedBody || [
-    `Dear ${entity.contactName},`,
+    `Dear ${addressName},`,
     "",
     `I am ${senderName} from ${profile.companyName || "our company"}. We specialize in ${profile.productSummary || "products for international buyers"}.`,
     "",
-    `I am reaching out to ${entity.company} regarding ${developmentEmailEnglishContext(entity.context)}. Would you be available for a brief conversation this week?`,
+    `I am reaching out to ${entity.company}${regarding}. Would you be available for a brief conversation this week?`,
     "",
     signature,
     profile.website ? `Website: ${profile.website}` : ""

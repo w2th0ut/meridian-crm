@@ -33525,22 +33525,94 @@ function renderProspectMailPreview() {
   ].join("\n");
 }
 
+const PROSPECT_PLACEHOLDER_CONTACT = /^(待维护|待补充|待核实|待确认|未知|unknown|n\/a|na|there|—|-|\.+)$/iu;
+
+function prospectRealContactName(value: string) {
+  const text = (value || "").trim();
+  if (!text || PROSPECT_PLACEHOLDER_CONTACT.test(text)) return "";
+  return text;
+}
+
+function prospectRealEmail(item: WebsiteOpportunity) {
+  const extracted = (item.extractedContacts || []).flatMap((contact) => contact.emails || []);
+  const blob = [item.contactInfo, item.contact, ...extracted].filter(Boolean).join(" ");
+  return blob.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu)?.[0] || "";
+}
+
+/** 只用候选上已经写着的业务或备注，不把空字段说成某个行业。 */
+function prospectBusinessClue(item: WebsiteOpportunity) {
+  const business = (item.business || "").trim();
+  if (business && !/^(待维护|待补充|待核实|待确认|未知|产品|product)$/iu.test(business)) return business;
+  const description = (item.description || "").replace(/\s+/gu, " ").trim();
+  return description ? description.slice(0, 160) : "";
+}
+
+function prospectOutreachDraftPrefill(item: WebsiteOpportunity) {
+  const company = (item.company || "").trim();
+  const contact = prospectRealContactName(item.contact);
+  const email = prospectRealEmail(item);
+  const business = prospectBusinessClue(item);
+  const country = (item.country || "").trim();
+  const missing: string[] = [];
+  if (!email) missing.push("收件邮箱");
+  if (!contact) {
+    missing.push(item.contact?.trim()
+      ? `联系人姓名（当前「${item.contact.trim()}」不能当作收件人，未写入称呼）`
+      : "联系人姓名");
+  }
+  if (!company) missing.push("公司名称");
+  if (!business) missing.push("业务或产品线索");
+  else if (/[\u3400-\u9fff]/u.test(business)) missing.push("业务线索含中文，发出前请改成要使用的表述");
+  if (!country) missing.push("国家或地区");
+  const who = company || "your team";
+  const greeting = contact || (company ? `${company} team` : "your team");
+  const sender = state.user?.emailSenderName || state.user?.name || "Sales";
+  const signature = state.user?.emailSignature?.trim() || `Best regards,\n${sender}`;
+  const subject = (business
+    ? `${who} — ${business}`
+    : company
+      ? `${company} — introduction`
+      : "Development email draft").slice(0, 140);
+  const lines = [
+    `Dear ${greeting},`,
+    "",
+    company ? `I am writing to ${company}.` : "I am writing to your team.",
+    ...(business ? [`What we have on file: ${business}.`] : []),
+    ...(country ? [`Market on file: ${country}.`] : []),
+    "",
+    "Would it be useful if I sent the specification most relevant to this line?",
+    "",
+    signature
+  ];
+  return { to: email, subject, body: lines.join("\n"), missing };
+}
+
+function renderProspectDraftGaps(missing: string[]) {
+  const gaps = qs<HTMLElement>("#prospectMailGaps");
+  const gapsText = qs<HTMLElement>("#prospectMailGapsText");
+  if (!gaps || !gapsText) return;
+  gaps.hidden = missing.length === 0;
+  gapsText.textContent = missing.length
+    ? `未编造缺失项：${missing.join("、")}。补齐或改好后再发送。`
+    : "";
+}
+
+function applyProspectOutreachDraftPrefill(item: WebsiteOpportunity) {
+  const draft = prospectOutreachDraftPrefill(item);
+  const mailTo = qs<HTMLInputElement>("#prospectMailTo");
+  const subject = qs<HTMLInputElement>("#prospectMailSubject");
+  const body = qs<HTMLTextAreaElement>("#prospectMailBody");
+  if (mailTo) mailTo.value = draft.to;
+  if (subject) subject.value = draft.subject;
+  if (body) body.value = draft.body;
+  renderProspectDraftGaps(draft.missing);
+  renderProspectMailPreview();
+  return draft;
+}
+
 function localProspectMailTemplate(item: WebsiteOpportunity) {
-  const sender = state.user?.emailSenderName || state.user?.name || "Keduoduo Sales";
-  const signature = state.user?.emailSignature?.trim() || `Best regards,\n${sender}\nKeduoduo Sales Team`;
-  return {
-    subject: `${item.business || "Product"} supplier support for ${item.company}`,
-    body: [
-      `Dear ${item.company} team,`,
-      "",
-      `I noticed your company is active in ${item.business || "international sourcing and distribution"}${item.country ? ` in ${item.country}` : ""}.`,
-      "Keduoduo supports overseas buyers with product selection, specifications, certificates, quotations and sample coordination.",
-      "",
-      "May I know which product categories you are currently sourcing, and whether you have any upcoming project requirements?",
-      "",
-      signature
-    ].join("\n")
-  };
+  const draft = prospectOutreachDraftPrefill(item);
+  return { subject: draft.subject, body: draft.body };
 }
 
 /**
@@ -33610,7 +33682,8 @@ async function generateProspectMailDraft(button?: HTMLButtonElement) {
   if (mailTo && !mailTo.value.trim()) mailTo.value = approvedEmail;
   const source = (qs<HTMLSelectElement>("#prospectMailSourceSelect")?.value || effectiveEmailSource()) as EmailEngineSource;
   let draft = localProspectMailTemplate(item);
-  let engineNote = "本地模板";
+  const localDraft = draft;
+  let engineNote = "已知资料";
   if (button) button.disabled = true;
   const workspace = qs<HTMLElement>("#prospectMailWorkspace");
   // 选了本机 CLI 就立刻亮等待动画（点按钮即出现，不等接口返回）——
@@ -33637,8 +33710,15 @@ async function generateProspectMailDraft(button?: HTMLButtonElement) {
       })
     });
     if (result.draft?.subject && result.draft?.body) {
-      draft = { subject: result.draft.subject, body: result.draft.body };
-      engineNote = result.readiness?.aiGenerated ? "AI 生成" : source === "cli" ? "本机 CLI" : "基础模板";
+      const company = item.company.trim();
+      const keptCompany = !company || result.draft.subject.includes(company) || result.draft.body.includes(company);
+      if (keptCompany) {
+        draft = { subject: result.draft.subject, body: result.draft.body };
+        engineNote = result.readiness?.aiGenerated ? "AI 生成" : source === "cli" ? "本机 CLI" : "基础模板";
+      } else {
+        draft = localDraft;
+        engineNote = "已知资料（引擎稿未保留公司名）";
+      }
     } else if (result.pending && result.engineJob) {
       // 后端约 10 秒就返回 202+jobId：轮询到终态再回填正文。
       // 期间可切换页面，作业由后端留档，回到本页可重新点一次生成取回结果。
@@ -33651,15 +33731,22 @@ async function generateProspectMailDraft(button?: HTMLButtonElement) {
       });
       const written = (payload as { draft?: { subject: string; body: string } }).draft;
       if (written?.subject && written?.body) {
-        draft = { subject: written.subject, body: written.body };
-        engineNote = (payload as { readiness?: { aiGenerated?: boolean } }).readiness?.aiGenerated ? "AI 生成" : "本机 CLI";
+        const company = item.company.trim();
+        const keptCompany = !company || written.subject.includes(company) || written.body.includes(company);
+        if (keptCompany) {
+          draft = { subject: written.subject, body: written.body };
+          engineNote = (payload as { readiness?: { aiGenerated?: boolean } }).readiness?.aiGenerated ? "AI 生成" : "本机 CLI";
+        } else {
+          draft = localDraft;
+          engineNote = "已知资料（引擎稿未保留公司名）";
+        }
       } else {
-        engineNote = "本地模板（CLI 未返回草稿）";
-        toast("本机 CLI 没有返回开发信正文，请到「集成中心 · 本地 Runner」查看执行日志", "error");
+        engineNote = "已知资料（CLI 未返回草稿）";
+        toast("本机 CLI 没有返回开发信正文，已保留按已知资料预填的草稿", "error");
       }
     }
   } catch {
-    engineNote = "本地模板（服务不可用）";
+    engineNote = "已知资料（服务不可用）";
   } finally {
     stopCliWaitTicker("email");
     qs<HTMLElement>("#prospectMailWorkspace .cli-wait")?.remove();
@@ -33667,6 +33754,7 @@ async function generateProspectMailDraft(button?: HTMLButtonElement) {
   }
   if (subject) subject.value = draft.subject;
   if (body) body.value = draft.body;
+  renderProspectDraftGaps(prospectOutreachDraftPrefill(item).missing);
   renderProspectMailPreview();
   toast(`开发信草稿已生成（${engineNote}）`);
 }
@@ -35211,11 +35299,33 @@ function openProspectOutreachDraft(item: WebsiteOpportunity) {
     toast("达到可联系后再起草开发信", "error");
     return;
   }
+  if (!item.shortlistedAt) {
+    toast("先把候选加入搜客清单，再写开发信", "error");
+    return;
+  }
   const workspace = qs<HTMLDetailsElement>("#prospectMailWorkspace");
   if (!workspace) return;
   workspace.open = true;
+  applyProspectOutreachDraftPrefill(item);
   workspace.scrollIntoView({ block: "nearest" });
   qs<HTMLInputElement>("#prospectMailSubject")?.focus();
+  toast("已按这家公司的已知资料预填草稿，可修改。发送前仍需确认");
+}
+
+function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
+  if (!["contactable", "contacted"].includes(item.status) || !item.shortlistedAt) {
+    toast("达到可联系并加入搜客清单后，才能写开发信", "error");
+    return;
+  }
+  closeLeadFinderVerificationDrawer();
+  state.prospectFilter = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  activateNavView("prospect-list", () => {
+    renderProspectList();
+    openProspectOutreachDraft(item);
+  });
 }
 
 function renderProspectDetail(item?: WebsiteOpportunity | null) {
@@ -35359,6 +35469,13 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   if (mailWorkspace && mailWorkspace.dataset.prospectId !== item.id) {
     mailWorkspace.open = Boolean(item.lastDevelopmentEmailAt);
     mailWorkspace.dataset.prospectId = item.id;
+    const previousTo = qs<HTMLInputElement>("#prospectMailTo");
+    const previousSubject = qs<HTMLInputElement>("#prospectMailSubject");
+    const previousBody = qs<HTMLTextAreaElement>("#prospectMailBody");
+    if (previousTo) previousTo.value = "";
+    if (previousSubject) previousSubject.value = "";
+    if (previousBody) previousBody.value = "";
+    renderProspectDraftGaps([]);
   }
   // 资格审核链已移除：收件邮箱不再锁定人工批准邮箱，按候选资料自动带入。
   const suggestedEmail = (item.contactInfo || "")
@@ -36200,6 +36317,15 @@ async function sendProspectDevelopmentEmail(button?: HTMLButtonElement) {
     toast("请补齐收件邮箱、主题和正文", "error");
     return;
   }
+  if (!await confirmAction({
+    title: "确认发送开发信",
+    message: "邮件将通过绑定邮箱发出。取消则只保留当前草稿。",
+    detailLabel: "收件 / 主题",
+    detail: `${to} · ${subject}`,
+    consequences: [`公司：${item.company}`, "请确认收件邮箱来自候选资料，而不是猜测"],
+    confirmLabel: "确认发送",
+    tone: "normal"
+  })) return;
   if (button) {
     button.disabled = true;
     button.textContent = "发送中";
@@ -40610,7 +40736,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
         </label>
         <button class="btn primary" id="leadFinderResearchButton">一键背调</button>
       </div>` : `<small class="prospect-research-note">该候选归属其他业务员，仅可查看。</small>`}
-      ${canResearch ? `<div class="prospect-action-row" style="margin-top:-6px"><button class="btn" id="leadFinderWriteEmailButton">用本机 CLI 写开发信</button><small class="prospect-research-note">跳到搜客清单并自动按 CLI 口径生成草稿</small></div>` : ""}
+      ${canResearch && (item.status === "contactable" || item.status === "contacted") && item.shortlistedAt ? `<div class="prospect-action-row" style="margin-top:-6px"><button class="btn" id="leadFinderWriteEmailButton" type="button">写开发信</button><small class="prospect-research-note">打开草稿并带入这家公司的已知资料。不会发送。</small></div>` : ""}
     </section>
     <div class="lead-detail-actions">
       ${item.status !== "synced" ? `<button class="btn" id="leadFinderDetailSaveButton">保存核验资料</button>` : ""}
@@ -40650,18 +40776,8 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
   });
   fillProspectResearchSourceSelect(box, "leadFinderResearchSourceSelect");
-  // 抽屉直达开发信：切到搜客清单选中该候选，写信区按 CLI 口径自动生成
   qs<HTMLButtonElement>("#leadFinderWriteEmailButton", box)?.addEventListener("click", () => {
-    closeLeadFinderVerificationDrawer();
-    state.selectedProspectId = item.id;
-    activateNavView("prospect-list", () => {
-      renderProspectList();
-      const select = qs<HTMLSelectElement>("#prospectMailSourceSelect");
-      if (select) select.value = "cli";
-      const workspace = qs<HTMLDetailsElement>("#prospectMailWorkspace");
-      if (workspace) workspace.open = true;
-      qs<HTMLButtonElement>("#prospectGenerateMailButton")?.click();
-    });
+    openProspectDraftFromAcquisition(item);
   });
   const drawerResearchBox = qs<HTMLElement>("#leadFinderResearchResult");
   if (prospectResearchRunning(item) && drawerResearchBox) {

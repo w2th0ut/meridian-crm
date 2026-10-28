@@ -173,6 +173,9 @@ const ANGLE_RULES: AngleRule[] = [
   { pattern: /传感|load\s*cell|strain\s*gauge/i, angle: "load cells and weighing sensors", keyword: "load cells", short: "load cells", weight: 3 },
   { pattern: /仪表|indicator|terminal|controller/i, angle: "weighing indicators and terminals", keyword: "indicators", short: "weighing indicators", weight: 3 },
   { pattern: /包装|灌装|filling|packaging/i, angle: "packaging and filling line weighing", keyword: "packaging", short: "packaging line weighing", weight: 3 },
+  { pattern: /LED|工程灯|luminaire|\blighting\b/i, angle: "LED lighting and lighting projects", keyword: "LED lighting", short: "LED lighting", weight: 3 },
+  { pattern: /工业组件|industrial components|\bOEM\b/i, angle: "industrial components and OEM supply", keyword: "industrial components", short: "industrial components", weight: 3 },
+  { pattern: /智能家居|smart home/i, angle: "smart home products and kits", keyword: "smart home", short: "smart home products", weight: 3 },
   { pattern: /联网|IoT|remote\s*monitor|connected|networked/i, angle: "networked weighing with remote monitoring", keyword: "networked", short: "networked weighing", weight: 3 },
   { pattern: /流量计|flow\s*meter/i, angle: "industrial instrumentation and flow measurement", keyword: "instrumentation", short: "flow measurement", weight: 1 },
   { pattern: /自动控制|automatic\s*control|automation|PLC/i, angle: "industrial automatic control and automation systems", keyword: "automation", short: "automation systems", weight: 1 },
@@ -361,6 +364,18 @@ function englishFactValue(value: string) {
 }
 
 /**
+ * 候选/线索上的业务原文，只在整段已是英文时摘进信里。
+ * 中文原文不在这里翻译：能对上产品关键词的走角度词典，对不上就留空并记入 missing。
+ */
+function developmentEmailScenarioClue(context: string) {
+  const text = (context || "").replace(/\s+/gu, " ").trim();
+  if (!text || containsCjk(text)) return "";
+  if (/^(product sourcing prospect|your sourcing and product development needs|unknown|n\/a|待核实|待补充)$/iu.test(text)) return "";
+  const clause = text.split(/[.\n;；。]/u)[0]?.trim() || "";
+  return clause.slice(0, 90);
+}
+
+/**
  * 组装「这封信具体怎么写」的方案。
  * 纯函数：只读 brief 的内容，不查库、不调模型，所以可以放心给两条链路（工坊 / 批次）共用。
  */
@@ -380,19 +395,22 @@ export function buildDevelopmentEmailPersonalization(
     .slice(0, 3)
     .map((fact) => ({ label: fact.label, value: fact.value }));
 
-  // ② 英文 hook：优先用「对方在做什么」的真实角度，其次英文业务描述
+  // ② 英文 hook：优先用「对方在做什么」的真实角度，其次英文业务描述或候选上的场景摘录。
+  //    摘录必须来自已记录的英文原文；中文线索只在命中产品关键词时才变成角度，不另译一套事实。
   const englishBusiness = (() => {
     const business = facts.find((fact) => /业务|产品|主营/u.test(fact.label || ""))?.value || "";
     return englishFactValue(business);
   })();
+  const scenario = englishFactValue(brief.scenarioClue);
+  const businessLine = englishBusiness || scenario;
   const hook = primary
     ? (who
         ? `I came across ${who} and your work on ${primary.angle}.`
         : `I came across your work on ${primary.angle}.`)
-    : englishBusiness
+    : businessLine
       ? (who
-          ? `I came across ${who} and what you do in ${englishBusiness}.`
-          : `I came across what you do in ${englishBusiness}.`)
+          ? `I came across ${who} and what you do in ${businessLine}.`
+          : `I came across what you do in ${businessLine}.`)
       : "";
 
   // ③ 为什么是你们：把「对方的角度」和「我方供给」接起来，不吹牛。
@@ -402,7 +420,11 @@ export function buildDevelopmentEmailPersonalization(
     ? (products
         ? `We supply ${trimTail(products)}, including ${primary.short}.`
         : `${capitalize(primary.short)} is exactly the area we work in.`)
-    : "";
+    : businessLine
+      ? (products
+          ? `We supply ${trimTail(products)}.`
+          : "I can send the specification that matches the note above.")
+      : "";
 
   // ④ 收尾问题：由「对谁说话」决定，采购问交期、技术问工况、老板问下一步
   const ask = (() => {
@@ -426,14 +448,15 @@ export function buildDevelopmentEmailPersonalization(
   // ⑤ 主题里的差异段
   const subjectAngle = primary
     ? primary.short
-    : englishBusiness
-      ? englishBusiness.split(/[,.]/u)[0]!.slice(0, 42)
+    : businessLine
+      ? businessLine.split(/[,.]/u)[0]!.slice(0, 42)
       : "";
 
   const trace: string[] = [];
   trace.push(`按阶段「${plan.label}」写：${plan.objective}`);
   trace.push(`对谁说：${role.label}（${role.emphasis}）`);
   if (primary) trace.push(`切入角度：${primary.angle}`);
+  else if (businessLine) trace.push(`业务线索：${businessLine}`);
   if (secondary) trace.push(`次要角度：${secondary.angle}`);
   if (factsUsed.length) {
     trace.push(`引用背调事实 ${factsUsed.length} 条：${factsUsed.map((fact) => fact.label).join("、")}`);
@@ -441,9 +464,11 @@ export function buildDevelopmentEmailPersonalization(
     trace.push("没有可引用的背调事实 —— 这封只能靠公司名和行业关键词区分");
   }
 
-  const personalized = Boolean(primary || factsUsed.length);
+  const personalized = Boolean(primary || factsUsed.length || businessLine);
   const difference = personalized
-    ? `与同阶段的其他客户相比，这封多引用了${primary ? `「${primary.short}」这个应用角度` : "业务描述"}${
+    ? `与同阶段的其他客户相比，这封多引用了${
+        primary ? `「${primary.short}」这个应用角度` : businessLine ? `「${businessLine.slice(0, 42)}」这段业务线索` : "业务描述"
+      }${
         factsUsed.length ? `，以及 ${factsUsed.map((fact) => fact.label).join("、")} 共 ${factsUsed.length} 条背调事实` : ""
       }`
     : "没有背调依据：这封与同阶段其他客户的信只差公司名与称呼，千人千面没有生效";
@@ -515,6 +540,11 @@ export interface DevelopmentEmailBrief {
     market: string;
   };
   angles: DevelopmentEmailAngle[];
+  /**
+   * 从候选/线索原文抽出的英文业务摘录。
+   * 含中文或空时为空串：中文只通过已命中的产品关键词进入正文，不整段翻译。
+   */
+  scenarioClue: string;
   /** 可直接引用的事实（原文，可能含中文，仅给 AI 用） */
   facts: Array<{ label: string; value: string }>;
   opportunities: string[];
@@ -551,6 +581,7 @@ export function assembleDevelopmentEmailBrief(input: DevelopmentEmailBriefInput)
     opportunities.join(" "),
     research?.summary
   );
+  const scenarioClue = developmentEmailScenarioClue(input.recipient.context);
 
   const evidence: string[] = [];
   if (research) evidence.push(`背调（${research.engine || "CRM 证据"}）`);
@@ -576,6 +607,14 @@ export function assembleDevelopmentEmailBrief(input: DevelopmentEmailBriefInput)
   if (!research) missing.push("背调结果（建议先跑一次 AI 背调）");
   // 姓名已知、只是职位推断不出来时，不能说"姓名或职位"都缺（自相矛盾）
   if (role.key === "unknown") missing.push(placeholderContact ? "收件人姓名" : "收件人职位");
+  if (!angles.length && !scenarioClue) {
+    const rawContext = (input.recipient.context || "").trim();
+    const noRecordedClue = !rawContext
+      || /^(product sourcing prospect|your sourcing and product development needs)$/iu.test(rawContext);
+    missing.push(noRecordedClue
+      ? "对方业务或产品线索"
+      : "对方业务线索未能写入英文正文（原文不是英文，且没有可引用的产品关键词）");
+  }
 
   const briefBase: Omit<DevelopmentEmailBrief, "personalization"> = {
     plan,
@@ -600,6 +639,7 @@ export function assembleDevelopmentEmailBrief(input: DevelopmentEmailBriefInput)
       market: developmentEmailMarketName(input.recipient.market || input.recipient.country)
     },
     angles,
+    scenarioClue,
     facts,
     opportunities,
     talkTracks,
@@ -812,17 +852,20 @@ export function buildDevelopmentEmailFallback(brief: DevelopmentEmailBrief): Dev
         ]
       );
 
-    case "converted":
-      return draft(who ? `${who} — quick check-in` : "A quick check-in", [
+    case "converted": {
+      const clue = personalization.subjectAngle;
+      return draft(who ? (clue ? `${who} — ${clue}` : `${who} — quick check-in`) : (clue ? capitalize(clue) : "A quick check-in"), [
         `Dear ${recipient.salutation},`,
         "",
         who
           ? `${who} is already in our records, so the follow-up now runs through our normal process.`
           : `You are already in our records, so the follow-up now runs through our normal process.`,
+        ...(clue ? [`The note we still have on file is ${clue}.`] : []),
         "Just one quick check: is the requirement still valid, and are you the right contact to continue with?",
         "",
         close
       ]);
+    }
 
     default:
       return draft(who ? `${who} — brief note` : "A brief note", [
