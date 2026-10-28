@@ -2639,6 +2639,138 @@ test.describe("Keduoduo CRM prototype pages", () => {
     await expect(page.locator("#lead-task-detail")).toHaveClass(/active/);
   });
 
+  test("dashboard lists contactable candidates that still need a development email", async ({ page }) => {
+    const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+    const ready = (index: number) => ({
+      id: `pending_mail_${runId}_${index}`,
+      company: `Ready Letter ${String(index).padStart(2, "0")} GmbH`,
+      business: "LED lighting",
+      country: "德国",
+      website: `https://ready-${runId}-${index}.example`,
+      contact: "Alex Buyer",
+      contactInfo: `buyer-${index}@ready.example`,
+      description: "待写开发信队列",
+      ownerId: "u_manager_alex",
+      teamId: "europe",
+      status: "contactable",
+      shortlistedAt: at(index),
+      createdAt: at(index),
+      parseMode: "rule",
+      source: "gleif",
+      sourceLabel: "GLEIF",
+      sourceEvidence: []
+    });
+    const opportunities = [
+      ...Array.from({ length: 9 }, (_, index) => ready(index + 1)),
+      {
+        ...ready(20),
+        id: `pending_mail_${runId}_no_email`,
+        company: "No Email GmbH",
+        contactInfo: "+49 30 123456",
+        contact: "Purchasing"
+      },
+      {
+        ...ready(21),
+        id: `pending_mail_${runId}_preview`,
+        company: "Preview Only GmbH",
+        status: "preview"
+      },
+      {
+        ...ready(22),
+        id: `pending_mail_${runId}_sent`,
+        company: "Already Sent GmbH",
+        lastDevelopmentEmailAt: at(1),
+        lastDevelopmentEmailSubject: "Earlier letter",
+        lastDevelopmentEmailTo: "buyer-22@ready.example"
+      },
+      {
+        ...ready(23),
+        id: `pending_mail_${runId}_pool`,
+        company: "Not Shortlisted GmbH",
+        shortlistedAt: ""
+      },
+      {
+        ...ready(24),
+        id: `pending_mail_${runId}_contacted`,
+        company: "Already Contacted GmbH",
+        status: "contacted"
+      },
+      {
+        ...ready(25),
+        id: `pending_mail_${runId}_blocked`,
+        company: "Blocked Email GmbH",
+        emailEligibility: {
+          ready: false,
+          state: "blocked",
+          label: "已抑制",
+          code: "PROSPECT_OUTREACH_SUPPRESSED",
+          message: "该候选已抑制",
+          recipient: ""
+        }
+      }
+    ];
+    await page.route("**/api/tools/website-opportunities", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ opportunities })
+      });
+    });
+    await page.reload();
+    await expect(page.locator("body")).toHaveClass(/is-authenticated/);
+    await openView(page, "dashboard");
+    const queue = page.locator("#dashboardPendingEmails");
+    await expect(queue).toContainText("待写开发信");
+    await expect(queue.locator("[data-dashboard-pending-email]")).toHaveCount(8);
+    await expect(queue).toContainText("共 9 条，这里显示 8 条");
+    await expect(queue.locator("[data-dashboard-pending-email]").first()).toContainText("Ready Letter 01 GmbH");
+    await expect(queue.locator("[data-dashboard-pending-email]").first()).toContainText("可联系");
+    await expect(queue.locator("[data-dashboard-pending-email]").first()).toContainText("有邮箱");
+    await expect(queue).not.toContainText("Ready Letter 09 GmbH");
+    await expect(queue).not.toContainText("No Email GmbH");
+    await expect(queue).not.toContainText("Preview Only GmbH");
+    await expect(queue).not.toContainText("Already Sent GmbH");
+    await expect(queue).not.toContainText("Not Shortlisted GmbH");
+    await expect(queue).not.toContainText("Already Contacted GmbH");
+    await expect(queue).not.toContainText("Blocked Email GmbH");
+
+    await openView(page, "prospect-list");
+    await page.locator("#prospectSearchInput").fill("Ready Letter 01");
+    await expect(page.locator("#prospectListRows .prospect-item", { hasText: "Ready Letter 01 GmbH" })).toContainText("可写开发信");
+    await page.locator("#prospectSearchInput").fill("Already Sent");
+    await expect(page.locator("#prospectListRows .prospect-item", { hasText: "Already Sent GmbH" })).toContainText("已发开发信");
+    await expect(page.locator("#prospectListRows .prospect-item", { hasText: "Already Sent GmbH" })).not.toContainText("可写开发信");
+    await page.locator("#prospectSearchInput").fill("No Email");
+    await expect(page.locator("#prospectListRows .prospect-item", { hasText: "No Email GmbH" })).not.toContainText("可写开发信");
+
+    await openView(page, "dashboard");
+    await queue.locator("[data-dashboard-pending-email]").first().click();
+    await expect(page.locator("#prospect-list")).toHaveClass(/active/);
+    await expect(page.locator("#prospectMailWorkspace")).toHaveJSProperty("open", true);
+    await expect(page.locator("#prospectMailSubject")).toHaveValue(/Ready Letter 01 GmbH/);
+    await expect(page.locator("#prospectMailTo")).toHaveValue("buyer-1@ready.example");
+    await expect(page.locator("#prospectMailBody")).toHaveValue(/Ready Letter 01 GmbH/);
+    await expect(page.locator(".toast").last()).toContainText("发送前仍需确认");
+    await expect(page.locator(".toast").last()).not.toContainText("开发信已发送");
+  });
+
+  test("dashboard pending development emails stay empty instead of inventing companies", async ({ page }) => {
+    await page.route("**/api/tools/website-opportunities", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ opportunities: [] })
+      });
+    });
+    await page.reload();
+    await expect(page.locator("body")).toHaveClass(/is-authenticated/);
+    await openView(page, "dashboard");
+    const queue = page.locator("#dashboardPendingEmails");
+    await expect(queue).toContainText("没有可写开发信的候选");
+    await expect(queue).toContainText("去智能获客或搜客清单，补齐可联系状态和邮箱");
+    await expect(queue.locator("[data-dashboard-pending-email]")).toHaveCount(0);
+  });
+
   test("super search previews the matrix and ends as one closed mission", async ({ page }) => {
     await page.route("**/api/lead-finder/providers", async (route) => {
       await route.fulfill({

@@ -4015,6 +4015,7 @@ let leadProvidersInFlight: Promise<void> | null = null;
 const prospectQualificationLoading = new Set<string>();
 let leadFinderRunsLoading = false;
 let leadFinderRunsLoaded = false;
+let websiteOpportunitiesLoaded = false;
 let leadFinderRunPollTimer = 0;
 let lfindTaskPollTimer = 0;
 let leadFinderStreamAbort: AbortController | null = null;
@@ -11165,6 +11166,7 @@ async function refreshAll(user: User) {
   state.examWorkspaceMode = exams.canManage ? "manage" : "mine";
   state.ocrJob = ocr.job;
   state.websiteOpportunities = websiteOps.opportunities;
+  websiteOpportunitiesLoaded = true;
   state.prospectAssignees = prospectAssignees.assignees;
   state.aiConfig = aiConfig.config;
   state.aiConfigs = aiConfig.configs || (aiConfig.config ? [aiConfig.config] : []);
@@ -11467,6 +11469,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderMorningPanel(summary);
   ensureTenderDaily();
   renderDashboardProspectRuns();
+  renderDashboardPendingEmails();
 }
 
 async function loadBadges(containerId = "leaderboardBadges", tagId?: string) {
@@ -35888,7 +35891,7 @@ function renderProspectList() {
             <div class="prospect-item-top"><h3>${escapeHtml(item.company)}</h3><span class="prospect-score">${score}</span></div>
             <p>${escapeHtml(item.business || "业务待维护")}</p>
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
-            <div class="prospect-meta-row">${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
+            <div class="prospect-meta-row">${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -35938,6 +35941,7 @@ function renderProspectList() {
     });
   }
   renderProspectDetail(selectedProspect());
+  renderDashboardPendingEmails();
 }
 
 function prospectsAsSyncRows(ids: string[]) {
@@ -36978,6 +36982,96 @@ function renderLeadFinderProgressBoard() {
   }
   scope.textContent = "最近任务已结束";
   body.innerHTML = leadFinderJobs[0] ? leadFinderProgressCard(leadFinderJobs[0]) : "";
+}
+
+const PENDING_DEVELOPMENT_EMAIL_LIMIT = 8;
+
+/** 队列只认候选上已经有的邮箱。抑制或明确缺邮箱时不放行。 */
+function prospectQueueEmail(item: WebsiteOpportunity) {
+  const eligibility = item.emailEligibility;
+  if (eligibility?.state === "blocked") return "";
+  if (eligibility && !eligibility.ready) return "";
+  return prospectRealEmail(item) || (eligibility?.ready ? eligibility.recipient.trim() : "");
+}
+
+/**
+ * 下一步该写开发信：已在搜客清单、状态为可联系、已有邮箱、还没有发出过开发信。
+ * 草稿不落库，所以「尚无草稿」与「还没发过」用同一条发送记录判断。
+ */
+function prospectNeedsDevelopmentEmail(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return false;
+  if (item.status !== "contactable") return false;
+  if (item.lastDevelopmentEmailAt) return false;
+  return Boolean(prospectQueueEmail(item));
+}
+
+function pendingDevelopmentEmailCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => prospectNeedsDevelopmentEmail(item))
+    .slice()
+    .sort((left, right) => {
+      const leftTime = new Date(left.shortlistedAt || left.createdAt).getTime();
+      const rightTime = new Date(right.shortlistedAt || right.createdAt).getTime();
+      const difference = (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+      return difference || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardPendingEmails() {
+  const list = qs<HTMLElement>("#dashboardPendingEmailList");
+  const scope = qs<HTMLElement>("#dashboardPendingEmailScope");
+  if (!list || !scope) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const pending = pendingDevelopmentEmailCandidates();
+  if (!pending.length) {
+    scope.textContent = "当前没有待写开发信";
+    list.innerHTML = `<div class="empty-cell">没有可写开发信的候选。去智能获客或搜客清单，补齐可联系状态和邮箱后再回来。这里不会编造名单。</div>`;
+    return;
+  }
+  const shown = pending.slice(0, PENDING_DEVELOPMENT_EMAIL_LIMIT);
+  scope.textContent = pending.length > shown.length
+    ? `共 ${pending.length} 条，这里显示 ${shown.length} 条`
+    : `${pending.length} 条待写`;
+  list.innerHTML = shown.map((item) => {
+    const status = prospectStatusMeta(item);
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-pending-email="${escapeHtml(item.id)}" aria-label="写开发信草稿：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(status.label)}</span>
+      <em>${prospectQueueEmail(item) ? "有邮箱" : "无邮箱"}</em>
+    </button>`;
+  }).join("");
+}
+
+async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) {
+  const original = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "刷新中";
+  }
+  try {
+    const result = await api<{ opportunities: WebsiteOpportunity[] }>("/api/tools/website-opportunities");
+    state.websiteOpportunities = result.opportunities || [];
+    websiteOpportunitiesLoaded = true;
+    renderProspectList();
+    renderLeadFinder(state.websiteOpportunities);
+  } catch (error) {
+    const scope = qs<HTMLElement>("#dashboardPendingEmailScope");
+    const list = qs<HTMLElement>("#dashboardPendingEmailList");
+    const message = error instanceof Error ? error.message : "候选暂时读不到";
+    if (scope) scope.textContent = "候选暂时读不到";
+    if (!websiteOpportunitiesLoaded && list) {
+      list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
+    }
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = original || "刷新";
+    }
+  }
 }
 
 function renderDashboardProspectRuns() {
@@ -39932,6 +40026,7 @@ async function refreshLeadFinderOpportunities() {
     ...item,
     selected: selectedIds.has(item.id)
   }));
+  websiteOpportunitiesLoaded = true;
   renderWebsiteOpportunities(state.websiteOpportunities);
   renderLeadFinder(state.websiteOpportunities);
   renderProspectList();
@@ -45942,6 +46037,15 @@ function installEvents() {
     const job = leadFinderJobs.find((item) => item.id === opener?.dataset.dashboardProspectOpen);
     if (job) openLeadTaskDetail(job);
   });
+  qs<HTMLButtonElement>("#dashboardPendingEmailsRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardPendingEmails")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-pending-email]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardPendingEmail);
+    if (!item || !prospectNeedsDevelopmentEmail(item)) return;
+    openProspectDraftFromAcquisition(item);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
@@ -46197,6 +46301,7 @@ function installEvents() {
   qs<HTMLButtonElement>("#prospectRefreshButton")?.addEventListener("click", async () => {
     const result = await api<{ opportunities: WebsiteOpportunity[] }>("/api/tools/website-opportunities");
     state.websiteOpportunities = result.opportunities;
+    websiteOpportunitiesLoaded = true;
     prospectMobileDetailOpen = false;
     document.body.classList.remove("prospect-mobile-detail-open");
     renderProspectList();

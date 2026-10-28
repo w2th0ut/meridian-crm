@@ -198,6 +198,8 @@ const required = [
   "关系连线仅来自已记录证据",
   "leadFinderProgressBoard",
   "dashboardProspectRuns",
+  "dashboardPendingEmails",
+  "待写开发信",
   "进行中的搜客",
   "刷新进度",
   "尚未结束",
@@ -646,6 +648,16 @@ assert.match(apiLayer, /未编造缺失项/, "缺字段时必须提示缺什么"
 assert.match(prototype, /id="prospectMailGaps"/, "搜客清单草稿区必须能显示缺字段");
 assert.match(apiLayer, /id="leadFinderWriteEmailButton"[\s\S]*写开发信/, "可联系的获客结果必须有写开发信入口");
 assert.match(apiLayer, /openProspectDraftFromAcquisition\(item\)/, "获客结果里的写开发信必须打开同一份预填草稿");
+assert.match(apiLayer, /function prospectNeedsDevelopmentEmail[\s\S]*status !== "contactable"[\s\S]*lastDevelopmentEmailAt[\s\S]*prospectQueueEmail/, "待写开发信只包含可联系、有邮箱、尚未发出的候选");
+assert.match(apiLayer, /PENDING_DEVELOPMENT_EMAIL_LIMIT = 8/, "工作台待写开发信最多显示 8 行");
+assert.match(apiLayer, /没有可写开发信的候选。去智能获客或搜客清单，补齐可联系状态和邮箱后再回来。这里不会编造名单。/, "没有可写对象时必须指向获客和搜客清单，不能编造名单");
+assert.match(prototype, /id="dashboardPendingEmails"[\s\S]*待写开发信/, "工作台必须有待写开发信区块");
+assert.match(apiLayer, /data-dashboard-pending-email[\s\S]*有邮箱/, "待写开发信每一行必须带公司、状态和邮箱有无");
+assert.match(apiLayer, /prospectNeedsDevelopmentEmail\(item\) \? badge\("可写开发信"/, "搜客清单里符合条件的候选要标可写开发信");
+const pendingEmailClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardPendingEmails")?.addEventListener');
+const pendingEmailClick = apiLayer.slice(pendingEmailClickStart, pendingEmailClickStart + 520);
+assert.match(pendingEmailClick, /openProspectDraftFromAcquisition\(item\)/, "点待写开发信必须打开现有草稿流");
+assert.doesNotMatch(pendingEmailClick, /sendProspectDevelopmentEmail|send-development-email/, "点待写开发信不得发送");
 assert.doesNotMatch(apiLayer, /international sourcing and distribution/, "预填不能把空业务编成泛泛的采购场景");
 assert.match(apiLayer, /sendProspectDevelopmentEmail[\s\S]*confirmAction\(/, "搜客清单发送开发信必须经过确认");
 assert.match(apiLayer, /先选定收件对象/, "未选对象时开发信页必须给出获客入口，而不是空白");
