@@ -8668,6 +8668,55 @@
       margin-bottom: 10px;
     }
 
+    #prospectMailGaps {
+      flex-wrap: wrap;
+    }
+
+    #prospectMailGapActions {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    #prospectMailGaps[hidden],
+    .prospect-mail-gap-editor[hidden] {
+      display: none !important;
+    }
+
+    .prospect-mail-gap-editor {
+      display: grid;
+      gap: 8px;
+      margin: -2px 0 12px;
+      padding: 10px 12px;
+      border: 1px dashed rgba(15, 118, 110, .35);
+      border-radius: 8px;
+      background: rgba(248, 250, 255, .9);
+    }
+
+    .prospect-mail-gap-editor p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .prospect-mail-gap-fields {
+      display: grid;
+      gap: 8px;
+    }
+
+    .prospect-mail-gap-fields label {
+      display: grid;
+      gap: 4px;
+      color: #263244;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .prospect-mail-gap-fields input {
+      font-weight: 400;
+    }
+
     .prospect-mail-form .form-field textarea {
       min-height: 176px;
       line-height: 1.55;
@@ -26545,7 +26594,8 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <details class="prospect-mail-workspace" id="prospectMailWorkspace">
                 <summary>开发信草稿</summary>
                 <div class="inline-alert"><b>发件配置</b><span id="prospectSenderStatus">请先在个人信息绑定发件邮箱。</span></div>
-                <div class="inline-alert" id="prospectMailGaps" hidden><b>草稿待补齐</b><span id="prospectMailGapsText"></span></div>
+                <div class="inline-alert" id="prospectMailGaps" hidden><b>草稿待补齐</b><span id="prospectMailGapsText"></span><span id="prospectMailGapActions"></span></div>
+                <div class="prospect-mail-gap-editor" id="prospectMailGapEditor" hidden></div>
                 <div class="prospect-mail-form" style="margin-top:10px">
                   <div class="form-field"><label>收件邮箱</label><input id="prospectMailTo" placeholder="只填入候选资料里已有的邮箱，不猜测"></div>
                   <div class="form-field"><label>主题</label><input id="prospectMailSubject" placeholder="写开发信后带入公司与业务线索"></div>
