@@ -26532,10 +26532,11 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <details class="prospect-mail-workspace" id="prospectMailWorkspace">
                 <summary>开发信草稿</summary>
                 <div class="inline-alert"><b>发件配置</b><span id="prospectSenderStatus">请先在个人信息绑定发件邮箱。</span></div>
+                <div class="inline-alert" id="prospectMailGaps" hidden><b>草稿待补齐</b><span id="prospectMailGapsText"></span></div>
                 <div class="prospect-mail-form" style="margin-top:10px">
-                  <div class="form-field"><label>收件邮箱</label><input id="prospectMailTo" placeholder="自动读取候选联系方式，可手动修改"></div>
-                  <div class="form-field"><label>主题</label><input id="prospectMailSubject" placeholder="开发信主题"></div>
-                  <div class="form-field"><label>正文</label><textarea id="prospectMailBody" placeholder="选择可联系候选后生成开发信正文"></textarea></div>
+                  <div class="form-field"><label>收件邮箱</label><input id="prospectMailTo" placeholder="只填入候选资料里已有的邮箱，不猜测"></div>
+                  <div class="form-field"><label>主题</label><input id="prospectMailSubject" placeholder="写开发信后带入公司与业务线索"></div>
+                  <div class="form-field"><label>正文</label><textarea id="prospectMailBody" placeholder="可联系候选点「写开发信草稿」后，这里带入公司、联系人和业务线索"></textarea></div>
                 </div>
                 <div class="prospect-mail-preview" id="prospectMailPreview">暂无开发信</div>
                 <div class="prospect-action-row">

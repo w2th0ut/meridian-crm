@@ -3471,7 +3471,10 @@ test.describe("Keduoduo CRM prototype pages", () => {
     await expect(page.locator("#prospectDetailSyncButton")).toHaveCount(0);
     await page.locator("#prospectMailWorkspace").locator("summary").click();
     await page.locator("#prospectGenerateMailButton").click();
+    await expect(page.locator("#prospectMailSubject")).not.toHaveValue("");
+    await expect(page.locator("#prospectMailTo")).not.toHaveValue("");
     await page.locator("#prospectSendMailButton").click();
+    await page.getByRole("button", { name: "确认发送" }).click();
     await expect(page.locator(".toast").last()).toContainText("请先完成 VQA，并批准邮件通道");
 
     await page.locator("#prospectListRows .prospect-item", { hasText: firstCompany }).locator("[data-prospect-open]").click();

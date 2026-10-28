@@ -40,6 +40,13 @@ try {
       assert.equal(typeof draft.json.brief.personalization.personalized, "boolean");
       assert.ok(Array.isArray(draft.json.brief.personalization.trace) && draft.json.brief.personalization.trace.length > 0, "依据必须能解释这封怎么来的");
       stageSubjects.add(String(draft.json.draft.subject || ""));
+      if (scenario === "first_touch") {
+        assert.equal(draft.json.draft.to, "buyer@example-lighting.example");
+        assert.match(String(draft.json.draft.subject), /Example Lighting GmbH/u);
+        assert.match(String(draft.json.draft.body), /Alex Buyer/u);
+        assert.match(String(draft.json.draft.body), /LED lighting/iu);
+        assert.equal(String(draft.json.draft.body).includes("your sourcing and product development needs"), false);
+      }
     } else {
       assert.equal(draft.json.draft.engine, "基础模板");
       scenarioSubjects.add(String(draft.json.draft.subject || ""));

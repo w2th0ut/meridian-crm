@@ -431,11 +431,13 @@ function main() {
 
     // 回归：签名里的网址曾让**每一封**都判定成"引用了背调"——
     // 「官网」这条事实里抽出 `https`，而签名里必有 `Website: https://…`。
+    // 这条用「没有任何产品线索」的流程确认信来守，避免和「正文写进了真实角度」混在一起。
     const convertedBrief = assembleDevelopmentEmailBrief({
       ...baseInput("converted"),
-      research: researchFor("Tanaka Scale Vietnam Co., Ltd", [
-        { label: "业务", value: "explosion-proof weighing for chemical plants" },
-        { label: "官网", value: "https://tanaka-scale-vietnam.com" }
+      recipient: { ...baseInput("converted").recipient, context: "" },
+      // 公司名里的 Scale 会命中称重词典；这里换一个不含行业词的主体，只留网址事实。
+      research: researchFor("Example Components Ltd", [
+        { label: "官网", value: "https://example.com" }
       ])
     });
     const convertedDraft = buildDevelopmentEmailFallback(convertedBrief);
@@ -485,6 +487,51 @@ function main() {
       developmentEmailRecipientRole("Technical Director", "tech@x.com").key === "decision_maker",
       "Director 属于决策层"
     );
+  }
+
+  // ── 11. 获客草稿：公司、联系人、产品线索要进主题或正文，没有线索就说明缺什么 ──
+  {
+    const lighting = assembleDevelopmentEmailBrief({
+      ...baseInput("not_contacted"),
+      recipient: {
+        ...baseInput("not_contacted").recipient,
+        company: "Example Lighting GmbH",
+        contactName: "Alex Buyer",
+        email: "buyer@example-lighting.example",
+        country: "德国",
+        market: "Germany",
+        context: "关注 LED 工程灯，需 CE 报告"
+      }
+    });
+    const lightingDraft = buildDevelopmentEmailFallback(lighting);
+    check(lightingDraft.subject.includes("Example Lighting GmbH"), "主题应带公司名");
+    check(/LED lighting/iu.test(`${lightingDraft.subject}\n${lightingDraft.body}`), "LED 工程灯应写成可引用的产品角度，而不是空主题");
+    check(lightingDraft.body.includes("Alex Buyer"), "真实联系人应出现在称呼");
+    check(!lighting.missing.includes("对方业务或产品线索"), "已有产品关键词时不应再说缺业务线索");
+    check(!containsCjk(lightingDraft.subject) && !containsCjk(lightingDraft.body), "产品角度仍必须是英文");
+
+    const components = assembleDevelopmentEmailBrief({
+      ...baseInput("not_contacted"),
+      recipient: {
+        ...baseInput("not_contacted").recipient,
+        company: "Example Components Ltd",
+        contactName: "待维护",
+        email: "sales@supplier.example",
+        context: "Industrial components and OEM products"
+      }
+    });
+    const componentsDraft = buildDevelopmentEmailFallback(components);
+    check(/Industrial components/iu.test(`${componentsDraft.subject}\n${componentsDraft.body}`), "英文业务描述应进入主题或正文");
+    check(!/sourcing note/iu.test(componentsDraft.subject), "有业务描述时主题不应退回 sourcing note");
+    check(!componentsDraft.body.includes("待维护"), "占位联系人不能写进正文");
+
+    const emptyClue = assembleDevelopmentEmailBrief({
+      ...baseInput("not_contacted"),
+      recipient: { ...baseInput("not_contacted").recipient, context: "" }
+    });
+    check(emptyClue.missing.includes("对方业务或产品线索"), "没有业务线索时必须提示缺什么");
+    const emptyDraft = buildDevelopmentEmailFallback(emptyClue);
+    check(!/product sourcing prospect|your sourcing and product development needs/iu.test(emptyDraft.body), "缺业务线索时不能编一段假的采购场景");
   }
 
   console.log(JSON.stringify({ ok: true, checked }, null, 2));
