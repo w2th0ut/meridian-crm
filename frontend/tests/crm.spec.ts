@@ -2512,6 +2512,13 @@ test.describe("Keduoduo CRM prototype pages", () => {
     await expect(liveOverview).toContainText("原始命中");
     await expect(liveOverview).toContainText("候选入池");
     await expect(liveOverview.locator("[role='progressbar']")).toHaveAttribute("aria-valuenow", "100");
+    const progressBoard = page.locator("#leadFinderProgressBoard");
+    await expect(progressBoard.locator(".lead-progress-facts")).toContainText("来源结束");
+    await expect(progressBoard.locator(".lead-progress-facts")).toContainText("原始命中");
+    await expect(progressBoard.locator(".lead-progress-facts")).toContainText("清洗去除");
+    await expect(progressBoard.locator(".lead-progress-facts")).toContainText("候选入池");
+    await expect(progressBoard).toContainText("已结束");
+    await expect(progressBoard).not.toContainText("尚未结束");
     const jobCard = page.locator("#leadFinderJobList .lead-job-card").first();
     await expect(jobCard).toContainText("已结束");
     await expect(jobCard).toContainText("候选入池");
@@ -2617,8 +2624,19 @@ test.describe("Keduoduo CRM prototype pages", () => {
     await expect(page.locator("#lead-finder")).toHaveClass(/active/);
     await expect(overview).toContainText("GLEIF 已完成第一页，4 条候选正在入池");
     await expect(overview.locator("[role='progressbar']")).toHaveAttribute("aria-valuenow", "73");
+    const progressBoard = page.locator("#leadFinderProgressBoard");
+    await expect(progressBoard).toContainText("尚未结束");
+    await expect(progressBoard).toContainText("执行中");
+    await expect(progressBoard.locator("[role='progressbar']")).toHaveAttribute("aria-valuenow", "73");
+    await expect(progressBoard).not.toContainText("已结束");
     expect(streamRequests).toBeGreaterThan(0);
     await expect(page.locator("#lead-task-detail")).not.toHaveClass(/active/);
+    await openView(page, "dashboard");
+    const runningQueue = page.locator("#dashboardProspectRuns");
+    await expect(runningQueue).toContainText("进行中的搜客");
+    await expect(runningQueue).toContainText("尚未结束");
+    await runningQueue.locator("[data-dashboard-prospect-open]").click();
+    await expect(page.locator("#lead-task-detail")).toHaveClass(/active/);
   });
 
   test("super search previews the matrix and ends as one closed mission", async ({ page }) => {
