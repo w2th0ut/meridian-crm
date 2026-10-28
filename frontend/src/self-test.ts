@@ -611,6 +611,16 @@ assert.match(apiLayer, /syncLfindTaskPolling/, "Lfind 必须异步轮询任务�
 assert.match(apiLayer, /searchReport/, "搜客候选必须接收每行搜索报告");
 assert.match(apiLayer, /renderLeadSearchReportCell/, "自动搜客表格必须展示每行搜索报告摘要");
 assert.match(apiLayer, /renderLeadSearchReportPanel/, "候选详情必须展示完整搜索报告和验证来源");
+const primaryNav = prototype.slice(
+  prototype.indexOf('<div class="nav-primary"'),
+  prototype.indexOf('<details class="nav-section" aria-label="客户管理"')
+);
+assert.match(primaryNav, /data-view="dashboard"[\s\S]*data-view="lead-finder"[\s\S]*data-view="prospect-list"[\s\S]*data-view="whatsapp"[\s\S]*data-view="development-email"/, "主导航必须把获客、客户沟通和开发信放在前面");
+assert.doesNotMatch(primaryNav, /data-view="phone-workspace"/, "话机工作台不得留在主导航第一组");
+assert.match(prototype, /aria-label="话机（可选）"[\s\S]*data-view="phone-workspace"[\s\S]*data-view="phone-config"/, "话机入口必须保留在可选分组");
+assert.match(apiLayer, /id="prospectDraftEmailButton"/, "可联系候选必须能打开开发信草稿");
+assert.match(apiLayer, /先选定收件对象/, "未选对象时开发信页必须给出获客入口，而不是空白");
+assert.match(apiLayer, /不会自动发送/, "从候选打开 WhatsApp 不得表述成自动发送");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

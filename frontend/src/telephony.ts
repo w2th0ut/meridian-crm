@@ -118,7 +118,7 @@ function renderWorkspace(root: HTMLElement) {
     <header class="page-head">
       <div>
         <h1>话机工作台</h1>
-        <p class="sub">拨号、选择播出声音、看实时状态；每次通话自动录音、转写、分类。</p>
+        <p class="sub">可选遗留能力，不是默认获客路径。拨号、选择播出声音、看实时状态；每次通话自动录音、转写、分类。</p>
       </div>
       <div class="head-actions">
         <span class="badge ${settings?.provider === "aliyun" ? "green" : "gray"}" id="phoneProviderBadge">
@@ -323,7 +323,7 @@ function renderCalls(root: HTMLElement) {
     <header class="page-head">
       <div>
         <h1>通话记录</h1>
-        <p class="sub">每段对话都可播放、逐句查看、打标签并分类；「按对象」可按客户看累计分类与标签。</p>
+        <p class="sub">可选遗留能力。每段对话都可播放、逐句查看、打标签并分类；「按对象」可按客户看累计分类与标签。</p>
       </div>
       <div class="head-actions">
         <button class="btn" type="button" data-phone-refresh>刷新</button>
@@ -539,7 +539,7 @@ function renderStrategies(root: HTMLElement) {
     <header class="page-head">
       <div>
         <h1>回访策略</h1>
-        <p class="sub">按「第几天回访」下发周期任务：到点自动挑客户、生成呼叫任务并占用话术与声音配置。</p>
+        <p class="sub">可选遗留能力。按「第几天回访」下发周期任务：到点自动挑客户、生成呼叫任务并占用话术与声音配置。</p>
       </div>
       <div class="head-actions">
         <button class="btn" type="button" data-phone-refresh>刷新</button>
@@ -718,7 +718,7 @@ function renderConfig(root: HTMLElement) {
     <header class="page-head">
       <div>
         <h1>话机配置</h1>
-        <p class="sub">接入阿里云云呼叫中心 / 语音服务；配置播出声音；设置录音保留策略。密钥保存后不再回显。</p>
+        <p class="sub">可选遗留能力。接入阿里云云呼叫中心 / 语音服务；配置播出声音；设置录音保留策略。密钥保存后不再回显。</p>
       </div>
       <div class="head-actions">
         <button class="btn" type="button" id="kdPhoneHealth">连通性自检</button>

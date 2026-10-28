@@ -4155,7 +4155,7 @@ let ocrBatchRunning = false;
 const viewLabels: Record<string, string> = {
   dashboard: "工作台",
   todo: "待办中心",
-  "lead-finder": "自动获客",
+  "lead-finder": "智能获客",
   "lead-task-detail": "任务执行详情",
   "prospect-list": "搜客清单",
   "ai-agent": "AI Agent",
@@ -4167,7 +4167,7 @@ const viewLabels: Record<string, string> = {
   leads: "线索",
   customers: "客户",
   "customer-pool": "客户公池",
-  whatsapp: "即刻沟通",
+  whatsapp: "客户沟通",
   "outreach-journey": "发信明细",
   "outreach-customer-journey": "开发信过程",
   "customer-detail": "客户全景",
@@ -14954,7 +14954,26 @@ async function switchDevelopmentEmailScenario(scenario: DevelopmentEmailScenario
 function renderDevelopmentEmailPage() {
   const box = qs<HTMLElement>("#developmentEmailPage");
   const subject = developmentEmailSubject;
-  if (!box || !subject) return;
+  if (!box) return;
+  if (!subject) {
+    box.innerHTML = `
+      <header class="mail-studio-header">
+        <div class="research-identity"><div><h1>开发信</h1><span>草稿</span></div></div>
+      </header>
+      <section class="panel section">
+        <div class="section-title"><div><h2>先选定收件对象</h2><p>开发信按具体候选或线索起草。这里不会自动生成，也不会直接外发。</p></div></div>
+        <div class="inline-actions">
+          <button class="btn primary" type="button" data-mail-go="lead-finder">去智能获客</button>
+          <button class="btn" type="button" data-mail-go="prospect-list">去搜客清单</button>
+          <button class="btn" type="button" data-mail-go="leads">去线索</button>
+          <button class="btn" type="button" data-mail-go="whatsapp">去客户沟通</button>
+        </div>
+      </section>`;
+    qsa<HTMLButtonElement>("[data-mail-go]", box).forEach((button) => {
+      button.addEventListener("click", () => activateNavView(button.dataset.mailGo || "prospect-list"));
+    });
+    return;
+  }
   if (!developmentEmailDraft || !developmentEmailReadiness) {
     const sourcePicker = engineSourceSelectHtml("developmentEmailSource", "email", effectiveEmailSource());
     // 加载中 vs 失败必须分开渲染：失败还画成「正在加载」会让用户永远等下去，且看不到来源选择器
@@ -33185,9 +33204,9 @@ const PROSPECT_PAGE_SIZE = 10;
 
 const PROSPECT_STATUS_META: Record<WebsiteOpportunity["status"], { label: string; tone: string; action: string }> = {
   preview: { label: "待处理", tone: "amber", action: "查找公开联系人与联系方式" },
-  contactable: { label: "可联系", tone: "green", action: "发送开发信或加入线索" },
-  contacted: { label: "已联系", tone: "green", action: "等待回复，必要时加入线索跟进" },
-  synced: { label: "已入线索", tone: "green", action: "在线索中心继续跟进" },
+  contactable: { label: "可联系", tone: "green", action: "转为线索，或先写开发信草稿。发送前仍需确认。" },
+  contacted: { label: "已联系", tone: "green", action: "可继续写开发信草稿，或转为线索跟进。发送前仍需确认。" },
+  synced: { label: "已入线索", tone: "green", action: "写开发信草稿，或打开客户沟通。外发不会自动执行。" },
   excluded: { label: "已排除", tone: "gray", action: "确认原因，必要时恢复处理" }
 };
 
@@ -35172,6 +35191,31 @@ async function startWebsiteProbe(item: WebsiteOpportunity, button?: HTMLButtonEl
   }
 }
 
+function prospectOutreachPhone(item: WebsiteOpportunity) {
+  const values = (item.extractedContacts || []).flatMap((contact) => [
+    ...(contact.whatsapp || []),
+    ...(contact.phones || [])
+  ]);
+  const inline = item.contactInfo || "";
+  for (const value of [...values, ...inline.split(/[,\s;；、|]+/u), inline]) {
+    const phone = normalizeWhatsAppPhone(value);
+    if (phone) return phone;
+  }
+  return "";
+}
+
+function openProspectOutreachDraft(item: WebsiteOpportunity) {
+  if (!["contactable", "contacted"].includes(item.status)) {
+    toast("达到可联系后再起草开发信", "error");
+    return;
+  }
+  const workspace = qs<HTMLDetailsElement>("#prospectMailWorkspace");
+  if (!workspace) return;
+  workspace.open = true;
+  workspace.scrollIntoView({ block: "nearest" });
+  qs<HTMLInputElement>("#prospectMailSubject")?.focus();
+}
+
 function renderProspectDetail(item?: WebsiteOpportunity | null) {
   const box = qs<HTMLElement>("#prospectDetail");
   const sender = qs<HTMLElement>("#prospectSenderStatus");
@@ -35200,6 +35244,8 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   // 资格审核链已移除：触达补录/回复记录不再依赖资格审核结果。
   const canContact = true;
   const canWriteOutreach = item.ownerId === state.user?.id;
+  const canDraftOnCandidate = item.status === "contactable" || item.status === "contacted";
+  const outreachPhone = prospectOutreachPhone(item);
   const dnc = qualification?.blockers.includes("PROSPECT_DO_NOT_CONTACT");
   const readonly = item.status === "synced" ? "disabled" : "";
   const procurementContext = state.procurementContexts[item.id];
@@ -35250,8 +35296,9 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     <div class="prospect-action-row">
       ${item.status !== "synced" ? `<button class="btn" id="prospectSaveButton">保存候选资料</button>` : ""}
       ${item.status === "excluded" && !dnc ? `<button class="btn" id="prospectRestoreButton">恢复待核验</button>` : ""}
+      ${canDraftOnCandidate ? `<button class="btn" id="prospectDraftEmailButton" type="button">写开发信草稿</button>` : ""}
       ${item.status !== "synced" ? `<button class="btn primary" id="prospectDetailSyncButton">转为线索</button>` : ""}
-      ${item.status === "synced" && item.leadId ? `<button class="btn primary" id="prospectViewLeadButton">查看线索</button>` : ""}
+      ${item.status === "synced" && item.leadId ? `<button class="btn primary" id="prospectViewLeadButton">查看线索</button><button class="btn" id="prospectLeadDraftButton" type="button">写开发信</button><button class="btn" id="prospectOpenCommunicationButton" type="button">去客户沟通</button>${outreachPhone ? `<button class="btn" id="prospectOpenWhatsAppButton" type="button" title="在网页版打开会话，不会自动发送">打开 WhatsApp</button>` : ""}` : ""}
       ${canWriteOutreach && canContact ? `<button class="btn" id="prospectTouchpointButton">补录历史触达</button><button class="btn" id="prospectReplyButton">记录回复</button>` : ""}
       ${item.lastTouchpointAt ? `<button class="btn" id="prospectTouchpointHistoryButton">查看记录</button>` : ""}
       ${canWriteOutreach && item.status === "synced" && item.leadId ? `<button class="btn" id="prospectTodoButton">生成待办</button>` : ""}
@@ -35260,7 +35307,16 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   qs<HTMLButtonElement>("#prospectSaveButton", box)?.addEventListener("click", (event) => void saveProspectVerification(item, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectRestoreButton", box)?.addEventListener("click", (event) => void updateProspectBatch("restore", [item.id], event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void syncProspects([item.id], event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
+  qs<HTMLButtonElement>("#prospectLeadDraftButton", box)?.addEventListener("click", () => {
+    if (!item.leadId) return;
+    openDevelopmentEmail("lead", item.leadId, item.company, "prospect-list", outreachPhone);
+  });
+  qs<HTMLButtonElement>("#prospectOpenCommunicationButton", box)?.addEventListener("click", () => activateNavView("whatsapp"));
+  qs<HTMLButtonElement>("#prospectOpenWhatsAppButton", box)?.addEventListener("click", () => {
+    void openWhatsAppForContact({ phone: outreachPhone, displayName: item.contact || item.company });
+  });
   qs<HTMLButtonElement>("#prospectTodoButton", box)?.addEventListener("click", (event) => void createSelectedProspectTodo(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectTouchpointButton", box)?.addEventListener("click", () => openProspectTouchpointModal(item));
   qs<HTMLButtonElement>("#prospectReplyButton", box)?.addEventListener("click", () => openProspectReplyModal(item));
@@ -47806,6 +47862,7 @@ function activateNavView(view: string, after?: () => void) {
   if (view === "whatsapp") {
     void ensureInstantCommunicationLoaded();
   }
+  if (view === "development-email" && !developmentEmailSubject) renderDevelopmentEmailPage();
   if (view === "email-return-flow") {
     void renderEmailReturnFlow();
   }
@@ -47871,6 +47928,7 @@ function resolveTopbarSearchView(rawValue: string) {
     ["待办", "todo"],
     ["todo", "todo"],
     ["搜客清单", "prospect-list"],
+    ["开发信草稿", "development-email"],
     ["开发信", "prospect-list"],
     ["清单", "prospect-list"],
     ["搜客", "lead-finder"],
@@ -47908,6 +47966,7 @@ function resolveTopbarSearchView(rawValue: string) {
     ["退信", "email-return-flow"],
     ["客户公池", "customer-pool"],
     ["公池", "customer-pool"],
+    ["客户沟通", "whatsapp"],
     ["客户", "customers"],
     ["customer", "customers"],
     ["communication", "whatsapp"],
