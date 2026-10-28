@@ -199,7 +199,9 @@ const required = [
   "leadFinderProgressBoard",
   "dashboardProspectRuns",
   "dashboardPendingEmails",
+  "dashboardRecentOutreach",
   "待写开发信",
+  "最近触达",
   "进行中的搜客",
   "刷新进度",
   "尚未结束",
@@ -654,10 +656,29 @@ assert.match(apiLayer, /没有可写开发信的候选。去智能获客或搜�
 assert.match(prototype, /id="dashboardPendingEmails"[\s\S]*待写开发信/, "工作台必须有待写开发信区块");
 assert.match(apiLayer, /data-dashboard-pending-email[\s\S]*有邮箱/, "待写开发信每一行必须带公司、状态和邮箱有无");
 assert.match(apiLayer, /prospectNeedsDevelopmentEmail\(item\) \? badge\("可写开发信"/, "搜客清单里符合条件的候选要标可写开发信");
+assert.match(apiLayer, /lastDevelopmentEmailAt \? badge\("已发开发信", "green"\)/, "搜客清单已发候选要标已发开发信");
 const pendingEmailClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardPendingEmails")?.addEventListener');
 const pendingEmailClick = apiLayer.slice(pendingEmailClickStart, pendingEmailClickStart + 520);
 assert.match(pendingEmailClick, /openProspectDraftFromAcquisition\(item\)/, "点待写开发信必须打开现有草稿流");
 assert.doesNotMatch(pendingEmailClick, /sendProspectDevelopmentEmail|send-development-email/, "点待写开发信不得发送");
+assert.match(apiLayer, /RECENT_OUTREACH_LIMIT = 5/, "工作台最近触达最多显示 5 行");
+const recentCandidates = kbSourceBetween(apiLayer, "function recentOutreachCandidates()", "\nfunction renderDashboardRecentOutreach");
+assert.match(recentCandidates, /shortlistedAt[\s\S]*lastDevelopmentEmailAt/, "最近触达只包含搜客清单里已经发出开发信的候选");
+assert.match(apiLayer, /还没有已发开发信。去待写开发信或搜客清单写一封，确认发送后才会出现在这里。这里不会编造记录。/, "没有已发记录时必须指向待写和搜客清单，不能编造记录");
+assert.match(prototype, /id="dashboardRecentOutreach"[\s\S]*最近触达/, "工作台必须有最近触达区块");
+assert.match(apiLayer, /data-dashboard-recent-outreach[\s\S]*已发开发信/, "最近触达每一行必须标已发开发信");
+const recentClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardRecentOutreach")?.addEventListener');
+const recentClick = apiLayer.slice(recentClickStart, recentClickStart + 640);
+assert.match(recentClick, /openSentProspectFromDashboard\(item\)/, "点最近触达必须打开已发候选");
+assert.doesNotMatch(recentClick, /sendProspectDevelopmentEmail|send-development-email|openProspectDraftFromAcquisition|openProspectOutreachDraft/, "点最近触达不得发送或打开待写草稿");
+const openSent = kbSourceBetween(apiLayer, "function openSentProspectFromDashboard", "\nfunction renderProspectDetail");
+assert.match(openSent, /workspace\.open = false/, "打开已发记录时草稿区必须收起");
+assert.match(openSent, /不会再次发送/, "打开已发记录时必须说明不会再次发送");
+assert.doesNotMatch(openSent, /sendProspectDevelopmentEmail|send-development-email|openProspectOutreachDraft/, "打开已发记录不得发送");
+const sendProspectMail = kbSourceBetween(apiLayer, "async function sendProspectDevelopmentEmail", "\nfunction currentLeadFinderTitle");
+assert.match(sendProspectMail, /Object\.assign\(existing, result\.opportunity\)[\s\S]*renderProspectList\(\)/, "发送成功后必须用返回的候选刷新清单");
+const prospectListRender = kbSourceBetween(apiLayer, "function renderProspectList()", "\nfunction prospectsAsSyncRows");
+assert.match(prospectListRender, /renderDashboardPendingEmails\(\)[\s\S]*renderDashboardRecentOutreach\(\)/, "清单刷新必须同时更新待写队列和最近触达");
 assert.doesNotMatch(apiLayer, /international sourcing and distribution/, "预填不能把空业务编成泛泛的采购场景");
 assert.match(apiLayer, /sendProspectDevelopmentEmail[\s\S]*confirmAction\(/, "搜客清单发送开发信必须经过确认");
 assert.match(apiLayer, /先选定收件对象/, "未选对象时开发信页必须给出获客入口，而不是空白");
