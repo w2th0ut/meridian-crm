@@ -53,7 +53,7 @@ function updateChrome() {
   if (active && document.body.classList.contains('is-authenticated')) {
     document.title = `${activeLabel} · 客多多`;
   } else if (!document.body.classList.contains('is-authenticated')) {
-    document.title = '客多多 · 外贸客户经营台';
+    document.title = '客多多 · 智能获客与触达';
   }
 }
 $$('.view').forEach(view => new MutationObserver(updateChrome).observe(view,{attributes:true,attributeFilter:['class']}));
@@ -160,7 +160,7 @@ function renderCommandResults(){
    return !needle||(button.textContent||'').toLocaleLowerCase().includes(needle)||(button.title||'').toLocaleLowerCase().includes(needle);
  });
  commandResults.replaceChildren();
- if(!entries.length){const empty=document.createElement('p');empty.className='trade-command-empty';empty.textContent='没有找到页面。试试输入客户、单据或报表。';commandResults.append(empty);return;}
+ if(!entries.length){const empty=document.createElement('p');empty.className='trade-command-empty';empty.textContent='没有找到页面。试试输入获客、开发信或客户。';commandResults.append(empty);return;}
  for(const source of entries){
   const option=document.createElement('button');option.type='button';
   const name=document.createElement('span');name.textContent=source.querySelector('span')?.textContent?.trim()||source.title;

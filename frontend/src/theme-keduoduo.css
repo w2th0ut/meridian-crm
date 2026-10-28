@@ -577,6 +577,7 @@ html[data-ui="trade"] .mh-band-foot :is(#tradeRouteSummary, .trade-route-hint) {
 }
 html[data-ui="trade"] .mh-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 html[data-ui="trade"] .mh-actions .btn { min-height: 30px; font-size: 11.5px; }
+html[data-ui="trade"] .dashboard-path-actions { margin-top: 14px; }
 
 /* 汇率行 */
 html[data-ui="trade"] #dashboard.dashboard-v2 .dashboard-ticker {
