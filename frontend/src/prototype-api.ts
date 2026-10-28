@@ -35690,6 +35690,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     <div class="inline-alert"><b>下一步</b><span>${escapeHtml(status.action)}</span></div>
     ${renderProcurementContextPanel(procurementContext, item)}
     ${renderProspectConvertGate(item, "prospectDetailSyncButton")}
+    ${renderContactableApprovalPanel(item, "prospect")}
     <div class="prospect-action-row">
       ${item.status !== "synced" ? `<button class="btn" id="prospectSaveButton">保存候选资料</button>` : ""}
       ${item.status === "excluded" && !dnc ? `<button class="btn" id="prospectRestoreButton">恢复待核验</button>` : ""}
@@ -35703,6 +35704,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   qs<HTMLButtonElement>("#prospectSaveButton", box)?.addEventListener("click", (event) => void saveProspectVerification(item, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectRestoreButton", box)?.addEventListener("click", (event) => void updateProspectBatch("restore", [item.id], event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement));
+  bindContactableApprovalEntries(box, item);
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
   qs<HTMLButtonElement>("#prospectLeadDraftButton", box)?.addEventListener("click", () => {
@@ -36228,11 +36230,32 @@ function prospectConvertGate(item: WebsiteOpportunity): ProspectLeadConversionEl
   });
 }
 
+/**
+ * 只在缺「人工可联系批准」时为真。已批准、已是线索，以及其他缺项都不带这个入口。
+ * 文案沿用资格预览里 approve_contactability 的同一句。
+ */
+function prospectContactableApprovalPending(
+  item: WebsiteOpportunity,
+  gate: ProspectLeadConversionEligibility
+) {
+  if (gate.ready || gate.state !== "blocked") return false;
+  if (!state.user || item.ownerId !== state.user.id) return false;
+  const lines = gate.missing.length ? gate.missing : [gate.message];
+  return lines.some((line) => line.includes("人工可联系批准"));
+}
+
+function contactableApprovalButton(itemId: string) {
+  return `<button class="btn prospect-contactable-approval" type="button" data-contactable-approval="${escapeHtml(itemId)}">去申请可联系批准</button>`;
+}
+
 function prospectConvertGateLine(item: WebsiteOpportunity) {
   const gate = prospectConvertGate(item);
   const tone = gate.state === "blocked" ? "amber" : "green";
   const detail = gate.state === "blocked" ? (gate.missing.join("；") || gate.message) : gate.message;
-  return `<div class="prospect-convert-gate is-compact" data-convert-state="${escapeHtml(gate.state)}" title="${escapeHtml(`[${gate.code}] ${detail}`)}">${badge(gate.label, tone)}<span>${escapeHtml(detail)}</span></div>`;
+  const approval = prospectContactableApprovalPending(item, gate)
+    ? contactableApprovalButton(item.id)
+    : "";
+  return `<div class="prospect-convert-gate is-compact" data-convert-state="${escapeHtml(gate.state)}" title="${escapeHtml(`[${gate.code}] ${detail}`)}">${badge(gate.label, tone)}<span>${escapeHtml(detail)}</span>${approval}</div>`;
 }
 
 function renderProspectConvertGate(item: WebsiteOpportunity, buttonId = "") {
@@ -36249,13 +36272,98 @@ function renderProspectConvertGate(item: WebsiteOpportunity, buttonId = "") {
   const button = buttonId && gate.ready
     ? `<button class="btn primary" id="${buttonId}" type="button">转为线索</button>`
     : "";
+  const approval = prospectContactableApprovalPending(item, gate)
+    ? contactableApprovalButton(item.id)
+    : "";
   return `<section class="prospect-convert-gate" id="${buttonId === "prospectDetailSyncButton" ? "prospectConvertGate" : "prospectConvertGatePanel"}" data-convert-state="${escapeHtml(gate.state)}" data-convert-code="${escapeHtml(gate.code)}">
     <div class="prospect-convert-gate-head"><b>转为线索</b>${badge(gate.label, tone)}</div>
     ${summary}
     ${items}
     ${channel}
     ${button}
+    ${approval}
   </section>`;
+}
+
+let prospectContactableApprovalOpenId = "";
+let prospectContactableApprovalSurface: "" | "prospect" | "lead-finder" = "";
+
+function renderContactableApprovalPanel(
+  item: WebsiteOpportunity,
+  surface: "prospect" | "lead-finder"
+) {
+  if (prospectContactableApprovalOpenId !== item.id) return "";
+  if (prospectContactableApprovalSurface !== surface) return "";
+  if (!prospectContactableApprovalPending(item, prospectConvertGate(item))) return "";
+  return renderProspectQualificationPanel(item);
+}
+
+function focusContactableApprovalPanel(root: ParentNode | null) {
+  const panel = root?.querySelector<HTMLElement>("#prospectQualificationPanel");
+  if (!panel) return;
+  const advanced = panel.querySelector<HTMLDetailsElement>(".prospect-qualification-advanced");
+  if (advanced) advanced.open = true;
+  panel.classList.add("is-attention");
+  panel.scrollIntoView({ behavior: "smooth", block: "center" });
+  window.setTimeout(() => panel.classList.remove("is-attention"), 1600);
+}
+
+/** 打开现有跟进前检查。不提交批准，也不调用转线索。 */
+async function openContactableApproval(item: WebsiteOpportunity) {
+  if (!prospectContactableApprovalPending(item, prospectConvertGate(item))) return;
+  prospectContactableApprovalOpenId = item.id;
+  const leadFinderActive = Boolean(qs<HTMLElement>("#lead-finder")?.classList.contains("active"));
+  if (leadFinderActive && !item.shortlistedAt) {
+    prospectContactableApprovalSurface = "lead-finder";
+    state.selectedLeadFinderId = item.id;
+    renderLeadFinderDetail(item);
+    await loadProspectQualification(item, false);
+    renderLeadFinderDetail(item);
+    focusContactableApprovalPanel(qs<HTMLElement>("#leadFinderDetail"));
+    return;
+  }
+  prospectContactableApprovalSurface = "prospect";
+  state.selectedProspectId = item.id;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  let index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  if (index < 0) {
+    state.prospectFilter = "all";
+    state.prospectJoinedRange = "all";
+    index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  }
+  if (index >= 0) state.prospectPage = Math.floor(index / PROSPECT_PAGE_SIZE) + 1;
+  const show = async () => {
+    await loadProspectQualification(item, false);
+    renderProspectList();
+    focusContactableApprovalPanel(qs<HTMLElement>("#prospectDetail"));
+  };
+  if (leadFinderActive) closeLeadFinderVerificationDrawer();
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    await show();
+    return;
+  }
+  activateNavView("prospect-list", () => {
+    void show();
+  });
+}
+
+function bindContactableApprovalEntries(root: ParentNode, item?: WebsiteOpportunity) {
+  qsa<HTMLButtonElement>("[data-contactable-approval]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = button.dataset.contactableApproval || "";
+      const target = state.websiteOpportunities.find((row) => row.id === id) || item;
+      if (target) void openContactableApproval(target);
+    });
+  });
+  if (!item || prospectContactableApprovalOpenId !== item.id) return;
+  if (!root.querySelector("#prospectQualificationPanel")) return;
+  bindProspectQualificationActions(root as HTMLElement, item);
 }
 
 function renderProspectList() {
@@ -36379,6 +36487,7 @@ function renderProspectList() {
         }
       });
     });
+    bindContactableApprovalEntries(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -41385,6 +41494,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
       ${canResearch && (item.status === "contactable" || item.status === "contacted") && item.shortlistedAt ? `<div class="prospect-action-row" style="margin-top:-6px"><button class="btn" id="leadFinderWriteEmailButton" type="button">写开发信</button><small class="prospect-research-note">打开草稿并带入这家公司的已知资料。不会发送。</small></div>` : ""}
     </section>
     ${renderProspectConvertGate(item, "leadFinderDetailConvertButton")}
+    ${renderContactableApprovalPanel(item, "lead-finder")}
     <div class="lead-detail-actions">
       ${item.status !== "synced" ? `<button class="btn" id="leadFinderDetailSaveButton">保存核验资料</button>` : ""}
       ${canSelectLeadFinderItem(item) ? `<button class="btn primary" id="leadFinderDetailShortlistButton">加入搜客清单</button>` : ""}
@@ -41421,6 +41531,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   qs<HTMLButtonElement>("#leadFinderDetailConvertButton", box)?.addEventListener("click", (event) => {
     void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement);
   });
+  bindContactableApprovalEntries(box, item);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);

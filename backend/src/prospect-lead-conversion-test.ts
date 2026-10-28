@@ -804,6 +804,32 @@ function testLeadConversionEligibilityPreview() {
   assert.equal(unpooled.ready, false);
   assert.match(unpooled.missing.join(" "), /正式企业覆盖池/);
 
+  const removedApprovals = fixture.store.prospectContactabilityDecisions.filter((item) =>
+    item.status === "approved_contactable"
+  );
+  fixture.store.prospectContactabilityDecisions =
+    fixture.store.prospectContactabilityDecisions.filter((item) =>
+      item.status !== "approved_contactable"
+    );
+  for (const run of fixture.store.prospectSearchRuns) {
+    if (!run.campaignVersion) run.campaignVersion = 1;
+  }
+  const awaitingApproval = evaluateProspectLeadConversionEligibility(
+    fixture.store,
+    candidate,
+    fixture.ownerId,
+    atTime
+  );
+  assert.equal(awaitingApproval.ready, false);
+  assert.equal(awaitingApproval.state, "blocked");
+  assert.equal(awaitingApproval.decisionId, "");
+  assert.match(
+    awaitingApproval.missing.join(" "),
+    /还缺当前业务员的人工可联系批准/
+  );
+  assert.doesNotMatch(awaitingApproval.message, /确认后可转为线索/);
+  fixture.store.prospectContactabilityDecisions.push(...removedApprovals);
+
   const decisions = fixture.store.prospectContactabilityDecisions.splice(0);
   const unapproved = evaluateProspectLeadConversionEligibility(
     fixture.store,

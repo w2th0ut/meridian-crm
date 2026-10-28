@@ -707,6 +707,19 @@ assert.match(apiLayer, /不会重复转入/, "已是线索时必须写明不再�
 assert.match(apiLayer, /未达门禁/, "不满足时必须标明未达门禁");
 assert.match(apiLayer, /id="prospectConvertOpenLead"/, "转入成功后必须能跳到线索");
 assert.doesNotMatch(apiLayer, /sync-opportunities/, "转为线索不能再走绕过可联系门禁的同步接口");
+const approvalPending = kbSourceBetween(apiLayer, "function prospectContactableApprovalPending", "\nfunction contactableApprovalButton");
+assert.match(approvalPending, /gate\.ready/, "已可转线索时不得出现可联系批准入口");
+assert.match(approvalPending, /state !== "blocked"/, "已是线索或未阻断时不得出现可联系批准入口");
+assert.match(approvalPending, /人工可联系批准/, "入口只认人工可联系批准这句缺项");
+assert.match(approvalPending, /ownerId !== state\.user/, "不是当前业务员时不显示可联系批准入口");
+assert.match(apiLayer, /function contactableApprovalButton[\s\S]{0,240}去申请可联系批准/, "入口文案必须是去申请可联系批准");
+assert.match(apiLayer, /prospectContactableApprovalPending\(item, gate\)[\s\S]{0,180}contactableApprovalButton/, "清单行只在缺人工可联系批准时给出入口");
+assert.match(apiLayer, /renderProspectConvertGate\(item, "prospectDetailSyncButton"\)\}[\s\S]{0,80}renderContactableApprovalPanel\(item, "prospect"\)/, "搜客清单详情必须能展开现有资格检查");
+assert.match(apiLayer, /renderProspectConvertGate\(item, "leadFinderDetailConvertButton"\)\}[\s\S]{0,80}renderContactableApprovalPanel\(item, "lead-finder"\)/, "候选详情必须能展开现有资格检查");
+const openApproval = kbSourceBetween(apiLayer, "async function openContactableApproval", "\nfunction bindContactableApprovalEntries");
+assert.match(openApproval, /loadProspectQualification/, "入口必须打开现有资格检查");
+assert.match(openApproval, /prospectContactableApprovalSurface = "prospect"/, "已在搜客清单的候选要落到清单详情");
+assert.doesNotMatch(openApproval, /convert-to-lead|mutateProspectQualification|\/approve|contactability\//, "入口不得代为批准或转线索");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
