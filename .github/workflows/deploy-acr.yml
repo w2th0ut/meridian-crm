@@ -1,0 +1,151 @@
+# Path A: Baota + Docker + ACR.
+# Push to master or a version tag builds and pushes images only.
+# ECS is updated only by a manual workflow_dispatch with deploy_ecs=true.
+# Secret names and rollback: docs/CI-ACR.md. Do not commit secret values.
+
+name: deploy-acr
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*", "*.*.*"]
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: "Image tag / KEDUODUO_RELEASE_ID (empty = product-config version + run id, or tag name)"
+        required: false
+        type: string
+      deploy_ecs:
+        description: "Also SSH to ECS and run baota-update.sh (needs ECS secrets). Push never does this."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-acr-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ACR_REGISTRY: crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com
+  ACR_NAMESPACE: kevin_keduoduocrm
+  # Match node:22 in the Dockerfiles and deploy/docker-compose/build-in-docker.sh.
+  NODE_VERSION: "22"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.meta.outputs.release_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install and build
+        run: |
+          set -euo pipefail
+          # whatsapp-plugin is not an npm workspace; Dockerfiles copy its dist.
+          npm ci --no-audit --no-fund
+          npm --prefix whatsapp-plugin ci --no-audit --no-fund
+          npm run build
+          for required in \
+            backend/dist/server.js \
+            backend/dist/migrate-mysql.js \
+            backend/resources/document-templates/proforma-invoice-variable-base.xlsx \
+            integration-sdk/dist/index.js \
+            frontend/dist/index.html \
+            whatsapp-plugin/dist/index.html \
+            whatsapp-plugin/dist-server/server/index.js
+          do
+            test -f "$required"
+          done
+
+      - name: Resolve release id
+        id: meta
+        env:
+          INPUT_RELEASE_ID: "${{ github.event_name == 'workflow_dispatch' && inputs.release_id || '' }}"
+        run: |
+          set -euo pipefail
+          PRODUCT=$(node -p 'require("./frontend/public/product-config.json").version')
+          if [ -n "${INPUT_RELEASE_ID}" ]; then
+            RID="${INPUT_RELEASE_ID}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            RID="${GITHUB_REF_NAME#v}"
+          else
+            RID="${PRODUCT}-${GITHUB_SHA::7}"
+          fi
+          if ! [[ "$RID" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "release_id must match [A-Za-z0-9][A-Za-z0-9_.-]{0,127} (got: ${RID})" >&2
+            exit 1
+          fi
+          echo "release_id=${RID}" >> "$GITHUB_OUTPUT"
+          echo "product=${PRODUCT}" >> "$GITHUB_OUTPUT"
+          echo "Resolved RELEASE_ID=${RID} (product=${PRODUCT})"
+
+      - name: Login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push images
+        env:
+          RID: ${{ steps.meta.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          for svc in backend gateway communication; do
+            dockerfile="deploy/docker-compose/Dockerfile.${svc}"
+            image="${ACR_REGISTRY}/${ACR_NAMESPACE}/${svc}"
+            docker buildx build \
+              --file "$dockerfile" \
+              --platform linux/amd64 \
+              --provenance=false \
+              --sbom=false \
+              --tag "${image}:${RID}" \
+              --tag "${image}:latest" \
+              --push \
+              .
+          done
+
+      - name: Summary
+        run: |
+          echo "### ACR push" >> "$GITHUB_STEP_SUMMARY"
+          echo "- release_id: \`${{ steps.meta.outputs.release_id }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- images: backend / gateway / communication" >> "$GITHUB_STEP_SUMMARY"
+          echo "- This job does not SSH to ECS." >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-ecs:
+    needs: build-and-push
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH baota-update
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          RID: ${{ needs.build-and-push.outputs.release_id }}
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          password: ${{ secrets.ECS_SSH_PASSWORD }}
+          envs: RID
+          command_timeout: 30m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            test -n "${RID}"
+            test -x /opt/keduoduocrm/ops/baota-update.sh
+            /opt/keduoduocrm/ops/baota-update.sh "${RID}" | tee -a /opt/keduoduocrm/shared/baota-update.log
+            curl -fsS "http://127.0.0.1:4188/api/health" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
