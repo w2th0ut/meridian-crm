@@ -453,6 +453,7 @@ import {
 } from "./prospect-campaigns.js";
 import {
   convertProspectToLeadBodySchema,
+  evaluateProspectLeadConversionEligibility,
   PROSPECT_LEAD_SOURCE_CHANNEL,
   ProspectLeadConversionError
 } from "./prospect-lead-conversion.js";
@@ -18614,6 +18615,12 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
       searchReport: prospectSearchReport(verified),
       // 发信资格灯：可发信 / 缺邮箱 / 已抑制（附原因），供清单行直接渲染，不抛错。
       emailEligibility: evaluateProspectEmailOutreachEligibility(store, verified),
+      // 转线索资格：复用 convert_to_lead 的可联系门禁，只解释缺什么，不在这里放行。
+      leadConversionEligibility: evaluateProspectLeadConversionEligibility(
+        store,
+        verified,
+        req.user!.id
+      ),
       organizationId: scored.organizationId
         ? canonicalOrganizationId(
             store,
@@ -18671,7 +18678,17 @@ async function finishProspectQualificationRequest(
 ) {
   candidate.searchReport = prospectSearchReport(candidate);
   await persistCandidateChanges(store, [candidate], false);
-  return { qualification, opportunity: candidate };
+  return {
+    qualification,
+    opportunity: {
+      ...candidate,
+      leadConversionEligibility: evaluateProspectLeadConversionEligibility(
+        store,
+        candidate,
+        candidate.ownerId
+      )
+    }
+  };
 }
 
 app.get("/api/prospect-list/:id/qualification", requireAuth, asyncRoute(async (req, res) => {
@@ -18683,7 +18700,14 @@ app.get("/api/prospect-list/:id/qualification", requireAuth, asyncRoute(async (r
     res.setHeader("Cache-Control", "no-store");
     res.json({
       qualification: prospectQualificationView(store, candidate),
-      opportunity: candidate
+      opportunity: {
+        ...candidate,
+        leadConversionEligibility: evaluateProspectLeadConversionEligibility(
+          store,
+          candidate,
+          req.user!.id
+        )
+      }
     });
   } catch (error) {
     if (sendProspectQualificationError(res, error)) return;
@@ -19533,7 +19557,14 @@ app.patch("/api/prospect-list/:id/details", requireAuth, asyncRoute(async (req, 
   opportunity.searchReport = prospectSearchReport(opportunity);
   await persistCandidateChanges(store, [opportunity], false);
   res.json({
-    opportunity,
+    opportunity: {
+      ...opportunity,
+      leadConversionEligibility: evaluateProspectLeadConversionEligibility(
+        store,
+        opportunity,
+        req.user!.id
+      )
+    },
     qualification: opportunity.tenantProspectId
       ? prospectQualificationView(store, opportunity)
       : null,
@@ -20123,6 +20154,9 @@ async function convertAgentProspectToLead(
   linkedCandidates.forEach((item) => {
     migrateProspectFollowUpTodos(store, item, result.lead.id);
     linkProcurementContextToLead(store, item, result.lead.id);
+    item.status = "synced";
+    item.leadId = result.lead.id;
+    item.statusChangedAt = result.prospect.updatedAt || new Date().toISOString();
   });
   if (linkedCandidates.length) await persistCandidateChanges(store, linkedCandidates, true);
   if (result.created && !result.replayed) {
@@ -24623,8 +24657,11 @@ app.post("/api/prospects/:id/convert-to-lead", requireAuth, asyncRoute(async (re
       && item.tenantProspectId === req.params.id
     );
     linkedCandidates.forEach((candidate) => {
-      migrateProspectFollowUpTodos(store, candidate, result.lead.id)
+      migrateProspectFollowUpTodos(store, candidate, result.lead.id);
       linkProcurementContextToLead(store, candidate, result.lead.id);
+      candidate.status = "synced";
+      candidate.leadId = result.lead.id;
+      candidate.statusChangedAt = result.prospect.updatedAt || new Date().toISOString();
     });
     if (linkedCandidates.length) {
       await persistCandidateChanges(store, linkedCandidates, true);
@@ -24644,7 +24681,15 @@ app.post("/api/prospects/:id/convert-to-lead", requireAuth, asyncRoute(async (re
       lead: result.lead,
       sourceEvent: result.sourceEvent,
       activity: result.activity,
-      prospect: result.prospect
+      prospect: result.prospect,
+      opportunities: linkedCandidates.map((candidate) => ({
+        ...candidate,
+        leadConversionEligibility: evaluateProspectLeadConversionEligibility(
+          store,
+          candidate,
+          req.user!.id
+        )
+      }))
     });
   } catch (error) {
     if (sendProspectLeadConversionError(res, error)) return;

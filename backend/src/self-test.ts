@@ -1040,6 +1040,37 @@ try {
   if (!managerOpportunities.json.opportunities.some((item: { id: string }) => item.id === miaOpportunity.id)) {
     throw new Error("manager should read team website opportunities");
   }
+  const eligibilityRows = shirleyOpportunities.json.opportunities as Array<{
+    id: string;
+    status: string;
+    leadId?: string;
+    leadConversionEligibility?: {
+      ready: boolean;
+      state: string;
+      missing: string[];
+      message: string;
+    };
+  }>;
+  if (!eligibilityRows.length || eligibilityRows.some((item) =>
+    !item.leadConversionEligibility
+    || typeof item.leadConversionEligibility.ready !== "boolean"
+    || !Array.isArray(item.leadConversionEligibility.missing)
+    || !item.leadConversionEligibility.message
+  )) {
+    throw new Error("website opportunities must explain convert-to-lead eligibility");
+  }
+  const previewEligibility = eligibilityRows.find((item) => item.id === "web_seed_1");
+  if (!previewEligibility
+    || previewEligibility.leadConversionEligibility!.ready
+    || !previewEligibility.leadConversionEligibility!.missing.some((line) => line.includes("正式企业覆盖池"))) {
+    throw new Error("preview candidates must not be ready to convert, and must say what is missing");
+  }
+  const syncedEligibility = eligibilityRows.find((item) => item.id === websiteSync.json.created[0].opportunity.id);
+  if (!syncedEligibility
+    || syncedEligibility.leadConversionEligibility!.ready
+    || syncedEligibility.leadConversionEligibility!.state !== "already_lead") {
+    throw new Error("converted candidates must not be offered for conversion again");
+  }
   const crossWebsiteSync = await request("/api/tools/website-scrape/sync-opportunities", {
     method: "POST",
     headers: { authorization: `Bearer ${salesToken}` },

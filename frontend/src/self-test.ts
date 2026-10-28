@@ -698,6 +698,15 @@ assert.doesNotMatch(apiLayer, /international sourcing and distribution/, "预填
 assert.match(apiLayer, /sendProspectDevelopmentEmail[\s\S]*confirmAction\(/, "搜客清单发送开发信必须经过确认");
 assert.match(apiLayer, /先选定收件对象/, "未选对象时开发信页必须给出获客入口，而不是空白");
 assert.match(apiLayer, /不会自动发送/, "从候选打开 WhatsApp 不得表述成自动发送");
+assert.match(apiLayer, /function prospectConvertGate/, "搜客清单必须能判断转线索资格");
+assert.match(apiLayer, /function convertProspectsToLeads[\s\S]*confirmAction\(/, "转为线索必须先确认");
+assert.match(apiLayer, /\/api\/prospects\/\$\{encodeURIComponent\(entry\.gate\.prospectId\)\}\/convert-to-lead/, "确认后必须走现有转线索接口");
+assert.match(apiLayer, /operationCode: "convert_prospect_to_lead_v1"/, "转线索请求必须使用现有操作码");
+assert.match(apiLayer, /Idempotency-Key/, "转线索请求必须带幂等键");
+assert.match(apiLayer, /不会重复转入/, "已是线索时必须写明不再转入");
+assert.match(apiLayer, /未达门禁/, "不满足时必须标明未达门禁");
+assert.match(apiLayer, /id="prospectConvertOpenLead"/, "转入成功后必须能跳到线索");
+assert.doesNotMatch(apiLayer, /sync-opportunities/, "转为线索不能再走绕过可联系门禁的同步接口");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
