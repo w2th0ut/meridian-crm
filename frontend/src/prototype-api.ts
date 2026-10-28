@@ -2011,6 +2011,13 @@ interface WebsiteOpportunity {
     message: string;
     recipient: string;
   };
+  /** 抑制、退订、退信的只读说明。原因和来源都来自已有记录，没有原因时为「原因未回传」。 */
+  complianceNotices?: Array<{
+    kind: "suppressed" | "opted_out" | "bounced" | "invalid";
+    label: string;
+    reason: string;
+    source: string;
+  }>;
   /** 转线索资格：与 convert_to_lead 的可联系门禁一致，只说明缺什么。 */
   leadConversionEligibility?: ProspectLeadConversionEligibility;
   selected?: boolean;
@@ -34056,6 +34063,22 @@ function qualificationReasonLabel(code: string) {
     || code.split("_").join(" ");
 }
 
+function prospectComplianceReasonText(reason: string) {
+  const value = reason.trim();
+  if (!value) return "原因未回传";
+  return PROSPECT_QUALIFICATION_REASON_LABELS[value] || value;
+}
+
+/** 清单和详情共用。只展示接口带回的状态、原因和来源，不提供解除。 */
+function renderProspectComplianceNotices(item: WebsiteOpportunity) {
+  const notices = item.complianceNotices || [];
+  if (!notices.length) return "";
+  return `<div class="prospect-hold-notices">${notices.map((notice) => {
+    const source = notice.source.trim();
+    return `<div class="prospect-hold-notice" data-hold-kind="${escapeHtml(notice.kind)}">${badge(notice.label, "red")}<span>原因：${escapeHtml(prospectComplianceReasonText(notice.reason))}</span>${source ? `<span>来源：${escapeHtml(source)}</span>` : ""}</div>`;
+  }).join("")}</div>`;
+}
+
 function prospectQualificationResult(
   result: { qualification: ProspectQualificationViewApi; opportunity: WebsiteOpportunity }
 ) {
@@ -35652,6 +35675,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       <p>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(item.business || "业务待维护")} · ${escapeHtml(websiteDomain(item.website || ""))}</p>
       <p>加入搜客清单：${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</p>
     </div>
+    ${renderProspectComplianceNotices(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -36439,6 +36463,7 @@ function renderProspectList() {
             <p>${escapeHtml(item.business || "业务待维护")}</p>
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
             <div class="prospect-meta-row">${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
+            ${renderProspectComplianceNotices(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -41438,6 +41463,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
       </div>
       <button class="btn icon-only" id="leadFinderVerificationClose" type="button" title="关闭">×</button>
     </div>
+    ${renderProspectComplianceNotices(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
