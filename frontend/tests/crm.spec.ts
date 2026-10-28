@@ -2771,6 +2771,150 @@ test.describe("Keduoduo CRM prototype pages", () => {
     await expect(queue.locator("[data-dashboard-pending-email]")).toHaveCount(0);
   });
 
+  test("draft gap shortcut edits the candidate and returns to the same prefilled draft", async ({ page }) => {
+    const candidateId = `gap_mail_${runId}`;
+    const company = `Gap Letter ${runId} GmbH`;
+    const email = `buyer.gap.${runId}@ready.example`;
+    const opportunity = {
+      id: candidateId,
+      company,
+      business: "LED lighting",
+      country: "德国",
+      website: `https://gap-${runId}.example`,
+      contact: "待维护",
+      contactInfo: "",
+      description: "缺邮箱和联系人",
+      ownerId: "u_manager_alex",
+      teamId: "europe",
+      status: "contactable",
+      shortlistedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      parseMode: "rule",
+      source: "gleif",
+      sourceLabel: "GLEIF",
+      sourceEvidence: []
+    };
+    let patchCount = 0;
+    let lastPatch: { contact?: string; contactInfo?: string; company?: string } | null = null;
+    let sent = false;
+    await page.route("**/api/tools/website-opportunities", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ opportunities: [opportunity] })
+      });
+    });
+    await page.route("**/api/prospect-list/**/details", async (route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.fallback();
+        return;
+      }
+      const body = route.request().postDataJSON() as { contact?: string; contactInfo?: string; company?: string; requestId?: string };
+      patchCount += 1;
+      lastPatch = body;
+      const { requestId: _requestId, ...details } = body;
+      Object.assign(opportunity, details);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          opportunity: { ...opportunity },
+          qualification: null,
+          qualificationInvalidated: false,
+          changedFields: ["contact", "contactInfo"]
+        })
+      });
+    });
+    await page.route("**/send-development-email", async (route) => {
+      sent = true;
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "不应发送" }) });
+    });
+    await page.reload();
+    await expect(page.locator("body")).toHaveClass(/is-authenticated/);
+    await openView(page, "prospect-list");
+    await page.locator("#prospectSearchInput").fill(company);
+    await page.locator("#prospectListRows .prospect-item", { hasText: company }).locator("[data-prospect-open]").click();
+    await page.locator("#prospectDraftEmailButton").click();
+
+    const workspace = page.locator("#prospectMailWorkspace");
+    await expect(workspace).toHaveJSProperty("open", true);
+    await expect(page.locator("#prospectMailGaps")).toBeVisible();
+    await expect(page.locator("#prospectMailGapsText")).toContainText("收件邮箱");
+    await expect(page.locator("#prospectMailGapsText")).toContainText("联系人姓名");
+    await expect(page.locator("#prospectMailGapsText")).toContainText("未编造缺失项");
+    await expect(page.getByRole("button", { name: "去补邮箱" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "去补联系人" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "去补公司名" })).toHaveCount(0);
+    await expect(page.locator("#prospectMailTo")).toHaveValue("");
+    await expect(page.locator("#prospectMailSubject")).toHaveValue(new RegExp(company));
+    await expect(page.locator("#prospectMailBody")).toHaveValue(new RegExp(`Dear ${company} team`));
+    await expect(page.locator("#prospectMailBody")).not.toHaveValue(/待维护|@/);
+
+    await page.getByRole("button", { name: "去补邮箱" }).click();
+    const editor = page.locator("#prospectMailGapEditor");
+    await expect(editor).toBeVisible();
+    await expect(editor).toHaveAttribute("data-prospect-id", candidateId);
+    await expect(editor).toContainText("不会编造");
+    await expect(editor).toContainText("不会发送");
+    await expect(page.locator("#prospectGapEmail")).toBeFocused();
+    await expect(page.locator("#prospectGapEmail")).toHaveValue("");
+    await expect(page.locator("#prospectGapContact")).toHaveValue("待维护");
+    await expect(page.locator("#prospectMailTo")).toHaveValue("");
+
+    await editor.getByRole("button", { name: "取消" }).click();
+    await expect(editor).toBeHidden();
+    expect(patchCount).toBe(0);
+
+    await page.getByRole("button", { name: "去补邮箱" }).click();
+    await editor.getByRole("button", { name: "保存并重新预填" }).click();
+    await expect(page.locator(".toast", { hasText: "空着的项不会写成假数据" }).last()).toBeVisible();
+    expect(patchCount).toBe(0);
+    await expect(page.locator("#prospectMailTo")).toHaveValue("");
+
+    await page.locator("#prospectGapEmail").fill("not-an-email");
+    await page.getByRole("button", { name: "保存并重新预填" }).click();
+    await expect(page.locator(".toast", { hasText: "系统不会编造" }).last()).toBeVisible();
+    expect(patchCount).toBe(0);
+    await expect(page.locator("#prospectMailTo")).toHaveValue("");
+    await expect(page.locator("#prospect-list")).toHaveClass(/active/);
+
+    await page.locator("#prospectGapEmail").fill(email);
+    await page.getByRole("button", { name: "保存并重新预填" }).click();
+    await expect(page.locator(".toast", { hasText: "开发信草稿已按补齐后的资料重新预填" }).last()).toBeVisible();
+    expect(patchCount).toBe(1);
+    expect(lastPatch?.contactInfo).toBe(email);
+    expect(lastPatch?.contact).toBe("待维护");
+    expect(lastPatch?.company).toBe(company);
+    await expect(workspace).toHaveJSProperty("open", true);
+    await expect(page.locator("#prospect-list")).toHaveClass(/active/);
+    await expect(page.locator("#prospectDetail")).toContainText(company);
+    await expect(page.locator("#prospectEditContactInfo")).toHaveValue(email);
+    await expect(page.locator("#prospectEditContact")).toHaveValue("待维护");
+    await expect(page.locator("#prospectMailTo")).toHaveValue(email);
+    await expect(page.locator("#prospectMailSubject")).toHaveValue(new RegExp(company));
+    await expect(page.locator("#prospectMailBody")).toHaveValue(new RegExp(`Dear ${company} team`));
+    await expect(page.locator("#prospectMailBody")).not.toHaveValue(/待维护/);
+    await expect(page.locator("#prospectMailGapsText")).not.toContainText("收件邮箱");
+    await expect(page.getByRole("button", { name: "去补邮箱" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "去补联系人" })).toBeVisible();
+
+    await page.getByRole("button", { name: "去补联系人" }).click();
+    await expect(page.locator("#prospectGapContact")).toBeFocused();
+    await expect(page.locator("#prospectGapEmail")).toHaveCount(0);
+    await page.locator("#prospectGapContact").fill("Anna Buyer");
+    await page.getByRole("button", { name: "保存并重新预填" }).click();
+    await expect(page.locator("#prospectMailBody")).toHaveValue(/Dear Anna Buyer/);
+    await expect(page.locator("#prospectMailTo")).toHaveValue(email);
+    await expect(page.locator("#prospectMailSubject")).toHaveValue(new RegExp(company));
+    await expect(page.locator("#prospectEditContact")).toHaveValue("Anna Buyer");
+    await expect(workspace).toHaveJSProperty("open", true);
+    await expect(page.locator("#prospectMailGaps")).toBeHidden();
+    expect(patchCount).toBe(2);
+    expect(lastPatch?.contact).toBe("Anna Buyer");
+    expect(lastPatch?.contactInfo).toBe(email);
+    expect(sent).toBe(false);
+  });
+
   test("super search previews the matrix and ends as one closed mission", async ({ page }) => {
     await page.route("**/api/lead-finder/providers", async (route) => {
       await route.fulfill({

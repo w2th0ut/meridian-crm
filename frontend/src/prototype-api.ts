@@ -33542,6 +33542,17 @@ function prospectRealEmail(item: WebsiteOpportunity) {
   return blob.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu)?.[0] || "";
 }
 
+const PROSPECT_EMAIL_PATTERN = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/iu;
+
+/** 只把已核实的邮箱写入联系方式。占位词整段换掉；已有电话等其它内容时追加，不覆盖。 */
+function mergeProspectContactEmail(current: string, email: string) {
+  const existing = current.trim();
+  if (!existing || PROSPECT_PLACEHOLDER_CONTACT.test(existing)) return email;
+  const found = existing.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/igu) || [];
+  if (found.some((value) => value.toLowerCase() === email.toLowerCase())) return existing;
+  return `${existing}, ${email}`;
+}
+
 /** 只用候选上已经写着的业务或备注，不把空字段说成某个行业。 */
 function prospectBusinessClue(item: WebsiteOpportunity) {
   const business = (item.business || "").trim();
@@ -33550,23 +33561,59 @@ function prospectBusinessClue(item: WebsiteOpportunity) {
   return description ? description.slice(0, 160) : "";
 }
 
+type ProspectDraftGapKey = "email" | "contact" | "company" | "business" | "country" | "business_language";
+
+type ProspectDraftGap = {
+  key: ProspectDraftGapKey;
+  text: string;
+};
+
+const PROSPECT_DRAFT_GAP_FIELDS: Record<"email" | "contact" | "company", {
+  cta: string;
+  label: string;
+  inputId: string;
+  placeholder: string;
+}> = {
+  email: {
+    cta: "去补邮箱",
+    label: "收件邮箱",
+    inputId: "prospectGapEmail",
+    placeholder: "只填写已核实的真实邮箱，不要编造"
+  },
+  contact: {
+    cta: "去补联系人",
+    label: "联系人",
+    inputId: "prospectGapContact",
+    placeholder: "真实联系人姓名"
+  },
+  company: {
+    cta: "去补公司名",
+    label: "公司名称",
+    inputId: "prospectGapCompany",
+    placeholder: "候选公司的正式名称"
+  }
+};
+
 function prospectOutreachDraftPrefill(item: WebsiteOpportunity) {
   const company = (item.company || "").trim();
   const contact = prospectRealContactName(item.contact);
   const email = prospectRealEmail(item);
   const business = prospectBusinessClue(item);
   const country = (item.country || "").trim();
-  const missing: string[] = [];
-  if (!email) missing.push("收件邮箱");
+  const missing: ProspectDraftGap[] = [];
+  if (!email) missing.push({ key: "email", text: "收件邮箱" });
   if (!contact) {
-    missing.push(item.contact?.trim()
-      ? `联系人姓名（当前「${item.contact.trim()}」不能当作收件人，未写入称呼）`
-      : "联系人姓名");
+    missing.push({
+      key: "contact",
+      text: item.contact?.trim()
+        ? `联系人姓名（当前「${item.contact.trim()}」不能当作收件人，未写入称呼）`
+        : "联系人姓名"
+    });
   }
-  if (!company) missing.push("公司名称");
-  if (!business) missing.push("业务或产品线索");
-  else if (/[\u3400-\u9fff]/u.test(business)) missing.push("业务线索含中文，发出前请改成要使用的表述");
-  if (!country) missing.push("国家或地区");
+  if (!company) missing.push({ key: "company", text: "公司名称" });
+  if (!business) missing.push({ key: "business", text: "业务或产品线索" });
+  else if (/[\u3400-\u9fff]/u.test(business)) missing.push({ key: "business_language", text: "业务线索含中文，发出前请改成要使用的表述" });
+  if (!country) missing.push({ key: "country", text: "国家或地区" });
   const who = company || "your team";
   const greeting = contact || (company ? `${company} team` : "your team");
   const sender = state.user?.emailSenderName || state.user?.name || "Sales";
@@ -33590,14 +33637,212 @@ function prospectOutreachDraftPrefill(item: WebsiteOpportunity) {
   return { to: email, subject, body: lines.join("\n"), missing };
 }
 
-function renderProspectDraftGaps(missing: string[]) {
+function hideProspectDraftGapEditor() {
+  const editor = qs<HTMLElement>("#prospectMailGapEditor");
+  if (!editor) return;
+  editor.hidden = true;
+  editor.innerHTML = "";
+  delete editor.dataset.prospectId;
+}
+
+function renderProspectDraftGaps(missing: ProspectDraftGap[]) {
   const gaps = qs<HTMLElement>("#prospectMailGaps");
   const gapsText = qs<HTMLElement>("#prospectMailGapsText");
+  const actions = qs<HTMLElement>("#prospectMailGapActions");
+  hideProspectDraftGapEditor();
   if (!gaps || !gapsText) return;
   gaps.hidden = missing.length === 0;
   gapsText.textContent = missing.length
-    ? `未编造缺失项：${missing.join("、")}。补齐或改好后再发送。`
+    ? `未编造缺失项：${missing.map((gap) => gap.text).join("、")}。补齐或改好后再发送。`
     : "";
+  if (!actions) return;
+  const actionable = missing.filter((gap): gap is ProspectDraftGap & { key: keyof typeof PROSPECT_DRAFT_GAP_FIELDS } =>
+    gap.key === "email" || gap.key === "contact" || gap.key === "company"
+  );
+  actions.innerHTML = actionable.map((gap) =>
+    `<button class="btn tiny" type="button" data-prospect-draft-gap="${gap.key}">${PROSPECT_DRAFT_GAP_FIELDS[gap.key].cta}</button>`
+  ).join("");
+  qsa<HTMLButtonElement>("[data-prospect-draft-gap]", actions).forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.prospectDraftGap;
+      if (key === "email" || key === "contact" || key === "company") openProspectDraftGapEditor(key);
+    });
+  });
+}
+
+function prospectDraftGapFieldValue(item: WebsiteOpportunity, key: keyof typeof PROSPECT_DRAFT_GAP_FIELDS) {
+  if (key === "email") return "";
+  if (key === "contact") return item.contact || "";
+  return item.company || "";
+}
+
+/** 在草稿缺项旁改这条候选的真实资料。邮箱框保持空白，不预填猜测地址。 */
+function openProspectDraftGapEditor(focusKey: keyof typeof PROSPECT_DRAFT_GAP_FIELDS) {
+  const item = selectedProspect();
+  const editor = qs<HTMLElement>("#prospectMailGapEditor");
+  if (!item || !editor) return;
+  if (item.status === "synced") {
+    toast("已入线索的资料请到线索里维护", "error");
+    return;
+  }
+  const focusId = PROSPECT_DRAFT_GAP_FIELDS[focusKey].inputId;
+  if (!editor.hidden && editor.dataset.prospectId === item.id) {
+    const existing = qs<HTMLInputElement>(`#${focusId}`, editor);
+    if (existing) {
+      existing.focus();
+      editor.scrollIntoView({ block: "nearest" });
+      return;
+    }
+  }
+  const fields = prospectOutreachDraftPrefill(item).missing.filter((gap): gap is ProspectDraftGap & { key: keyof typeof PROSPECT_DRAFT_GAP_FIELDS } =>
+    gap.key === "email" || gap.key === "contact" || gap.key === "company"
+  );
+  if (!fields.some((gap) => gap.key === focusKey)) return;
+  editor.hidden = false;
+  editor.dataset.prospectId = item.id;
+  editor.innerHTML = `
+    <p>补的是这条候选的资料，不是草稿里的临时字。保存后仍回到这份开发信，并按已有规则重新预填。不会编造邮箱，也不会发送。</p>
+    <div class="prospect-mail-gap-fields">
+      ${fields.map((gap) => {
+        const meta = PROSPECT_DRAFT_GAP_FIELDS[gap.key];
+        return `<label>${escapeHtml(meta.label)}<input id="${meta.inputId}" value="${escapeHtml(prospectDraftGapFieldValue(item, gap.key))}" placeholder="${escapeHtml(meta.placeholder)}" autocomplete="off" spellcheck="false"></label>`;
+      }).join("")}
+    </div>
+    <div class="prospect-action-row">
+      <button class="btn" type="button" id="prospectGapCancelButton">取消</button>
+      <button class="btn primary" type="button" id="prospectGapSaveButton">保存并重新预填</button>
+    </div>
+  `;
+  qs<HTMLButtonElement>("#prospectGapCancelButton", editor)?.addEventListener("click", () => hideProspectDraftGapEditor());
+  qs<HTMLButtonElement>("#prospectGapSaveButton", editor)?.addEventListener("click", (event) => {
+    void saveProspectDraftGaps(item, event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLInputElement>(`#${focusId}`, editor)?.focus();
+  editor.scrollIntoView({ block: "nearest" });
+}
+
+/** 轮询可能刚用旧清单换过数组。按 id 写回，避免补齐结果只留在已经脱离清单的对象上。 */
+function upsertWebsiteOpportunity(opportunity: WebsiteOpportunity) {
+  const index = state.websiteOpportunities.findIndex((row) => row.id === opportunity.id);
+  if (index < 0) {
+    state.websiteOpportunities = [opportunity, ...state.websiteOpportunities];
+    return opportunity;
+  }
+  const merged = { ...state.websiteOpportunities[index], ...opportunity };
+  const next = state.websiteOpportunities.slice();
+  next[index] = merged;
+  state.websiteOpportunities = next;
+  return merged;
+}
+
+function returnToProspectOutreachDraft(item: WebsiteOpportunity) {
+  const saved = upsertWebsiteOpportunity(item);
+  state.selectedProspectId = saved.id;
+  const workspace = qs<HTMLDetailsElement>("#prospectMailWorkspace");
+  renderProspectList();
+  const current = state.websiteOpportunities.find((row) => row.id === saved.id) || saved;
+  if (!workspace) return;
+  workspace.open = true;
+  workspace.dataset.prospectId = current.id;
+  applyProspectOutreachDraftPrefill(current);
+  workspace.scrollIntoView({ block: "nearest" });
+}
+
+async function saveProspectDraftGaps(item: WebsiteOpportunity, button?: HTMLButtonElement) {
+  const current = selectedProspect();
+  if (!current || current.id !== item.id) {
+    toast("候选已切换，这份补齐没有保存", "error");
+    return;
+  }
+  if (current.status === "synced") {
+    toast("已入线索的资料请到线索里维护", "error");
+    return;
+  }
+  const editor = qs<HTMLElement>("#prospectMailGapEditor");
+  const emailInput = qs<HTMLInputElement>("#prospectGapEmail", editor || undefined);
+  const contactInput = qs<HTMLInputElement>("#prospectGapContact", editor || undefined);
+  const companyInput = qs<HTMLInputElement>("#prospectGapCompany", editor || undefined);
+  let contactInfo = current.contactInfo || "";
+  let contact = current.contact || "";
+  let company = (current.company || "").trim();
+  let changed = false;
+  if (emailInput) {
+    const email = emailInput.value.trim();
+    if (email && !PROSPECT_EMAIL_PATTERN.test(email)) {
+      toast("这不是可用的邮箱。请填写已核实的真实地址，系统不会编造。", "error");
+      emailInput.focus();
+      return;
+    }
+    if (email) {
+      contactInfo = mergeProspectContactEmail(contactInfo, email);
+      changed = true;
+    }
+  }
+  if (contactInput) {
+    const name = contactInput.value.trim();
+    const original = (current.contact || "").trim();
+    if (name !== original) {
+      if (!prospectRealContactName(name)) {
+        toast("请填写真实联系人姓名。「待维护」这类占位不会当作收件人。", "error");
+        contactInput.focus();
+        return;
+      }
+      contact = name;
+      changed = true;
+    }
+  }
+  if (companyInput) {
+    const name = companyInput.value.trim();
+    if (!name) {
+      toast("请填写公司名称。不会编造公司名。", "error");
+      companyInput.focus();
+      return;
+    }
+    if (name !== company) {
+      company = name;
+      changed = true;
+    }
+  }
+  if (!changed) {
+    toast("先填写要补的真实资料。空着的项不会写成假数据。", "error");
+    return;
+  }
+  const website = (current.website || "").trim();
+  if (!company || !website) {
+    toast("公司和官网不能为空。请先在上方候选资料里补齐官网，不要编造。", "error");
+    qs<HTMLInputElement>(company ? "#prospectEditWebsite" : "#prospectEditCompany")?.focus();
+    return;
+  }
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{
+      opportunity: WebsiteOpportunity;
+      qualification: ProspectQualificationViewApi | null;
+      qualificationInvalidated: boolean;
+    }>(`/api/prospect-list/${encodeURIComponent(current.id)}/details`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        company,
+        website,
+        business: current.business || "",
+        country: current.country || "",
+        contact,
+        contactInfo,
+        description: current.description || "",
+        requestId: prospectRequestId("draft-gap")
+      })
+    });
+    Object.assign(current, result.opportunity);
+    if (result.qualification) state.prospectQualifications[current.id] = result.qualification;
+    returnToProspectOutreachDraft(upsertWebsiteOpportunity(current));
+    toast(result.qualificationInvalidated
+      ? "资料已保存；受影响的资格步骤已失效。开发信草稿已按补齐后的资料重新预填"
+      : "资料已保存，开发信草稿已按补齐后的资料重新预填");
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "保存候选资料失败", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function applyProspectOutreachDraftPrefill(item: WebsiteOpportunity) {
