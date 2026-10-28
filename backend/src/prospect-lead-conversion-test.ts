@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   convertProspectToLead,
+  evaluateProspectLeadConversionEligibility,
   type ConvertProspectToLeadInput,
   ProspectLeadConversionError
 } from "./prospect-lead-conversion.js";
@@ -17,6 +18,7 @@ import type { CrmStore } from "./store.js";
 import type {
   Lead,
   Organization,
+  WebsiteOpportunity,
   OrganizationIdentityClaim,
   OrganizationIdentityResolution,
   OrganizationSourceBinding,
@@ -745,10 +747,114 @@ function testDispositionGuards() {
   }
 }
 
+function eligibilityCandidate(
+  fixture: Fixture,
+  label: string
+): WebsiteOpportunity {
+  return {
+    id: `candidate-${label}-${fixture.prospectId}`,
+    company: "Conversion Test GmbH",
+    business: "industrial lighting",
+    country: "DE",
+    website: "https://conversion.example.test",
+    contact: "Sales",
+    contactInfo: "sales@conversion.example.test",
+    description: "",
+    ownerId: fixture.ownerId,
+    teamId: fixture.teamId,
+    status: "contactable",
+    createdAt: fixture.input.convertedAt,
+    tenantProspectId: fixture.prospectId,
+    organizationId: fixture.organizationId
+  };
+}
+
+function testLeadConversionEligibilityPreview() {
+  const fixture = createApprovedFixture("eligibility");
+  const atTime = fixture.input.convertedAt;
+  const candidate = eligibilityCandidate(fixture, "ready");
+  const ready = evaluateProspectLeadConversionEligibility(
+    fixture.store,
+    candidate,
+    fixture.ownerId,
+    atTime
+  );
+  assert.equal(ready.ready, true);
+  assert.equal(ready.state, "ready");
+  assert.equal(ready.decisionId, fixture.decisionId);
+  assert.equal(ready.prospectId, fixture.prospectId);
+  assert.match(ready.channelSummary, /邮件 · sales@eligibility-/);
+  assert.deepEqual(ready.missing, []);
+
+  const stranger = evaluateProspectLeadConversionEligibility(
+    fixture.store,
+    candidate,
+    fixture.otherOwnerId,
+    atTime
+  );
+  assert.equal(stranger.ready, false);
+  assert.match(stranger.message, /当前业务员没有可用于转换的人工批准记录/);
+
+  const unpooled = evaluateProspectLeadConversionEligibility(
+    fixture.store,
+    { ...candidate, tenantProspectId: "" },
+    fixture.ownerId,
+    atTime
+  );
+  assert.equal(unpooled.ready, false);
+  assert.match(unpooled.missing.join(" "), /正式企业覆盖池/);
+
+  const decisions = fixture.store.prospectContactabilityDecisions.splice(0);
+  const unapproved = evaluateProspectLeadConversionEligibility(
+    fixture.store,
+    candidate,
+    fixture.ownerId,
+    atTime
+  );
+  assert.equal(unapproved.ready, false);
+  assert.equal(unapproved.state, "blocked");
+  assert.ok(unapproved.missing.length > 0);
+  assert.doesNotMatch(unapproved.message, /确认后可转为线索/);
+  fixture.store.prospectContactabilityDecisions.push(...decisions);
+
+  setTenantProspectDisposition(fixture.store, {
+    teamId: fixture.teamId,
+    ownerId: fixture.ownerId,
+    prospectId: fixture.prospectId,
+    requestId: "eligibility-do-not-contact",
+    operationCode: "set_tenant_prospect_disposition_v1",
+    action: "do_not_contact",
+    reasonCode: "OPTED_OUT",
+    effectiveAt: at(14),
+    coverageSecret
+  });
+  const suppressed = evaluateProspectLeadConversionEligibility(
+    fixture.store,
+    candidate,
+    fixture.ownerId,
+    at(15)
+  );
+  assert.equal(suppressed.ready, false);
+  assert.match(suppressed.message, /排除、禁止联系或不可转换/);
+
+  const converted = createApprovedFixture("eligibility-converted");
+  convertProspectToLead(converted.store, converted.input);
+  const done = evaluateProspectLeadConversionEligibility(
+    converted.store,
+    eligibilityCandidate(converted, "converted"),
+    converted.ownerId,
+    converted.input.convertedAt
+  );
+  assert.equal(done.ready, false);
+  assert.equal(done.state, "already_lead");
+  assert.match(done.message, /不会重复转入/);
+}
+
 testCreateAndIdempotency();
 testLinkExistingAndOwnerIsolation();
 testApprovalAndTenantGuards();
 testDispositionGuards();
+testLeadConversionEligibilityPreview();
 
 console.log(
   "Prospect human-confirmed lead conversion memory tests passed"

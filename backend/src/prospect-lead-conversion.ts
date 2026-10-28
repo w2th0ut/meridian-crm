@@ -11,6 +11,7 @@ import {
 import {
   currentContactabilityDecision
 } from "./prospect-qualification.js";
+import { prospectQualificationView } from "./prospect-qualification-workflow.js";
 import type { CrmStore } from "./store.js";
 import type {
   Lead,
@@ -20,7 +21,8 @@ import type {
   ProspectContactChannel,
   ProspectContactabilityDecision,
   ProviderEvidenceSnapshot,
-  TenantProspect
+  TenantProspect,
+  WebsiteOpportunity
 } from "./types.js";
 
 export const PROSPECT_LEAD_CONVERSION_CONTRACT =
@@ -708,4 +710,303 @@ export function convertProspectToLead(
   const result = convertOnLocalStore(local, input);
   commitLocalState(store, local);
   return result;
+}
+
+export type ProspectLeadConversionEligibilityState =
+  | "ready"
+  | "blocked"
+  | "already_lead";
+
+export interface ProspectLeadConversionEligibility {
+  ready: boolean;
+  state: ProspectLeadConversionEligibilityState;
+  label: string;
+  code: string;
+  message: string;
+  missing: string[];
+  decisionId: string;
+  prospectId: string;
+  leadId: string;
+  channelSummary: string;
+}
+
+const ELIGIBILITY_PREVIEW_SECRET =
+  "prospect-lead-conversion-eligibility-preview";
+
+const QUALIFICATION_GAP_LABELS: Record<string, string> = {
+  CANDIDATE_FORMAL_IDENTITY_MISSING: "尚未完成正式企业身份归一",
+  CANDIDATE_FORMAL_IDENTITY_STALE: "企业身份关联已失效",
+  CAMPAIGN_CONTEXT_MISSING: "缺少原始获客项目版本",
+  PROSPECT_DO_NOT_CONTACT: "企业处于永久禁止联系状态",
+  PROSPECT_NOT_ACTIVE: "候选不在可审查状态",
+  COMPANY_VERIFICATION_MISSING_OR_EXPIRED: "企业核验缺失或已过期",
+  COMPANY_UNVERIFIED: "企业身份未验证",
+  COMPANY_INACTIVE: "企业登记状态非存续",
+  COMPANY_IDENTITY_CONFLICT: "企业身份来源存在冲突",
+  ICP_ASSESSMENT_MISSING: "尚未完成 ICP 评估",
+  ICP_REVIEW_REQUIRED: "ICP 评估等待人工批准",
+  ICP_NOT_QUALIFIED: "ICP 评估未达到准入条件",
+  CONTACT_VERIFICATION_MISSING_OR_EXPIRED: "联系方式验证缺失或已过期",
+  CONTACT_DISCOVERED: "联系方式仅为发现状态",
+  CONTACT_SYNTAX_VALID: "联系方式仅通过格式校验",
+  CONTACT_DOMAIN_VALID: "联系方式仅通过域名校验",
+  CONTACT_BOUNCED: "联系方式已退信",
+  CONTACT_OPTED_OUT: "联系人已退订",
+  CONTACT_INVALID: "联系方式无效",
+  SUPPRESSED: "当前存在有效抑制记录",
+  QUALIFICATION_FACTS_CHANGED: "资格事实已变化，需要重新评估",
+  QUALIFICATION_CONTRACT_CHANGED: "资格门禁规则已升级，需要重新评估并批准",
+  CANDIDATE_IDENTITY_CHANGED: "企业资料已变化，需要重新核验",
+  CANDIDATE_ICP_INPUT_CHANGED: "ICP 输入已变化，需要重新评估",
+  CANDIDATE_CHANNEL_CHANGED: "渠道资料已变化，需要重新核验",
+  resolve_identity: "尚未完成正式企业身份归一",
+  resolve_campaign: "缺少原始获客项目版本",
+  verify_company: "企业核验缺失或未通过",
+  assess_icp: "尚未完成 ICP 评估",
+  approve_icp: "ICP 评估等待人工批准",
+  verify_channel: "联系方式尚未核对通过",
+  evaluate_contactability: "尚未完成可联系检查",
+  approve_contactability: "可联系检查已完成，还缺当前业务员的人工可联系批准"
+};
+
+const CHANNEL_LABELS: Record<string, string> = {
+  email: "邮件",
+  phone: "电话",
+  whatsapp: "WhatsApp",
+  website_form: "官网表单"
+};
+
+function eligibilityBase(
+  candidate: WebsiteOpportunity,
+  leadId = ""
+): Pick<ProspectLeadConversionEligibility,
+  "decisionId" | "prospectId" | "leadId" | "channelSummary"> {
+  return {
+    decisionId: "",
+    prospectId: candidate.tenantProspectId || "",
+    leadId,
+    channelSummary: ""
+  };
+}
+
+function eligibilityResult(
+  candidate: WebsiteOpportunity,
+  state: ProspectLeadConversionEligibilityState,
+  code: string,
+  missing: string[],
+  extra: Partial<ProspectLeadConversionEligibility> = {}
+): ProspectLeadConversionEligibility {
+  const ready = state === "ready";
+  const label = state === "ready"
+    ? "可转线索"
+    : state === "already_lead"
+      ? "已是线索"
+      : "未达门禁";
+  const gaps = [...new Set(missing.map((item) => item.trim()).filter(Boolean))];
+  const message = state === "ready"
+    ? "已有当前业务员的人工可联系批准，确认后可转为线索"
+    : state === "already_lead"
+      ? "该候选已经转为线索，不会重复转入"
+      : gaps.join("；") || "当前业务员没有可用于转换的人工批准记录";
+  return {
+    ...eligibilityBase(candidate, extra.leadId || ""),
+    ...extra,
+    ready,
+    state,
+    label,
+    code,
+    message,
+    missing: state === "blocked" ? gaps : []
+  };
+}
+
+function pushGap(missing: string[], text: string) {
+  const value = text.trim();
+  if (value && !missing.includes(value)) missing.push(value);
+}
+
+function qualificationGaps(
+  store: CrmStore,
+  candidate: WebsiteOpportunity,
+  at: string
+) {
+  const missing: string[] = [];
+  try {
+    const view = prospectQualificationView(store, candidate, at);
+    view.blockers.forEach((code) => {
+      pushGap(missing, QUALIFICATION_GAP_LABELS[code] || code);
+    });
+    if (view.nextStep !== "ready") {
+      pushGap(missing, QUALIFICATION_GAP_LABELS[view.nextStep] || "");
+    }
+  } catch {
+    // 资格视图读失败时退回转换接口本身的拒绝原因，不把候选放行。
+  }
+  if (!missing.length) {
+    pushGap(missing, "候选尚未完成人工可联系审批，请先在搜客清单完成复核");
+  }
+  return missing;
+}
+
+function latestApprovedForActor(
+  store: CrmStore,
+  candidate: WebsiteOpportunity,
+  actorId: string
+) {
+  if (!candidate.tenantProspectId) return undefined;
+  return store.prospectContactabilityDecisions
+    .filter((decision) =>
+      decision.teamId === candidate.teamId
+      && decision.ownerId === actorId
+      && decision.prospectId === candidate.tenantProspectId
+      && decision.status === "approved_contactable"
+      && decision.approvedBy === actorId
+    )
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+}
+
+function channelSummary(
+  channel: ProspectContactChannel
+) {
+  const label = CHANNEL_LABELS[channel.channelType] || channel.channelType;
+  return `${label} · ${channel.value}`;
+}
+
+/**
+ * 只读预览：复用 convertProspectToLead 的同一组查找与拒绝原因。
+ * 不写入、不放宽人工可联系批准，也不能代替真正的转换调用。
+ */
+export function evaluateProspectLeadConversionEligibility(
+  store: CrmStore,
+  candidate: WebsiteOpportunity,
+  actorId: string,
+  at = new Date().toISOString()
+): ProspectLeadConversionEligibility {
+  const prospect = candidate.tenantProspectId
+    ? store.tenantProspects.find((item) =>
+      item.id === candidate.tenantProspectId
+      && item.teamId === candidate.teamId
+    )
+    : undefined;
+  const linkedLeadId = candidate.leadId
+    || prospect?.leadId
+    || "";
+  if (candidate.status === "synced"
+    || candidate.leadId
+    || prospect?.status === "converted"
+    || prospect?.leadId) {
+    return eligibilityResult(
+      candidate,
+      "already_lead",
+      "PROSPECT_LEAD_CONVERSION_ALREADY_COMPLETED",
+      [],
+      { leadId: linkedLeadId }
+    );
+  }
+  if (!candidate.tenantProspectId) {
+    return eligibilityResult(
+      candidate,
+      "blocked",
+      "PROSPECT_LEAD_CONVERSION_NOT_ELIGIBLE",
+      ["候选尚未进入正式企业覆盖池，不能转为线索"]
+    );
+  }
+  if (candidate.ownerId !== actorId) {
+    return eligibilityResult(
+      candidate,
+      "blocked",
+      "PROSPECT_LEAD_CONVERSION_NOT_APPROVED",
+      ["当前业务员没有可用于转换的人工批准记录"]
+    );
+  }
+  const approved = latestApprovedForActor(store, candidate, actorId);
+  if (!approved) {
+    return eligibilityResult(
+      candidate,
+      "blocked",
+      "PROSPECT_LEAD_CONVERSION_NOT_APPROVED",
+      qualificationGaps(store, candidate, at)
+    );
+  }
+  try {
+    const input = normalizeInput({
+      operationCode: "convert_prospect_to_lead_v1",
+      decisionId: approved.id,
+      mode: "create_new",
+      existingLeadId: "",
+      company: (candidate.company || "").slice(0, 200),
+      contact: (candidate.contact || "").slice(0, 100),
+      country: (candidate.country || "").slice(0, 80),
+      intent: "中",
+      estimatedAmount: 0,
+      nextFollowAt: (candidate.nextFollowAt || "").slice(0, 100),
+      remark: "",
+      teamId: candidate.teamId,
+      ownerId: actorId,
+      prospectId: candidate.tenantProspectId,
+      idempotencyKey: "eligibility-preview-v1",
+      convertedAt: at,
+      coverageSecret: ELIGIBILITY_PREVIEW_SECRET
+    });
+    const currentProspect = findProspect(store, input);
+    if (currentProspect.status === "converted" || currentProspect.leadId) {
+      return eligibilityResult(
+        candidate,
+        "already_lead",
+        "PROSPECT_LEAD_CONVERSION_ALREADY_COMPLETED",
+        [],
+        { leadId: currentProspect.leadId || linkedLeadId }
+      );
+    }
+    if (currentProspect.status !== "active"
+      || currentProspect.exclusionMode !== "none"
+      || currentProspect.queueState === "suppressed") {
+      return eligibilityResult(
+        candidate,
+        "blocked",
+        "PROSPECT_LEAD_CONVERSION_NOT_ELIGIBLE",
+        ["该候选客户当前处于排除、禁止联系或不可转换状态"]
+      );
+    }
+    const decision = findApprovedDecision(store, input);
+    const { channel } = findApprovedChannel(store, input, decision);
+    const organization = store.organizations.find((item) =>
+      item.id === currentProspect.organizationId
+      && item.teamId === input.teamId
+      && item.status === "active"
+    );
+    if (!organization) {
+      return eligibilityResult(
+        candidate,
+        "blocked",
+        "PROSPECT_LEAD_CONVERSION_NOT_ELIGIBLE",
+        ["候选客户的企业身份不存在或已失效"]
+      );
+    }
+    return eligibilityResult(
+      candidate,
+      "ready",
+      "READY",
+      [],
+      {
+        decisionId: decision.id,
+        prospectId: currentProspect.id,
+        channelSummary: channelSummary(channel)
+      }
+    );
+  } catch (error) {
+    if (error instanceof ProspectLeadConversionError) {
+      const missing = error.code === "PROSPECT_LEAD_CONVERSION_NOT_APPROVED"
+        || error.code === "PROSPECT_LEAD_CONVERSION_STALE"
+        ? [error.message, ...qualificationGaps(store, candidate, at)]
+        : [error.message];
+      return eligibilityResult(candidate, "blocked", error.code, missing);
+    }
+    return eligibilityResult(
+      candidate,
+      "blocked",
+      "PROSPECT_LEAD_CONVERSION_NOT_ELIGIBLE",
+      [error instanceof Error ? error.message : "暂时无法核对转线索资格"]
+    );
+  }
 }

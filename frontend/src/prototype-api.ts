@@ -2011,9 +2011,24 @@ interface WebsiteOpportunity {
     message: string;
     recipient: string;
   };
+  /** 转线索资格：与 convert_to_lead 的可联系门禁一致，只说明缺什么。 */
+  leadConversionEligibility?: ProspectLeadConversionEligibility;
   selected?: boolean;
   ownerId?: string;
   teamId?: string;
+}
+
+interface ProspectLeadConversionEligibility {
+  ready: boolean;
+  state: "ready" | "blocked" | "already_lead";
+  label: string;
+  code: string;
+  message: string;
+  missing: string[];
+  decisionId: string;
+  prospectId: string;
+  leadId: string;
+  channelSummary: string;
 }
 
 interface ProspectQualificationViewApi {
@@ -35674,11 +35689,11 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     </details>
     <div class="inline-alert"><b>下一步</b><span>${escapeHtml(status.action)}</span></div>
     ${renderProcurementContextPanel(procurementContext, item)}
+    ${renderProspectConvertGate(item, "prospectDetailSyncButton")}
     <div class="prospect-action-row">
       ${item.status !== "synced" ? `<button class="btn" id="prospectSaveButton">保存候选资料</button>` : ""}
       ${item.status === "excluded" && !dnc ? `<button class="btn" id="prospectRestoreButton">恢复待核验</button>` : ""}
       ${canDraftOnCandidate ? `<button class="btn" id="prospectDraftEmailButton" type="button">写开发信草稿</button>` : ""}
-      ${item.status !== "synced" ? `<button class="btn primary" id="prospectDetailSyncButton">转为线索</button>` : ""}
       ${item.status === "synced" && item.leadId ? `<button class="btn primary" id="prospectViewLeadButton">查看线索</button><button class="btn" id="prospectLeadDraftButton" type="button">写开发信</button><button class="btn" id="prospectOpenCommunicationButton" type="button">去客户沟通</button>${outreachPhone ? `<button class="btn" id="prospectOpenWhatsAppButton" type="button" title="在网页版打开会话，不会自动发送">打开 WhatsApp</button>` : ""}` : ""}
       ${canWriteOutreach && canContact ? `<button class="btn" id="prospectTouchpointButton">补录历史触达</button><button class="btn" id="prospectReplyButton">记录回复</button>` : ""}
       ${item.lastTouchpointAt ? `<button class="btn" id="prospectTouchpointHistoryButton">查看记录</button>` : ""}
@@ -35687,7 +35702,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   `;
   qs<HTMLButtonElement>("#prospectSaveButton", box)?.addEventListener("click", (event) => void saveProspectVerification(item, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectRestoreButton", box)?.addEventListener("click", (event) => void updateProspectBatch("restore", [item.id], event.currentTarget as HTMLButtonElement));
-  qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void syncProspects([item.id], event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
   qs<HTMLButtonElement>("#prospectLeadDraftButton", box)?.addEventListener("click", () => {
@@ -35756,6 +35771,9 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     mailTo.placeholder = "收件邮箱";
   }
   renderProspectMailPreview();
+  if (!state.prospectQualifications[item.id] && !prospectQualificationLoading.has(item.id)) {
+    void loadProspectQualification(item);
+  }
 }
 
 interface ProspectBackgroundResearchView {
@@ -36085,6 +36103,161 @@ function prospectEmailEligibilityBadge(item: WebsiteOpportunity) {
   return `<span class="prospect-eligibility" title="${escapeHtml(title)}">${badge(eligibility.label, tone)}</span>`;
 }
 
+const CONVERT_NEXT_STEP_GAP: Record<ProspectQualificationViewApi["nextStep"], string> = {
+  resolve_identity: "尚未完成正式企业身份归一",
+  resolve_campaign: "缺少原始获客项目版本",
+  verify_company: "企业核验缺失或未通过",
+  assess_icp: "尚未完成 ICP 评估",
+  approve_icp: "ICP 评估等待人工批准",
+  verify_channel: "联系方式尚未核对通过",
+  evaluate_contactability: "尚未完成可联系检查",
+  approve_contactability: "可联系检查已完成，还缺当前业务员的人工可联系批准",
+  ready: ""
+};
+
+const CONVERT_CHANNEL_LABELS: Record<string, string> = {
+  email: "邮件",
+  phone: "电话",
+  whatsapp: "WhatsApp",
+  website_form: "官网表单"
+};
+
+function prospectConvertGateBase(
+  item: WebsiteOpportunity,
+  patch: Partial<ProspectLeadConversionEligibility> = {}
+): ProspectLeadConversionEligibility {
+  return {
+    ready: false,
+    state: "blocked",
+    label: "未达门禁",
+    code: "PROSPECT_LEAD_CONVERSION_NOT_APPROVED",
+    message: "当前业务员没有可用于转换的人工批准记录",
+    missing: ["当前业务员没有可用于转换的人工批准记录"],
+    decisionId: "",
+    prospectId: item.tenantProspectId || "",
+    leadId: item.leadId || "",
+    channelSummary: "",
+    ...patch
+  };
+}
+
+function prospectAlreadyLeadGate(item: WebsiteOpportunity, leadId = item.leadId || ""): ProspectLeadConversionEligibility {
+  return prospectConvertGateBase(item, {
+    state: "already_lead",
+    label: "已是线索",
+    code: "PROSPECT_LEAD_CONVERSION_ALREADY_COMPLETED",
+    message: "该候选已经转为线索，不会重复转入",
+    missing: [],
+    leadId
+  });
+}
+
+function uniqueGaps(lines: string[]) {
+  return [...new Set(lines.map((line) => line.trim()).filter(Boolean))];
+}
+
+function prospectConvertGateFromQualification(
+  item: WebsiteOpportunity,
+  view: ProspectQualificationViewApi
+): ProspectLeadConversionEligibility {
+  const missing: string[] = [];
+  if (!state.user || item.ownerId !== state.user.id) {
+    missing.push("当前业务员没有可用于转换的人工批准记录");
+  }
+  if (!view.prospectId) missing.push("候选尚未进入正式企业覆盖池，不能转为线索");
+  view.blockers.forEach((code) => missing.push(qualificationReasonLabel(code)));
+  const approved = view.approvedDecision;
+  const contactabilityPassed = Boolean(
+    approved
+    && approved.status === "approved_contactable"
+    && view.stageCurrency.contactability
+    && view.nextStep === "ready"
+    && view.blockers.length === 0
+    && view.prospectId
+    && state.user
+    && item.ownerId === state.user.id
+  );
+  if (!contactabilityPassed && view.nextStep !== "ready") {
+    missing.push(CONVERT_NEXT_STEP_GAP[view.nextStep] || "");
+  }
+  const gaps = uniqueGaps(missing);
+  if (!contactabilityPassed) {
+    const shown = gaps.length ? gaps : ["候选尚未完成人工可联系审批，请先在搜客清单完成复核"];
+    return prospectConvertGateBase(item, {
+      code: "PROSPECT_LEAD_CONVERSION_NOT_APPROVED",
+      message: shown.join("；"),
+      missing: shown,
+      prospectId: view.prospectId || item.tenantProspectId || ""
+    });
+  }
+  const channel = view.approvedChannel;
+  const channelSummary = channel
+    ? `${CONVERT_CHANNEL_LABELS[channel.channelType] || channel.channelType} · ${channel.value}`
+    : "";
+  return prospectConvertGateBase(item, {
+    ready: true,
+    state: "ready",
+    label: "可转线索",
+    code: "READY",
+    message: "已有当前业务员的人工可联系批准，确认后可转为线索",
+    missing: [],
+    decisionId: approved!.id,
+    prospectId: view.prospectId,
+    leadId: "",
+    channelSummary
+  });
+}
+
+/**
+ * 清单和详情共用。接口带回的资格优先，它走的是 convert_to_lead 同一组检查。
+ * 没有这份字段时，才用已加载的资格视图解释缺什么。
+ */
+function prospectConvertGate(item: WebsiteOpportunity): ProspectLeadConversionEligibility {
+  if (item.status === "synced" || item.leadId) return prospectAlreadyLeadGate(item);
+  const server = item.leadConversionEligibility;
+  if (server?.state === "already_lead") {
+    return prospectAlreadyLeadGate(item, server.leadId || item.leadId || "");
+  }
+  if (server) return server;
+  const view = state.prospectQualifications[item.id];
+  if (view) return prospectConvertGateFromQualification(item, view);
+  return prospectConvertGateBase(item, {
+    code: "QUALIFICATION_UNKNOWN",
+    message: "转线索资格尚未回传，请刷新搜客清单",
+    missing: ["转线索资格尚未回传，请刷新搜客清单"]
+  });
+}
+
+function prospectConvertGateLine(item: WebsiteOpportunity) {
+  const gate = prospectConvertGate(item);
+  const tone = gate.state === "blocked" ? "amber" : "green";
+  const detail = gate.state === "blocked" ? (gate.missing.join("；") || gate.message) : gate.message;
+  return `<div class="prospect-convert-gate is-compact" data-convert-state="${escapeHtml(gate.state)}" title="${escapeHtml(`[${gate.code}] ${detail}`)}">${badge(gate.label, tone)}<span>${escapeHtml(detail)}</span></div>`;
+}
+
+function renderProspectConvertGate(item: WebsiteOpportunity, buttonId = "") {
+  const gate = prospectConvertGate(item);
+  const tone = gate.state === "blocked" ? "amber" : "green";
+  const repeated = gate.missing.join("；") === gate.message;
+  const summary = repeated ? "" : `<p>${escapeHtml(gate.message)}</p>`;
+  const items = gate.missing.length
+    ? `<ul>${gate.missing.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`
+    : "";
+  const channel = gate.ready && gate.channelSummary
+    ? `<p>将使用已批准的联系方式：${escapeHtml(gate.channelSummary)}</p>`
+    : "";
+  const button = buttonId && gate.ready
+    ? `<button class="btn primary" id="${buttonId}" type="button">转为线索</button>`
+    : "";
+  return `<section class="prospect-convert-gate" id="${buttonId === "prospectDetailSyncButton" ? "prospectConvertGate" : "prospectConvertGatePanel"}" data-convert-state="${escapeHtml(gate.state)}" data-convert-code="${escapeHtml(gate.code)}">
+    <div class="prospect-convert-gate-head"><b>转为线索</b>${badge(gate.label, tone)}</div>
+    ${summary}
+    ${items}
+    ${channel}
+    ${button}
+  </section>`;
+}
+
 function renderProspectList() {
   const rows = qs<HTMLElement>("#prospectListRows");
   const total = qs<HTMLElement>("#prospectTotalCount");
@@ -36164,6 +36337,7 @@ function renderProspectList() {
                 : `<button class="prospect-contact-quick" type="button" data-prospect-contact="${escapeHtml(item.id)}" ${contactRunning ? "disabled" : ""}>${contactRunning ? "查询中" : "查联系方式"}</button>`}
             </div>
             <span class="prospect-next-action">下一步：${escapeHtml(status.action)}</span>
+            ${prospectConvertGateLine(item)}
             <div class="prospect-joined-at"><span>加入搜客清单</span><time datetime="${escapeHtml(item.shortlistedAt || item.createdAt)}" title="${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}">${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</time></div>
           </div>
         </article>
@@ -36211,73 +36385,132 @@ function renderProspectList() {
   renderDashboardRecentOutreach();
 }
 
-function prospectsAsSyncRows(ids: string[]) {
-  return state.websiteOpportunities.filter((item) => ids.includes(item.id)).map((item) => ({
-    id: item.id,
-    company: item.company,
-    business: item.business,
-    country: item.country,
-    website: item.website,
-    contact: item.contact,
-    contactInfo: item.contactInfo,
-    description: item.description,
-    source: item.source || "",
-    sourceLabel: item.sourceLabel || ""
-  }));
+function markProspectConverted(item: WebsiteOpportunity, leadId: string) {
+  item.status = "synced";
+  item.leadId = leadId;
+  item.leadConversionEligibility = prospectAlreadyLeadGate(item, leadId);
 }
 
-async function syncProspects(ids: string[], button?: HTMLButtonElement) {
-  const opportunities = prospectsAsSyncRows(ids);
-  const originalButtonText = button?.textContent || "";
-  if (!opportunities.length) {
-    toast("请先选择要入线索的候选", "error");
-    return;
-  }
-  const selectedCandidates = state.websiteOpportunities.filter((item) =>
-    ids.includes(item.id)
+function openProspectConvertFollowUp(item: WebsiteOpportunity) {
+  openModal(
+    "已转为线索",
+    `<p>「${escapeHtml(item.company)}」已进入线索。可以打开线索跟进，或留在这里写开发信、去客户沟通。这一步没有发送开发信。</p>`,
+    `<button class="btn" data-modal-close type="button">留在清单</button><button class="btn primary" id="prospectConvertOpenLead" type="button">查看线索</button>`
   );
-  // 资格审核链已移除：转线索不再要求资格审核通过。
-  const invalid = state.websiteOpportunities.filter((item) => ids.includes(item.id) && !["preview", "contactable", "contacted"].includes(item.status));
-  if (invalid.length) {
-    toast("已排除或已入线索的候选不能重复同步", "error");
+  qs<HTMLButtonElement>("#prospectConvertOpenLead")?.addEventListener("click", () => {
+    closeModal();
+    void openProspectLead(item);
+  });
+}
+
+async function convertProspectsToLeads(ids: string[], button?: HTMLButtonElement) {
+  const items = state.websiteOpportunities.filter((item) => ids.includes(item.id));
+  if (!items.length) {
+    toast("请先选择要转成线索的候选", "error");
     return;
   }
+  const gates = items.map((item) => ({ item, gate: prospectConvertGate(item) }));
+  const ready = gates.filter((entry) =>
+    entry.gate.ready && entry.gate.decisionId && entry.gate.prospectId
+  );
+  const already = gates.filter((entry) => entry.gate.state === "already_lead");
+  const blocked = gates.filter((entry) => !entry.gate.ready && entry.gate.state !== "already_lead");
+  if (!ready.length) {
+    if (already.length && !blocked.length) {
+      toast("所选候选已是线索，不会重复转入", "error");
+      return;
+    }
+    const detail = blocked.slice(0, 3).map(({ item, gate }) =>
+      `${item.company}：${(gate.missing.length ? gate.missing : [gate.message]).join("；")}`
+    ).join(" ");
+    toast(detail || "还不能转为线索", "error");
+    return;
+  }
+  const confirmed = await confirmAction({
+    title: ready.length > 1 ? "批量转为线索" : "转为线索",
+    message: ready.length > 1
+      ? `确认后将把 ${ready.length} 条已满足可联系门禁的候选转为线索。未达门禁的不会转入，也不会发送开发信。`
+      : `确认后将把「${ready[0]!.item.company}」转为线索。使用当前人工可联系批准，不会发送开发信。`,
+    detail: ready.map((entry) => entry.item.company).join("、"),
+    detailLabel: "本次转入",
+    consequences: [
+      ...ready.map((entry) => entry.gate.channelSummary
+        ? `${entry.item.company}：${entry.gate.channelSummary}`
+        : `${entry.item.company}：按已批准联系方式转入`),
+      ...blocked.slice(0, 4).map(({ item, gate }) =>
+        `不转入 ${item.company}：${gate.missing[0] || gate.message}`)
+    ],
+    confirmLabel: "确认转为线索",
+    tone: "warning"
+  });
+  if (!confirmed) return;
+  const originalButtonText = button?.textContent || "";
   if (button) {
     button.disabled = true;
-    button.textContent = "加入中";
+    button.textContent = "转入中";
   }
+  const created: WebsiteOpportunity[] = [];
+  const failures: string[] = [];
   try {
-    const result = await api<{ created: LeadSyncResult[] }>("/api/tools/website-scrape/sync-opportunities", {
-      method: "POST",
-      body: JSON.stringify({
-        requestId: prospectRequestId("lead-conversion"),
-        opportunities
-      })
-    });
-    result.created.forEach((item) => {
-      if (!state.leads.some((lead) => lead.id === item.lead.id)) state.leads.unshift(item.lead);
-      const existing = state.websiteOpportunities.find((row) => row.id === item.opportunity.id || row.website === item.opportunity.website);
-      if (existing) Object.assign(existing, item.opportunity);
-      else state.websiteOpportunities.unshift(item.opportunity);
-      state.selectedProspectId = item.opportunity.id;
-    });
-    state.selectedProspectIds = state.selectedProspectIds.filter((id) => !ids.includes(id));
-    renderWebsiteOpportunities(state.websiteOpportunities);
-    renderLeadFinder(state.websiteOpportunities);
-    renderProspectList();
-    renderLeads();
-    requestDashboardRefresh();
-    toast(`已加入 ${result.created.length} 条线索`);
+    for (const entry of ready) {
+      try {
+        const result = await api<{
+          lead: Lead;
+          replayed: boolean;
+          opportunities?: WebsiteOpportunity[];
+        }>(`/api/prospects/${encodeURIComponent(entry.gate.prospectId)}/convert-to-lead`, {
+          method: "POST",
+          headers: { "Idempotency-Key": prospectRequestId("convert-lead") },
+          body: JSON.stringify({
+            operationCode: "convert_prospect_to_lead_v1",
+            decisionId: entry.gate.decisionId,
+            mode: "create_new",
+            company: entry.item.company.slice(0, 200),
+            contact: entry.item.contact.slice(0, 100),
+            country: entry.item.country.slice(0, 80),
+            intent: "中",
+            estimatedAmount: 0,
+            nextFollowAt: (entry.item.nextFollowAt || "").slice(0, 100),
+            remark: "搜客清单确认转为线索"
+          })
+        });
+        if (!state.leads.some((lead) => lead.id === result.lead.id)) state.leads.unshift(result.lead);
+        const linked = result.opportunities?.length ? result.opportunities : [entry.item];
+        linked.forEach((updated) => {
+          const existing = state.websiteOpportunities.find((row) => row.id === updated.id) || entry.item;
+          if (updated !== existing) Object.assign(existing, updated);
+          markProspectConverted(existing, result.lead.id);
+        });
+        if (!linked.some((updated) => updated.id === entry.item.id)) {
+          markProspectConverted(entry.item, result.lead.id);
+        }
+        state.selectedProspectId = entry.item.id;
+        created.push(entry.item);
+      } catch (error) {
+        failures.push(`${entry.item.company}：${error instanceof Error ? error.message : "转为线索失败"}`);
+      }
+    }
   } finally {
     if (button) {
       button.disabled = false;
       button.textContent = originalButtonText;
     }
   }
-}
-
-async function syncSelectedProspects(button?: HTMLButtonElement) {
-  await syncProspects(state.selectedProspectIds, button);
+  state.selectedProspectIds = state.selectedProspectIds.filter((id) => !created.some((item) => item.id === id));
+  renderWebsiteOpportunities(state.websiteOpportunities);
+  renderLeadFinder(state.websiteOpportunities);
+  renderProspectList();
+  renderLeads();
+  requestDashboardRefresh();
+  if (failures.length) {
+    toast(created.length ? `已转入 ${created.length} 条。${failures.join(" ")}` : failures.join(" "), "error");
+    return;
+  }
+  if (created.length === 1) {
+    openProspectConvertFollowUp(created[0]!);
+    return;
+  }
+  toast(`已转入 ${created.length} 条线索。可打开候选查看线索，或写开发信。`);
 }
 
 function requestProspectExclusion(ids: string[], button?: HTMLButtonElement) {
@@ -41151,6 +41384,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
       </div>` : `<small class="prospect-research-note">该候选归属其他业务员，仅可查看。</small>`}
       ${canResearch && (item.status === "contactable" || item.status === "contacted") && item.shortlistedAt ? `<div class="prospect-action-row" style="margin-top:-6px"><button class="btn" id="leadFinderWriteEmailButton" type="button">写开发信</button><small class="prospect-research-note">打开草稿并带入这家公司的已知资料。不会发送。</small></div>` : ""}
     </section>
+    ${renderProspectConvertGate(item, "leadFinderDetailConvertButton")}
     <div class="lead-detail-actions">
       ${item.status !== "synced" ? `<button class="btn" id="leadFinderDetailSaveButton">保存核验资料</button>` : ""}
       ${canSelectLeadFinderItem(item) ? `<button class="btn primary" id="leadFinderDetailShortlistButton">加入搜客清单</button>` : ""}
@@ -41183,6 +41417,9 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   });
   qs<HTMLButtonElement>("#leadFinderDetailOpenLeadButton", box)?.addEventListener("click", () => {
     void openProspectLead(item);
+  });
+  qs<HTMLButtonElement>("#leadFinderDetailConvertButton", box)?.addEventListener("click", (event) => {
+    void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement);
   });
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
@@ -46644,7 +46881,7 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#prospectPreviewMailButton")?.addEventListener("click", renderProspectMailPreview);
   qs<HTMLButtonElement>("#prospectSendMailButton")?.addEventListener("click", (event) => void sendProspectDevelopmentEmail(event.currentTarget as HTMLButtonElement));
-  qs<HTMLButtonElement>("#prospectSyncButton")?.addEventListener("click", (event) => void syncSelectedProspects(event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectSyncButton")?.addEventListener("click", (event) => void convertProspectsToLeads(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectEnrichContactsButton")?.addEventListener("click", (event) => void enrichSelectedProspectContacts(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectBatchCreateButton")?.addEventListener("click", (event) => void createOutreachBatchFromSelection(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectExcludeButton")?.addEventListener("click", (event) => requestProspectExclusion(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
