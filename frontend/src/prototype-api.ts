@@ -4014,6 +4014,7 @@ let leadProvidersLoadedAt = 0;
 let leadProvidersInFlight: Promise<void> | null = null;
 const prospectQualificationLoading = new Set<string>();
 let leadFinderRunsLoading = false;
+let leadFinderRunsLoaded = false;
 let leadFinderRunPollTimer = 0;
 let lfindTaskPollTimer = 0;
 let leadFinderStreamAbort: AbortController | null = null;
@@ -11465,6 +11466,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardControls();
   renderMorningPanel(summary);
   ensureTenderDaily();
+  renderDashboardProspectRuns();
 }
 
 async function loadBadges(containerId = "leaderboardBadges", tagId?: string) {
@@ -36739,6 +36741,159 @@ function isLeadFinderJobTerminal(job: LeadFinderJob) {
   return ["done", "partial", "failed", "cancelled"].includes(job.status);
 }
 
+function leadFinderDisplayedProgress(job: LeadFinderJob) {
+  const raw = Math.max(0, Math.min(100, Math.round(Number(job.progress) || 0)));
+  if (isLeadFinderJobTerminal(job)) return raw;
+  return Math.min(99, raw);
+}
+
+function leadFinderCountText(value: number | undefined) {
+  return value === undefined ? "尚未回传" : String(value);
+}
+
+function leadFinderPhaseMark(status: ProspectRunProcessPhase["status"]) {
+  if (status === "succeeded") return "完成";
+  if (status === "partial") return "有产出";
+  if (status === "failed") return "失败";
+  if (status === "blocked") return "受阻";
+  if (status === "running") return "进行中";
+  return "等待";
+}
+
+function leadFinderProgressSnapshot(job: LeadFinderJob) {
+  const pipeline = job.cleaningReport?.summary;
+  const rawCount = pipeline ? pipeline.providerRawCount : job.incrementalStats?.rawCount;
+  const cleaningCount = pipeline
+    ? pipeline.providerInvalidCount
+      + pipeline.providerDuplicateCount
+      + pipeline.rejectedCount
+      + pipeline.suppressedCount
+      + pipeline.mergedCount
+    : job.incrementalStats
+      ? job.incrementalStats.deduplicatedCount + (job.incrementalStats.excludedCount || 0)
+      : undefined;
+  const candidateCount = pipeline
+    ? pipeline.candidateCount
+    : job.incrementalStats
+      ? job.incrementalStats.newCount
+      : job.resultIds
+        ? job.resultIds.length
+        : undefined;
+  const sources = job.sourceStats || [];
+  const settled = sources.filter((source) =>
+    ["succeeded", "succeeded_empty", "partial_success", "failed", "cancelled", "success", "success_empty"].includes(source.status || "")
+  ).length;
+  return {
+    rawCount,
+    cleaningCount,
+    candidateCount,
+    settled,
+    sources,
+    phases: job.processPhases || []
+  };
+}
+
+function leadFinderProgressCard(job: LeadFinderJob) {
+  const terminal = isLeadFinderJobTerminal(job);
+  const snap = leadFinderProgressSnapshot(job);
+  const shown = leadFinderDisplayedProgress(job);
+  const status = leadFinderJobStatusText(job);
+  const sourceValue = snap.sources.length ? `${snap.settled}/${snap.sources.length}` : "尚未回传";
+  const phases = snap.phases.length
+    ? `<ol class="lead-progress-phases">${snap.phases.map((phase) => `<li class="is-${escapeHtml(phase.status)}"><b>${escapeHtml(phase.name)}</b><span>${leadFinderPhaseMark(phase.status)}</span></li>`).join("")}</ol>`
+    : "";
+  const sourceRows = snap.sources.slice(0, 6).map((source) => {
+    const returned = source.rawCount ?? source.count;
+    const harvest = returned === undefined ? "收获尚未回传" : `收获 ${returned} 条`;
+    const pooled = source.candidateCount === undefined ? "入池尚未回传" : `入池 ${source.candidateCount} 条`;
+    return `<li><b>${escapeHtml(source.name)}</b><span>${escapeHtml(source.statusLabel || "等待执行")}</span><em>${escapeHtml(`${harvest} · ${pooled}`)}</em></li>`;
+  }).join("");
+  const moreSources = snap.sources.length > 6
+    ? `<li>另有 ${snap.sources.length - 6} 个来源，打开任务查看</li>`
+    : "";
+  return `
+    <article class="lead-progress-card ${terminal ? "is-terminal" : "is-open"}">
+      <div class="lead-progress-card-head">
+        <div>
+          <h3>${escapeHtml(job.title)}</h3>
+          <p>${terminal ? "已结束。下面是结束时回传的数字。" : `尚未结束 · ${escapeHtml(status)}`}</p>
+        </div>
+        ${badge(status, leadFinderJobStatusTone(job))}
+        <button class="btn" type="button" data-lead-progress-open="${escapeHtml(job.id)}">打开任务</button>
+      </div>
+      <div class="lead-progress-facts" aria-label="来源与候选">
+        <div><span>来源结束</span><b>${escapeHtml(sourceValue)}</b></div>
+        <div><span>原始命中</span><b>${escapeHtml(leadFinderCountText(snap.rawCount))}</b></div>
+        <div><span>清洗去除</span><b>${escapeHtml(leadFinderCountText(snap.cleaningCount))}</b></div>
+        <div><span>候选入池</span><b>${escapeHtml(leadFinderCountText(snap.candidateCount))}</b></div>
+      </div>
+      ${terminal ? "" : `<div class="lead-progress-track" role="progressbar" aria-label="${escapeHtml(job.title)}执行进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${shown}"><i style="--p:${shown}%"></i></div><small class="lead-progress-note">${shown}% · 未结束前不会记为 100%</small>`}
+      ${phases}
+      ${sourceRows ? `<ul class="lead-progress-sources">${sourceRows}${moreSources}</ul>` : ""}
+    </article>`;
+}
+
+function renderLeadFinderProgressBoard() {
+  const body = qs<HTMLElement>("#leadFinderProgressBody");
+  const scope = qs<HTMLElement>("#leadFinderProgressScope");
+  if (!body || !scope) return;
+  const active = leadFinderJobs.filter((job) => !isLeadFinderJobTerminal(job));
+  if (!leadFinderJobs.length) {
+    scope.textContent = leadFinderRunsLoaded ? "还没有搜客任务" : "正在读取搜客任务";
+    body.innerHTML = `<div class="empty-cell">${leadFinderRunsLoaded
+      ? "新建搜客任务后，来源收获、清洗和候选会显示在这里。任务未结束前不会标成已结束。"
+      : "正在读取搜客任务"}</div>`;
+    return;
+  }
+  if (active.length) {
+    scope.textContent = `${active.length} 个任务尚未结束`;
+    body.innerHTML = active.map((job) => leadFinderProgressCard(job)).join("");
+    return;
+  }
+  scope.textContent = "最近任务已结束";
+  body.innerHTML = leadFinderJobs[0] ? leadFinderProgressCard(leadFinderJobs[0]) : "";
+}
+
+function renderDashboardProspectRuns() {
+  const list = qs<HTMLElement>("#dashboardProspectRunList");
+  const scope = qs<HTMLElement>("#dashboardProspectRunScope");
+  if (!list || !scope) return;
+  const active = leadFinderJobs.filter((job) => !isLeadFinderJobTerminal(job));
+  if (!active.length) {
+    scope.textContent = leadFinderRunsLoaded ? "当前没有进行中的搜客" : "正在读取搜客任务";
+    list.innerHTML = `<div class="empty-cell">${leadFinderRunsLoaded
+      ? "没有尚未结束的搜客任务。到智能获客新建后，会回到这里。"
+      : "正在读取搜客任务"}</div>`;
+    return;
+  }
+  scope.textContent = `${active.length} 个任务尚未结束`;
+  list.innerHTML = active.map((job) => {
+    const snap = leadFinderProgressSnapshot(job);
+    const sourceValue = snap.sources.length ? `${snap.settled}/${snap.sources.length} 来源结束` : "来源尚未回传";
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-prospect-open="${escapeHtml(job.id)}">
+      <b>${escapeHtml(job.title)}</b>
+      <span>${escapeHtml(leadFinderJobStatusText(job))} · 尚未结束</span>
+      <em>${escapeHtml(sourceValue)} · 候选 ${escapeHtml(leadFinderCountText(snap.candidateCount))}</em>
+    </button>`;
+  }).join("");
+}
+
+async function refreshProspectProgress(button?: HTMLButtonElement | null) {
+  const original = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "刷新中";
+  }
+  try {
+    await loadProspectRuns(false);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = original || "刷新";
+    }
+  }
+}
+
 function primaryLeadFinderLiveJob() {
   const active = leadFinderJobs.find((job) => ["running", "paused", "needs_input", "ready"].includes(job.status));
   return active || leadFinderJobs[0] || null;
@@ -37340,7 +37495,7 @@ function renderLeadFinderLiveOverview() {
   ).length;
   const stage = leadFinderLiveStage(job);
   const waitState = leadFinderWaitState(job);
-  const progress = Math.max(0, Math.min(100, Number(job.progress) || 0));
+  const progress = leadFinderDisplayedProgress(job);
   const transport = leadFinderLiveTransportLabel(job);
   const allLogs = leadTaskDetailLogs(job);
   const logs = allLogs.slice(-12);
@@ -38750,6 +38905,8 @@ function openLeadTaskDetail(job: LeadFinderJob) {
 function renderLeadFinderJobs() {
   const box = qs<HTMLElement>("#leadFinderJobList");
   renderLeadFinderLiveOverview();
+  renderLeadFinderProgressBoard();
+  renderDashboardProspectRuns();
   renderLeadFinderResultView();
   if (!box) return;
   if (!leadFinderJobs.length) {
@@ -39104,7 +39261,7 @@ function prospectRunProgress(shards: ProspectRunShardApiRecord[], run: ProspectR
     if (["running", "pause_requested", "cancel_requested"].includes(shard.status)) return total + 0.5;
     return total;
   }, 0);
-  return Math.round((progressUnits / shards.length) * 100);
+  return Math.min(99, Math.round((progressUnits / shards.length) * 100));
 }
 
 function prospectRunSteps(run: ProspectRunApiRecord, shards: ProspectRunShardApiRecord[]) {
@@ -39268,7 +39425,7 @@ function applySuperSearchMission(job: LeadFinderJob, mission: ProspectSuperSearc
   job.resultCount = mission.candidateCount;
   job.progress = mission.status === "succeeded" || mission.status === "partial_success" || mission.status === "failed" || mission.status === "cancelled"
     ? 100
-    : Math.round((Math.max(0, mission.currentRound - 1) / maxRounds) * 100 + 100 / maxRounds * (job.progress / 100));
+    : Math.min(99, Math.round((Math.max(0, mission.currentRound - 1) / maxRounds) * 100 + 100 / maxRounds * (job.progress / 100)));
   job.progressLabel = "轮次进度";
   job.progressValue = `${mission.currentRound} / ${mission.maxRounds} 轮`;
   job.metricLabel = "候选目标";
@@ -39479,14 +39636,19 @@ function scheduleLeadTaskEventRefresh(event: ProspectLiveEventApiRecord) {
     if (job.incrementalStats) job.incrementalStats.newCount = Math.max(job.incrementalStats.newCount, job.resultIds.length);
     if (job.cleaningReport) job.cleaningReport.summary.candidateCount = Math.max(job.cleaningReport.summary.candidateCount, job.resultIds.length);
   }
-  if (job && event.progress !== null) job.progress = event.progress;
+  if (job && event.progress !== null) {
+    const next = Math.max(0, Math.min(100, Math.round(Number(event.progress) || 0)));
+    job.progress = isLeadFinderJobTerminal(job) ? next : Math.min(99, next);
+  }
   if (job && activeLeadFinderJobId === job.id) {
     renderLeadTaskStream(job);
     syncLeadTaskStreamStateUi();
   }
   if (job && primaryLeadFinderLiveJob()?.id === job.id && qs<HTMLElement>(".view.active")?.id === "lead-finder") {
     renderLeadFinderLiveOverview();
+    renderLeadFinderProgressBoard();
   }
+  if (job) renderDashboardProspectRuns();
   if (leadFinderStreamRefreshTimer) return;
   leadFinderStreamRefreshTimer = window.setTimeout(() => {
     leadFinderStreamRefreshTimer = 0;
@@ -39738,6 +39900,7 @@ async function loadProspectRuns(quiet = false) {
     leadFinderJobs = [...superJobs, ...backendJobs, ...cliHistoryJobs, ...localJobs]
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
       .slice(0, 6);
+    leadFinderRunsLoaded = true;
     if ([...backendJobs, ...superJobs].some((job) =>
       ["running", "done", "partial", "failed"].includes(job.status)
       || Boolean(job.resultIds?.length)
@@ -39754,6 +39917,17 @@ async function loadProspectRuns(quiet = false) {
       toast(error instanceof Error ? `获客任务加载失败：${error.message}` : "获客任务加载失败", "error");
     }
     stopLeadFinderRunPolling();
+    if (!leadFinderRunsLoaded) {
+      const failure = `<div class="empty-cell">任务进度暂时读不到，点刷新重试。</div>`;
+      const scope = qs<HTMLElement>("#leadFinderProgressScope");
+      const body = qs<HTMLElement>("#leadFinderProgressBody");
+      const dashScope = qs<HTMLElement>("#dashboardProspectRunScope");
+      const dashList = qs<HTMLElement>("#dashboardProspectRunList");
+      if (scope) scope.textContent = "任务进度暂时读不到";
+      if (body) body.innerHTML = failure;
+      if (dashScope) dashScope.textContent = "任务进度暂时读不到";
+      if (dashList) dashList.innerHTML = failure;
+    }
   } finally {
     leadFinderRunsLoading = false;
   }
@@ -45636,6 +45810,22 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#leadSourceCenterButton")?.addEventListener("click", () => openLeadSourceCenter());
   qs<HTMLButtonElement>("#leadSourceManageInline")?.addEventListener("click", () => openLeadSourceCenter());
+  qs<HTMLButtonElement>("#leadFinderProgressRefresh")?.addEventListener("click", (event) => {
+    void refreshProspectProgress(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLButtonElement>("#dashboardProspectRunsRefresh")?.addEventListener("click", (event) => {
+    void refreshProspectProgress(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#leadFinderProgressBoard")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-lead-progress-open]");
+    const job = leadFinderJobs.find((item) => item.id === opener?.dataset.leadProgressOpen);
+    if (job) openLeadTaskDetail(job);
+  });
+  qs<HTMLElement>("#dashboardProspectRuns")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-prospect-open]");
+    const job = leadFinderJobs.find((item) => item.id === opener?.dataset.dashboardProspectOpen);
+    if (job) openLeadTaskDetail(job);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));

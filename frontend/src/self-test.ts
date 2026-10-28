@@ -195,7 +195,13 @@ const required = [
   "buildProspectRadarModel",
   "buildProspectPoolRadarModel",
   "data-lead-pool-radar",
-  "关系连线仅来自已记录证据"
+  "关系连线仅来自已记录证据",
+  "leadFinderProgressBoard",
+  "dashboardProspectRuns",
+  "进行中的搜客",
+  "刷新进度",
+  "尚未结束",
+  "尚未回传"
 ];
 
 assert.match(apiLayer, /"email-return-flow": "开发信回流"/u, "开发信回流工作区标签必须使用中文名称");
@@ -275,6 +281,21 @@ assert.match(apiLayer, /来源返回 \/ 候选池 \/ 待审核 \/ 审核通过/,
 assert.match(apiLayer, /partial_success: "部分成功"/, "部分成功只能保留在任务详情验收结论中");
 assert.match(apiLayer, /failed: "失败"/, "失败只能保留在任务详情验收结论中");
 assert.equal(apiLayer.includes("部分完成"), false, "任务与来源状态不得使用容易误解的“部分完成”提示");
+assert.match(
+  apiLayer,
+  /function leadFinderDisplayedProgress[\s\S]*isLeadFinderJobTerminal\(job\)[\s\S]*return Math\.min\(99, raw\)/,
+  "未结束的搜客任务进度不得超过 99，避免看起来已经完成"
+);
+assert.match(
+  apiLayer,
+  /function renderDashboardProspectRuns[\s\S]*data-dashboard-prospect-open[\s\S]*尚未结束/,
+  "工作台进行中的搜客必须使用真实任务并标明尚未结束"
+);
+assert.match(
+  apiLayer,
+  /data-dashboard-prospect-open[\s\S]*openLeadTaskDetail\(job\)/,
+  "工作台进行中的搜客必须打开真实任务详情"
+);
 assert.match(apiLayer, /function localDateInputBoundary[\s\S]*new Date\(Number\(match\[1\]\), Number\(match\[2\]\) - 1, Number\(match\[3\]\)\)/, "加入时间必须按本地日期构造，不能把日期输入误解析为 UTC");
 assert.match(apiLayer, /localDateInputBoundary\(state\.prospectJoinedTo, 1\)/, "自定义结束日期必须使用次日零点作为排他边界");
 assert.match(apiLayer, /function syncLeadFinderLiveTransport[\s\S]*startLeadTaskEventStream/, "自动搜客主界面与详情必须共用实时任务传输入口");

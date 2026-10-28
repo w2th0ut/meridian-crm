@@ -10054,6 +10054,63 @@
       font-variant-numeric: tabular-nums;
     }
 
+    #dashboardProspectRuns { margin: 0 0 16px; }
+    .dashboard-prospect-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(88px, auto) minmax(140px, auto);
+      gap: 8px 12px;
+      align-items: center;
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border: 1px solid #edf1f7;
+      border-radius: 8px;
+      background: #fff;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .dashboard-prospect-row b { font-size: 14px; }
+    .dashboard-prospect-row span,
+    .dashboard-prospect-row em { font-style: normal; color: #526178; font-size: 12px; }
+    .lead-progress-board { margin: 0 0 16px; }
+    .lead-progress-card { padding: 12px 0 0; border-top: 1px solid #edf1f7; }
+    .lead-progress-card:first-child { padding-top: 0; border-top: 0; }
+    .lead-progress-card + .lead-progress-card { margin-top: 12px; }
+    .lead-progress-card-head { display: flex; align-items: flex-start; gap: 10px; }
+    .lead-progress-card-head > div { flex: 1; min-width: 0; }
+    .lead-progress-card-head h3 { margin: 0; font-size: 15px; }
+    .lead-progress-card-head p { margin: 4px 0 0; color: #526178; font-size: 12px; }
+    .lead-progress-facts {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .lead-progress-facts div {
+      padding: 8px 10px;
+      border: 1px solid #edf1f7;
+      border-radius: 8px;
+      background: var(--surface-2, #f7f8fa);
+    }
+    .lead-progress-facts span { display: block; color: #708097; font-size: 11px; }
+    .lead-progress-facts b { display: block; margin-top: 2px; font-size: 16px; font-variant-numeric: tabular-nums; }
+    .lead-progress-track { height: 6px; overflow: hidden; border-radius: 99px; background: #e7edf5; }
+    .lead-progress-track i { display: block; width: var(--p); height: 100%; background: #1f6feb; }
+    .lead-progress-note { display: block; margin-top: 4px; color: #708097; font-size: 11px; }
+    .lead-progress-phases { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+    .lead-progress-phases li { display: flex; gap: 6px; align-items: baseline; padding: 4px 8px; border-radius: 999px; background: #f3f6fa; font-size: 11px; }
+    .lead-progress-phases li.is-running { background: #e8f1ff; }
+    .lead-progress-phases li.is-failed,
+    .lead-progress-phases li.is-blocked { background: #fdecec; }
+    .lead-progress-sources { display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
+    .lead-progress-sources li { display: flex; flex-wrap: wrap; gap: 8px; color: #526178; font-size: 12px; }
+    .lead-progress-sources b { color: #111827; }
+    @media (max-width: 720px) {
+      .lead-progress-facts,
+      .dashboard-prospect-row { grid-template-columns: 1fr 1fr; }
+    }
+
     .lead-job-progress {
       height: 5px;
       margin: 0 0 8px;
@@ -25804,6 +25861,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </div>
           </div>
 
+          <section class="panel section" id="dashboardProspectRuns" aria-label="进行中的搜客">
+            <div class="section-head">
+              <div class="section-title"><div><h2>进行中的搜客</h2><p id="dashboardProspectRunScope">正在读取搜客任务</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardProspectRunsRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="lead-finder">智能获客</button>
+              </div>
+            </div>
+            <div id="dashboardProspectRunList"><div class="empty-cell">正在读取搜客任务</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -26043,6 +26111,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div><h1>自动获客</h1><p>搜索并查看进度，把候选送进搜客清单。可联系之后再转线索和触达。</p></div>
             <div class="head-actions"><button class="btn" id="leadFinderCliAcquireButton" data-permission="prospect.execute" type="button">CLI 获客</button><button class="btn" id="leadFinderLfindButton" data-permission="prospect.execute" type="button">Lfind 深入查询</button><button class="btn primary" id="leadFinderStartButton" data-permission="prospect.execute">新建搜客任务</button></div>
           </div>
+
+          <section class="panel section lead-progress-board" id="leadFinderProgressBoard" aria-label="搜客任务进度">
+            <div class="section-head">
+              <div class="section-title"><div><h2>搜客进度</h2><p id="leadFinderProgressScope">正在读取搜客任务</p></div></div>
+              <button class="btn" id="leadFinderProgressRefresh" type="button">刷新进度</button>
+            </div>
+            <div id="leadFinderProgressBody"><div class="empty-cell">正在读取搜客任务</div></div>
+          </section>
 
           <div class="lead-workbench">
             <div class="lead-col lead-col-config">
