@@ -7357,6 +7357,11 @@
       line-height: 1.45;
     }
 
+    .prospect-stage.is-attention {
+      outline: 2px solid #b45309;
+      outline-offset: 2px;
+    }
+
     .acquisition-stage-counts {
       display: flex;
       flex-wrap: wrap;
@@ -7898,6 +7903,85 @@
       background: rgba(100, 116, 139, 0.08);
       color: #475569;
       font-size: 12px;
+    }
+
+    .prospect-stage-stuck-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-stage-stuck-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-stage-stuck:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-stage-stuck[data-stage-stuck="stuck"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-stage-stuck[data-stage-stuck="moving"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-stage-stuck-head,
+    .prospect-stage-stuck.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-stage-stuck p,
+    .prospect-stage-stuck.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-stage-stuck.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-stage-stuck.is-compact.is-stuck {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-stage-stuck.is-compact.is-moving {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-stage-stuck.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .dashboard-prospect-row.is-stuck {
+      border-color: #fecaca;
     }
 
     .prospect-follow-up-entry {
@@ -10827,10 +10911,12 @@
     #dashboardRecentOutreach,
     #dashboardInboundSync,
     #dashboardNextFollowDue,
+    #dashboardStageStuck,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
     .dashboard-next-follow-due-note,
+    .dashboard-stage-stuck-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -26832,6 +26918,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardNextFollowDueList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardStageStuck" aria-label="转化阶段卡住">
+            <div class="section-head">
+              <div class="section-title"><div><h2>转化阶段卡住</h2><p id="dashboardStageStuckScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardStageStuckRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardStageStuckNote" class="dashboard-stage-stuck-note">这是转化阶段相对现在的只读停留，复用已有阶段进入时间。进入时间距现在超过 7 天算卡住，未超过算推进中。没有可用进入时间写无阶段。不是获客阶段计数，也不是获客待办摘要，也不是下次跟进逾期，也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步。点一行只打开现有阶段。不会改阶段，不会自动跟进，不会发信，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardStageStuckList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -27537,6 +27635,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                   <button class="active" type="button" data-prospect-next-follow-due-filter="all" aria-pressed="true">全部下次跟进</button>
                   <button type="button" data-prospect-next-follow-due-filter="overdue" aria-pressed="false">逾期</button>
                   <button type="button" data-prospect-next-follow-due-filter="today" aria-pressed="false">今日</button>
+                </div>
+              </div>
+              <div class="prospect-stage-stuck-filter">
+                <span>阶段停留</span>
+                <div class="prospect-tabs" role="group" aria-label="按转化阶段卡住筛选">
+                  <button class="active" type="button" data-prospect-stage-stuck-filter="all" aria-pressed="true">全部停留</button>
+                  <button type="button" data-prospect-stage-stuck-filter="stuck" aria-pressed="false">卡住</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">

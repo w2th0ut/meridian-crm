@@ -101,6 +101,18 @@ import {
   type NextFollowDueView
 } from "./prospect-next-follow-due";
 import {
+  STAGE_STUCK_LIMIT,
+  listStageStuckQueue,
+  presentStageStuck,
+  stageStuckEntryLabel,
+  stageStuckLineLabel,
+  stageStuckMatchesFilter,
+  stageStuckStatusLabel,
+  stageStuckSummary,
+  type StageStuckListFilter,
+  type StageStuckView
+} from "./prospect-stage-stuck";
+import {
   INBOUND_SYNC_LIMIT,
   inboundSyncEntryLabel,
   inboundSyncSummary,
@@ -3917,6 +3929,7 @@ interface AppState {
   prospectOutreachSequenceFilter: OutreachSequenceListFilter;
   prospectOutreachDraftBacklogFilter: OutreachDraftBacklogListFilter;
   prospectNextFollowDueFilter: NextFollowDueListFilter;
+  prospectStageStuckFilter: StageStuckListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4143,6 +4156,7 @@ const state: AppState = {
   prospectOutreachSequenceFilter: "all",
   prospectOutreachDraftBacklogFilter: "all",
   prospectNextFollowDueFilter: "all",
+  prospectStageStuckFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -11637,6 +11651,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardFollowUps();
   renderDashboardDueFollowUps();
   renderDashboardNextFollowDue();
+  renderDashboardStageStuck();
   renderDashboardInboundSync();
 }
 
@@ -13735,6 +13750,7 @@ function renderLeadDrawer(
     state.prospectOutreachSequenceFilter = "all";
     state.prospectOutreachDraftBacklogFilter = "all";
     state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33645,6 +33661,7 @@ function prospectFilteredRows() {
       if (state.prospectOutreachSequenceFilter !== "all" && !outreachSequenceMatchesFilter(prospectOutreachSequence(item), state.prospectOutreachSequenceFilter)) return false;
       if (state.prospectOutreachDraftBacklogFilter !== "all" && !outreachDraftBacklogMatchesFilter(prospectOutreachDraftBacklog(item), state.prospectOutreachDraftBacklogFilter)) return false;
       if (state.prospectNextFollowDueFilter !== "all" && !nextFollowDueMatchesFilter(prospectNextFollowDue(item), state.prospectNextFollowDueFilter)) return false;
+      if (state.prospectStageStuckFilter !== "all" && !stageStuckMatchesFilter(prospectStageStuck(item), state.prospectStageStuckFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35778,6 +35795,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35802,6 +35820,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35832,6 +35851,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35896,6 +35916,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectOutreachSequence(item)}
     ${renderProspectOutreachDraftBacklog(item)}
     ${renderProspectNextFollowDue(item)}
+    ${renderProspectStageStuck(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -35958,6 +35979,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindOutreachSequenceLinks(box);
   bindOutreachDraftBacklogLinks(box);
   bindNextFollowDueLinks(box);
+  bindStageStuckLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -36040,6 +36062,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusOutreachSequenceTarget(item.id, box);
   focusOutreachDraftBacklogTarget(item.id, box);
   focusNextFollowDueTarget(item.id, box);
+  focusStageStuckTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36602,6 +36625,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
     state.prospectOutreachSequenceFilter = "all";
     state.prospectOutreachDraftBacklogFilter = "all";
     state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -37004,6 +37028,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37344,6 +37369,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37411,6 +37437,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37545,6 +37572,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37692,6 +37720,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37801,6 +37830,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-stage-stuck-filter]").forEach((button) => {
+    const active = button.dataset.prospectStageStuckFilter === state.prospectStageStuckFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -37814,11 +37848,15 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const nextFollowDueEmpty = state.prospectNextFollowDueFilter === "overdue"
-    ? "没有逾期的下次跟进。这里不会编造时间，也不会自动跟进。"
-    : state.prospectNextFollowDueFilter === "today"
-      ? "没有今日的下次跟进。这里不会编造时间，也不会自动跟进。"
-      : "";
+  const stageStuckEmpty = state.prospectStageStuckFilter === "stuck"
+    ? "没有卡住的阶段。这里不会编造阶段，也不会改阶段。"
+    : "";
+  const nextFollowDueEmpty = stageStuckEmpty
+    || (state.prospectNextFollowDueFilter === "overdue"
+      ? "没有逾期的下次跟进。这里不会编造时间，也不会自动跟进。"
+      : state.prospectNextFollowDueFilter === "today"
+        ? "没有今日的下次跟进。这里不会编造时间，也不会自动跟进。"
+        : "");
   const draftBacklogEmpty = nextFollowDueEmpty
     || (state.prospectOutreachDraftBacklogFilter === "pending"
       ? "没有待发草稿。这里不会编造草稿，也不会放行批次。"
@@ -37885,6 +37923,7 @@ function renderProspectList() {
             ${renderProspectFollowUpSummary(item)}
             ${renderProspectNextFollow(item)}
             ${renderNextFollowDueLine(item)}
+            ${renderStageStuckLine(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -37944,6 +37983,7 @@ function renderProspectList() {
     bindOutreachSequenceLinks(rows);
     bindOutreachDraftBacklogLinks(rows);
     bindNextFollowDueLinks(rows);
+    bindStageStuckLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -37959,6 +37999,7 @@ function renderProspectList() {
   renderDashboardOutreachSequences();
   renderDashboardOutreachDraftBacklogs();
   renderDashboardNextFollowDue();
+  renderDashboardStageStuck();
   renderDashboardInboundSync();
 }
 
@@ -38121,6 +38162,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38588,6 +38630,7 @@ function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = view.progress === "active" || view.progress === "stopped" ? view.progress : "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -40019,6 +40062,12 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (!websiteOpportunitiesLoaded && nextFollowDueList) {
       nextFollowDueList.innerHTML = `<div class="empty-cell">下次跟进暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造时间，也不会自动跟进。</div>`;
     }
+    const stageStuckScope = qs<HTMLElement>("#dashboardStageStuckScope");
+    const stageStuckList = qs<HTMLElement>("#dashboardStageStuckList");
+    if (stageStuckScope) stageStuckScope.textContent = "阶段卡住暂时读不到";
+    if (!websiteOpportunitiesLoaded && stageStuckList) {
+      stageStuckList.innerHTML = `<div class="empty-cell">阶段卡住暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造阶段，也不会改阶段。</div>`;
+    }
     acquisitionTodoReadError = message;
     renderDashboardAcquisitionTodoSummary();
   } finally {
@@ -40284,6 +40333,7 @@ function openNextFollowDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectNextFollowDueFilter = view.kind === "overdue" || view.kind === "today" ? view.kind : "all";
+  state.prospectStageStuckFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40295,6 +40345,138 @@ function openNextFollowDueFromDashboard(item: WebsiteOpportunity) {
   const show = () => {
     renderProspectList();
     toast("已打开现有下次跟进。只读，不会自动跟进，也不会改时间。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+function prospectStageStuck(item: WebsiteOpportunity, now = new Date()): StageStuckView {
+  const stage = deriveAcquisitionStage(acquisitionStageInput(item));
+  return presentStageStuck({
+    stageKey: stage.key,
+    stageLabel: stage.label,
+    enteredAt: stage.enteredAt,
+    enteredKind: stage.enteredKind,
+    enteredLabel: stage.enteredLabel
+  }, now);
+}
+
+function renderProspectStageStuck(item: WebsiteOpportunity) {
+  const view = prospectStageStuck(item);
+  return `<section class="prospect-stage-stuck" id="prospectStageStuck" data-stage-stuck="${view.kind}">
+    <div class="prospect-stage-stuck-head"><b>转化阶段卡住</b>${badge(stageStuckStatusLabel(view), view.kind === "stuck" ? "amber" : view.kind === "moving" ? "green" : "gray")}</div>
+    <p>${escapeHtml(stageStuckSummary(view))}</p>
+    <p class="prospect-stage-stuck-body" data-stage-stuck-body="${view.kind}">${escapeHtml(stageStuckLineLabel(view))}</p>
+    <div class="prospect-action-row"><button class="btn" type="button" data-stage-stuck-entry="${escapeHtml(item.id)}">${escapeHtml(stageStuckEntryLabel())}</button></div>
+  </section>`;
+}
+
+function renderStageStuckLine(item: WebsiteOpportunity) {
+  const view = prospectStageStuck(item);
+  const compact = view.kind === "none" ? " is-empty" : ` is-compact is-${view.kind}`;
+  return `<div class="prospect-stage-stuck${compact}" data-stage-stuck="${view.kind}">${escapeHtml(stageStuckLineLabel(view))}</div>`;
+}
+
+let stageStuckFocusId = "";
+
+/** 只滚到已有的当前阶段。不改阶段，也不记跟进。 */
+function scrollToExistingStage(root: ParentNode) {
+  const stage = root.querySelector<HTMLElement>(".prospect-stage");
+  if (!stage) return false;
+  stage.classList.add("is-attention");
+  stage.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => stage.classList.remove("is-attention"), 1600);
+  return true;
+}
+
+function focusStageStuckTarget(itemId: string, root: ParentNode | null) {
+  if (stageStuckFocusId !== itemId || !root) return;
+  stageStuckFocusId = "";
+  scrollToExistingStage(root);
+}
+
+function bindStageStuckLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-stage-stuck-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (scrollToExistingStage(root)) {
+        toast("已打开现有阶段。只读，不会改阶段，也不会自动跟进。");
+      }
+    });
+  });
+}
+
+function renderDashboardStageStuck(now = new Date()) {
+  const scope = qs<HTMLElement>("#dashboardStageStuckScope");
+  const list = qs<HTMLElement>("#dashboardStageStuckList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看阶段停留。这里不会编造名单，也不会改阶段。</div>`;
+    return;
+  }
+  const queue = listStageStuckQueue(visible, (item) => prospectStageStuck(item, now), STAGE_STUCK_LIMIT);
+  if (!queue.total) {
+    scope.textContent = "当前可见的搜客清单没有可判断停留的阶段进入时间";
+    list.innerHTML = `<div class="empty-cell">无阶段。当前可见的搜客清单没有可判断停留的阶段进入时间。这里不会编造阶段，也不会改阶段。</div>`;
+    return;
+  }
+  const shown = queue.rows;
+  scope.textContent = queue.total > shown.length
+    ? `可见范围 ${queue.total} 条能判断阶段停留，这里显示 ${shown.length} 条，卡住在前`
+    : `可见范围 ${queue.total} 条能判断阶段停留，卡住在前`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectStageStuck(item, now);
+    const detail = stageStuckLineLabel(view).split(" · ").slice(1).join(" · ");
+    return `<button class="dashboard-prospect-row${view.kind === "stuck" ? " is-stuck" : ""}" type="button" data-dashboard-stage-stuck="${escapeHtml(item.id)}" data-stage-stuck="${view.kind}" aria-label="打开转化阶段卡住：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(stageStuckStatusLabel(view))}</span>
+      <em>${escapeHtml(detail || view.stageLabel)}</em>
+    </button>`;
+  }).join("");
+}
+
+function openStageStuckFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return;
+  const view = prospectStageStuck(item);
+  if (view.kind === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
+  state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = view.kind === "stuck" ? "stuck" : "all";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  stageStuckFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开现有阶段。只读，不会改阶段，也不会自动跟进。");
   };
   if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
     show();
@@ -41978,6 +42160,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
     state.prospectOutreachSequenceFilter = "all";
     state.prospectOutreachDraftBacklogFilter = "all";
     state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -44026,6 +44209,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectOutreachSequence(item)}
     ${renderProspectOutreachDraftBacklog(item)}
     ${renderProspectNextFollowDue(item)}
+    ${renderProspectStageStuck(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -44130,6 +44314,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindOutreachSequenceLinks(box);
   bindOutreachDraftBacklogLinks(box);
   bindNextFollowDueLinks(box);
+  bindStageStuckLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -44155,6 +44340,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusOutreachSequenceTarget(item.id, box);
   focusOutreachDraftBacklogTarget(item.id, box);
   focusNextFollowDueTarget(item.id, box);
+  focusStageStuckTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -46118,6 +46304,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     state.prospectOutreachSequenceFilter = "all";
     state.prospectOutreachDraftBacklogFilter = "all";
     state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -49384,6 +49571,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectNextFollowDue(item).kind === "empty") return;
     openNextFollowDueFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardStageStuckRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardStageStuck")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-stage-stuck]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardStageStuck);
+    if (!item || !item.shortlistedAt || prospectStageStuck(item).kind === "none") return;
+    openStageStuckFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#dashboardAcquisitionStagesRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
   });
@@ -49830,6 +50026,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectNextFollowDueFilter || "all";
       state.prospectNextFollowDueFilter = next === "overdue" || next === "today" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-stage-stuck-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectStageStuckFilter || "all";
+      state.prospectStageStuckFilter = next === "stuck" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
