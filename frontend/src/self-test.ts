@@ -1171,6 +1171,47 @@ const refreshInbound = kbSourceBetween(apiLayer, "async function refreshInboundS
 assert.match(refreshInbound, /\/api\/auth\/me/, "刷新收信同步必须重读当前账号");
 assert.doesNotMatch(refreshInbound, /inbound-mail\/sync|synchronizeUser|send-development-email|convert-to-lead|profileTestImap|\/approve/, "刷新收信同步不得触发同步、发信或转线索");
 assert.match(prototype, /\.dashboard-inbound-sync-note\b/, "收信同步必须有可见说明样式");
+const summaryLayer = readFileSync(new URL("./acquisition-todo-summary.ts", import.meta.url), "utf8");
+assert.match(summaryLayer, /export function buildAcquisitionTodoSummary/, "获客待办摘要必须只聚合已有投影");
+assert.match(summaryLayer, /ACQUISITION_TODO_SUMMARY_LIMIT = 8/, "摘要合计最多 8 条");
+assert.match(summaryLayer, /ACQUISITION_TODO_SUMMARY_PER_CATEGORY = 2/, "摘要每类最多 2 条");
+assert.match(summaryLayer, /可联系批准待办[\s\S]*待发草稿积压[\s\S]*外联序列已停[\s\S]*有回复待看[\s\S]*开发信失败\/退信[\s\S]*收信同步异常/, "摘要类别必须按这个优先级");
+assert.match(summaryLayer, /人工可联系批准/, "可联系批准待办只认已有的人工可联系批准缺项");
+assert.match(summaryLayer, /不替代各类原条/, "摘要必须标明不替代原条");
+assert.match(summaryLayer, /progress === "stopped"/, "外联序列摘要只收已停");
+assert.doesNotMatch(summaryLayer, /fetch\(|inbound-mail\/sync|send-development-email|convert-to-lead|approveProspectOutreachBatch|controlOutreachSequence/, "摘要不得发请求、转线索、放行、推进或触发同步");
+assert.match(prototype, /id="dashboardAcquisitionTodoSummary"[\s\S]{0,1800}id="dashboardAcquisitionStages"/, "摘要必须在获客阶段上面");
+assert.match(prototype, /id="dashboardAcquisitionTodoSummaryNote"[\s\S]*不替代各类原条/, "摘要说明必须写明不替代原条");
+assert.match(prototype, /id="dashboardOutreachDraftBacklogs"[\s\S]*待发草稿/, "待发草稿原条还在");
+assert.match(prototype, /id="dashboardInboundSync"[\s\S]*收信同步/, "收信同步原条还在");
+assert.match(prototype, /id="dashboardOutreachReplies"[\s\S]*开发信回复/, "开发信回复原条还在");
+assert.match(prototype, /id="dashboardOutreachFailures"[\s\S]*开发信失败或退信/, "开发信失败原条还在");
+assert.match(prototype, /id="dashboardOutreachSequences"[\s\S]*外联序列/, "外联序列原条还在");
+assert.match(apiLayer, /buildAcquisitionTodoSummary\(/, "工作台必须复用摘要聚合");
+assert.match(apiLayer, /approvalPending: pending/, "可联系批准待办必须复用现有缺项判断");
+const summaryRender = kbSourceBetween(apiLayer, "function renderDashboardAcquisitionTodoSummary()", "\nasync function refreshDashboardAcquisitionTodoSummary");
+assert.match(summaryRender, /buildAcquisitionTodoSummary\(/, "摘要渲染必须走聚合结果");
+assert.match(summaryRender, /有则列出，没有的类别会跳过/, "没有的类别必须跳过");
+assert.match(summaryRender, /不会编造待办，也不替代各类原条/, "没有待办时不得编造，也不得说成原条");
+assert.match(summaryRender, /不会编造异常，也不会触发同步/, "收信读不到时不得编造异常或触发同步");
+assert.match(kbSourceBetween(apiLayer, "function renderAcquisitionTodoGroups", "\nfunction renderDashboardAcquisitionTodoSummary"), /data-acquisition-todo-category/, "摘要按类别分块，不把几类合成一条");
+assert.doesNotMatch(summaryRender, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|inbound-mail\/sync|approveProspectOutreachBatch|controlOutreachSequence|\/approve/, "摘要渲染不得发送、转线索、放行、推进或触发同步");
+const summaryRefresh = kbSourceBetween(apiLayer, "async function refreshDashboardAcquisitionTodoSummary", "\nfunction bindDashboardAcquisitionTodoSummary");
+assert.match(summaryRefresh, /refreshDashboardPendingEmails\(\)/, "刷新摘要必须重读候选");
+assert.match(summaryRefresh, /refreshInboundSyncStatus\(\)/, "刷新摘要必须重读账号上的收信字段");
+assert.doesNotMatch(summaryRefresh, /inbound-mail\/sync|send-development-email|convert-to-lead|approveProspectOutreachBatch|controlOutreachSequence/, "刷新摘要不得触发同步、发信、转线索、放行或推进");
+const summaryBind = kbSourceBetween(apiLayer, "function bindDashboardAcquisitionTodoSummary()", "\nasync function convertProspectsToLeads");
+assert.match(summaryBind, /prospectContactableApprovalPending\(item, prospectConvertGate\(item\)\)/, "点批准待办必须再核对现有缺项");
+assert.match(summaryBind, /openContactableApproval\(item\)/, "点批准待办必须打开现有跟进前检查");
+assert.match(summaryBind, /openOutreachDraftBacklogEntry\(item\)/, "点待发草稿必须打开现有发信批次");
+assert.match(summaryBind, /openOutreachSequenceFromDashboard\(item\)/, "点已停序列必须打开候选详情");
+assert.match(summaryBind, /openOutreachReplyFromDashboard\(item\)/, "点有回复必须打开候选详情");
+assert.match(summaryBind, /openOutreachFailureFromDashboard\(item\)/, "点失败或退信必须打开候选详情");
+assert.match(summaryBind, /openInboundSyncSettings\(\)/, "点当前账号收信异常必须打开收信设置");
+assert.match(summaryBind, /accountId !== state\.user\?\.id/, "别的账号不打开收信设置");
+assert.doesNotMatch(summaryBind, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|inbound-mail\/sync|approveProspectOutreachBatch|controlOutreachSequence|openOutreachSequenceEntry|profileTestImap|\/approve/, "点摘要不得发送、转线索、放行、推进、触发同步或打开序列控制");
+assert.match(apiLayer, /bindDashboardAcquisitionTodoSummary\(\);/, "摘要点击必须绑定一次");
+assert.match(prototype, /\.dashboard-acquisition-todo-note\b/, "摘要说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

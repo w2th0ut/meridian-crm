@@ -96,6 +96,11 @@ import {
   type InboundSyncListFilter,
   type InboundSyncStatusView
 } from "./inbound-sync-status";
+import {
+  ACQUISITION_TODO_SUMMARY_NOTE,
+  buildAcquisitionTodoSummary,
+  type AcquisitionTodoSummaryRow
+} from "./acquisition-todo-summary";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -38354,6 +38359,7 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
 
 let inboundSyncFilter: InboundSyncListFilter = "all";
 let inboundSyncReadError = "";
+let acquisitionTodoReadError = "";
 
 function inboundSyncAccountRows() {
   const current = state.user;
@@ -38367,6 +38373,7 @@ function inboundSyncTone(view: InboundSyncStatusView) {
 }
 
 function renderDashboardInboundSync() {
+  renderDashboardAcquisitionTodoSummary();
   const scope = qs<HTMLElement>("#dashboardInboundSyncScope");
   const list = qs<HTMLElement>("#dashboardInboundSyncList");
   qsa<HTMLButtonElement>("[data-inbound-sync-filter]").forEach((button) => {
@@ -38562,6 +38569,171 @@ function openProspectConvertFollowUp(item: WebsiteOpportunity) {
   qs<HTMLButtonElement>("#prospectConvertOpenLead")?.addEventListener("click", () => {
     closeModal();
     void openProspectLead(item);
+  });
+}
+
+function acquisitionTodoProspectInputs() {
+  return state.websiteOpportunities.map((item) => {
+    const gate = prospectConvertGate(item);
+    const pending = prospectContactableApprovalPending(item, gate);
+    const lines = gate.missing.length ? gate.missing : [gate.message];
+    const replyAt = item.outreachReply?.at || "";
+    const failureAt = item.outreachFailure?.at || "";
+    const failureFormatted = failureAt ? formatProspectJoinedAt(failureAt) : "";
+    return {
+      id: item.id,
+      company: item.company,
+      shortlisted: Boolean(item.shortlistedAt),
+      approvalPending: pending,
+      approvalDetail: pending ? (lines.find((line) => line.includes("人工可联系批准")) || "") : "",
+      replyWhen: outreachReplyWhen(replyAt),
+      failureWhen: failureFormatted && failureFormatted !== "时间未知" ? failureFormatted : "",
+      draft: item.outreachDraftBacklog,
+      sequence: item.outreachSequence,
+      reply: item.outreachReply,
+      failure: item.outreachFailure
+    };
+  });
+}
+
+function renderAcquisitionTodoRow(row: AcquisitionTodoSummaryRow) {
+  const clickable = row.jump !== "none";
+  const attrs = clickable
+    ? ` data-dashboard-acquisition-todo="${escapeHtml(row.category)}" data-dashboard-acquisition-todo-prospect="${escapeHtml(row.prospectId)}" data-dashboard-acquisition-todo-account="${escapeHtml(row.accountId)}"`
+    : "";
+  const tag = clickable ? "button" : "div";
+  const type = clickable ? " type=\"button\"" : "";
+  const staticClass = clickable ? "" : " dashboard-inbound-sync-static";
+  return `<${tag} class="dashboard-prospect-row${staticClass}"${type}${attrs} aria-label="${escapeHtml(`${row.categoryLabel}：${row.title}`)}">
+    <b>${escapeHtml(row.title)}</b>
+    <span>${escapeHtml(row.detail)}</span>
+    <em>${escapeHtml(row.jumpLabel)}</em>
+  </${tag}>`;
+}
+
+function renderAcquisitionTodoGroups(rows: AcquisitionTodoSummaryRow[]) {
+  const parts: string[] = [];
+  let buffer: AcquisitionTodoSummaryRow[] = [];
+  const flush = () => {
+    if (!buffer.length) return;
+    const category = buffer[0]!.category;
+    const label = buffer[0]!.categoryLabel;
+    parts.push(`<section class="dashboard-acquisition-todo-group" data-acquisition-todo-category="${escapeHtml(category)}"><h3>${escapeHtml(label)}</h3>${buffer.map((row) => renderAcquisitionTodoRow(row)).join("")}</section>`);
+    buffer = [];
+  };
+  for (const row of rows) {
+    if (buffer.length && buffer[0]!.category !== row.category) flush();
+    buffer.push(row);
+  }
+  flush();
+  return parts.join("");
+}
+
+function renderDashboardAcquisitionTodoSummary() {
+  const note = qs<HTMLElement>("#dashboardAcquisitionTodoSummaryNote");
+  if (note) note.textContent = ACQUISITION_TODO_SUMMARY_NOTE;
+  const scope = qs<HTMLElement>("#dashboardAcquisitionTodoSummaryScope");
+  const list = qs<HTMLElement>("#dashboardAcquisitionTodoSummaryList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    if (acquisitionTodoReadError) {
+      scope.textContent = "获客待办摘要暂时读不到";
+      list.innerHTML = `<div class="empty-cell">获客待办摘要暂时读不到（${escapeHtml(acquisitionTodoReadError)}）。点刷新重试。这里不会编造待办，也不会触发同步。</div>`;
+      return;
+    }
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  const result = buildAcquisitionTodoSummary(
+    acquisitionTodoProspectInputs(),
+    inboundSyncReadError ? [] : inboundSyncAccountRows(),
+    state.user?.id || ""
+  );
+  if (acquisitionTodoReadError) scope.textContent = "获客待办摘要暂时读不到";
+  else if (!visible.length && result.total === 0) scope.textContent = "当前可见范围里还没有搜客清单";
+  else if (result.total === 0) scope.textContent = "当前没有可汇总的获客待办";
+  else scope.textContent = result.total > result.shown
+    ? `可汇总 ${result.total} 条，这里显示 ${result.shown} 条`
+    : `可汇总 ${result.total} 条`;
+  if (!visible.length && result.total === 0 && !inboundSyncReadError) {
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看摘要。这里不会编造待办，也不替代各类原条。</div>`;
+    return;
+  }
+  if (result.total === 0 && inboundSyncReadError) {
+    list.innerHTML = `<div class="empty-cell">收信同步暂时读不到（${escapeHtml(inboundSyncReadError)}）。点刷新重试。这里不会编造异常，也不会触发同步。</div>`;
+    return;
+  }
+  if (result.total === 0) {
+    list.innerHTML = `<div class="empty-cell">当前没有可汇总的获客待办。有则列出，没有的类别会跳过。这里不会编造待办，也不替代各类原条。</div>`;
+    return;
+  }
+  const gap = inboundSyncReadError
+    ? `<p class="dashboard-acquisition-todo-gap">收信同步暂时读不到（${escapeHtml(inboundSyncReadError)}）。这里不会编造异常，也不会触发同步。</p>`
+    : "";
+  list.innerHTML = `${renderAcquisitionTodoGroups(result.rows)}${gap}`;
+}
+
+async function refreshDashboardAcquisitionTodoSummary(button?: HTMLButtonElement) {
+  const original = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "刷新中";
+  }
+  try {
+    await refreshDashboardPendingEmails();
+    await refreshInboundSyncStatus();
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = original || "刷新";
+    }
+  }
+}
+
+function bindDashboardAcquisitionTodoSummary() {
+  qs<HTMLButtonElement>("#dashboardAcquisitionTodoSummaryRefresh")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void refreshDashboardAcquisitionTodoSummary(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardAcquisitionTodoSummary")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-acquisition-todo]");
+    if (!opener) return;
+    const category = opener.dataset.dashboardAcquisitionTodo || "";
+    const prospectId = opener.dataset.dashboardAcquisitionTodoProspect || "";
+    const accountId = opener.dataset.dashboardAcquisitionTodoAccount || "";
+    const item = state.websiteOpportunities.find((row) => row.id === prospectId);
+    if (category === "contactable_approval") {
+      if (!item || !item.shortlistedAt || !prospectContactableApprovalPending(item, prospectConvertGate(item))) return;
+      void openContactableApproval(item);
+      return;
+    }
+    if (category === "draft_backlog") {
+      if (!item || !item.shortlistedAt || prospectOutreachDraftBacklog(item).backlog !== "pending") return;
+      openOutreachDraftBacklogEntry(item);
+      return;
+    }
+    if (category === "sequence_stopped") {
+      if (!item || !item.shortlistedAt || prospectOutreachSequence(item).progress !== "stopped") return;
+      openOutreachSequenceFromDashboard(item);
+      return;
+    }
+    if (category === "reply_pending") {
+      if (!item || !item.shortlistedAt || prospectOutreachReply(item).status !== "hit") return;
+      openOutreachReplyFromDashboard(item);
+      return;
+    }
+    if (category === "outreach_failure") {
+      if (!item || !item.shortlistedAt || prospectOutreachFailure(item).status !== "hit") return;
+      openOutreachFailureFromDashboard(item);
+      return;
+    }
+    if (category === "inbound_sync") {
+      if (!accountId || accountId !== state.user?.id) return;
+      if (presentInboundSyncStatus(state.user).condition !== "error") return;
+      openInboundSyncSettings();
+    }
   });
 }
 
@@ -39718,6 +39890,7 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     const result = await api<{ opportunities: WebsiteOpportunity[] }>("/api/tools/website-opportunities");
     state.websiteOpportunities = result.opportunities || [];
     websiteOpportunitiesLoaded = true;
+    acquisitionTodoReadError = "";
     renderProspectList();
     renderLeadFinder(state.websiteOpportunities);
   } catch (error) {
@@ -39794,6 +39967,8 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (!websiteOpportunitiesLoaded && draftBacklogList) {
       draftBacklogList.innerHTML = `<div class="empty-cell">待发草稿暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造草稿，也不会放行批次。</div>`;
     }
+    acquisitionTodoReadError = message;
+    renderDashboardAcquisitionTodoSummary();
   } finally {
     if (button) {
       button.disabled = false;
@@ -49086,6 +49261,7 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectOutreachDraftBacklog(item).backlog !== "pending") return;
     openOutreachDraftBacklogFromDashboard(item);
   });
+  bindDashboardAcquisitionTodoSummary();
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
