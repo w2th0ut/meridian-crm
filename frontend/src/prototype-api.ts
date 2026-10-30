@@ -226,6 +226,20 @@ import {
   type ReleaseBatchAgeView
 } from "./prospect-release-batch-age";
 import {
+  SUPPRESS_LIST_AGE_LIMIT,
+  formatSuppressListAgeAt,
+  listSuppressListAgeQueue,
+  presentSuppressListAge,
+  suppressListAgeEntryLabel,
+  suppressListAgeLineLabel,
+  suppressListAgeListFilterForOpen,
+  suppressListAgeMatchesFilter,
+  suppressListAgeStatusLabel,
+  suppressListAgeSummary,
+  type SuppressListAgeListFilter,
+  type SuppressListAgeView
+} from "./prospect-suppress-list-age";
+import {
   INBOUND_SYNC_LIMIT,
   inboundSyncEntryLabel,
   inboundSyncSummary,
@@ -2253,6 +2267,8 @@ interface WebsiteOpportunity {
     label: string;
     reason: string;
     source: string;
+    /** Day8 抑制或退订已经带出的生效时间。退信、无效或没有时间时为空。 */
+    effectiveAt?: string;
   }>;
   /** 最近一条人工跟进。没有记录时为 null，界面写「暂无跟进」。 */
   latestFollowUp?: {
@@ -4051,6 +4067,7 @@ interface AppState {
   prospectSequenceNextDueFilter: SequenceNextDueListFilter;
   prospectReplyBacklogFilter: ReplyBacklogListFilter;
   prospectReleaseBatchAgeFilter: ReleaseBatchAgeListFilter;
+  prospectSuppressListAgeFilter: SuppressListAgeListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4286,6 +4303,7 @@ const state: AppState = {
   prospectSequenceNextDueFilter: "all",
   prospectReplyBacklogFilter: "all",
   prospectReleaseBatchAgeFilter: "all",
+  prospectSuppressListAgeFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -11789,6 +11807,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardSequenceNextDue();
   renderDashboardReplyBacklog();
   renderDashboardReleaseBatchAge();
+  renderDashboardSuppressListAge();
   renderDashboardInboundSync();
 }
 
@@ -13896,6 +13915,7 @@ function renderLeadDrawer(
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33815,6 +33835,7 @@ function prospectFilteredRows() {
       if (state.prospectSequenceNextDueFilter !== "all" && !sequenceNextDueMatchesFilter(prospectSequenceNextDue(item), state.prospectSequenceNextDueFilter)) return false;
       if (state.prospectReplyBacklogFilter !== "all" && !replyBacklogMatchesFilter(prospectReplyBacklog(item), state.prospectReplyBacklogFilter)) return false;
       if (state.prospectReleaseBatchAgeFilter !== "all" && !releaseBatchAgeMatchesFilter(prospectReleaseBatchAge(item), state.prospectReleaseBatchAgeFilter)) return false;
+      if (state.prospectSuppressListAgeFilter !== "all" && !suppressListAgeMatchesFilter(prospectSuppressListAge(item), state.prospectSuppressListAgeFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35957,6 +35978,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35990,6 +36012,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -36029,6 +36052,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -36102,6 +36126,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectSequenceNextDue(item)}
     ${renderProspectReplyBacklog(item)}
     ${renderProspectReleaseBatchAge(item)}
+    ${renderProspectSuppressListAge(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -36173,6 +36198,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindSequenceNextDueLinks(box);
   bindReplyBacklogLinks(box);
   bindReleaseBatchAgeLinks(box);
+  bindSuppressListAgeLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -36264,6 +36290,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusSequenceNextDueTarget(item.id, box);
   focusReplyBacklogTarget(item.id, box);
   focusReleaseBatchAgeTarget(item.id, box);
+  focusSuppressListAgeTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36835,6 +36862,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -37246,6 +37274,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37595,6 +37624,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37671,6 +37701,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37814,6 +37845,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37970,6 +38002,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38124,6 +38157,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-suppress-list-age-filter]").forEach((button) => {
+    const active = button.dataset.prospectSuppressListAgeFilter === state.prospectSuppressListAgeFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -38137,9 +38175,13 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const releaseBatchAgeEmpty = state.prospectReleaseBatchAgeFilter === "held"
-    ? "没有待放已久的批次。这里不会编造批次时间，也不会放行批次，也不会发信。"
+  const suppressListAgeEmpty = state.prospectSuppressListAgeFilter === "long"
+    ? "没有抑制超七日的候选。这里不会编造抑制时间，也不会解除抑制，也不会发信。"
     : "";
+  const releaseBatchAgeEmpty = suppressListAgeEmpty
+    || (state.prospectReleaseBatchAgeFilter === "held"
+    ? "没有待放已久的批次。这里不会编造批次时间，也不会放行批次，也不会发信。"
+    : "");
   const replyBacklogEmpty = releaseBatchAgeEmpty
     || (state.prospectReplyBacklogFilter === "stale"
     ? "没有积压较久的回复。这里不会编造回复时间，也不会发信，也不会标成已处理。"
@@ -38255,6 +38297,7 @@ function renderProspectList() {
             ${renderSequenceNextDueLine(item)}
             ${renderReplyBacklogLine(item)}
             ${renderReleaseBatchAgeLine(item)}
+            ${renderSuppressListAgeLine(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -38323,6 +38366,7 @@ function renderProspectList() {
     bindSequenceNextDueLinks(rows);
     bindReplyBacklogLinks(rows);
     bindReleaseBatchAgeLinks(rows);
+    bindSuppressListAgeLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -38347,6 +38391,7 @@ function renderProspectList() {
   renderDashboardSequenceNextDue();
   renderDashboardReplyBacklog();
   renderDashboardReleaseBatchAge();
+  renderDashboardSuppressListAge();
   renderDashboardInboundSync();
 }
 
@@ -38518,6 +38563,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38788,6 +38834,7 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -39002,6 +39049,7 @@ function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -40487,6 +40535,12 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (!websiteOpportunitiesLoaded && releaseBatchAgeList) {
       releaseBatchAgeList.innerHTML = `<div class="empty-cell">待放行批次暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造批次时间，也不会放行批次，也不会发信。</div>`;
     }
+    const suppressListAgeScope = qs<HTMLElement>("#dashboardSuppressListAgeScope");
+    const suppressListAgeList = qs<HTMLElement>("#dashboardSuppressListAgeList");
+    if (suppressListAgeScope) suppressListAgeScope.textContent = "抑制名单日龄暂时读不到";
+    if (!websiteOpportunitiesLoaded && suppressListAgeList) {
+      suppressListAgeList.innerHTML = `<div class="empty-cell">抑制名单日龄暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造抑制时间，也不会解除抑制，也不会发信。</div>`;
+    }
     acquisitionTodoReadError = message;
     renderDashboardAcquisitionTodoSummary();
   } finally {
@@ -40761,6 +40815,7 @@ function openNextFollowDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40901,6 +40956,7 @@ function openStageStuckFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41033,6 +41089,7 @@ function openFollowUpGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41179,6 +41236,7 @@ function openContactGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41341,6 +41399,7 @@ function openJoinAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41525,6 +41584,7 @@ function openSilentAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41685,6 +41745,7 @@ function openOutreachActionGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectOutreachActionGapFilter = outreachActionGapListFilterForOpen(view);
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
@@ -41842,6 +41903,7 @@ function openSequenceNextDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = sequenceNextDueListFilterForOpen(view);
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42000,6 +42062,7 @@ function openReplyBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = replyBacklogListFilterForOpen(view);
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42161,6 +42224,7 @@ function openReleaseBatchAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = releaseBatchAgeListFilterForOpen(view);
+  state.prospectSuppressListAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42172,6 +42236,173 @@ function openReleaseBatchAgeFromDashboard(item: WebsiteOpportunity) {
   const show = () => {
     renderProspectList();
     toast("已打开现有候选。只读，不会放行批次，也不会发信，也不会推进序列，也不会改名单。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+function prospectSuppressListAge(item: WebsiteOpportunity, now = new Date()): SuppressListAgeView {
+  const notices = (item.complianceNotices || []).filter((notice) =>
+    notice.kind === "suppressed" || notice.kind === "opted_out"
+  );
+  const effectiveAt = notices
+    .map((notice) => (notice.effectiveAt || "").trim())
+    .filter((value) => Number.isFinite(Date.parse(value)))
+    .sort((left, right) => Date.parse(left) - Date.parse(right))[0] || "";
+  return presentSuppressListAge({
+    held: notices.length > 0,
+    effectiveAt
+  }, now);
+}
+
+function suppressListAgeBadgeTone(kind: SuppressListAgeView["kind"]) {
+  if (kind === "long") return "amber";
+  if (kind === "recent") return "green";
+  return "gray";
+}
+
+function renderProspectSuppressListAge(item: WebsiteOpportunity) {
+  const view = prospectSuppressListAge(item);
+  return `<section class="prospect-suppress-list-age" id="prospectSuppressListAge" data-suppress-list-age="${view.kind}">
+    <div class="prospect-suppress-list-age-head"><b>抑制名单日龄</b>${badge(suppressListAgeStatusLabel(view), suppressListAgeBadgeTone(view.kind))}</div>
+    <p>${escapeHtml(suppressListAgeSummary(view))}</p>
+    <p class="prospect-suppress-list-age-body" data-suppress-list-age-body="${view.kind}">${escapeHtml(suppressListAgeLineLabel(view))}</p>
+    <div class="prospect-action-row"><button class="btn" type="button" data-suppress-list-age-entry="${escapeHtml(item.id)}">${escapeHtml(suppressListAgeEntryLabel())}</button></div>
+  </section>`;
+}
+
+function renderSuppressListAgeLine(item: WebsiteOpportunity) {
+  const view = prospectSuppressListAge(item);
+  const compact = view.kind === "none" ? " is-empty" : ` is-compact is-${view.kind}`;
+  return `<div class="prospect-suppress-list-age${compact}" data-suppress-list-age="${view.kind}">${escapeHtml(suppressListAgeLineLabel(view))}</div>`;
+}
+
+let suppressListAgeFocusId = "";
+
+/** 只滚到已有的抑制或退订原因。没有这块时停在详情顶部。不解除抑制，不发信，也不改名单。 */
+function scrollToSuppressListAgeTarget(root: ParentNode): "hold" | "top" | false {
+  const mark = (entry: HTMLElement) => {
+    entry.classList.add("is-attention");
+    entry.scrollIntoView({ block: "nearest" });
+    window.setTimeout(() => entry.classList.remove("is-attention"), 1600);
+    return true;
+  };
+  const entry = root.querySelector<HTMLElement>('.prospect-hold-notice[data-hold-kind="suppressed"], .prospect-hold-notice[data-hold-kind="opted_out"]');
+  if (entry) {
+    mark(entry);
+    return "hold";
+  }
+  const top = root.querySelector<HTMLElement>(".prospect-detail-hero, .lead-verification-drawer-head");
+  if (top) {
+    mark(top);
+    return "top";
+  }
+  if (root instanceof HTMLElement) {
+    root.scrollIntoView({ block: "start" });
+    return "top";
+  }
+  return false;
+}
+
+function focusSuppressListAgeTarget(itemId: string, root: ParentNode | null) {
+  if (suppressListAgeFocusId !== itemId || !root) return;
+  suppressListAgeFocusId = "";
+  scrollToSuppressListAgeTarget(root);
+}
+
+function bindSuppressListAgeLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-suppress-list-age-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const landed = scrollToSuppressListAgeTarget(root);
+      if (landed === "hold") {
+        toast("已打开现有抑制或退订说明。只读，不会解除抑制，也不会发信，也不会改名单。");
+      } else if (landed === "top") {
+        toast("没有抑制或退订说明，已停在详情顶部。只读，不会解除抑制，也不会发信，也不会改名单。");
+      }
+    });
+  });
+}
+
+function renderDashboardSuppressListAge(now = new Date()) {
+  const scope = qs<HTMLElement>("#dashboardSuppressListAgeScope");
+  const list = qs<HTMLElement>("#dashboardSuppressListAgeList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看抑制名单日龄。这里不会编造名单，也不会解除抑制，也不会发信。</div>`;
+    return;
+  }
+  const queue = listSuppressListAgeQueue(visible, (item) => prospectSuppressListAge(item, now), SUPPRESS_LIST_AGE_LIMIT);
+  if (!queue.total) {
+    scope.textContent = "当前可见的搜客清单没有可解析的抑制或退订生效时间";
+    list.innerHTML = `<div class="empty-cell">无抑制日龄。当前可见的搜客清单没有可解析的抑制或退订生效时间。这里不会编造抑制时间，也不会解除抑制，也不会发信。</div>`;
+    return;
+  }
+  const shown = queue.rows;
+  scope.textContent = queue.total > shown.length
+    ? `可见范围 ${queue.total} 条能判断抑制名单日龄，这里显示 ${shown.length} 条，抑制超七日在前`
+    : `可见范围 ${queue.total} 条能判断抑制名单日龄，抑制超七日在前`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectSuppressListAge(item, now);
+    return `<button class="dashboard-prospect-row${view.kind === "long" ? " is-suppress-long" : ""}" type="button" data-dashboard-suppress-list-age="${escapeHtml(item.id)}" data-suppress-list-age="${view.kind}" aria-label="打开抑制名单日龄：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(suppressListAgeStatusLabel(view))}</span>
+      <em>${escapeHtml(formatSuppressListAgeAt(view.effectiveMs))}</em>
+    </button>`;
+  }).join("");
+}
+
+function openSuppressListAgeFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return;
+  const view = prospectSuppressListAge(item);
+  if (view.kind === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
+  state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
+  state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
+  state.prospectSilentAgeFilter = "all";
+  state.prospectOutreachActionGapFilter = "all";
+  state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
+  state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = suppressListAgeListFilterForOpen(view);
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  suppressListAgeFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开现有候选。只读，不会解除抑制，也不会发信，也不会改名单。");
   };
   if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
     show();
@@ -43819,6 +44050,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -45877,6 +46109,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectSequenceNextDue(item)}
     ${renderProspectReplyBacklog(item)}
     ${renderProspectReleaseBatchAge(item)}
+    ${renderProspectSuppressListAge(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -45991,6 +46224,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindSequenceNextDueLinks(box);
   bindReplyBacklogLinks(box);
   bindReleaseBatchAgeLinks(box);
+  bindSuppressListAgeLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -46025,6 +46259,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusSequenceNextDueTarget(item.id, box);
   focusReplyBacklogTarget(item.id, box);
   focusReleaseBatchAgeTarget(item.id, box);
+  focusSuppressListAgeTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -47997,6 +48232,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
   state.prospectSequenceNextDueFilter = "all";
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -51344,6 +51580,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectReleaseBatchAge(item).kind === "none") return;
     openReleaseBatchAgeFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardSuppressListAgeRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardSuppressListAge")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-suppress-list-age]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardSuppressListAge);
+    if (!item || !item.shortlistedAt || prospectSuppressListAge(item).kind === "none") return;
+    openSuppressListAgeFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#dashboardAcquisitionStagesRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
   });
@@ -51862,6 +52107,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectReleaseBatchAgeFilter || "all";
       state.prospectReleaseBatchAgeFilter = next === "held" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-suppress-list-age-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectSuppressListAgeFilter || "all";
+      state.prospectSuppressListAgeFilter = next === "long" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
