@@ -959,6 +959,44 @@ const openFailureDraft = kbSourceBetween(apiLayer, "function openOutreachFailure
 assert.match(openFailureDraft, /openProspectDraftFromAcquisition/, "重写捷径必须打开现有开发信草稿");
 assert.doesNotMatch(openFailureDraft, /sendProspectDevelopmentEmail|convert-to-lead|\/approve|setProspectSuppression/, "重写捷径不得发送、转线索或解除抑制");
 assert.match(prototype, /\.prospect-outreach-failure\b/, "开发信失败说明必须有可见样式");
+const engagementLayer = readFileSync(new URL("./prospect-outreach-engagement.ts", import.meta.url), "utf8");
+assert.match(engagementLayer, /export function presentOutreachEngagement/, "开发信打开或点击必须只消费接口带回的结果");
+assert.match(engagementLayer, /无打开或点击/, "没有打开或点击时文案必须是无打开或点击");
+assert.match(engagementLayer, /无打开/, "没有打开时必须写清空态");
+assert.match(engagementLayer, /无点击/, "没有点击时必须写清空态");
+assert.match(engagementLayer, /仓内没有送达回执/, "必须说明仓内没有送达回执");
+assert.match(engagementLayer, /这不是失败条，也不是抑制条/, "打开或点击必须和失败条、抑制条区分开");
+assert.match(engagementLayer, /不会自动跟进，也不会自动发下一封/, "打开或点击不得自动跟进或自动发下一封");
+assert.doesNotMatch(engagementLayer, /原因未回传|已退信|解除抑制|fetch\(|convert-to-lead|send-development-email|deliveredAt\s*:/, "打开或点击不得混用失败文案，也不得发请求、转线索或编造送达字段");
+assert.match(prospectListRender, /renderOutreachEngagementLine\(item\)/, "搜客清单每一行必须显示打开和点击");
+assert.match(prospectListRender, /renderOutreachFailureLine\(item\)[\s\S]{0,80}renderOutreachEngagementLine\(item\)/, "打开或点击必须和失败条分开显示");
+assert.match(prospectListRender, /renderDashboardOutreachEngagements\(\)/, "清单刷新必须同时更新打开或点击入口");
+const engagementRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(engagementRows, /prospectOutreachEngagementFilter[\s\S]*prospectOutreachEngagement/, "打开或点击筛选只按已有结果过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectOutreachFailure\(item\)\}\n    \$\{renderProspectOutreachEngagement\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在失败条后面单独说明打开或点击"
+);
+assert.match(apiLayer, /没有打开或点击的候选。这里不会编造记录，也不会自动跟进。/, "筛不到打开或点击时必须写清空态");
+assert.match(prototype, /data-prospect-outreach-engagement-filter="hit"[\s\S]*有打开\/点击/, "清单必须能筛有打开/点击");
+assert.match(prototype, /id="dashboardOutreachEngagements"[\s\S]*开发信打开或点击/, "工作台必须有开发信打开或点击");
+assert.match(apiLayer, /OUTREACH_ENGAGEMENT_LIMIT = 8/, "工作台打开或点击最多显示 8 行");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看。这里不会编造名单，也不会自动跟进。/, "没有清单时不得编造打开或点击");
+assert.match(apiLayer, /当前可见的搜客清单没有打开或点击。这里不会编造记录，也不会自动跟进。/, "没有打开或点击时不得编造记录");
+assert.match(apiLayer, /开发信打开或点击/, "详情标题必须是开发信打开或点击，不叫失败或抑制");
+const engagementQueue = kbSourceBetween(apiLayer, "function outreachEngagementCandidates()", "\nfunction renderDashboardOutreachEngagements");
+assert.match(engagementQueue, /shortlistedAt/, "工作台打开或点击只包含搜客清单里的候选");
+assert.match(engagementQueue, /prospectOutreachEngagement/, "工作台打开或点击只包含有打开或点击的候选");
+const engagementClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardOutreachEngagements")?.addEventListener');
+const engagementClick = apiLayer.slice(engagementClickStart, engagementClickStart + 760);
+assert.match(engagementClick, /openOutreachEngagementFromDashboard/, "点工作台打开或点击必须打开候选详情");
+assert.doesNotMatch(engagementClick, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachFailureDraft|recordProspect/, "点工作台打开或点击不得发送、转线索或记跟进");
+const openEngagement = kbSourceBetween(apiLayer, "function openOutreachEngagementFromDashboard", "\nfunction renderProspectList");
+assert.match(openEngagement, /prospectOutreachEngagementFilter = "hit"/, "打开触达反馈必须落到有打开/点击筛选");
+assert.match(openEngagement, /不会自动跟进，也不会自动发下一封/, "打开触达反馈时必须说明不会自动跟进、不会自动发下一封");
+assert.doesNotMatch(openEngagement, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachFailureDraft|\/approve|recordProspect/, "打开触达反馈不得发送、转线索、批准或记跟进");
+assert.match(prototype, /\.prospect-outreach-engagement\b/, "开发信打开或点击必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

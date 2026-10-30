@@ -44,6 +44,15 @@ import {
   type OutreachFailureListFilter,
   type OutreachFailureView
 } from "./prospect-outreach-failure";
+import {
+  outreachEngagementLatestAt,
+  outreachEngagementMatchesFilter,
+  outreachEngagementSignalLabel,
+  outreachEngagementSummary,
+  presentOutreachEngagement,
+  type OutreachEngagementListFilter,
+  type OutreachEngagementView
+} from "./prospect-outreach-engagement";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -1949,6 +1958,8 @@ interface WebsiteOpportunity {
   crmCollision?: CrmCollisionView;
   /** 最近一次开发信发送失败或退信。没有记录时为无失败记录，不替代抑制原因条。 */
   outreachFailure?: OutreachFailureView;
+  /** 开发信打开和点击。没有次数时为无打开或点击，不替代失败条或抑制条，也不表示送达。 */
+  outreachEngagement?: OutreachEngagementView;
   organizationId?: string;
   coverageClassification?: string;
   coverageQueueState?: string;
@@ -3833,6 +3844,7 @@ interface AppState {
   prospectCoverageFilter: CoveragePoolListFilter;
   prospectCollisionFilter: CrmCollisionListFilter;
   prospectOutreachFailureFilter: OutreachFailureListFilter;
+  prospectOutreachEngagementFilter: OutreachEngagementListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4054,6 +4066,7 @@ const state: AppState = {
   prospectCoverageFilter: "all",
   prospectCollisionFilter: "all",
   prospectOutreachFailureFilter: "all",
+  prospectOutreachEngagementFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -13635,6 +13648,7 @@ function renderLeadDrawer(
     state.prospectCoverageFilter = "all";
     state.prospectCollisionFilter = "all";
     state.prospectOutreachFailureFilter = "all";
+    state.prospectOutreachEngagementFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33540,6 +33554,7 @@ function prospectFilteredRows() {
       if (state.prospectCoverageFilter !== "all" && deriveCoveragePool({ tenantProspectId: item.tenantProspectId }).filter !== state.prospectCoverageFilter) return false;
       if (state.prospectCollisionFilter !== "all" && !crmCollisionMatchesFilter(prospectCrmCollision(item), state.prospectCollisionFilter)) return false;
       if (state.prospectOutreachFailureFilter !== "all" && !outreachFailureMatchesFilter(prospectOutreachFailure(item), state.prospectOutreachFailureFilter)) return false;
+      if (state.prospectOutreachEngagementFilter !== "all" && !outreachEngagementMatchesFilter(prospectOutreachEngagement(item), state.prospectOutreachEngagementFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35668,6 +35683,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
   state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35687,6 +35703,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
   state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35712,6 +35729,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
   state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35771,6 +35789,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectCrmCollision(item)}
     ${renderProspectComplianceNotices(item)}
     ${renderProspectOutreachFailure(item)}
+    ${renderProspectOutreachEngagement(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -35906,6 +35925,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusCoveragePoolTarget(item.id, box);
   focusCrmCollisionTarget(item.id, box);
   focusOutreachFailureTarget(item.id, box);
+  focusOutreachEngagementTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36463,6 +36483,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
     state.prospectCoverageFilter = "all";
     state.prospectCollisionFilter = "all";
     state.prospectOutreachFailureFilter = "all";
+    state.prospectOutreachEngagementFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -36860,6 +36881,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectCoverageFilter = target === "coverage" ? "out" : "all";
   state.prospectCollisionFilter = "all";
   state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37195,6 +37217,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "hit";
   state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37257,6 +37280,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
   state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37386,6 +37410,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
   state.prospectOutreachFailureFilter = "hit";
+  state.prospectOutreachEngagementFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37417,6 +37442,135 @@ function bindOutreachFailureDraft(root: ParentNode) {
       if (item) openOutreachFailureDraft(item);
     });
   });
+}
+
+function prospectOutreachEngagement(item: WebsiteOpportunity) {
+  return presentOutreachEngagement(item.outreachEngagement);
+}
+
+function outreachEngagementWhen(at: string) {
+  if (!at) return "";
+  const formatted = formatProspectJoinedAt(at);
+  return formatted && formatted !== "时间未知" ? formatted : "";
+}
+
+function renderProspectOutreachEngagement(item: WebsiteOpportunity) {
+  const view = prospectOutreachEngagement(item);
+  const openAt = outreachEngagementWhen(view.open.at);
+  const clickAt = outreachEngagementWhen(view.click.at);
+  const openTime = view.open.count && view.open.at && openAt
+    ? `<time datetime="${escapeHtml(view.open.at)}">${escapeHtml(openAt)}</time>`
+    : "";
+  const clickTime = view.click.count && view.click.at && clickAt
+    ? `<time datetime="${escapeHtml(view.click.at)}">${escapeHtml(clickAt)}</time>`
+    : "";
+  return `<section class="prospect-outreach-engagement" id="prospectOutreachEngagement" data-outreach-engagement="${view.status}">
+    <div class="prospect-outreach-engagement-head"><b>开发信打开或点击</b>${badge(view.status === "hit" ? "有打开或点击" : "无打开或点击", view.status === "hit" ? "green" : "gray")}</div>
+    <p>${escapeHtml(outreachEngagementSummary(view, openAt, clickAt))}</p>
+    <p class="prospect-outreach-engagement-signal" data-outreach-signal="open"><span>打开</span><b>${view.open.count ? `${view.open.count} 次` : "无打开"}</b>${openTime}</p>
+    <p class="prospect-outreach-engagement-signal" data-outreach-signal="click"><span>点击</span><b>${view.click.count ? `${view.click.count} 次` : "无点击"}</b>${clickTime}</p>
+  </section>`;
+}
+
+function renderOutreachEngagementLine(item: WebsiteOpportunity) {
+  const view = prospectOutreachEngagement(item);
+  if (view.status === "none") {
+    return `<div class="prospect-outreach-engagement is-empty" data-outreach-engagement="none">无打开或点击</div>`;
+  }
+  const openAt = outreachEngagementWhen(view.open.at);
+  const clickAt = outreachEngagementWhen(view.click.at);
+  return `<div class="prospect-outreach-engagement is-compact" data-outreach-engagement="hit"><span>${escapeHtml(outreachEngagementSignalLabel("打开", view.open, openAt))}</span><span>${escapeHtml(outreachEngagementSignalLabel("点击", view.click, clickAt))}</span></div>`;
+}
+
+let prospectOutreachEngagementFocusId = "";
+
+function focusOutreachEngagementTarget(itemId: string, root: ParentNode | null) {
+  if (prospectOutreachEngagementFocusId !== itemId) return;
+  prospectOutreachEngagementFocusId = "";
+  const node = root?.querySelector<HTMLElement>("#prospectOutreachEngagement");
+  if (!node) return;
+  node.classList.add("is-attention");
+  node.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => node.classList.remove("is-attention"), 1600);
+}
+
+const OUTREACH_ENGAGEMENT_LIMIT = 8;
+
+function outreachEngagementCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => Boolean(item.shortlistedAt) && prospectOutreachEngagement(item).status === "hit")
+    .slice()
+    .sort((left, right) => {
+      const difference = outreachEngagementLatestAt(prospectOutreachEngagement(right))
+        - outreachEngagementLatestAt(prospectOutreachEngagement(left));
+      return difference || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardOutreachEngagements() {
+  const scope = qs<HTMLElement>("#dashboardOutreachEngagementScope");
+  const list = qs<HTMLElement>("#dashboardOutreachEngagementList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看。这里不会编造名单，也不会自动跟进。</div>`;
+    return;
+  }
+  const hits = outreachEngagementCandidates();
+  if (!hits.length) {
+    scope.textContent = "当前可见的搜客清单没有打开或点击";
+    list.innerHTML = `<div class="empty-cell">当前可见的搜客清单没有打开或点击。这里不会编造记录，也不会自动跟进。</div>`;
+    return;
+  }
+  const shown = hits.slice(0, OUTREACH_ENGAGEMENT_LIMIT);
+  scope.textContent = hits.length > shown.length
+    ? `可见范围 ${hits.length} 条有打开或点击，这里显示 ${shown.length} 条`
+    : `可见范围 ${hits.length} 条有打开或点击`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectOutreachEngagement(item);
+    const openAt = outreachEngagementWhen(view.open.at);
+    const clickAt = outreachEngagementWhen(view.click.at);
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-outreach-engagement="${escapeHtml(item.id)}" aria-label="查看开发信打开或点击：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(outreachEngagementSignalLabel("打开", view.open, openAt))}</span>
+      <em>${escapeHtml(outreachEngagementSignalLabel("点击", view.click, clickAt))}</em>
+    </button>`;
+  }).join("");
+}
+
+function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt || prospectOutreachEngagement(item).status !== "hit") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "hit";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  prospectOutreachEngagementFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开这条候选。只读，不会自动跟进，也不会自动发下一封。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
 }
 
 function renderProspectList() {
@@ -37484,6 +37638,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-outreach-engagement-filter]").forEach((button) => {
+    const active = button.dataset.prospectOutreachEngagementFilter === state.prospectOutreachEngagementFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -37497,11 +37656,17 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const failureEmpty = state.prospectOutreachFailureFilter === "hit"
-    ? "没有失败或退信的候选。这里不会编造记录，也不会自动重发。"
-    : state.prospectOutreachFailureFilter === "clear"
-      ? "没有无失败记录的候选。这里不会编造公司。"
+  const engagementEmpty = state.prospectOutreachEngagementFilter === "hit"
+    ? "没有打开或点击的候选。这里不会编造记录，也不会自动跟进。"
+    : state.prospectOutreachEngagementFilter === "clear"
+      ? "没有无打开或点击的候选。这里不会编造公司。"
       : "";
+  const failureEmpty = engagementEmpty
+    || (state.prospectOutreachFailureFilter === "hit"
+      ? "没有失败或退信的候选。这里不会编造记录，也不会自动重发。"
+      : state.prospectOutreachFailureFilter === "clear"
+        ? "没有无失败记录的候选。这里不会编造公司。"
+        : "");
   const collisionEmpty = failureEmpty
     || (state.prospectCollisionFilter === "hit"
       ? "没有已撞库的候选。这里不会编造命中，也不会自动合并。"
@@ -37531,6 +37696,7 @@ function renderProspectList() {
             <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectComplianceNotices(item)}
             ${renderOutreachFailureLine(item)}
+            ${renderOutreachEngagementLine(item)}
             ${renderProspectFollowUpSummary(item)}
             ${renderProspectNextFollow(item)}
             <div class="prospect-contact-quick-row">
@@ -37598,6 +37764,7 @@ function renderProspectList() {
   renderDashboardCoverageGaps();
   renderDashboardCrmCollisions();
   renderDashboardOutreachFailures();
+  renderDashboardOutreachEngagements();
 }
 
 function markProspectConverted(item: WebsiteOpportunity, leadId: string) {
@@ -38799,6 +38966,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (coverageScope) coverageScope.textContent = "覆盖池暂时读不到";
     if (collisionScope) collisionScope.textContent = "撞库暂时读不到";
     if (failureScope) failureScope.textContent = "开发信失败暂时读不到";
+    const engagementScope = qs<HTMLElement>("#dashboardOutreachEngagementScope");
+    const engagementList = qs<HTMLElement>("#dashboardOutreachEngagementList");
+    if (engagementScope) engagementScope.textContent = "打开或点击暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
@@ -38822,6 +38992,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     }
     if (!websiteOpportunitiesLoaded && failureList) {
       failureList.innerHTML = `<div class="empty-cell">开发信失败暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造记录，也不会自动重发。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && engagementList) {
+      engagementList.innerHTML = `<div class="empty-cell">打开或点击暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造记录，也不会自动跟进。</div>`;
     }
   } finally {
     if (button) {
@@ -40646,6 +40819,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
     state.prospectCoverageFilter = "all";
     state.prospectCollisionFilter = "all";
     state.prospectOutreachFailureFilter = "all";
+    state.prospectOutreachEngagementFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -42689,6 +42863,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectCrmCollision(item)}
     ${renderProspectComplianceNotices(item)}
     ${renderProspectOutreachFailure(item)}
+    ${renderProspectOutreachEngagement(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -42809,6 +42984,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusCoveragePoolTarget(item.id, box);
   focusCrmCollisionTarget(item.id, box);
   focusOutreachFailureTarget(item.id, box);
+  focusOutreachEngagementTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -44767,6 +44943,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     state.prospectCoverageFilter = "all";
     state.prospectCollisionFilter = "all";
     state.prospectOutreachFailureFilter = "all";
+    state.prospectOutreachEngagementFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -48040,6 +48217,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectOutreachFailure(item).status !== "hit") return;
     openOutreachFailureFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardOutreachEngagementsRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardOutreachEngagements")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-outreach-engagement]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardOutreachEngagement);
+    if (!item || !item.shortlistedAt || prospectOutreachEngagement(item).status !== "hit") return;
+    openOutreachEngagementFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
@@ -48373,6 +48559,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectOutreachFailureFilter || "all";
       state.prospectOutreachFailureFilter = next === "hit" || next === "clear" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-outreach-engagement-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectOutreachEngagementFilter || "all";
+      state.prospectOutreachEngagementFilter = next === "hit" || next === "clear" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });

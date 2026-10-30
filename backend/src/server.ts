@@ -513,6 +513,7 @@ import {
 } from "./prospect-qualification.js";
 import { describeProspectComplianceNotices } from "./prospect-compliance-notice.js";
 import { describeProspectOutreachFailure } from "./prospect-outreach-failure.js";
+import { describeProspectOutreachEngagement } from "./prospect-outreach-engagement.js";
 import {
   assertCrmOutreachEligible,
   assertProspectEmailOutreachEligible,
@@ -18724,6 +18725,11 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
         touchpoints: store.prospectTouchpoints,
         batches: store.prospectOutreachBatches,
         plans: store.prospectOutreachPlans
+      }),
+      outreachEngagement: describeProspectOutreachEngagement({
+        candidate: verified,
+        emailLogs: store.outboundEmailLogs,
+        touchpoints: store.prospectTouchpoints
       }),
       latestFollowUp: describeProspectLatestFollowUp(store, verified),
       // 转线索资格：复用 convert_to_lead 的可联系门禁，只解释缺什么，不在这里放行。
