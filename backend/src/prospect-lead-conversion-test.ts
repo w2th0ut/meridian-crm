@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   convertProspectToLead,
   evaluateProspectLeadConversionEligibility,
+  FORMAL_ENTERPRISE_COVERAGE_POOL_GAP,
+  isInFormalEnterpriseCoveragePool,
   type ConvertProspectToLeadInput,
   ProspectLeadConversionError
 } from "./prospect-lead-conversion.js";
@@ -795,6 +797,9 @@ function testLeadConversionEligibilityPreview() {
   assert.equal(stranger.ready, false);
   assert.match(stranger.message, /当前业务员没有可用于转换的人工批准记录/);
 
+  assert.equal(isInFormalEnterpriseCoveragePool(candidate), true);
+  assert.equal(isInFormalEnterpriseCoveragePool({ tenantProspectId: "" }), false);
+  assert.equal(isInFormalEnterpriseCoveragePool({ tenantProspectId: "   " }), false);
   const unpooled = evaluateProspectLeadConversionEligibility(
     fixture.store,
     { ...candidate, tenantProspectId: "" },
@@ -802,7 +807,16 @@ function testLeadConversionEligibilityPreview() {
     atTime
   );
   assert.equal(unpooled.ready, false);
+  assert.equal(unpooled.missing[0], FORMAL_ENTERPRISE_COVERAGE_POOL_GAP);
   assert.match(unpooled.missing.join(" "), /正式企业覆盖池/);
+  const blankPool = evaluateProspectLeadConversionEligibility(
+    fixture.store,
+    { ...candidate, tenantProspectId: "   " },
+    fixture.ownerId,
+    atTime
+  );
+  assert.equal(blankPool.ready, false);
+  assert.equal(blankPool.missing[0], FORMAL_ENTERPRISE_COVERAGE_POOL_GAP);
 
   const removedApprovals = fixture.store.prospectContactabilityDecisions.filter((item) =>
     item.status === "approved_contactable"

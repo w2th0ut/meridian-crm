@@ -29,6 +29,16 @@ export const PROSPECT_LEAD_CONVERSION_CONTRACT =
   "prospect-to-lead-human-confirmation-v1";
 export const PROSPECT_LEAD_SOURCE_CHANNEL = "prospect_conversion";
 
+/** 与转线索拒绝原因同一句。正式企业覆盖池 = 已关联 TenantProspect，不另建池。 */
+export const FORMAL_ENTERPRISE_COVERAGE_POOL_GAP =
+  "候选尚未进入正式企业覆盖池，不能转为线索";
+
+export function isInFormalEnterpriseCoveragePool<
+  T extends { tenantProspectId?: string | null }
+>(candidate: T): candidate is T & { tenantProspectId: string } {
+  return Boolean(candidate.tenantProspectId?.trim());
+}
+
 export const convertProspectToLeadBodySchema = z.object({
   operationCode: z.literal("convert_prospect_to_lead_v1"),
   decisionId: z.string().trim().min(1).max(90),
@@ -903,12 +913,12 @@ export function evaluateProspectLeadConversionEligibility(
       { leadId: linkedLeadId }
     );
   }
-  if (!candidate.tenantProspectId) {
+  if (!isInFormalEnterpriseCoveragePool(candidate)) {
     return eligibilityResult(
       candidate,
       "blocked",
       "PROSPECT_LEAD_CONVERSION_NOT_ELIGIBLE",
-      ["候选尚未进入正式企业覆盖池，不能转为线索"]
+      [FORMAL_ENTERPRISE_COVERAGE_POOL_GAP]
     );
   }
   if (candidate.ownerId !== actorId) {
