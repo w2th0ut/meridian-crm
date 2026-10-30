@@ -788,6 +788,45 @@ const dueClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardDueFollowUps"
 const dueClick = apiLayer.slice(dueClickStart, dueClickStart + 700);
 assert.match(dueClick, /openFollowUpFromDashboard\(item, "next"\)/, "点今日到期必须打开下次跟进");
 assert.doesNotMatch(dueClick, /sendProspectDevelopmentEmail|send-development-email|convertProspectsToLeads|openProspectOutreachDraft/, "点今日到期不得发送或转线索");
+const stageLayer = readFileSync(new URL("./prospect-acquisition-stage.ts", import.meta.url), "utf8");
+assert.match(stageLayer, /export function deriveAcquisitionStage/, "阶段必须由纯函数从已有字段推导");
+assert.match(stageLayer, /草稿不落库/, "没有落库草稿时不得单开草稿待发");
+assert.match(stageLayer, /label: "待触达"/, "未触达的标签是待触达");
+assert.match(stageLayer, /label: "待写开发信"/, "可联系且未发出的标签是待写开发信");
+assert.match(stageLayer, /label: "已触达待批准"/, "已触达未批准的标签是已触达待批准");
+assert.match(stageLayer, /label: "可联系"/, "已有人工可联系批准且未跟进的标签是可联系");
+assert.match(stageLayer, /label: "跟进中"/, "已有跟进的标签是跟进中");
+assert.match(stageLayer, /label: "已转线索"/, "已转入的标签是已转线索");
+assert.match(stageLayer, /filter: "held"/, "抑制、退订、退信和无效归在抑制筛选");
+assert.match(stageLayer, /不会自动批准/, "已触达阶段不得自动批准");
+assert.match(stageLayer, /不会自动推进/, "跟进阶段不得自动推进");
+assert.doesNotMatch(stageLayer, /convert-to-lead|send-development-email|INSERT|UPDATE|stage 表/, "阶段推导不得转线索、发信或写阶段表");
+assert.match(prospectListRender, /renderAcquisitionStageBadge\(item\)/, "搜客清单每一行必须显示阶段");
+const stageRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(stageRows, /prospectStageFilter[\s\S]*deriveAcquisitionStage/, "阶段筛选只按推导结果过滤");
+assert.match(apiLayer, /prospect-detail-hero[\s\S]{0,900}renderProspectAcquisitionStage\(item\)/, "搜客清单详情必须说明当前阶段");
+assert.match(apiLayer, /lead-verification-drawer-head[\s\S]{0,700}renderProspectAcquisitionStage\(item\)/, "候选详情必须说明当前阶段");
+assert.match(apiLayer, /查看抑制原因/, "抑制阶段必须能点到原来的原因");
+assert.match(apiLayer, /function focusProspectHoldNotice[\s\S]*prospect-hold-notice/, "查看抑制原因必须落到原来的原因条");
+assert.doesNotMatch(kbSourceBetween(apiLayer, "function renderProspectAcquisitionStage", "\nfunction focusProspectHoldNotice"), /解除抑制|convert-to-lead|send-development-email/, "阶段说明不得解除抑制、转线索或发信");
+assert.match(prototype, /data-prospect-stage-filter="pending"[\s\S]*待触达/, "阶段筛选必须有待触达");
+assert.match(prototype, /data-prospect-stage-filter="reached"[\s\S]*已触达/, "阶段筛选必须有已触达");
+assert.match(prototype, /data-prospect-stage-filter="contactable"[\s\S]*可联系/, "阶段筛选必须有可联系");
+assert.match(prototype, /data-prospect-stage-filter="following"[\s\S]*跟进中/, "阶段筛选必须有跟进中");
+assert.match(prototype, /data-prospect-stage-filter="converted"[\s\S]*已转线索/, "阶段筛选必须有已转线索");
+assert.match(prototype, /data-prospect-stage-filter="held"[\s\S]*抑制/, "阶段筛选必须有抑制");
+assert.match(prototype, /id="dashboardAcquisitionStages"[\s\S]*获客阶段/, "工作台必须有获客阶段计数");
+assert.match(apiLayer, /本人名下还没有搜客清单。去智能获客加入候选后再看阶段。这里不会编造数字，点开也不会改状态。/, "没有本人候选时不得编造阶段数字");
+const stageClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardAcquisitionStages")?.addEventListener');
+const stageClick = apiLayer.slice(stageClickStart, stageClickStart + 520);
+assert.match(stageClick, /openAcquisitionStageFromDashboard/, "点工作台阶段必须打开筛选后的清单");
+assert.doesNotMatch(stageClick, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead/, "点工作台阶段不得发送或转线索");
+const openStage = kbSourceBetween(apiLayer, "function openAcquisitionStageFromDashboard", "\nfunction renderProspectList");
+assert.match(openStage, /prospectStageFilter = filter/, "打开阶段必须只设置筛选");
+assert.match(openStage, /不会发送，也不会转为线索/, "打开阶段时必须说明不会发送、不会转线索");
+assert.doesNotMatch(openStage, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|\/approve/, "打开阶段不得发送、转线索或批准");
+assert.match(prototype, /\.prospect-stage\b/, "阶段说明必须有可见样式");
+assert.match(prototype, /\.acquisition-stage-count\b/, "工作台阶段计数必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

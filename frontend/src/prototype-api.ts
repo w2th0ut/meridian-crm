@@ -15,6 +15,13 @@ import {
   resolveLeadSearchSources,
   type BlockedLeadSource
 } from "./lead-source-selection";
+import {
+  ACQUISITION_STAGE_FILTERS,
+  deriveAcquisitionStage,
+  type AcquisitionStage,
+  type AcquisitionStageFilter,
+  type AcquisitionStageInput
+} from "./prospect-acquisition-stage";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -3797,6 +3804,7 @@ interface AppState {
   selectedProspectId: string | null;
   selectedProspectIds: string[];
   prospectFilter: "all" | "preview" | "contactable" | "contacted" | "synced" | "excluded";
+  prospectStageFilter: "all" | AcquisitionStageFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4014,6 +4022,7 @@ const state: AppState = {
   selectedProspectId: null,
   selectedProspectIds: [],
   prospectFilter: "all",
+  prospectStageFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -13591,6 +13600,7 @@ function renderLeadDrawer(
     if (!sourceProspect) return;
     state.selectedProspectId = sourceProspect.id;
     state.prospectFilter = "all";
+    state.prospectStageFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33492,6 +33502,7 @@ function prospectFilteredRows() {
       const haystack = `${item.company} ${item.business} ${item.country} ${item.website} ${item.contact} ${item.contactInfo} ${item.description}`.toLowerCase();
       if (keyword && !haystack.includes(keyword)) return false;
       if (state.prospectFilter !== "all" && item.status !== state.prospectFilter) return false;
+      if (state.prospectStageFilter !== "all" && deriveAcquisitionStage(acquisitionStageInput(item)).filter !== state.prospectStageFilter) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35616,6 +35627,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   }
   closeLeadFinderVerificationDrawer();
   state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35631,6 +35643,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   const search = qs<HTMLInputElement>("#prospectSearchInput");
   if (search) search.value = "";
   state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35652,6 +35665,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   const search = qs<HTMLInputElement>("#prospectSearchInput");
   if (search) search.value = "";
   state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35701,11 +35715,12 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   const procurementContext = state.procurementContexts[item.id];
   box.innerHTML = `
     <div class="prospect-detail-hero">
-      ${badge(status.label, status.tone)} ${badge(`行动优先 ${score}`, score >= 76 ? "green" : score >= 60 ? "amber" : "gray")} ${badge(duplicate.text, duplicate.tone)} ${prospectEmailEligibilityBadge(item)}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}
+      ${renderAcquisitionStageBadge(item)} ${badge(status.label, status.tone)} ${badge(`行动优先 ${score}`, score >= 76 ? "green" : score >= 60 ? "amber" : "gray")} ${badge(duplicate.text, duplicate.tone)} ${prospectEmailEligibilityBadge(item)}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}
       <h2>${escapeHtml(item.company)}</h2>
       <p>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(item.business || "业务待维护")} · ${escapeHtml(websiteDomain(item.website || ""))}</p>
       <p>加入搜客清单：${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</p>
     </div>
+    ${renderProspectAcquisitionStage(item)}
     ${renderProspectComplianceNotices(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
@@ -35761,6 +35776,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   qs<HTMLButtonElement>("#prospectRestoreButton", box)?.addEventListener("click", (event) => void updateProspectBatch("restore", [item.id], event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement));
   bindContactableApprovalEntries(box, item);
+  bindAcquisitionStageHold(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -35833,6 +35849,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   if (!state.prospectQualifications[item.id] && !prospectQualificationLoading.has(item.id)) {
     void loadProspectQualification(item);
   }
+  focusProspectHoldNotice(item.id, box);
   focusProspectFollowUpInput(item.id);
 }
 
@@ -36387,6 +36404,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
   let index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   if (index < 0) {
     state.prospectFilter = "all";
+    state.prospectStageFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -36618,6 +36636,143 @@ async function saveProspectNextFollow(
   }
 }
 
+function acquisitionStageInput(item: WebsiteOpportunity): AcquisitionStageInput {
+  const gate = prospectConvertGate(item);
+  return {
+    status: item.status,
+    leadId: item.leadId || "",
+    shortlistedAt: item.shortlistedAt || "",
+    createdAt: item.createdAt || "",
+    statusChangedAt: item.statusChangedAt || "",
+    lastDevelopmentEmailAt: item.lastDevelopmentEmailAt || "",
+    lastTouchpointAt: item.lastTouchpointAt || "",
+    nextFollowAt: item.nextFollowAt || "",
+    outreachState: item.outreachState,
+    lastReplyClassification: item.lastReplyClassification || "",
+    latestFollowUpAt: item.latestFollowUp?.at || "",
+    complianceNotices: (item.complianceNotices || []).map((notice) => ({
+      kind: notice.kind,
+      label: notice.label
+    })),
+    approvedContactable: gate.ready,
+    alreadyLead: gate.state === "already_lead",
+    hasSendableEmail: Boolean(prospectQueueEmail(item))
+  };
+}
+
+function formatAcquisitionStageTime(stage: AcquisitionStage) {
+  if (!stage.enteredAt) return "";
+  if (stage.enteredKind === "follow") return formatProspectNextFollow(stage.enteredAt);
+  return formatProspectJoinedAt(stage.enteredAt);
+}
+
+function renderAcquisitionStageBadge(item: WebsiteOpportunity) {
+  const stage = deriveAcquisitionStage(acquisitionStageInput(item));
+  const badgeHtml = badge(stage.label, stage.tone);
+  if (stage.holdFocusable) {
+    return `<button class="prospect-stage-badge" type="button" data-acquisition-stage="${stage.key}" data-acquisition-stage-hold="${escapeHtml(item.id)}" title="${escapeHtml(stage.summary)}">${badgeHtml}</button>`;
+  }
+  return `<span class="prospect-stage-badge" data-acquisition-stage="${stage.key}" title="${escapeHtml(stage.summary)}">${badgeHtml}</span>`;
+}
+
+function renderProspectAcquisitionStage(item: WebsiteOpportunity) {
+  const stage = deriveAcquisitionStage(acquisitionStageInput(item));
+  const when = stage.enteredAt
+    ? `<p class="prospect-stage-when"><span>${escapeHtml(stage.enteredLabel)}</span><time datetime="${escapeHtml(stage.enteredAt)}">${escapeHtml(formatAcquisitionStageTime(stage))}</time></p>`
+    : "";
+  const hold = stage.holdFocusable
+    ? `<button class="btn" type="button" data-acquisition-stage-hold="${escapeHtml(item.id)}">查看抑制原因</button>`
+    : "";
+  return `<section class="prospect-stage" data-acquisition-stage="${stage.key}" data-acquisition-filter="${stage.filter}">
+    <div class="prospect-stage-head"><b>当前阶段</b>${badge(stage.label, stage.tone)}</div>
+    <p>${escapeHtml(stage.summary)}</p>
+    ${when}
+    ${hold}
+  </section>`;
+}
+
+let prospectStageHoldFocusId = "";
+
+function focusProspectHoldNotice(itemId: string, root: ParentNode | null) {
+  if (prospectStageHoldFocusId !== itemId) return;
+  prospectStageHoldFocusId = "";
+  const notice = root?.querySelector<HTMLElement>(".prospect-hold-notice");
+  if (!notice) return;
+  notice.classList.add("is-attention");
+  notice.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => notice.classList.remove("is-attention"), 1600);
+}
+
+function bindAcquisitionStageHold(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-acquisition-stage-hold]", root).forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = button.dataset.acquisitionStageHold || "";
+      if (!state.websiteOpportunities.some((row) => row.id === id)) return;
+      prospectStageHoldFocusId = id;
+      const detail = button.closest<HTMLElement>("#prospectDetail, #leadFinderDetail");
+      if (detail) {
+        focusProspectHoldNotice(id, detail);
+        return;
+      }
+      state.selectedProspectId = id;
+      prospectMobileDetailOpen = true;
+      document.body.classList.add("prospect-mobile-detail-open");
+      renderProspectList();
+    });
+  });
+}
+
+function ownedAcquisitionCandidates() {
+  const ownerId = state.user?.id || "";
+  if (!ownerId) return [];
+  return state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt) && item.ownerId === ownerId);
+}
+
+function renderDashboardAcquisitionStages() {
+  const scope = qs<HTMLElement>("#dashboardAcquisitionStageScope");
+  const list = qs<HTMLElement>("#dashboardAcquisitionStageCounts");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const owned = ownedAcquisitionCandidates();
+  if (!owned.length) {
+    scope.textContent = "本人名下还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">本人名下还没有搜客清单。去智能获客加入候选后再看阶段。这里不会编造数字，点开也不会改状态。</div>`;
+    return;
+  }
+  const counts = new Map(ACQUISITION_STAGE_FILTERS.map((item) => [item.key, 0]));
+  owned.forEach((item) => {
+    const filter = deriveAcquisitionStage(acquisitionStageInput(item)).filter;
+    counts.set(filter, (counts.get(filter) || 0) + 1);
+  });
+  scope.textContent = `本人名下 ${owned.length} 条。待触达含尚未发出的待写开发信。点开只筛选，不改状态。`;
+  list.innerHTML = ACQUISITION_STAGE_FILTERS.map((item) => {
+    const count = counts.get(item.key) || 0;
+    return `<button class="acquisition-stage-count" type="button" data-dashboard-acquisition-stage="${item.key}" aria-label="${escapeHtml(item.label)} ${count}">
+      <b>${count}</b><span>${escapeHtml(item.label)}</span>
+    </button>`;
+  }).join("");
+}
+
+function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = filter;
+  state.prospectJoinedRange = "all";
+  state.prospectPage = 1;
+  closeLeadFinderVerificationDrawer();
+  activateNavView("prospect-list", () => {
+    renderProspectList();
+    toast("已按阶段筛选。只读，不会发送，也不会转为线索。");
+  });
+}
+
 function renderProspectList() {
   const rows = qs<HTMLElement>("#prospectListRows");
   const total = qs<HTMLElement>("#prospectTotalCount");
@@ -36663,6 +36818,11 @@ function renderProspectList() {
   }
   if (assignButton) assignButton.hidden = !canAssign;
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => button.classList.toggle("active", button.dataset.prospectFilter === state.prospectFilter));
+  qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
+    const active = button.dataset.prospectStageFilter === state.prospectStageFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -36690,7 +36850,7 @@ function renderProspectList() {
             <div class="prospect-item-top"><h3>${escapeHtml(item.company)}</h3><span class="prospect-score">${score}</span></div>
             <p>${escapeHtml(item.business || "业务待维护")}</p>
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
-            <div class="prospect-meta-row">${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
+            <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectComplianceNotices(item)}
             ${renderProspectFollowUpSummary(item)}
             ${renderProspectNextFollow(item)}
@@ -36743,12 +36903,14 @@ function renderProspectList() {
       });
     });
     bindContactableApprovalEntries(rows);
+    bindAcquisitionStageHold(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
   renderDashboardRecentOutreach();
   renderDashboardFollowUps();
   renderDashboardDueFollowUps();
+  renderDashboardAcquisitionStages();
 }
 
 function markProspectConverted(item: WebsiteOpportunity, leadId: string) {
@@ -37934,10 +38096,13 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     const followList = qs<HTMLElement>("#dashboardFollowUpList");
     const dueScope = qs<HTMLElement>("#dashboardDueFollowUpScope");
     const dueList = qs<HTMLElement>("#dashboardDueFollowUpList");
+    const stageScope = qs<HTMLElement>("#dashboardAcquisitionStageScope");
+    const stageList = qs<HTMLElement>("#dashboardAcquisitionStageCounts");
     if (scope) scope.textContent = "候选暂时读不到";
     if (recentScope) recentScope.textContent = "已发记录暂时读不到";
     if (followScope) followScope.textContent = "跟进暂时读不到";
     if (dueScope) dueScope.textContent = "今日到期暂时读不到";
+    if (stageScope) stageScope.textContent = "阶段暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
@@ -37949,6 +38114,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     }
     if (!websiteOpportunitiesLoaded && dueList) {
       dueList.innerHTML = `<div class="empty-cell">今日到期暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && stageList) {
+      stageList.innerHTML = `<div class="empty-cell">阶段暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造数字。</div>`;
     }
   } finally {
     if (button) {
@@ -39769,6 +39937,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
   selectAll.indeterminate = selected.size > 0 && selected.size < available.length;
   openButton.onclick = () => activateNavView("prospect-list", () => {
     state.prospectFilter = "all";
+    state.prospectStageFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -41807,6 +41976,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
       </div>
       <button class="btn icon-only" id="leadFinderVerificationClose" type="button" title="关闭">×</button>
     </div>
+    ${renderProspectAcquisitionStage(item)}
     ${renderProspectComplianceNotices(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
@@ -41904,6 +42074,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   });
   bindProspectFollowUpEntry(item, box, "lead-finder");
   bindContactableApprovalEntries(box, item);
+  bindAcquisitionStageHold(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -41920,6 +42091,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   } else {
     void loadProspectResearchHistory(item, drawerResearchBox);
   }
+  focusProspectHoldNotice(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -43874,6 +44046,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     if (!first) return;
     state.selectedProspectId = first.id;
     state.prospectFilter = "all";
+    state.prospectStageFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -47111,6 +47284,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || !prospectFollowUpWritable(item)) return;
     openFollowUpFromDashboard(item, "next");
   });
+  qs<HTMLButtonElement>("#dashboardAcquisitionStagesRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardAcquisitionStages")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-acquisition-stage]");
+    const filter = opener?.dataset.dashboardAcquisitionStage || "";
+    if (!ACQUISITION_STAGE_FILTERS.some((item) => item.key === filter)) return;
+    openAcquisitionStageFromDashboard(filter as AcquisitionStageFilter);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
@@ -47410,6 +47592,16 @@ function installEvents() {
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => {
     button.addEventListener("click", () => {
       state.prospectFilter = (button.dataset.prospectFilter || "all") as AppState["prospectFilter"];
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectStageFilter || "all";
+      state.prospectStageFilter = next === "all" || ACQUISITION_STAGE_FILTERS.some((item) => item.key === next)
+        ? next as AppState["prospectStageFilter"]
+        : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
