@@ -1092,6 +1092,47 @@ assert.match(sequenceEntry, /#agentSequenceList/, "查看触达序列必须打�
 assert.match(sequenceEntry, /不会推进步骤，也不会发信/, "跳到序列入口时必须说明不会推进步骤");
 assert.doesNotMatch(sequenceEntry, /sendProspectDevelopmentEmail|convert-to-lead|controlOutreachSequence|\/approve|data-sequence-control|data-plan-action/, "跳到序列入口不得发信、转线索或推进步骤");
 assert.match(prototype, /\.prospect-outreach-sequence\b/, "外联序列必须有可见样式");
+const draftBacklogLayer = readFileSync(new URL("./prospect-outreach-draft-backlog.ts", import.meta.url), "utf8");
+assert.match(draftBacklogLayer, /export function presentOutreachDraftBacklog/, "待发草稿必须只消费接口带回的结果");
+assert.match(draftBacklogLayer, /无待发草稿/, "没有草稿时文案必须是无待发草稿");
+assert.match(draftBacklogLayer, /查看发信批次/, "有草稿时必须能跳到现有发信批次");
+assert.match(draftBacklogLayer, /这不是外联序列，也不是回复条，也不是打开或点击条，也不是失败条，也不是抑制条/, "草稿必须和外联序列、回复、打开或点击、失败条、抑制条区分开");
+assert.match(draftBacklogLayer, /不会放行批次，也不会发送/, "草稿不得放行或发送");
+assert.doesNotMatch(draftBacklogLayer, /无序列|进行中|原因未回传|已退信|解除抑制|fetch\(|convert-to-lead|send-development-email|approveProspectOutreachBatch/, "草稿不得混用序列或失败文案，也不得发请求、转线索或放行");
+assert.match(prospectListRender, /renderOutreachDraftBacklogLine\(item\)/, "搜客清单每一行必须显示待发草稿");
+assert.match(prospectListRender, /renderOutreachSequenceLine\(item\)[\s\S]{0,80}renderOutreachDraftBacklogLine\(item\)/, "草稿必须和序列分开显示");
+assert.match(prospectListRender, /renderDashboardOutreachDraftBacklogs\(\)/, "清单刷新必须同时更新待发草稿入口");
+const draftBacklogRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(draftBacklogRows, /prospectOutreachDraftBacklogFilter[\s\S]*prospectOutreachDraftBacklog/, "草稿筛选只按已有结果过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectOutreachSequence\(item\)\}\n    \$\{renderProspectOutreachDraftBacklog\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在序列后面单独说明待发草稿"
+);
+assert.match(apiLayer, /没有待发草稿。这里不会编造草稿，也不会放行批次。/, "筛不到待发草稿时必须写清空态");
+assert.match(prototype, /data-prospect-outreach-draft-backlog-filter="pending"[\s\S]*有积压/, "清单必须能筛有积压");
+assert.match(prototype, /id="dashboardOutreachDraftBacklogs"[\s\S]*待发草稿/, "工作台必须有待发草稿");
+assert.match(apiLayer, /OUTREACH_DRAFT_BACKLOG_LIMIT = 8/, "工作台待发草稿最多显示 8 行");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看待发草稿。这里不会编造名单，也不会放行批次。/, "没有清单时不得编造待发草稿");
+assert.match(apiLayer, /当前可见的搜客清单没有待发草稿。这里不会编造草稿，也不会放行批次。/, "没有草稿时不得编造记录");
+assert.match(apiLayer, /待发草稿/, "详情标题必须是待发草稿，不叫序列或回复或失败或抑制");
+assert.match(apiLayer, /outreachDraftBacklogEntryLabel\(/, "有草稿时必须复用现有发信批次入口文案");
+const draftBacklogQueue = kbSourceBetween(apiLayer, "function outreachDraftBacklogCandidates()", "\nfunction renderDashboardOutreachDraftBacklogs");
+assert.match(draftBacklogQueue, /shortlistedAt/, "工作台草稿只包含搜客清单里的候选");
+assert.match(draftBacklogQueue, /prospectOutreachDraftBacklog/, "工作台草稿只包含有待发草稿的候选");
+const draftBacklogClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardOutreachDraftBacklogs")?.addEventListener');
+const draftBacklogClick = apiLayer.slice(draftBacklogClickStart, draftBacklogClickStart + 760);
+assert.match(draftBacklogClick, /openOutreachDraftBacklogFromDashboard/, "点工作台草稿必须打开候选详情");
+assert.doesNotMatch(draftBacklogClick, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachDraftBacklogEntry|approveProspectOutreachBatch|\/approve/, "点工作台草稿不得发送、转线索或放行");
+const openDraftBacklog = kbSourceBetween(apiLayer, "function openOutreachDraftBacklogFromDashboard", "\nconst OUTREACH_SEQUENCE_LIMIT");
+assert.match(openDraftBacklog, /prospectOutreachDraftBacklogFilter = "pending"/, "打开草稿必须落到有积压筛选");
+assert.match(openDraftBacklog, /不会放行批次，也不会发送/, "打开草稿时必须说明不会放行、不会发送");
+assert.doesNotMatch(openDraftBacklog, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachDraftBacklogEntry|loadOutreachBatches|\/approve/, "打开草稿不得发送、转线索、打开发信批次或放行");
+const draftBacklogEntry = kbSourceBetween(apiLayer, "function openOutreachDraftBacklogEntry", "\nfunction bindOutreachDraftBacklogLinks");
+assert.match(draftBacklogEntry, /loadOutreachBatches/, "查看发信批次必须打开现有批次");
+assert.match(draftBacklogEntry, /不会放行，也不会发送/, "跳到发信批次时必须说明不会放行");
+assert.doesNotMatch(draftBacklogEntry, /sendProspectDevelopmentEmail|convert-to-lead|approveProspectOutreachBatch|\/approve|data-batch-approve|data-plan-action/, "跳到发信批次不得发信、转线索或放行");
+assert.match(prototype, /\.prospect-outreach-draft-backlog\b/, "待发草稿必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
