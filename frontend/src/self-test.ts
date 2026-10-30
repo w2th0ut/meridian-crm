@@ -1498,6 +1498,79 @@ assert.match(scrollJoinAge, /prospect-shortlist-joined/, "查看加入时间必�
 assert.doesNotMatch(scrollJoinAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead/, "跳到加入时间不得改名单、写入或发请求");
 assert.match(prototype, /\.prospect-join-age\b/, "短名单加入日龄必须有可见样式");
 assert.match(prototype, /\.dashboard-join-age-note\b/, "短名单加入日龄说明必须有可见样式");
+const silentAgeLayer = readFileSync(new URL("./prospect-silent-age.ts", import.meta.url), "utf8");
+assert.match(silentAgeLayer, /export function presentSilentAge/, "名单静默无动作日龄必须只消费已有动作时间");
+assert.match(silentAgeLayer, /SILENT_AGE_LIMIT = 8/, "名单静默无动作日龄最多 8 条");
+assert.match(silentAgeLayer, /SILENT_AGE_WINDOW_DAYS = 7/, "静默日龄窗口必须是 7 天");
+assert.match(silentAgeLayer, /shortlistedAt/, "静默日龄必须先确认已在短名单");
+assert.match(silentAgeLayer, /followUpAt/, "静默日龄必须能读跟进时间");
+assert.match(silentAgeLayer, /outreachAt/, "静默日龄必须能读开发信时间");
+assert.match(silentAgeLayer, /无动作时间/, "没有动作时间时文案必须是无动作时间");
+assert.match(silentAgeLayer, /静默/, "超过窗口必须标静默");
+assert.match(silentAgeLayer, /有动作/, "窗口内必须标有动作");
+assert.match(silentAgeLayer, /查看最近动作/, "必须能打开现有跟进或开发信时间");
+assert.match(silentAgeLayer, /这不是短名单加入日龄，也不是加入时间的日期范围，也不是跟进记录空档/, "静默日龄必须和加入日龄、日期范围、跟进记录空档区分开");
+assert.match(silentAgeLayer, /也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要/, "静默日龄必须和联系方式缺口、覆盖池、获客待办摘要区分开");
+assert.match(silentAgeLayer, /也不是下次跟进逾期，也不是转化阶段卡住/, "静默日龄必须和逾期、卡住区分开");
+assert.match(silentAgeLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步/, "静默日龄必须和待记跟进、草稿、序列、回复、打开或点击、失败、抑制、收信同步区分开");
+assert.match(silentAgeLayer, /不会改名单，不会发信，不会自动记下跟进，也不会改 convert_to_lead 或 approved_contactable/, "静默日龄不得改名单、发信、自动记跟进或改门禁");
+assert.match(silentAgeLayer, /加入短名单的时间不算动作时间/, "加入时间不得算成动作时间");
+assert.match(silentAgeLayer, /刚好 7 天仍算有动作/, "刚好 7 天仍算有动作");
+assert.doesNotMatch(silentAgeLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|lastTouchpointAt|latestFollowUp|lastDevelopmentEmailAt/i, "静默日龄模块不得发请求、读触达渠道、读 WhatsApp 或改门禁");
+assert.doesNotMatch(kbSourceBetween(silentAgeLayer, "function silentAgeLineLabel", "\nexport function silentAgeStatusLabel"), /较久|新近|未加入|空档|近期有跟进|无记录|缺邮箱|缺电话|完备|卡住|推进中|逾期|覆盖池/, "行文案必须用静默、有动作、无动作时间和日龄");
+assert.match(prospectListRender, /renderSilentAgeLine\(item\)/, "搜客清单每一行必须显示名单静默无动作日龄");
+assert.match(prospectListRender, /renderJoinAgeLine\(item\)[\s\S]{0,120}renderSilentAgeLine\(item\)/, "静默日龄必须和短名单加入日龄分开显示");
+assert.match(prospectListRender, /renderDashboardSilentAge\(\)/, "清单刷新必须同时更新静默日龄入口");
+const silentAgeRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(silentAgeRows, /prospectSilentAgeFilter[\s\S]*prospectSilentAge/, "静默日龄筛选只按已有动作时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectJoinAge\(item\)\}\n    \$\{renderProspectSilentAge\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在短名单加入日龄后面单独说明名单静默无动作日龄"
+);
+assert.match(apiLayer, /没有静默的候选。这里不会编造动作时间，也不会改名单。/, "筛不到静默时必须写清空态");
+assert.match(prototype, /data-prospect-silent-age-filter="silent"[\s\S]*静默/, "清单必须能筛静默");
+assert.match(prototype, /data-prospect-join-age-filter="older"[\s\S]*较久/, "原来的加入日龄筛选还在");
+assert.match(prototype, /id="dashboardJoinAge"[\s\S]{0,4000}id="dashboardSilentAge"[\s\S]*名单静默无动作日龄/, "工作台静默日龄必须在短名单加入日龄下面");
+assert.match(prototype, /id="dashboardSilentAgeNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardSilentAgeNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardSilentAgeNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardSilentAgeNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardSilentAgeNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardSilentAgeNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardSilentAgeNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardJoinAge"[\s\S]*短名单加入日龄/, "短名单加入日龄原条还在");
+assert.match(apiLayer, /SILENT_AGE_LIMIT/, "工作台静默日龄必须守住 8 条上限");
+assert.match(apiLayer, /listSilentAgeQueue\(/, "工作台必须复用静默在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看静默。这里不会编造名单，也不会改名单。/, "没有清单时不得编造静默日龄");
+assert.match(apiLayer, /名单静默无动作日龄/, "详情标题必须是名单静默无动作日龄");
+assert.match(apiLayer, /silentAgeEntryLabel\(/, "详情必须复用查看最近动作入口文案");
+const silentAgeAdapter = kbSourceBetween(apiLayer, "function prospectSilentAge", "\nfunction silentAgeBadgeTone");
+assert.match(silentAgeAdapter, /shortlistedAt/, "静默日龄必须复用 shortlistedAt");
+assert.match(silentAgeAdapter, /latestFollowUp\?\.at/, "静默日龄必须复用最近跟进时间");
+assert.match(silentAgeAdapter, /lastDevelopmentEmailAt/, "静默日龄必须复用最近开发信时间");
+assert.doesNotMatch(silentAgeAdapter, /createdAt|nextFollowAt|lastTouchpointAt|whatsapp/i, "静默日龄不得改读创建时间、下次跟进、触达渠道或 WhatsApp");
+const silentAgeQueue = kbSourceBetween(apiLayer, "function renderDashboardSilentAge", "\nfunction openSilentAgeFromDashboard");
+assert.match(silentAgeQueue, /shortlistedAt/, "工作台静默日龄只包含搜客清单里的候选");
+assert.match(silentAgeQueue, /listSilentAgeQueue\(/, "工作台静默日龄只按已有动作时间排序");
+assert.match(silentAgeQueue, /SILENT_AGE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(silentAgeQueue, /静默在前/, "工作台必须静默在前");
+const silentAgeClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardSilentAge")?.addEventListener');
+const silentAgeClick = apiLayer.slice(silentAgeClickStart, silentAgeClickStart + 700);
+assert.match(silentAgeClick, /openSilentAgeFromDashboard/, "点工作台静默日龄必须打开现有候选");
+assert.doesNotMatch(silentAgeClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard/, "点工作台静默日龄不得改名单、记跟进、发送或转线索");
+const openSilentAge = kbSourceBetween(apiLayer, "function openSilentAgeFromDashboard", "\nfunction primaryLeadFinderLiveJob");
+assert.match(openSilentAge, /prospectSilentAgeFilter = silentAgeListFilterForOpen\(view\)/, "打开静默必须落到静默筛选，有动作保持全部");
+assert.match(openSilentAge, /silentAgeFocusId = item\.id/, "打开后必须停在现有跟进、开发信或详情顶部");
+assert.match(openSilentAge, /不会改名单，也不会发信/, "打开时必须说明不会改名单、不会发信");
+assert.doesNotMatch(openSilentAge, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve/, "打开静默日龄不得改名单、记跟进、发送、转线索或批准");
+const scrollSilentAge = kbSourceBetween(apiLayer, "function scrollToSilentAgeTarget", "\nfunction focusSilentAgeTarget");
+assert.match(scrollSilentAge, /prospect-follow-up-entry/, "跟进更新时必须滚到现有跟进记录");
+assert.match(scrollSilentAge, /data-silent-age-outreach/, "开发信更新时必须滚到现有开发信时间");
+assert.match(scrollSilentAge, /prospect-detail-hero/, "没有动作时间时必须能停在详情顶部");
+assert.doesNotMatch(scrollSilentAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead/, "跳到最近动作不得改名单、写入或发请求");
+assert.match(prototype, /\.prospect-silent-age\b/, "名单静默无动作日龄必须有可见样式");
+assert.match(prototype, /\.dashboard-silent-age-note\b/, "名单静默无动作日龄说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
