@@ -1133,6 +1133,44 @@ assert.match(draftBacklogEntry, /loadOutreachBatches/, "查看发信批次必须
 assert.match(draftBacklogEntry, /不会放行，也不会发送/, "跳到发信批次时必须说明不会放行");
 assert.doesNotMatch(draftBacklogEntry, /sendProspectDevelopmentEmail|convert-to-lead|approveProspectOutreachBatch|\/approve|data-batch-approve|data-plan-action/, "跳到发信批次不得发信、转线索或放行");
 assert.match(prototype, /\.prospect-outreach-draft-backlog\b/, "待发草稿必须有可见样式");
+const inboundSyncLayer = readFileSync(new URL("./inbound-sync-status.ts", import.meta.url), "utf8");
+assert.match(inboundSyncLayer, /export function presentInboundSyncStatus/, "收信同步必须只消费账号上已有的收信字段");
+assert.match(inboundSyncLayer, /INBOUND_SYNC_LIMIT = 8/, "收信同步最多 8 条");
+assert.match(inboundSyncLayer, /正常/, "没有收信异常时文案必须是正常");
+assert.match(inboundSyncLayer, /收信同步异常/, "有异常时文案必须是收信同步异常");
+assert.match(inboundSyncLayer, /收信设置/, "当前账号必须能跳到现有收信设置");
+assert.match(inboundSyncLayer, /这是收信同步，不是发件/, "收信同步必须标明这是收信不是发件");
+assert.match(inboundSyncLayer, /不是待发草稿，也不是外联序列，也不是回复条，也不是打开或点击条，也不是失败条，也不是抑制条/, "收信同步必须和草稿、序列、回复、打开或点击、失败条、抑制条区分开");
+assert.match(inboundSyncLayer, /不会改授权，不会重连，不会触发同步，也不会发信/, "收信同步不得改授权、重连、触发同步或发信");
+assert.doesNotMatch(inboundSyncLayer, /无待发草稿|无序列|原因未回传|已退信|解除抑制|fetch\(|convert-to-lead|inbound-mail\/sync|send-development-email/, "收信同步不得混用草稿或失败文案，也不得发请求、转线索或触发同步");
+assert.match(apiLayer, /presentInboundSyncStatus\(/, "个人设置和工作台必须复用收信同步投影");
+assert.match(apiLayer, /收信同步异常/, "设置里的收信状态必须写成收信同步异常");
+assert.match(apiLayer, /没有收信同步异常。这里不会编造异常，也不会触发同步。/, "筛不到异常时必须写清空态");
+assert.match(prototype, /data-inbound-sync-filter="error"[\s\S]*有异常/, "工作台必须能筛有异常");
+assert.match(prototype, /id="dashboardInboundSync"[\s\S]*收信同步/, "工作台必须有收信同步");
+assert.match(prototype, /id="profileInboundSync"/, "个人设置必须有现有收信监听入口");
+assert.match(apiLayer, /INBOUND_SYNC_LIMIT/, "工作台收信同步必须守住 8 条上限");
+assert.match(apiLayer, /正在读取当前账号/, "没有账号时不得编造收信异常");
+assert.match(apiLayer, /收信同步暂时读不到（\$\{escapeHtml\(inboundSyncReadError\)\}）。点刷新重试。这里不会编造异常，也不会触发同步。/, "刷新失败时不得编造正常");
+const inboundQueue = kbSourceBetween(apiLayer, "function inboundSyncAccountRows()", "\nfunction inboundSyncTone");
+assert.match(inboundQueue, /state\.user/, "工作台收信同步以当前账号为一条");
+assert.match(inboundQueue, /state\.accounts/, "看得到账号清单时才带上其他账号");
+const inboundRender = kbSourceBetween(apiLayer, "function renderDashboardInboundSync()", "\nfunction openInboundSyncSettings");
+assert.match(inboundRender, /listInboundSyncRows\(/, "工作台只渲染投影后的收信状态");
+assert.match(inboundRender, /INBOUND_SYNC_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(inboundRender, /state\.user\?\.id/, "当前账号必须留在收信名单里");
+const inboundClick = kbSourceBetween(apiLayer, 'qs<HTMLElement>("#dashboardInboundSync")?.addEventListener', "\n  qs<HTMLButtonElement>(\"#profileSaveButton\")");
+assert.match(inboundClick, /openInboundSyncSettings/, "点工作台收信同步必须打开收信设置");
+assert.doesNotMatch(inboundClick, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|inbound-mail\/sync|refreshInboundSyncStatus|profileTestImap/, "点工作台收信同步不得发信、转线索、触发同步或测试连接");
+const openInbound = kbSourceBetween(apiLayer, "function openInboundSyncSettings()", "\nasync function refreshInboundSyncStatus");
+assert.match(openInbound, /activateNavView\("profile"/, "收信设置必须打开现有个人设置");
+assert.match(openInbound, /#profileInboundSync/, "收信设置必须落到现有收信监听");
+assert.match(openInbound, /不会改授权，不会重连，也不会触发同步/, "打开收信设置时必须说明不会改授权、不会重连、不会触发同步");
+assert.doesNotMatch(openInbound, /sendProspectDevelopmentEmail|convert-to-lead|inbound-mail\/sync|profileTestImap|profileSaveButton|\/approve/, "打开收信设置不得发信、转线索、触发同步或保存");
+const refreshInbound = kbSourceBetween(apiLayer, "async function refreshInboundSyncStatus", "\nconst OUTREACH_SEQUENCE_LIMIT");
+assert.match(refreshInbound, /\/api\/auth\/me/, "刷新收信同步必须重读当前账号");
+assert.doesNotMatch(refreshInbound, /inbound-mail\/sync|synchronizeUser|send-development-email|convert-to-lead|profileTestImap|\/approve/, "刷新收信同步不得触发同步、发信或转线索");
+assert.match(prototype, /\.dashboard-inbound-sync-note\b/, "收信同步必须有可见说明样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

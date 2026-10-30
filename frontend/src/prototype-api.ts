@@ -87,6 +87,15 @@ import {
   type OutreachDraftBacklogListFilter,
   type OutreachDraftBacklogView
 } from "./prospect-outreach-draft-backlog";
+import {
+  INBOUND_SYNC_LIMIT,
+  inboundSyncEntryLabel,
+  inboundSyncSummary,
+  listInboundSyncRows,
+  presentInboundSyncStatus,
+  type InboundSyncListFilter,
+  type InboundSyncStatusView
+} from "./inbound-sync-status";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -158,6 +167,7 @@ interface User {
   lastInboundSyncAt?: string;
   lastInboundSyncStatus?: "ok" | "error" | "";
   lastInboundSyncError?: string;
+  inboundSync?: InboundSyncStatusView;
   lastDevelopmentEmailAt?: string;
   lastDevelopmentEmailTo?: string;
   lastDevelopmentEmailSubject?: string;
@@ -10117,16 +10127,20 @@ function renderProfile(user = state.user) {
   setFieldValue("#profileImapPassword", "");
   const imapSecure = qs<HTMLSelectElement>("#profileImapSecure");
   if (imapSecure) imapSecure.value = String(user.imapSecure ?? true);
+  const inboundSync = presentInboundSyncStatus(user);
   const imapSync = qs<HTMLElement>("#profileImapSyncStatus");
   if (imapSync) {
-    if (user.lastInboundSyncAt) {
-      const label = user.lastInboundSyncStatus === "error" ? "同步异常" : "已同步";
-      const cls = user.lastInboundSyncStatus === "error" ? "amber" : "green";
-      imapSync.innerHTML = `${badge(label, cls)} <span title="${escapeHtml(user.lastInboundSyncError || "")}">${escapeHtml(formatTime(user.lastInboundSyncAt))}</span>`;
+    const when = inboundSync.syncedAt ? ` ${escapeHtml(formatTime(inboundSync.syncedAt))}` : "";
+    if (inboundSync.condition === "error") {
+      const detail = inboundSync.error ? ` ${escapeHtml(inboundSync.error)}` : "";
+      imapSync.innerHTML = `${badge("收信同步异常", "amber")}${detail}${when}`;
     } else {
-      imapSync.textContent = user.inboundSyncEnabled ? "等待首次同步" : "尚未开启";
+      imapSync.innerHTML = `${badge("正常", "green")}${when}`;
     }
   }
+  const inboundSummary = qs<HTMLElement>("#profileInboundSyncSummary");
+  if (inboundSummary) inboundSummary.textContent = inboundSyncSummary(inboundSync);
+  renderDashboardInboundSync();
   updateProfileSmtpHints(user);
   renderEmailConfigurationReminders();
   void loadCompanyProfile();
@@ -11602,6 +11616,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardRecentOutreach();
   renderDashboardFollowUps();
   renderDashboardDueFollowUps();
+  renderDashboardInboundSync();
 }
 
 async function loadBadges(containerId = "leaderboardBadges", tagId?: string) {
@@ -37895,6 +37910,7 @@ function renderProspectList() {
   renderDashboardOutreachReplies();
   renderDashboardOutreachSequences();
   renderDashboardOutreachDraftBacklogs();
+  renderDashboardInboundSync();
 }
 
 function prospectOutreachReply(item: WebsiteOpportunity) {
@@ -38334,6 +38350,122 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
     return;
   }
   activateNavView("prospect-list", show);
+}
+
+let inboundSyncFilter: InboundSyncListFilter = "all";
+let inboundSyncReadError = "";
+
+function inboundSyncAccountRows() {
+  const current = state.user;
+  const listed = state.accounts.filter((account) => account?.id);
+  if (current) return [current, ...listed.filter((account) => account.id !== current.id)];
+  return listed;
+}
+
+function inboundSyncTone(view: InboundSyncStatusView) {
+  return view.condition === "error" ? "amber" : "green";
+}
+
+function renderDashboardInboundSync() {
+  const scope = qs<HTMLElement>("#dashboardInboundSyncScope");
+  const list = qs<HTMLElement>("#dashboardInboundSyncList");
+  qsa<HTMLButtonElement>("[data-inbound-sync-filter]").forEach((button) => {
+    const active = button.dataset.inboundSyncFilter === inboundSyncFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (!scope || !list) return;
+  if (inboundSyncReadError) {
+    scope.textContent = "收信同步暂时读不到";
+    list.innerHTML = `<div class="empty-cell">收信同步暂时读不到（${escapeHtml(inboundSyncReadError)}）。点刷新重试。这里不会编造异常，也不会触发同步。</div>`;
+    return;
+  }
+  const accounts = inboundSyncAccountRows();
+  if (!accounts.length) {
+    scope.textContent = "正在读取当前账号";
+    list.innerHTML = `<div class="empty-cell">正在读取当前账号</div>`;
+    return;
+  }
+  const listed = listInboundSyncRows(
+    accounts.map((account) => presentInboundSyncStatus(account)),
+    inboundSyncFilter,
+    INBOUND_SYNC_LIMIT,
+    state.user?.id || ""
+  );
+  if (!listed.shown.length) {
+    scope.textContent = "没有收信同步异常";
+    list.innerHTML = `<div class="empty-cell">没有收信同步异常。这里不会编造异常，也不会触发同步。</div>`;
+    return;
+  }
+  const scopeLabel = accounts.length === 1 ? "当前账号" : `可见账号 ${accounts.length} 个`;
+  scope.textContent = listed.total > listed.shown.length
+    ? `${scopeLabel}，这里显示 ${listed.shown.length} 条`
+    : scopeLabel;
+  const currentId = state.user?.id || "";
+  list.innerHTML = listed.shown.map((view) => {
+    const name = view.accountName || "当前账号";
+    const detail = view.condition === "error" ? (view.error || "收信，不是发件") : "收信，不是发件";
+    const label = `${escapeHtml(view.label)}`;
+    if (inboundSyncEntryLabel(view, currentId)) {
+      return `<button class="dashboard-prospect-row" type="button" data-dashboard-inbound-sync="${escapeHtml(view.accountId)}" aria-label="查看收信同步：${escapeHtml(name)}">
+        <b>${escapeHtml(name)}</b>
+        <span>${badge(label, inboundSyncTone(view))}</span>
+        <em>${escapeHtml(detail)}</em>
+      </button>`;
+    }
+    return `<div class="dashboard-prospect-row dashboard-inbound-sync-static" aria-label="收信同步：${escapeHtml(name)}">
+      <b>${escapeHtml(name)}</b>
+      <span>${badge(label, inboundSyncTone(view))}</span>
+      <em>${escapeHtml(detail)}</em>
+    </div>`;
+  }).join("");
+}
+
+function openInboundSyncSettings() {
+  const show = () => {
+    renderProfile();
+    qs<HTMLElement>("#profileInboundSync")?.scrollIntoView({ block: "start" });
+    toast("已打开收信设置。这是收信，不是发件。不会改授权，不会重连，也不会触发同步。");
+  };
+  if (qs<HTMLElement>("#profile")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("profile", show);
+}
+
+async function refreshInboundSyncStatus(button?: HTMLButtonElement) {
+  const original = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "刷新中";
+  }
+  try {
+    const result = await api<{ user: User }>("/api/auth/me");
+    if (!result.user) throw new Error("当前账号暂时读不到");
+    inboundSyncReadError = "";
+    updateStoredUser(result.user);
+    if (hasIamCapability("member.manage")) {
+      try {
+        const accounts = await api<{ accounts: User[] }>("/api/accounts");
+        if (accounts.accounts?.length) state.accounts = accounts.accounts;
+      } catch {
+        const index = state.accounts.findIndex((account) => account.id === result.user.id);
+        if (index >= 0) state.accounts[index] = { ...state.accounts[index], ...result.user };
+      }
+    } else {
+      state.accounts = [result.user];
+    }
+    renderDashboardInboundSync();
+  } catch (error) {
+    inboundSyncReadError = error instanceof Error ? error.message : "收信同步暂时读不到";
+    renderDashboardInboundSync();
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = original || "刷新";
+    }
+  }
 }
 
 const OUTREACH_SEQUENCE_LIMIT = 8;
@@ -48208,6 +48340,26 @@ function installEvents() {
     toast: (message: string, tone?: "ok" | "error") => toast(message, tone as never)
   });
   qs<HTMLButtonElement>("#profileEntryButton")?.addEventListener("click", () => activateNavView("profile", () => renderProfile()));
+  qsa<HTMLButtonElement>("[data-inbound-sync-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.inboundSyncFilter;
+      if (next !== "all" && next !== "error") return;
+      inboundSyncFilter = next;
+      renderDashboardInboundSync();
+    });
+  });
+  qs<HTMLButtonElement>("#dashboardInboundSyncRefresh")?.addEventListener("click", (event) => {
+    void refreshInboundSyncStatus(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLButtonElement>("#dashboardInboundSyncSettings")?.addEventListener("click", () => {
+    openInboundSyncSettings();
+  });
+  qs<HTMLElement>("#dashboardInboundSync")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-inbound-sync]");
+    const accountId = opener?.dataset.dashboardInboundSync || "";
+    if (!accountId || accountId !== state.user?.id) return;
+    openInboundSyncSettings();
+  });
   qs<HTMLButtonElement>("#profileSaveButton")?.addEventListener("click", (event) => void saveProfileEmailBinding(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#profileChangePasswordButton")?.addEventListener("click", (event) => void changeProfilePassword(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#profileClearImapButton")?.addEventListener("click", (event) => void clearProfileImapPassword(event.currentTarget as HTMLButtonElement));

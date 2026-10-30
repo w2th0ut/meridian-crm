@@ -10749,7 +10749,14 @@
 
     #dashboardProspectRuns,
     #dashboardPendingEmails,
-    #dashboardRecentOutreach { margin: 0 0 16px; }
+    #dashboardRecentOutreach,
+    #dashboardInboundSync { margin: 0 0 16px; }
+    .dashboard-inbound-sync-note {
+      margin: 8px 0 0;
+      color: #526178;
+      font-size: 12px;
+      line-height: 1.5;
+    }
     #dashboardFollowUps,
     #dashboardAcquisitionStages { margin: 0 0 16px; }
     .dashboard-prospect-row {
@@ -10767,6 +10774,7 @@
       text-align: left;
       cursor: pointer;
     }
+    .dashboard-prospect-row.dashboard-inbound-sync-static { cursor: default; }
     .dashboard-prospect-row b { font-size: 14px; }
     .dashboard-prospect-row span,
     .dashboard-prospect-row em { font-style: normal; color: #526178; font-size: 12px; }
@@ -26646,6 +26654,22 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardOutreachDraftBacklogList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardInboundSync" aria-label="收信同步">
+            <div class="section-head">
+              <div class="section-title"><div><h2>收信同步</h2><p id="dashboardInboundSyncScope">正在读取当前账号</p></div></div>
+              <div class="head-actions">
+                <div class="prospect-tabs" role="group" aria-label="按收信同步异常筛选">
+                  <button class="active" type="button" data-inbound-sync-filter="all" aria-pressed="true">全部收信</button>
+                  <button type="button" data-inbound-sync-filter="error" aria-pressed="false">有异常</button>
+                </div>
+                <button class="btn" id="dashboardInboundSyncRefresh" type="button">刷新</button>
+                <button class="btn" id="dashboardInboundSyncSettings" type="button">收信设置</button>
+              </div>
+            </div>
+            <p class="dashboard-inbound-sync-note">这是收信同步，不是发件。不是待发草稿，也不是外联序列，也不是回复条，也不是打开或点击条，也不是失败条，也不是抑制条。不会改授权，不会重连，不会触发同步，也不会发信。</p>
+            <div id="dashboardInboundSyncList"><div class="empty-cell">正在读取当前账号</div></div>
+          </section>
+
           <section class="panel section" id="dashboardProspectRuns" aria-label="进行中的搜客">
             <div class="section-head">
               <div class="section-title"><div><h2>进行中的搜客</h2><p id="dashboardProspectRunScope">正在读取搜客任务</p></div></div>
@@ -32191,8 +32215,8 @@ body.platform-mode .workspace-tabs { display:none !important; }
               </div>
             </section>
 
-            <section class="panel section">
-              <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><div><h2>收信监听（开发信回流）</h2><small>开启后自动轮询收件箱，识别客户回信与退信，回流到触达记录</small></div></div></div>
+            <section class="panel section" id="profileInboundSync">
+              <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><div><h2>收信监听（开发信回流）</h2><small>开启后自动轮询收件箱，识别客户回信与退信，回流到触达记录。这里看的是收信同步，不是发件。</small></div></div></div>
               <div class="profile-form-grid" style="margin-top:12px">
                 <div class="form-field full"><label class="checkbox-inline"><input type="checkbox" id="profileImapEnabled"> 启用 IMAP 收信监听</label></div>
                 <div class="form-field"><label>IMAP服务器</label><input id="profileImapHost" placeholder="例如 imap.exmail.qq.com"></div>
@@ -32200,9 +32224,10 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="form-field"><label>IMAP账号</label><input id="profileImapUser" placeholder="通常与发件邮箱一致"></div>
                 <div class="form-field"><label>IMAP授权码/密码</label><input id="profileImapPassword" type="password" placeholder="输入后覆盖保存；留空则保留"><small>保存后不会明文回显。</small></div>
                 <div class="form-field"><label>加密方式</label><select id="profileImapSecure"><option value="true">SSL/TLS（993）</option><option value="false">STARTTLS/普通（143）</option></select></div>
-                <div class="form-field"><label>最近同步</label><b id="profileImapSyncStatus" class="field-value">尚未同步</b></div>
+                <div class="form-field"><label>最近同步</label><b id="profileImapSyncStatus" class="field-value">正常</b></div>
                 <div class="form-field full"><div class="row-actions"><button class="btn" id="profileTestImapButton" type="button">测试 IMAP</button><button class="btn" id="profileClearImapButton" type="button">清除 IMAP 密码</button></div></div>
               </div>
+              <p id="profileInboundSyncSummary" class="dashboard-inbound-sync-note">正常。这是收信同步，不是发件。不是待发草稿，也不是外联序列，也不是回复条，也不是打开或点击条，也不是失败条，也不是抑制条。不会改授权，不会重连，不会触发同步，也不会发信。</p>
             </section>
 
             <section class="panel section">
