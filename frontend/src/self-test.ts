@@ -1267,6 +1267,59 @@ assert.match(scrollNextFollow, /#prospectNextFollowAt, #leadFinderNextFollowAt/,
 assert.doesNotMatch(scrollNextFollow, /saveProspectNextFollow|saveProspectFollowUp|\.value\s*=|fetch\(|convert-to-lead|send-development-email/, "跳到下次跟进不得改时间、提交跟进或发请求");
 assert.match(prototype, /\.prospect-next-follow-due\b/, "下次跟进逾期必须有可见样式");
 assert.match(prototype, /\.dashboard-next-follow-due-note\b/, "下次跟进逾期说明必须有可见样式");
+const stageStuckLayer = readFileSync(new URL("./prospect-stage-stuck.ts", import.meta.url), "utf8");
+assert.match(stageStuckLayer, /export function presentStageStuck/, "转化阶段卡住必须只消费已有阶段进入时间");
+assert.match(stageStuckLayer, /STAGE_STUCK_LIMIT = 8/, "转化阶段卡住最多 8 条");
+assert.match(stageStuckLayer, /STAGE_STUCK_WINDOW_DAYS = 7/, "停留窗口必须是 7 天");
+assert.match(stageStuckLayer, /无阶段/, "没有可用进入时间时文案必须是无阶段");
+assert.match(stageStuckLayer, /卡住/, "超过窗口必须标卡住");
+assert.match(stageStuckLayer, /推进中/, "窗口内必须标推进中");
+assert.match(stageStuckLayer, /查看当前阶段/, "必须能跳到现有阶段入口");
+assert.match(stageStuckLayer, /enteredKind !== "iso"/, "下次跟进那种时间不算阶段进入时间");
+assert.match(stageStuckLayer, /这不是获客阶段计数，也不是获客待办摘要，也不是下次跟进逾期/, "转化阶段卡住必须和阶段计数、摘要、下次跟进逾期区分开");
+assert.match(stageStuckLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步/, "转化阶段卡住必须和待记跟进、草稿、序列、回复、打开或点击、失败、抑制、收信同步区分开");
+assert.match(stageStuckLayer, /不会改阶段，不会自动跟进，不会发信，也不会改 convert_to_lead 或 approved_contactable/, "转化阶段卡住不得改阶段、自动跟进、发信或改门禁");
+assert.doesNotMatch(stageStuckLayer, /fetch\(|convert-to-lead|send-development-email|saveProspectNextFollow|saveProspectFollowUp|approved_contactable\s*=/, "转化阶段卡住不得发请求、改阶段、记跟进或改门禁");
+assert.doesNotMatch(kbSourceBetween(stageStuckLayer, "function stageStuckLineLabel", "\nexport function stageStuckStatusLabel"), /逾期|今日到期|无下次跟进|获客待办|无序列|无待发草稿/, "行文案必须用卡住、推进中、无阶段");
+assert.match(prospectListRender, /renderStageStuckLine\(item\)/, "搜客清单每一行必须显示转化阶段卡住");
+assert.match(prospectListRender, /renderNextFollowDueLine\(item\)[\s\S]{0,120}renderStageStuckLine\(item\)/, "转化阶段卡住必须和下次跟进逾期分开显示");
+assert.match(prospectListRender, /renderDashboardStageStuck\(\)/, "清单刷新必须同时更新转化阶段卡住入口");
+const stageStuckRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(stageStuckRows, /prospectStageStuckFilter[\s\S]*prospectStageStuck/, "转化阶段卡住筛选只按已有进入时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectNextFollowDue\(item\)\}\n    \$\{renderProspectStageStuck\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在下次跟进逾期后面单独说明转化阶段卡住"
+);
+assert.match(apiLayer, /没有卡住的阶段。这里不会编造阶段，也不会改阶段。/, "筛不到卡住时必须写清空态");
+assert.match(prototype, /data-prospect-stage-stuck-filter="stuck"[\s\S]*卡住/, "清单必须能筛卡住");
+assert.match(prototype, /id="dashboardNextFollowDue"[\s\S]{0,4000}id="dashboardStageStuck"[\s\S]*转化阶段卡住/, "工作台转化阶段卡住必须在下次跟进逾期下面");
+assert.match(prototype, /id="dashboardStageStuckNote"[\s\S]*不是获客阶段计数/, "工作台说明必须和获客阶段计数分开");
+assert.match(prototype, /id="dashboardAcquisitionStages"[\s\S]*获客阶段/, "获客阶段计数还在");
+assert.match(apiLayer, /STAGE_STUCK_LIMIT/, "工作台转化阶段卡住必须守住 8 条上限");
+assert.match(apiLayer, /listStageStuckQueue\(/, "工作台必须复用卡住在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看阶段停留。这里不会编造名单，也不会改阶段。/, "没有清单时不得编造阶段停留");
+assert.match(apiLayer, /无阶段。当前可见的搜客清单没有可判断停留的阶段进入时间。这里不会编造阶段，也不会改阶段。/, "没有进入时间时不得编造阶段");
+assert.match(apiLayer, /转化阶段卡住/, "详情标题必须是转化阶段卡住");
+assert.match(apiLayer, /stageStuckEntryLabel\(/, "详情必须复用查看当前阶段入口文案");
+const stageStuckQueue = kbSourceBetween(apiLayer, "function renderDashboardStageStuck", "\nfunction openStageStuckFromDashboard");
+assert.match(stageStuckQueue, /shortlistedAt/, "工作台转化阶段卡住只包含搜客清单里的候选");
+assert.match(stageStuckQueue, /listStageStuckQueue\(/, "工作台转化阶段卡住只按已有进入时间排序");
+assert.match(stageStuckQueue, /STAGE_STUCK_LIMIT/, "工作台渲染必须传入 8 条上限");
+const stageStuckClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardStageStuck")?.addEventListener');
+const stageStuckClick = apiLayer.slice(stageStuckClickStart, stageStuckClickStart + 700);
+assert.match(stageStuckClick, /openStageStuckFromDashboard/, "点工作台转化阶段卡住必须打开现有阶段");
+assert.doesNotMatch(stageStuckClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openFollowUpFromDashboard/, "点工作台转化阶段卡住不得改阶段、记跟进、发送或转线索");
+const openStageStuck = kbSourceBetween(apiLayer, "function openStageStuckFromDashboard", "\nfunction renderDashboardProspectRuns");
+assert.match(openStageStuck, /prospectStageStuckFilter = view\.kind === "stuck" \? "stuck" : "all"/, "打开卡住必须落到卡住筛选，推进中保持全部");
+assert.match(openStageStuck, /stageStuckFocusId = item\.id/, "打开后必须停在现有当前阶段");
+assert.match(openStageStuck, /不会改阶段，也不会自动跟进/, "打开时必须说明不会改阶段、不会自动跟进");
+assert.doesNotMatch(openStageStuck, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|\/approve/, "打开转化阶段卡住不得改阶段、记跟进、发送、转线索或批准");
+const scrollStage = kbSourceBetween(apiLayer, "function scrollToExistingStage", "\nfunction focusStageStuckTarget");
+assert.match(scrollStage, /\.prospect-stage/, "查看当前阶段必须滚到现有阶段说明");
+assert.doesNotMatch(scrollStage, /saveProspectNextFollow|saveProspectFollowUp|\.value\s*=|fetch\(|convert-to-lead|send-development-email/, "跳到当前阶段不得改阶段、提交跟进或发请求");
+assert.match(prototype, /\.prospect-stage-stuck\b/, "转化阶段卡住必须有可见样式");
+assert.match(prototype, /\.dashboard-stage-stuck-note\b/, "转化阶段卡住说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
