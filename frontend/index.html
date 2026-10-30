@@ -7348,6 +7348,43 @@
       font-style: normal;
     }
 
+    .prospect-next-follow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: baseline;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(15, 118, 110, 0.08);
+      color: #115e59;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .prospect-next-follow.is-empty {
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+    }
+
+    .prospect-next-follow.is-today {
+      background: rgba(180, 83, 9, 0.12);
+      color: #9a3412;
+    }
+
+    .prospect-next-follow.is-overdue,
+    .prospect-field.is-overdue b,
+    .dashboard-prospect-row.is-overdue em {
+      background: rgba(185, 28, 28, 0.1);
+      color: #7f1d1d;
+      font-weight: 600;
+    }
+
+    .prospect-field.is-overdue b,
+    .dashboard-prospect-row.is-overdue em {
+      background: transparent;
+    }
+
     .prospect-convert-gate {
       margin-top: 8px;
       display: flex;
@@ -26050,6 +26087,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
               </div>
             </div>
             <div id="dashboardFollowUpList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
+          <section class="panel section" id="dashboardDueFollowUps" aria-label="今日到期">
+            <div class="section-head">
+              <div class="section-title"><div><h2>今日到期</h2><p id="dashboardDueFollowUpScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardDueFollowUpsRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <div id="dashboardDueFollowUpList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">

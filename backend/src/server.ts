@@ -516,7 +516,8 @@ import {
 } from "./prospect-outreach.js";
 import {
   describeProspectLatestFollowUp,
-  recordProspectFollowUp
+  recordProspectFollowUp,
+  setProspectNextFollowAt
 } from "./prospect-follow-up.js";
 import {
   TRANSPARENT_GIF,
@@ -4585,7 +4586,8 @@ app.post("/api/prospect-list/:id/follow-up", requireAuth, asyncRoute(async (req,
 
 app.post("/api/prospect-list/:id/follow-ups", requireAuth, asyncRoute(async (req, res) => {
   const body = z.object({
-    content: z.string().trim().min(1).max(2000)
+    content: z.string().trim().max(2000).optional().default(""),
+    nextFollowAt: z.string().trim().max(40).optional()
   }).parse(req.body || {});
   const store = getStore();
   const candidate = store.websiteOpportunities.find((item) =>
@@ -4600,22 +4602,40 @@ app.post("/api/prospect-list/:id/follow-ups", requireAuth, asyncRoute(async (req
     res.status(403).json({ message: "只有候选归属业务员可以记录跟进" });
     return;
   }
-  const result = recordProspectFollowUp(store, {
-    candidate,
-    actorId: req.user!.id,
-    content: body.content
-  });
+  if (!body.content && body.nextFollowAt === undefined) {
+    res.status(400).json({ message: "请填写跟进内容" });
+    return;
+  }
+  const actorId = req.user!.id;
+  const recorded = body.content
+    ? recordProspectFollowUp(store, {
+      candidate,
+      actorId,
+      content: body.content,
+      nextFollowAt: body.nextFollowAt
+    })
+    : null;
+  if (!recorded && body.nextFollowAt !== undefined) {
+    setProspectNextFollowAt(store, {
+      candidate,
+      actorId,
+      nextFollowAt: body.nextFollowAt
+    });
+  }
   await store.persist();
-  const latestFollowUp = result.latestFollowUp;
-  res.status(201).json({
-    activity: {
-      id: result.activity.id,
-      leadId: result.activity.leadId,
-      prospectCandidateId: result.activity.prospectCandidateId || "",
-      type: result.activity.type,
-      content: result.activity.content,
-      createdAt: result.activity.createdAt
-    },
+  const latestFollowUp = recorded?.latestFollowUp
+    ?? describeProspectLatestFollowUp(store, candidate);
+  res.status(recorded ? 201 : 200).json({
+    activity: recorded ? {
+      id: recorded.activity.id,
+      leadId: recorded.activity.leadId,
+      prospectCandidateId: recorded.activity.prospectCandidateId || "",
+      type: recorded.activity.type,
+      content: recorded.activity.content,
+      nextFollowAt: recorded.activity.nextFollowAt,
+      createdAt: recorded.activity.createdAt
+    } : null,
+    nextFollowAt: candidate.nextFollowAt || "",
     latestFollowUp,
     opportunity: {
       ...candidate,
