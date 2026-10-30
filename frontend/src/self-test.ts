@@ -1212,6 +1212,61 @@ assert.match(summaryBind, /accountId !== state\.user\?\.id/, "别的账号不打
 assert.doesNotMatch(summaryBind, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|inbound-mail\/sync|approveProspectOutreachBatch|controlOutreachSequence|openOutreachSequenceEntry|profileTestImap|\/approve/, "点摘要不得发送、转线索、放行、推进、触发同步或打开序列控制");
 assert.match(apiLayer, /bindDashboardAcquisitionTodoSummary\(\);/, "摘要点击必须绑定一次");
 assert.match(prototype, /\.dashboard-acquisition-todo-note\b/, "摘要说明必须有可见样式");
+const nextFollowDueLayer = readFileSync(new URL("./prospect-next-follow-due.ts", import.meta.url), "utf8");
+assert.match(nextFollowDueLayer, /export function presentNextFollowDue/, "下次跟进逾期必须只消费已有的下次跟进时间");
+assert.match(nextFollowDueLayer, /NEXT_FOLLOW_DUE_LIMIT = 8/, "下次跟进逾期最多 8 条");
+assert.match(nextFollowDueLayer, /无下次跟进/, "没有下次跟进时文案必须是无下次跟进");
+assert.match(nextFollowDueLayer, /逾期/, "过了当前时刻必须标逾期");
+assert.match(nextFollowDueLayer, /今日/, "今天还没到的时刻必须标今日");
+assert.match(nextFollowDueLayer, /未到/, "今天之后必须标未到");
+assert.match(nextFollowDueLayer, /去下次跟进/, "必须能跳到现有跟进入口");
+assert.match(nextFollowDueLayer, /这不是获客待办摘要，也不是待记跟进，也不是今日到期/, "下次跟进逾期必须和摘要、待记跟进、今日到期区分开");
+assert.match(nextFollowDueLayer, /也不是待发草稿，也不是外联序列，也不是回复条，也不是打开或点击条，也不是失败条，也不是抑制条，也不是收信同步/, "下次跟进逾期必须和草稿、序列、回复、打开或点击、失败、抑制、收信同步区分开");
+assert.match(nextFollowDueLayer, /不会自动跟进，不会改时间，不会发信，也不会改 convert_to_lead 或 approved_contactable/, "下次跟进逾期不得自动跟进、改时间、发信或改门禁");
+assert.doesNotMatch(nextFollowDueLayer, /已逾期|未设下次跟进|fetch\(|convert-to-lead|send-development-email|saveProspectNextFollow|saveProspectFollowUp/, "下次跟进逾期不得混用已逾期或未设下次跟进，也不得发请求、改时间或记跟进");
+assert.doesNotMatch(kbSourceBetween(nextFollowDueLayer, "function nextFollowDueLineLabel", "\nexport function nextFollowDueStatusLabel"), /今日到期|已逾期|未设下次跟进/, "行文案必须用逾期、今日、未到，不用今日到期");
+assert.match(prospectListRender, /renderNextFollowDueLine\(item\)/, "搜客清单每一行必须显示下次跟进逾期");
+assert.match(prospectListRender, /renderProspectNextFollow\(item\)[\s\S]{0,80}renderNextFollowDueLine\(item\)/, "下次跟进逾期必须和原来的下次跟进分开显示");
+assert.match(prospectListRender, /renderDashboardNextFollowDue\(\)/, "清单刷新必须同时更新下次跟进逾期入口");
+const nextFollowDueRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(nextFollowDueRows, /prospectNextFollowDueFilter[\s\S]*prospectNextFollowDue/, "下次跟进逾期筛选只按已有时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectOutreachDraftBacklog\(item\)\}\n    \$\{renderProspectNextFollowDue\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在待发草稿后面单独说明下次跟进逾期"
+);
+assert.match(apiLayer, /没有逾期的下次跟进。这里不会编造时间，也不会自动跟进。/, "筛不到逾期时必须写清空态");
+assert.match(apiLayer, /没有今日的下次跟进。这里不会编造时间，也不会自动跟进。/, "筛不到今日时必须写清空态");
+assert.match(prototype, /data-prospect-next-follow-due-filter="overdue"[\s\S]*逾期/, "清单必须能筛逾期");
+assert.match(prototype, /data-prospect-next-follow-due-filter="today"[\s\S]*今日/, "清单必须能筛今日");
+assert.match(prototype, /id="dashboardDueFollowUps"[\s\S]{0,2500}id="dashboardNextFollowDue"[\s\S]*下次跟进逾期/, "工作台下次跟进逾期必须在今日到期下面");
+assert.match(prototype, /id="dashboardNextFollowDueNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardDueFollowUps"[\s\S]*今日到期/, "今日到期原条还在");
+assert.match(apiLayer, /NEXT_FOLLOW_DUE_LIMIT/, "工作台下次跟进逾期必须守住 8 条上限");
+assert.match(apiLayer, /listNextFollowDueQueue\(/, "工作台必须复用逾期在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看下次跟进。这里不会编造名单，也不会自动跟进。/, "没有清单时不得编造下次跟进");
+assert.match(apiLayer, /无下次跟进。当前可见的搜客清单没有下次跟进。这里不会编造时间，也不会自动跟进。/, "没有下次跟进时不得编造时间");
+assert.match(apiLayer, /下次跟进逾期/, "详情标题必须是下次跟进逾期，不叫今日到期或获客待办摘要");
+assert.match(apiLayer, /nextFollowDueEntryLabel\(/, "详情必须复用去下次跟进入口文案");
+const nextFollowDueQueue = kbSourceBetween(apiLayer, "function renderDashboardNextFollowDue", "\nfunction openNextFollowDueFromDashboard");
+assert.match(nextFollowDueQueue, /shortlistedAt/, "工作台下次跟进逾期只包含搜客清单里的候选");
+assert.match(nextFollowDueQueue, /listNextFollowDueQueue\(/, "工作台下次跟进逾期只按已有时间排序");
+assert.match(nextFollowDueQueue, /NEXT_FOLLOW_DUE_LIMIT/, "工作台渲染必须传入 8 条上限");
+const nextFollowDueClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardNextFollowDue")?.addEventListener');
+const nextFollowDueClick = apiLayer.slice(nextFollowDueClickStart, nextFollowDueClickStart + 700);
+assert.match(nextFollowDueClick, /openNextFollowDueFromDashboard/, "点工作台下次跟进逾期必须打开现有跟进入口");
+assert.doesNotMatch(nextFollowDueClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openFollowUpFromDashboard/, "点工作台下次跟进逾期不得改时间、记跟进、发送或转线索");
+const openNextFollowDue = kbSourceBetween(apiLayer, "function openNextFollowDueFromDashboard", "\nfunction renderDashboardProspectRuns");
+assert.match(openNextFollowDue, /prospectNextFollowDueFilter = view\.kind === "overdue" \|\| view\.kind === "today" \? view\.kind : "all"/, "打开逾期或今日必须落到对应筛选，未到保持全部");
+assert.match(openNextFollowDue, /nextFollowDueFocusId = item\.id/, "打开后必须停在现有下次跟进");
+assert.match(openNextFollowDue, /不会自动跟进，也不会改时间/, "打开时必须说明不会自动跟进、不会改时间");
+assert.doesNotMatch(openNextFollowDue, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|\/approve/, "打开下次跟进逾期不得改时间、记跟进、发送、转线索或批准");
+const scrollNextFollow = kbSourceBetween(apiLayer, "function scrollToExistingNextFollow", "\nfunction focusNextFollowDueTarget");
+assert.match(scrollNextFollow, /prospect-follow-up-entry/, "去下次跟进必须滚到现有跟进记录");
+assert.match(scrollNextFollow, /#prospectNextFollowAt, #leadFinderNextFollowAt/, "去下次跟进必须停在已有的下次跟进时间");
+assert.doesNotMatch(scrollNextFollow, /saveProspectNextFollow|saveProspectFollowUp|\.value\s*=|fetch\(|convert-to-lead|send-development-email/, "跳到下次跟进不得改时间、提交跟进或发请求");
+assert.match(prototype, /\.prospect-next-follow-due\b/, "下次跟进逾期必须有可见样式");
+assert.match(prototype, /\.dashboard-next-follow-due-note\b/, "下次跟进逾期说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

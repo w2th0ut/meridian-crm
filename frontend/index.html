@@ -7825,6 +7825,81 @@
       outline-offset: 2px;
     }
 
+    .prospect-next-follow-due-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-next-follow-due-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-next-follow-due:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-next-follow-due[data-next-follow-due="overdue"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-next-follow-due[data-next-follow-due="today"]:not(.is-compact) {
+      border-color: #fcd34d;
+      background: #fffbeb;
+    }
+
+    .prospect-next-follow-due-head,
+    .prospect-next-follow-due.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-next-follow-due p,
+    .prospect-next-follow-due.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-next-follow-due.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-next-follow-due.is-compact.is-overdue {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-next-follow-due.is-compact.is-today {
+      background: rgba(180, 83, 9, 0.1);
+    }
+
+    .prospect-next-follow-due.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
     .prospect-follow-up-entry {
       margin-top: 10px;
       display: flex;
@@ -10751,9 +10826,11 @@
     #dashboardPendingEmails,
     #dashboardRecentOutreach,
     #dashboardInboundSync,
+    #dashboardNextFollowDue,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
+    .dashboard-next-follow-due-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -26743,6 +26820,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardDueFollowUpList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardNextFollowDue" aria-label="下次跟进逾期">
+            <div class="section-head">
+              <div class="section-title"><div><h2>下次跟进逾期</h2><p id="dashboardNextFollowDueScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardNextFollowDueRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardNextFollowDueNote" class="dashboard-next-follow-due-note">这是下次跟进相对今天的只读分类，复用已有的下次跟进时间。不是获客待办摘要，也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步。点一行只打开现有跟进入口。不会自动跟进，不会改时间，不会发信，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardNextFollowDueList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -27440,6 +27529,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
                   <button class="active" type="button" data-prospect-outreach-draft-backlog-filter="all" aria-pressed="true">全部草稿</button>
                   <button type="button" data-prospect-outreach-draft-backlog-filter="pending" aria-pressed="false">有积压</button>
                   <button type="button" data-prospect-outreach-draft-backlog-filter="clear" aria-pressed="false">无待发草稿</button>
+                </div>
+              </div>
+              <div class="prospect-next-follow-due-filter">
+                <span>下次跟进逾期</span>
+                <div class="prospect-tabs" role="group" aria-label="按下次跟进逾期筛选">
+                  <button class="active" type="button" data-prospect-next-follow-due-filter="all" aria-pressed="true">全部下次跟进</button>
+                  <button type="button" data-prospect-next-follow-due-filter="overdue" aria-pressed="false">逾期</button>
+                  <button type="button" data-prospect-next-follow-due-filter="today" aria-pressed="false">今日</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
