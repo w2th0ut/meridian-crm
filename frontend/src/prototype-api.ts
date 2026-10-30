@@ -76,6 +76,17 @@ import {
   type OutreachSequenceListFilter,
   type OutreachSequenceView
 } from "./prospect-outreach-sequence";
+import {
+  outreachDraftBacklogCount,
+  outreachDraftBacklogEntryLabel,
+  outreachDraftBacklogLineLabel,
+  outreachDraftBacklogMatchesFilter,
+  outreachDraftBacklogSummary,
+  outreachDraftBacklogUpdatedAt,
+  presentOutreachDraftBacklog,
+  type OutreachDraftBacklogListFilter,
+  type OutreachDraftBacklogView
+} from "./prospect-outreach-draft-backlog";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -1987,6 +1998,8 @@ interface WebsiteOpportunity {
   outreachReply?: OutreachReplyView;
   /** 当前外联序列。没有方案或步骤时为无序列，不替代回复、打开/点击、失败条或抑制条。 */
   outreachSequence?: OutreachSequenceView;
+  /** 还没放行的待发草稿。没有草稿批次时为无待发草稿，不替代外联序列、回复、打开/点击、失败条或抑制条。 */
+  outreachDraftBacklog?: OutreachDraftBacklogView;
   organizationId?: string;
   coverageClassification?: string;
   coverageQueueState?: string;
@@ -3874,6 +3887,7 @@ interface AppState {
   prospectOutreachEngagementFilter: OutreachEngagementListFilter;
   prospectOutreachReplyFilter: OutreachReplyListFilter;
   prospectOutreachSequenceFilter: OutreachSequenceListFilter;
+  prospectOutreachDraftBacklogFilter: OutreachDraftBacklogListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4098,6 +4112,7 @@ const state: AppState = {
   prospectOutreachEngagementFilter: "all",
   prospectOutreachReplyFilter: "all",
   prospectOutreachSequenceFilter: "all",
+  prospectOutreachDraftBacklogFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -13682,6 +13697,7 @@ function renderLeadDrawer(
     state.prospectOutreachEngagementFilter = "all";
     state.prospectOutreachReplyFilter = "all";
     state.prospectOutreachSequenceFilter = "all";
+    state.prospectOutreachDraftBacklogFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33590,6 +33606,7 @@ function prospectFilteredRows() {
       if (state.prospectOutreachEngagementFilter !== "all" && !outreachEngagementMatchesFilter(prospectOutreachEngagement(item), state.prospectOutreachEngagementFilter)) return false;
       if (state.prospectOutreachReplyFilter !== "all" && !outreachReplyMatchesFilter(prospectOutreachReply(item), state.prospectOutreachReplyFilter)) return false;
       if (state.prospectOutreachSequenceFilter !== "all" && !outreachSequenceMatchesFilter(prospectOutreachSequence(item), state.prospectOutreachSequenceFilter)) return false;
+      if (state.prospectOutreachDraftBacklogFilter !== "all" && !outreachDraftBacklogMatchesFilter(prospectOutreachDraftBacklog(item), state.prospectOutreachDraftBacklogFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35721,6 +35738,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35743,6 +35761,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35771,6 +35790,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35833,6 +35853,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectOutreachEngagement(item)}
     ${renderProspectOutreachReply(item)}
     ${renderProspectOutreachSequence(item)}
+    ${renderProspectOutreachDraftBacklog(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -35893,6 +35914,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindOutreachFailureDraft(box);
   bindOutreachReplyLinks(box);
   bindOutreachSequenceLinks(box);
+  bindOutreachDraftBacklogLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -35973,6 +35995,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusOutreachEngagementTarget(item.id, box);
   focusOutreachReplyTarget(item.id, box);
   focusOutreachSequenceTarget(item.id, box);
+  focusOutreachDraftBacklogTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36533,6 +36556,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
     state.prospectOutreachEngagementFilter = "all";
     state.prospectOutreachReplyFilter = "all";
     state.prospectOutreachSequenceFilter = "all";
+    state.prospectOutreachDraftBacklogFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -36933,6 +36957,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37271,6 +37296,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37336,6 +37362,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37468,6 +37495,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37613,6 +37641,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachEngagementFilter = "hit";
   state.prospectOutreachReplyFilter = "all";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37712,6 +37741,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-outreach-draft-backlog-filter]").forEach((button) => {
+    const active = button.dataset.prospectOutreachDraftBacklogFilter === state.prospectOutreachDraftBacklogFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -37725,11 +37759,17 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const sequenceEmpty = state.prospectOutreachSequenceFilter === "active"
-    ? "没有进行中的序列。这里不会编造记录，也不会推进序列。"
-    : state.prospectOutreachSequenceFilter === "stopped"
-      ? "没有已停的序列。这里不会编造记录，也不会推进序列。"
+  const draftBacklogEmpty = state.prospectOutreachDraftBacklogFilter === "pending"
+    ? "没有待发草稿。这里不会编造草稿，也不会放行批次。"
+    : state.prospectOutreachDraftBacklogFilter === "clear"
+      ? "没有无待发草稿的候选。这里不会编造公司。"
       : "";
+  const sequenceEmpty = draftBacklogEmpty
+    || (state.prospectOutreachSequenceFilter === "active"
+      ? "没有进行中的序列。这里不会编造记录，也不会推进序列。"
+      : state.prospectOutreachSequenceFilter === "stopped"
+        ? "没有已停的序列。这里不会编造记录，也不会推进序列。"
+        : "");
   const replyEmpty = sequenceEmpty
     || (state.prospectOutreachReplyFilter === "hit"
       ? "没有回复的候选。这里不会编造记录，也不会自动跟进。"
@@ -37780,6 +37820,7 @@ function renderProspectList() {
             ${renderOutreachEngagementLine(item)}
             ${renderOutreachReplyLine(item)}
             ${renderOutreachSequenceLine(item)}
+            ${renderOutreachDraftBacklogLine(item)}
             ${renderProspectFollowUpSummary(item)}
             ${renderProspectNextFollow(item)}
             <div class="prospect-contact-quick-row">
@@ -37839,6 +37880,7 @@ function renderProspectList() {
     bindOutreachFailureDraft(rows);
     bindOutreachReplyLinks(rows);
     bindOutreachSequenceLinks(rows);
+    bindOutreachDraftBacklogLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -37852,6 +37894,7 @@ function renderProspectList() {
   renderDashboardOutreachEngagements();
   renderDashboardOutreachReplies();
   renderDashboardOutreachSequences();
+  renderDashboardOutreachDraftBacklogs();
 }
 
 function prospectOutreachReply(item: WebsiteOpportunity) {
@@ -38011,6 +38054,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "hit";
   state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38131,6 +38175,167 @@ function bindOutreachSequenceLinks(root: ParentNode) {
   });
 }
 
+function prospectOutreachDraftBacklog(item: WebsiteOpportunity) {
+  return presentOutreachDraftBacklog(item.outreachDraftBacklog);
+}
+
+function outreachDraftBacklogTone(view: OutreachDraftBacklogView) {
+  return view.backlog === "pending" ? "amber" : "gray";
+}
+
+function outreachDraftBacklogJumpButton(item: WebsiteOpportunity) {
+  const view = prospectOutreachDraftBacklog(item);
+  const label = outreachDraftBacklogEntryLabel(view);
+  if (!label) return "";
+  return `<div class="prospect-action-row"><button class="btn" type="button" data-outreach-draft-backlog-entry="${escapeHtml(item.id)}">${escapeHtml(label)}</button></div>`;
+}
+
+function renderProspectOutreachDraftBacklog(item: WebsiteOpportunity) {
+  const view = prospectOutreachDraftBacklog(item);
+  const body = view.backlog === "none"
+    ? `<p class="prospect-outreach-draft-backlog-body" data-outreach-draft-backlog-body="empty">无待发草稿</p>`
+    : `<p class="prospect-outreach-draft-backlog-body" data-outreach-draft-backlog-body="${view.subject ? "subject" : "count"}">${escapeHtml(outreachDraftBacklogLineLabel(view))}</p>`;
+  return `<section class="prospect-outreach-draft-backlog" id="prospectOutreachDraftBacklog" data-outreach-draft-backlog="${view.backlog}">
+    <div class="prospect-outreach-draft-backlog-head"><b>待发草稿</b>${badge(view.backlog === "none" ? "无待发草稿" : `待发 ${view.count} 封`, outreachDraftBacklogTone(view))}</div>
+    <p>${escapeHtml(outreachDraftBacklogSummary(view))}</p>
+    ${body}
+    ${outreachDraftBacklogJumpButton(item)}
+  </section>`;
+}
+
+function renderOutreachDraftBacklogLine(item: WebsiteOpportunity) {
+  const view = prospectOutreachDraftBacklog(item);
+  const compact = view.backlog === "none" ? " is-empty" : " is-compact";
+  return `<div class="prospect-outreach-draft-backlog${compact}" data-outreach-draft-backlog="${view.backlog}">${escapeHtml(outreachDraftBacklogLineLabel(view))}</div>`;
+}
+
+let prospectOutreachDraftBacklogFocusId = "";
+
+function focusOutreachDraftBacklogTarget(itemId: string, root: ParentNode | null) {
+  if (prospectOutreachDraftBacklogFocusId !== itemId) return;
+  prospectOutreachDraftBacklogFocusId = "";
+  const node = root?.querySelector<HTMLElement>("#prospectOutreachDraftBacklog");
+  if (!node) return;
+  node.classList.add("is-attention");
+  node.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => node.classList.remove("is-attention"), 1600);
+}
+
+function openOutreachDraftBacklogEntry(item: WebsiteOpportunity) {
+  const view = prospectOutreachDraftBacklog(item);
+  if (view.backlog !== "pending" || !view.batchId) return;
+  const batchId = view.batchId;
+  outreachBatchCollapsed.delete(batchId);
+  const reveal = () => {
+    const node = document.querySelector<HTMLElement>(`[data-batch-id="${CSS.escape(batchId)}"]`);
+    if (node) node.scrollIntoView({ block: "nearest" });
+    toast(node
+      ? "已打开现有发信批次。只读，不会放行，也不会发送。"
+      : "现有发信批次不在当前列表。不会放行，也不会发送。");
+  };
+  activateNavView("outreach-batches", () => {
+    void loadOutreachBatches().then(reveal);
+  });
+}
+
+function bindOutreachDraftBacklogLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-outreach-draft-backlog-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = state.websiteOpportunities.find((row) => row.id === (button.dataset.outreachDraftBacklogEntry || ""));
+      if (item) openOutreachDraftBacklogEntry(item);
+    });
+  });
+}
+
+const OUTREACH_DRAFT_BACKLOG_LIMIT = 8;
+
+function outreachDraftBacklogCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => Boolean(item.shortlistedAt) && prospectOutreachDraftBacklog(item).backlog === "pending")
+    .slice()
+    .sort((left, right) => {
+      const leftView = prospectOutreachDraftBacklog(left);
+      const rightView = prospectOutreachDraftBacklog(right);
+      const count = outreachDraftBacklogCount(rightView) - outreachDraftBacklogCount(leftView);
+      if (count) return count;
+      const difference = outreachDraftBacklogUpdatedAt(rightView) - outreachDraftBacklogUpdatedAt(leftView);
+      return difference || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardOutreachDraftBacklogs() {
+  const scope = qs<HTMLElement>("#dashboardOutreachDraftBacklogScope");
+  const list = qs<HTMLElement>("#dashboardOutreachDraftBacklogList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看待发草稿。这里不会编造名单，也不会放行批次。</div>`;
+    return;
+  }
+  const hits = outreachDraftBacklogCandidates();
+  if (!hits.length) {
+    scope.textContent = "当前可见的搜客清单没有待发草稿";
+    list.innerHTML = `<div class="empty-cell">当前可见的搜客清单没有待发草稿。这里不会编造草稿，也不会放行批次。</div>`;
+    return;
+  }
+  const shown = hits.slice(0, OUTREACH_DRAFT_BACKLOG_LIMIT);
+  scope.textContent = hits.length > shown.length
+    ? `可见范围 ${hits.length} 条有待发草稿，这里显示 ${shown.length} 条`
+    : `可见范围 ${hits.length} 条有待发草稿`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectOutreachDraftBacklog(item);
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-outreach-draft-backlog="${escapeHtml(item.id)}" aria-label="查看待发草稿：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(`待发 ${view.count} 封`)}</span>
+      <em>${escapeHtml(view.subject || "待发草稿")}</em>
+    </button>`;
+  }).join("");
+}
+
+function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
+  const view = prospectOutreachDraftBacklog(item);
+  if (!item.shortlistedAt || view.backlog !== "pending") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "pending";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  prospectOutreachDraftBacklogFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开这条候选。只读，不会放行批次，也不会发送。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
 const OUTREACH_SEQUENCE_LIMIT = 8;
 
 function outreachSequenceCandidates() {
@@ -38197,6 +38402,7 @@ function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachReplyFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectOutreachSequenceFilter = view.progress === "active" || view.progress === "stopped" ? view.progress : "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -39417,6 +39623,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     const sequenceScope = qs<HTMLElement>("#dashboardOutreachSequenceScope");
     const sequenceList = qs<HTMLElement>("#dashboardOutreachSequenceList");
     if (sequenceScope) sequenceScope.textContent = "外联序列暂时读不到";
+    const draftBacklogScope = qs<HTMLElement>("#dashboardOutreachDraftBacklogScope");
+    const draftBacklogList = qs<HTMLElement>("#dashboardOutreachDraftBacklogList");
+    if (draftBacklogScope) draftBacklogScope.textContent = "待发草稿暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
@@ -39449,6 +39658,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     }
     if (!websiteOpportunitiesLoaded && sequenceList) {
       sequenceList.innerHTML = `<div class="empty-cell">外联序列暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造记录，也不会推进序列。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && draftBacklogList) {
+      draftBacklogList.innerHTML = `<div class="empty-cell">待发草稿暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造草稿，也不会放行批次。</div>`;
     }
   } finally {
     if (button) {
@@ -41276,6 +41488,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
     state.prospectOutreachEngagementFilter = "all";
     state.prospectOutreachReplyFilter = "all";
     state.prospectOutreachSequenceFilter = "all";
+    state.prospectOutreachDraftBacklogFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -43322,6 +43535,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectOutreachEngagement(item)}
     ${renderProspectOutreachReply(item)}
     ${renderProspectOutreachSequence(item)}
+    ${renderProspectOutreachDraftBacklog(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -43424,6 +43638,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindOutreachFailureDraft(box);
   bindOutreachReplyLinks(box);
   bindOutreachSequenceLinks(box);
+  bindOutreachDraftBacklogLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -43447,6 +43662,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusOutreachEngagementTarget(item.id, box);
   focusOutreachReplyTarget(item.id, box);
   focusOutreachSequenceTarget(item.id, box);
+  focusOutreachDraftBacklogTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -45408,6 +45624,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     state.prospectOutreachEngagementFilter = "all";
     state.prospectOutreachReplyFilter = "all";
     state.prospectOutreachSequenceFilter = "all";
+    state.prospectOutreachDraftBacklogFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -48708,6 +48925,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectOutreachSequence(item).progress === "none") return;
     openOutreachSequenceFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardOutreachDraftBacklogsRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardOutreachDraftBacklogs")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-outreach-draft-backlog]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardOutreachDraftBacklog);
+    if (!item || !item.shortlistedAt || prospectOutreachDraftBacklog(item).backlog !== "pending") return;
+    openOutreachDraftBacklogFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
@@ -49065,6 +49291,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectOutreachSequenceFilter || "all";
       state.prospectOutreachSequenceFilter = next === "active" || next === "stopped" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-outreach-draft-backlog-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectOutreachDraftBacklogFilter || "all";
+      state.prospectOutreachDraftBacklogFilter = next === "pending" || next === "clear" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });

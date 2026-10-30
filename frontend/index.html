@@ -7763,6 +7763,68 @@
       outline-offset: 2px;
     }
 
+    .prospect-outreach-draft-backlog-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-outreach-draft-backlog-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-outreach-draft-backlog:not(.is-empty) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      background: #fffbeb;
+    }
+
+    .prospect-outreach-draft-backlog-head,
+    .prospect-outreach-draft-backlog.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-outreach-draft-backlog p,
+    .prospect-outreach-draft-backlog.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-outreach-draft-backlog.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(180, 83, 9, 0.08);
+    }
+
+    .prospect-outreach-draft-backlog.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-outreach-draft-backlog.is-attention {
+      outline: 2px solid #b45309;
+      outline-offset: 2px;
+    }
+
     .prospect-follow-up-entry {
       margin-top: 10px;
       display: flex;
@@ -26573,6 +26635,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardOutreachSequenceList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardOutreachDraftBacklogs" aria-label="待发草稿">
+            <div class="section-head">
+              <div class="section-title"><div><h2>待发草稿</h2><p id="dashboardOutreachDraftBacklogScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardOutreachDraftBacklogsRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="outreach-batches">发信批次</button>
+              </div>
+            </div>
+            <div id="dashboardOutreachDraftBacklogList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="panel section" id="dashboardProspectRuns" aria-label="进行中的搜客">
             <div class="section-head">
               <div class="section-title"><div><h2>进行中的搜客</h2><p id="dashboardProspectRunScope">正在读取搜客任务</p></div></div>
@@ -27318,6 +27391,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
                   <button class="active" type="button" data-prospect-outreach-sequence-filter="all" aria-pressed="true">全部序列</button>
                   <button type="button" data-prospect-outreach-sequence-filter="active" aria-pressed="false">进行中</button>
                   <button type="button" data-prospect-outreach-sequence-filter="stopped" aria-pressed="false">已停</button>
+                </div>
+              </div>
+              <div class="prospect-outreach-draft-backlog-filter">
+                <span>待发草稿</span>
+                <div class="prospect-tabs" role="group" aria-label="按待发草稿积压筛选">
+                  <button class="active" type="button" data-prospect-outreach-draft-backlog-filter="all" aria-pressed="true">全部草稿</button>
+                  <button type="button" data-prospect-outreach-draft-backlog-filter="pending" aria-pressed="false">有积压</button>
+                  <button type="button" data-prospect-outreach-draft-backlog-filter="clear" aria-pressed="false">无待发草稿</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
