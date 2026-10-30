@@ -10750,7 +10750,10 @@
     #dashboardProspectRuns,
     #dashboardPendingEmails,
     #dashboardRecentOutreach,
-    #dashboardInboundSync { margin: 0 0 16px; }
+    #dashboardInboundSync,
+    #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
+    .dashboard-acquisition-todo-note,
+    .dashboard-acquisition-todo-gap,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -10775,6 +10778,8 @@
       cursor: pointer;
     }
     .dashboard-prospect-row.dashboard-inbound-sync-static { cursor: default; }
+    .dashboard-acquisition-todo-group { margin-top: 12px; }
+    .dashboard-acquisition-todo-group h3 { margin: 0; color: #526178; font-size: 13px; font-weight: 600; }
     .dashboard-prospect-row b { font-size: 14px; }
     .dashboard-prospect-row span,
     .dashboard-prospect-row em { font-style: normal; color: #526178; font-size: 12px; }
@@ -26565,6 +26570,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <button class="btn manager-only" id="morningViewButton" type="button">晨会视图</button>
             </div>
           </div>
+
+          <section class="panel section" id="dashboardAcquisitionTodoSummary" aria-label="获客待办摘要">
+            <div class="section-head">
+              <div class="section-title"><div><h2>获客待办摘要</h2><p id="dashboardAcquisitionTodoSummaryScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardAcquisitionTodoSummaryRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardAcquisitionTodoSummaryNote" class="dashboard-acquisition-todo-note">这是已上线信号的摘要聚合，不替代各类原条。原条仍各自保留，可以同时看到，文案不混用。点一行只打开现有入口。不会推进，不会放行，不会发信，不会改授权，不会触发同步，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardAcquisitionTodoSummaryList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
 
           <section class="panel section" id="dashboardAcquisitionStages" aria-label="获客阶段">
             <div class="section-head">
