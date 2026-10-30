@@ -1808,6 +1808,93 @@ assert.doesNotMatch(scrollReplyBacklog, /\.value\s*=|fetch\(|shortlistLeadFinder
 assert.match(prototype, /\.prospect-reply-backlog\b/, "回复待处理积压必须有可见样式");
 assert.match(prototype, /\.dashboard-reply-backlog-note\b/, "回复待处理积压说明必须有可见样式");
 
+const releaseBatchAgeLayer = readFileSync(new URL("./prospect-release-batch-age.ts", import.meta.url), "utf8");
+assert.match(releaseBatchAgeLayer, /export function presentReleaseBatchAge/, "待放行批次必须只消费已有批次更新时间");
+assert.match(releaseBatchAgeLayer, /RELEASE_BATCH_AGE_LIMIT = 8/, "待放行批次最多 8 条");
+assert.match(releaseBatchAgeLayer, /RELEASE_BATCH_AGE_WINDOW_DAYS = 7/, "待放行窗口必须是 7 天");
+assert.match(releaseBatchAgeLayer, /updatedAt/, "待放行批次必须写明复用批次更新时间");
+assert.match(releaseBatchAgeLayer, /pending/, "待放行批次必须先确认还没放行");
+assert.match(releaseBatchAgeLayer, /无待放行/, "没有可解析待放行批次时文案必须是无待放行");
+assert.match(releaseBatchAgeLayer, /待放已久/, "超过 7 天必须标待放已久");
+assert.match(releaseBatchAgeLayer, /待放未久/, "7 天内必须标待放未久");
+assert.match(releaseBatchAgeLayer, /查看待放行批次/, "必须能跳到现有待放行批次");
+assert.match(releaseBatchAgeLayer, /kind !== "none"/, "无待放行不得占工作台名额");
+assert.match(releaseBatchAgeLayer, /这不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "待放行批次必须和回复积压、序列到期、外联空档、静默、跟进空档、加入日龄区分开");
+assert.match(releaseBatchAgeLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "待放行批次必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(releaseBatchAgeLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "待放行批次必须和获客待办摘要、逾期、卡住区分开");
+assert.match(releaseBatchAgeLayer, /也不是待记跟进或今日到期，也不是外联序列进度/, "待放行批次必须和待记跟进、外联序列进度区分开");
+assert.match(releaseBatchAgeLayer, /也不是打开或点击、失败或抑制、收信同步/, "待放行批次必须和打开或点击、失败、抑制、收信同步区分开");
+assert.match(releaseBatchAgeLayer, /不替代待发草稿那一块/, "待放行批次不得替代待发草稿那一块");
+assert.match(releaseBatchAgeLayer, /不会放行批次，不会发信，不会推进序列，不会改名单，也不会改 convert_to_lead 或 approved_contactable/, "待放行批次不得放行、发信、推进序列、改名单或改门禁");
+assert.match(releaseBatchAgeLayer, /刚好 7 天仍算待放未久/, "刚好 7 天仍算待放未久");
+assert.match(releaseBatchAgeLayer, /已放行的批次不算待放行/, "已放行的批次不得算成待放行");
+assert.match(releaseBatchAgeLayer, /跟进记录不算这批的时间/, "跟进记录不得算成这批的时间");
+assert.match(releaseBatchAgeLayer, /最近一封开发信的发出时间不算这批的时间/, "开发信发出时间不得算成这批的时间");
+assert.match(releaseBatchAgeLayer, /序列下一步的计划时间不算这批的时间/, "序列下一步不得算成这批的时间");
+assert.match(releaseBatchAgeLayer, /最近一次开发信回复的时间不算这批的时间/, "最近回复不得算成这批的时间");
+assert.match(releaseBatchAgeLayer, /最近触达（含话机）不算这批的时间/, "最近触达和话机不得算成这批的时间");
+assert.doesNotMatch(releaseBatchAgeLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextExecutionAt|outreachReply/i, "待放行批次模块不得发请求、改读别的时间、读 WhatsApp 或改门禁");
+assert.doesNotMatch(kbSourceBetween(releaseBatchAgeLayer, "function releaseBatchAgeLineLabel", "\nexport function releaseBatchAgeStatusLabel"), /空档|已到期|静默|跟进空档|逾期|有回复|即将到期|未临近|无序列到期|积压较久|积压较新|无待处理回复/, "行文案必须用待放已久、待放未久、无待放行");
+assert.match(prospectListRender, /renderReleaseBatchAgeLine\(item\)/, "搜客清单每一行必须显示待放行批次");
+assert.match(prospectListRender, /renderReplyBacklogLine\(item\)[\s\S]{0,160}renderReleaseBatchAgeLine\(item\)/, "待放行批次必须和回复待处理积压分开显示");
+assert.match(prospectListRender, /renderDashboardReleaseBatchAge\(\)/, "清单刷新必须同时更新待放行批次入口");
+const releaseBatchAgeRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(releaseBatchAgeRows, /prospectReleaseBatchAgeFilter[\s\S]*prospectReleaseBatchAge/, "待放行批次筛选只按已有批次更新时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectReplyBacklog\(item\)\}\n    \$\{renderProspectReleaseBatchAge\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在回复待处理积压后面单独说明待放行批次"
+);
+assert.match(apiLayer, /没有待放已久的批次。这里不会编造批次时间，也不会放行批次，也不会发信。/, "筛不到待放已久时必须写清空态");
+assert.match(prototype, /data-prospect-release-batch-age-filter="held"[\s\S]*待放已久/, "清单必须能筛待放已久");
+assert.match(prototype, /data-prospect-reply-backlog-filter="stale"[\s\S]*积压较久/, "原来的回复待处理积压筛选还在");
+assert.match(prototype, /id="dashboardReplyBacklog"[\s\S]{0,5000}id="dashboardReleaseBatchAge"[\s\S]*待放行批次/, "工作台待放行批次必须在回复待处理积压下面");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是回复待处理积压/, "工作台说明必须和回复待处理积压分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是序列下一步到期/, "工作台说明必须和序列下一步到期分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是外联最近动作空档/, "工作台说明必须和外联空档分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardReleaseBatchAgeNote"[\s\S]*不替代待发草稿那一块/, "工作台说明必须和待发草稿那一块分开");
+assert.match(prototype, /id="dashboardReplyBacklog"[\s\S]*回复待处理积压/, "回复待处理积压原条还在");
+assert.match(apiLayer, /RELEASE_BATCH_AGE_LIMIT/, "工作台待放行批次必须守住 8 条上限");
+assert.match(apiLayer, /listReleaseBatchAgeQueue\(/, "工作台必须复用待放已久在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看待放行批次。这里不会编造名单，也不会放行批次，也不会发信。/, "没有清单时不得编造待放行批次");
+assert.match(apiLayer, /待放行批次/, "详情标题必须是待放行批次");
+assert.match(apiLayer, /releaseBatchAgeEntryLabel\(/, "详情必须复用查看待放行批次入口文案");
+const releaseBatchAgeAdapter = kbSourceBetween(apiLayer, "function prospectReleaseBatchAge", "\nfunction releaseBatchAgeBadgeTone");
+assert.match(releaseBatchAgeAdapter, /presentOutreachDraftBacklog/, "待放行批次必须复用 Day22 待发草稿投影");
+assert.match(releaseBatchAgeAdapter, /outreachDraftBacklog/, "待放行批次必须读候选上已有的待放行批次");
+assert.match(releaseBatchAgeAdapter, /backlog === "pending"/, "只有还没放行的批次才进入日龄");
+assert.match(releaseBatchAgeAdapter, /updatedAt/, "待放行批次必须读投影上已有的更新时间");
+assert.doesNotMatch(releaseBatchAgeAdapter, /outreachReply|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextRunAt|nextExecutionAt|whatsapp|createdAt|approvedAt/i, "待放行批次不得改读回复、跟进、加入时间、下次跟进、触达、开发信发出时间、序列计划或已放行时间");
+const releaseBatchAgeQueue = kbSourceBetween(apiLayer, "function renderDashboardReleaseBatchAge", "\nfunction openReleaseBatchAgeFromDashboard");
+assert.match(releaseBatchAgeQueue, /shortlistedAt/, "工作台待放行批次只包含搜客清单里的候选");
+assert.match(releaseBatchAgeQueue, /listReleaseBatchAgeQueue\(/, "工作台待放行批次只按已有批次更新时间排序");
+assert.match(releaseBatchAgeQueue, /RELEASE_BATCH_AGE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(releaseBatchAgeQueue, /待放已久在前/, "工作台必须待放已久在前");
+assert.doesNotMatch(releaseBatchAgeQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|outreachReply|scheduledAt|nextExecutionAt|approvedAt/i, "工作台待放行批次不得改读跟进、下次跟进、触达、开发信发出时间、回复或已放行时间");
+const releaseBatchAgeClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardReleaseBatchAge")?.addEventListener');
+const releaseBatchAgeClick = apiLayer.slice(releaseBatchAgeClickStart, releaseBatchAgeClickStart + 700);
+assert.match(releaseBatchAgeClick, /openReleaseBatchAgeFromDashboard/, "点工作台待放行批次必须打开现有候选");
+assert.doesNotMatch(releaseBatchAgeClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard|controlOutreachSequence|approveOutreach|\/approve/, "点工作台待放行批次不得改名单、记跟进、发送、转线索、推进序列或放行");
+const openReleaseBatchAge = kbSourceBetween(apiLayer, "function openReleaseBatchAgeFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openReleaseBatchAge, /prospectReleaseBatchAgeFilter = releaseBatchAgeListFilterForOpen\(view\)/, "打开待放已久必须落到待放已久筛选，待放未久保持全部");
+assert.match(openReleaseBatchAge, /releaseBatchAgeFocusId = item\.id/, "打开后必须停在现有待发草稿或详情顶部");
+assert.match(openReleaseBatchAge, /不会放行批次，也不会发信，也不会推进序列，也不会改名单/, "打开时必须说明不会放行、不会发信、不会推进序列、不会改名单");
+assert.doesNotMatch(openReleaseBatchAge, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve|controlOutreachSequence|approveOutreach/, "打开待放行批次不得改名单、记跟进、发送、转线索、批准或放行");
+const scrollReleaseBatchAge = kbSourceBetween(apiLayer, "function scrollToReleaseBatchAgeTarget", "\nfunction focusReleaseBatchAgeTarget");
+assert.match(scrollReleaseBatchAge, /#prospectOutreachDraftBacklog/, "必须滚到现有待发草稿");
+assert.match(scrollReleaseBatchAge, /prospect-detail-hero/, "没有待发草稿时必须能停在详情顶部");
+assert.doesNotMatch(scrollReleaseBatchAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail|controlOutreachSequence|\/approve/, "跳到待发草稿不得改名单、写入、发信、推进序列或放行");
+assert.match(prototype, /\.prospect-release-batch-age\b/, "待放行批次必须有可见样式");
+assert.match(prototype, /\.dashboard-release-batch-age-note\b/, "待放行批次说明必须有可见样式");
+
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
 //

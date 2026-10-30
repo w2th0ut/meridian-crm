@@ -8147,7 +8147,8 @@
     .dashboard-prospect-row.is-silent,
     .dashboard-prospect-row.is-outreach-gap,
     .dashboard-prospect-row.is-sequence-due,
-    .dashboard-prospect-row.is-reply-stale {
+    .dashboard-prospect-row.is-reply-stale,
+    .dashboard-prospect-row.is-release-held {
       border-color: #fecaca;
     }
 
@@ -8532,6 +8533,81 @@
     }
 
     .prospect-reply-backlog.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-release-batch-age-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-release-batch-age-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-release-batch-age:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-release-batch-age[data-release-batch-age="held"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-release-batch-age[data-release-batch-age="recent"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-release-batch-age-head,
+    .prospect-release-batch-age.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-release-batch-age p,
+    .prospect-release-batch-age.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-release-batch-age.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-release-batch-age.is-compact.is-held {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-release-batch-age.is-compact.is-recent {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-release-batch-age.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -11476,6 +11552,7 @@
     #dashboardOutreachActionGap,
     #dashboardSequenceNextDue,
     #dashboardReplyBacklog,
+    #dashboardReleaseBatchAge,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
@@ -11488,6 +11565,7 @@
     .dashboard-outreach-action-gap-note,
     .dashboard-sequence-next-due-note,
     .dashboard-reply-backlog-note,
+    .dashboard-release-batch-age-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -27585,6 +27663,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardReplyBacklogList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardReleaseBatchAge" aria-label="待放行批次">
+            <div class="section-head">
+              <div class="section-title"><div><h2>待放行批次</h2><p id="dashboardReleaseBatchAgeScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardReleaseBatchAgeRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardReleaseBatchAgeNote" class="dashboard-release-batch-age-note">这是还没放行的发信批次相对现在的只读搁置，复用已有待放行批次更新时间。待放行且距现在超过 7 天算待放已久，未超过（含刚好 7 天）算待放未久。没有可解析的待放行批次写无待放行。不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是外联序列进度、打开或点击、失败或抑制、收信同步。不替代待发草稿那一块。点一行只打开现有候选详情并滚到现有待发草稿。不会放行批次，不会发信，不会推进序列，不会改名单，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardReleaseBatchAgeList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -28347,6 +28437,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按回复待处理积压筛选">
                   <button class="active" type="button" data-prospect-reply-backlog-filter="all" aria-pressed="true">全部积压</button>
                   <button type="button" data-prospect-reply-backlog-filter="stale" aria-pressed="false">积压较久</button>
+                </div>
+              </div>
+              <div class="prospect-release-batch-age-filter">
+                <span>待放行</span>
+                <div class="prospect-tabs" role="group" aria-label="按待放行批次筛选">
+                  <button class="active" type="button" data-prospect-release-batch-age-filter="all" aria-pressed="true">全部待放</button>
+                  <button type="button" data-prospect-release-batch-age-filter="held" aria-pressed="false">待放已久</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
