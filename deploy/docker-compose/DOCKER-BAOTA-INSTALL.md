@@ -1,5 +1,7 @@
 # Keduoduo CRM 1.7.2 安装与更新说明
 
+> 线上 ECS 的 CI 已改为 Node release（`/opt/keduoduo-crm`），见 [docs/CI-NODE-RELEASES.md](../../docs/CI-NODE-RELEASES.md)。不要对那台机器执行 `baota-update.sh`，也不要改 `/opt/keduoduocrm`。本文只描述另一套 Docker/宝塔安装包。
+
 ## 真实物流查询
 
 发货管理中的「真实查询」会由 backend 调用 17TRACK API，返回承运商实际提供的最新扫描位置和轨迹。物流服务通常不会返回收货人的精确门牌地址，界面中的「收货地址」仍来自 CRM 发货单或关联单据，不能把两者混为一谈。

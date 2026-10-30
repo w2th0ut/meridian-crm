@@ -1,0 +1,458 @@
+# Path B: Node releases on the live ECS (/opt/keduoduo-crm).
+# Push to master or a version tag builds only. It never SSHes.
+# ECS changes only when workflow_dispatch sets deploy_ecs=true.
+# ACR image push is a separate job and is skipped when ACR secrets are absent.
+# Operator notes: docs/CI-NODE-RELEASES.md. Do not commit secret values.
+
+name: node-release
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*", "*.*.*"]
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: "Existing releases/<id> to roll back, or the id for a new release. Empty = UTC YYYYMMDDHHMMSS."
+        required: false
+        type: string
+      deploy_ecs:
+        description: "SSH to ECS and publish or roll back the Node release. Push never does this."
+        required: true
+        default: false
+        type: boolean
+      push_acr:
+        description: "Also push ACR images. Requires ACR secrets. Push events do this only when those secrets exist."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true') && 'ecs-keduoduo-crm-node-release' || format('node-release-build-{0}', github.ref) }}
+  cancel-in-progress: false
+
+env:
+  ACR_REGISTRY: crpi-f1g4pi9vyexdaer5.cn-hongkong.personal.cr.aliyuncs.com
+  ACR_NAMESPACE: kevin_keduoduocrm
+  NODE_VERSION: "22"
+  APP_ROOT: /opt/keduoduo-crm
+  APP_USER: keduoduo-crm
+  SERVICE_NAME: keduoduo-crm
+
+jobs:
+  verify-scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      - name: Test pack, activate, and workflow contract
+        env:
+          REQUIRE_SHELLCHECK: "1"
+        run: bash deploy/node-releases/run-tests.sh
+
+  guard-ecs:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require ECS secrets
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_SSH_PASSWORD: ${{ secrets.ECS_SSH_PASSWORD }}
+        run: bash deploy/node-releases/require-ecs-secrets.sh
+
+  probe-ecs:
+    needs: [guard-ecs]
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.guard-ecs.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true') &&
+      inputs.release_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      mode: ${{ steps.classify.outputs.mode }}
+      release_id: ${{ steps.validate.outputs.release_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release id
+        id: validate
+        env:
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source deploy/node-releases/validate-release-id.sh
+          validate_release_id "$INPUT_RELEASE_ID"
+          echo "release_id=${INPUT_RELEASE_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether that release is already on disk
+        id: ssh
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_ROOT: /opt/keduoduo-crm
+          RID: ${{ steps.validate.outputs.release_id }}
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          password: ${{ secrets.ECS_SSH_PASSWORD }}
+          command_timeout: 2m
+          script_stop: true
+          envs: APP_ROOT,RID
+          script: |
+            set -euo pipefail
+            case "$APP_ROOT" in
+              /opt/keduoduo-crm) ;;
+              *) printf 'refusing unexpected APP_ROOT\n' >&2; exit 1 ;;
+            esac
+            case "$RID" in
+              ""|*[!A-Za-z0-9_.-]*) printf 'invalid release id\n' >&2; exit 1 ;;
+            esac
+            [[ "$RID" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]]
+            root="${APP_ROOT}/releases/${RID}"
+            if [[ -d "$root" && -f "$root/backend/dist/server.js" && -f "$root/frontend/dist/index.html" && ( -e "$root/node_modules/express" || -e "$root/backend/node_modules/express" ) ]]; then
+              exit 0
+            fi
+            exit 2
+
+      - name: Classify probe
+        id: classify
+        env:
+          SSH_OUTCOME: ${{ steps.ssh.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$SSH_OUTCOME" == success ]]; then
+            echo "mode=rollback" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=publish" >> "$GITHUB_OUTPUT"
+          fi
+          echo "probe mode=$( [[ "$SSH_OUTCOME" == success ]] && echo rollback || echo publish )"
+
+  build:
+    needs: [guard-ecs, probe-ecs]
+    if: >-
+      always() &&
+      !cancelled() &&
+      (needs.guard-ecs.result == 'skipped' || needs.guard-ecs.result == 'success') &&
+      (needs.probe-ecs.result == 'skipped' || needs.probe-ecs.result == 'success') &&
+      needs.probe-ecs.outputs.mode != 'rollback'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      ecs_release_id: ${{ steps.meta.outputs.ecs_release_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install and build
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm --prefix whatsapp-plugin ci --no-audit --no-fund
+          npm run build
+          for required in \
+            backend/dist/server.js \
+            backend/dist/migrate-mysql.js \
+            backend/resources/document-templates/proforma-invoice-variable-base.xlsx \
+            integration-sdk/dist/index.js \
+            integration-worker/dist/main.js \
+            keduoduo-runner/dist/cli.js \
+            frontend/dist/index.html \
+            whatsapp-plugin/dist/index.html \
+            whatsapp-plugin/dist-server/server/index.js
+          do
+            test -f "$required"
+          done
+
+      - name: Resolve ECS release id
+        id: meta
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true')
+        env:
+          PROBED_RELEASE_ID: ${{ needs.probe-ecs.outputs.release_id }}
+          INPUT_RELEASE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.release_id || '' }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source deploy/node-releases/validate-release-id.sh
+          RID="${PROBED_RELEASE_ID:-}"
+          if [[ -z "$RID" ]]; then
+            RID="${INPUT_RELEASE_ID:-}"
+          fi
+          if [[ -z "$RID" ]]; then
+            RID="$(date -u +%Y%m%d%H%M%S)"
+          fi
+          validate_release_id "$RID"
+          echo "ecs_release_id=${RID}" >> "$GITHUB_OUTPUT"
+          printf 'ECS release id %s\n' "$RID"
+
+      - name: Upload dist for deploy or ACR
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          (
+            inputs.deploy_ecs == true || inputs.deploy_ecs == 'true' ||
+            inputs.push_acr == true || inputs.push_acr == 'true'
+          )
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-release-dist
+          retention-days: 3
+          path: |
+            backend/dist
+            frontend/dist
+            integration-sdk/dist
+            integration-worker/dist
+            keduoduo-runner/dist
+            whatsapp-plugin/dist
+            whatsapp-plugin/dist-server
+
+      - name: Summary
+        env:
+          ECS_RELEASE_ID: ${{ steps.meta.outputs.ecs_release_id }}
+        run: |
+          {
+            echo "### Node release build"
+            echo "- This job does not SSH to ECS."
+            if [[ -n "${ECS_RELEASE_ID}" ]]; then
+              echo "- ECS release id: \`${ECS_RELEASE_ID}\`"
+            else
+              echo "- Build only. ECS was not updated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  push-acr:
+    needs: [build]
+    if: >-
+      needs.build.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.push_acr == true || inputs.push_acr == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Detect ACR secrets
+        id: acr
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$ACR_USERNAME" && -n "$ACR_PASSWORD" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "ACR_USERNAME or ACR_PASSWORD is unset. Skipping image push. This does not fail ECS deploy."
+          fi
+
+      - name: Checkout
+        if: steps.acr.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+
+      - name: Download dist
+        if: steps.acr.outputs.enabled == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: node-release-dist
+
+      - name: Resolve image tag
+        if: steps.acr.outputs.enabled == 'true'
+        id: meta
+        env:
+          INPUT_RELEASE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.release_id || '' }}
+        run: |
+          set -euo pipefail
+          PRODUCT="$(python3 -c 'import json; print(json.load(open("frontend/public/product-config.json"))["version"])')"
+          if [[ -n "${INPUT_RELEASE_ID}" ]]; then
+            RID="${INPUT_RELEASE_ID}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            RID="${GITHUB_REF_NAME#v}"
+          else
+            RID="${PRODUCT}-${GITHUB_SHA::7}"
+          fi
+          if ! [[ "$RID" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "release_id must match [A-Za-z0-9][A-Za-z0-9_.-]{0,127} (got: ${RID})" >&2
+            exit 1
+          fi
+          echo "release_id=${RID}" >> "$GITHUB_OUTPUT"
+          printf 'ACR tag %s\n' "$RID"
+
+      - name: Login to ACR
+        if: steps.acr.outputs.enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        if: steps.acr.outputs.enabled == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push images
+        if: steps.acr.outputs.enabled == 'true'
+        env:
+          RID: ${{ steps.meta.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          for svc in backend gateway communication; do
+            dockerfile="deploy/docker-compose/Dockerfile.${svc}"
+            image="${ACR_REGISTRY}/${ACR_NAMESPACE}/${svc}"
+            docker buildx build \
+              --file "$dockerfile" \
+              --platform linux/amd64 \
+              --provenance=false \
+              --sbom=false \
+              --tag "${image}:${RID}" \
+              --tag "${image}:latest" \
+              --push \
+              .
+          done
+
+      - name: Summary
+        env:
+          ACR_ENABLED: ${{ steps.acr.outputs.enabled }}
+          ACR_RELEASE_ID: ${{ steps.meta.outputs.release_id }}
+        run: |
+          {
+            echo "### ACR push"
+            echo "- This job does not SSH to ECS."
+            if [[ "${ACR_ENABLED}" == true ]]; then
+              echo "- release_id: \`${ACR_RELEASE_ID}\`"
+            else
+              echo "- Skipped. ACR secrets are not set."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-ecs:
+    needs: [guard-ecs, probe-ecs, build]
+    if: >-
+      always() &&
+      !cancelled() &&
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true') &&
+      needs.guard-ecs.result == 'success' &&
+      (needs.probe-ecs.result == 'skipped' || needs.probe-ecs.result == 'success') &&
+      (needs.probe-ecs.outputs.mode == 'rollback' || needs.build.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download dist
+        if: needs.probe-ecs.outputs.mode != 'rollback'
+        uses: actions/download-artifact@v4
+        with:
+          name: node-release-dist
+
+      - name: Pack release
+        if: needs.probe-ecs.outputs.mode != 'rollback'
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p node-release-upload
+          cp deploy/node-releases/activate-release.sh node-release-upload/
+          cp deploy/node-releases/migrate-with-shared-env.mjs node-release-upload/
+          bash deploy/node-releases/pack-release.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/node-release-upload/release.tar.gz"
+
+      - name: Stage rollback files
+        if: needs.probe-ecs.outputs.mode == 'rollback'
+        run: |
+          set -euo pipefail
+          mkdir -p node-release-upload
+          cp deploy/node-releases/activate-release.sh node-release-upload/
+          cp deploy/node-releases/migrate-with-shared-env.mjs node-release-upload/
+
+      - name: Copy publish payload
+        if: needs.probe-ecs.outputs.mode != 'rollback'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          password: ${{ secrets.ECS_SSH_PASSWORD }}
+          command_timeout: 30m
+          source: "node-release-upload/activate-release.sh,node-release-upload/migrate-with-shared-env.mjs,node-release-upload/release.tar.gz"
+          target: /tmp/keduoduo-node-release
+          strip_components: 1
+          overwrite: true
+          rm: true
+
+      - name: Copy rollback payload
+        if: needs.probe-ecs.outputs.mode == 'rollback'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          password: ${{ secrets.ECS_SSH_PASSWORD }}
+          command_timeout: 10m
+          source: "node-release-upload/activate-release.sh,node-release-upload/migrate-with-shared-env.mjs"
+          target: /tmp/keduoduo-node-release
+          strip_components: 1
+          overwrite: true
+          rm: true
+
+      - name: SSH activate release
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_ROOT: /opt/keduoduo-crm
+          APP_USER: keduoduo-crm
+          SERVICE_NAME: keduoduo-crm
+          MODE: ${{ needs.probe-ecs.outputs.mode == 'rollback' && 'rollback' || 'publish' }}
+          RID: ${{ needs.probe-ecs.outputs.mode == 'rollback' && needs.probe-ecs.outputs.release_id || needs.build.outputs.ecs_release_id }}
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          password: ${{ secrets.ECS_SSH_PASSWORD }}
+          command_timeout: 30m
+          script_stop: true
+          envs: APP_ROOT,APP_USER,SERVICE_NAME,MODE,RID
+          script: |
+            set -euo pipefail
+            case "$APP_ROOT" in
+              /opt/keduoduo-crm) ;;
+              *) printf 'refusing unexpected APP_ROOT\n' >&2; exit 1 ;;
+            esac
+            case "$MODE" in
+              publish|rollback) ;;
+              *) printf 'refusing unexpected MODE\n' >&2; exit 1 ;;
+            esac
+            cd /tmp/keduoduo-node-release
+            chmod 0755 ./activate-release.sh
+            if [[ "$MODE" == publish ]]; then
+              test -f ./release.tar.gz
+              ./activate-release.sh publish ./release.tar.gz "$RID"
+            else
+              ./activate-release.sh rollback "$RID"
+            fi
+            rm -f ./release.tar.gz
