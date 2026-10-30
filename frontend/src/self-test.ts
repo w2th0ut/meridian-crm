@@ -921,6 +921,44 @@ assert.match(openRecord, /openLead\(lead\.id\)/, "查看已有线索必须打开
 assert.match(openRecord, /不会自动合并，也不会改归属/, "打开已有记录时必须说明不会合并、不会改归属");
 assert.doesNotMatch(openRecord, /convert-to-lead|send-development-email|merge|ownerId =/, "打开已有记录不得转线索、发信、合并或改归属");
 assert.match(prototype, /\.prospect-collision\b/, "撞库说明必须有可见样式");
+const failureLayer = readFileSync(new URL("./prospect-outreach-failure.ts", import.meta.url), "utf8");
+assert.match(failureLayer, /export function presentOutreachFailure/, "开发信失败必须只消费接口带回的结果");
+assert.match(failureLayer, /无失败记录/, "没有失败时文案必须是无失败记录");
+assert.match(failureLayer, /发送失败/, "发送失败的文案必须是发送失败");
+assert.match(failureLayer, /开发信退信/, "退信的文案必须是开发信退信");
+assert.match(failureLayer, /不是抑制或退订/, "失败说明必须和抑制条区分开");
+assert.match(failureLayer, /不会自动重发，也不会解除抑制/, "失败说明不得自动重发或解除抑制");
+assert.match(failureLayer, /去重写开发信草稿/, "可重写时必须跳到现有草稿入口");
+assert.doesNotMatch(failureLayer, /原因未回传|已退信|fetch\(|convert-to-lead|send-development-email/, "失败展示不得混用抑制文案，也不得发请求或转线索");
+assert.match(prospectListRender, /renderOutreachFailureLine\(item\)/, "搜客清单每一行必须显示最近一次开发信失败或退信");
+assert.match(prospectListRender, /renderDashboardOutreachFailures\(\)/, "清单刷新必须同时更新开发信失败入口");
+const failureRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(failureRows, /prospectOutreachFailureFilter[\s\S]*prospectOutreachFailure/, "失败筛选只按已有失败结果过滤");
+assert.match(apiLayer, /prospect-detail-hero[\s\S]{0,2200}renderProspectOutreachFailure\(item\)/, "搜客清单详情必须说明开发信失败或退信");
+assert.match(apiLayer, /lead-verification-drawer-head[\s\S]{0,1800}renderProspectOutreachFailure\(item\)/, "候选详情必须说明开发信失败或退信");
+assert.match(apiLayer, /没有失败或退信的候选。这里不会编造记录，也不会自动重发。/, "筛不到失败时必须写清空态");
+assert.match(prototype, /data-prospect-outreach-failure-filter="hit"[\s\S]*有失败\/退信/, "清单必须能筛有失败/退信");
+assert.match(prototype, /id="dashboardOutreachFailures"[\s\S]*开发信失败或退信/, "工作台必须有开发信失败或退信");
+assert.match(apiLayer, /OUTREACH_FAILURE_LIMIT = 8/, "工作台开发信失败最多显示 8 行");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看。这里不会编造名单，也不会自动重发。/, "没有清单时不得编造开发信失败");
+assert.match(apiLayer, /当前可见的搜客清单没有开发信失败或退信。这里不会编造记录，也不会自动重发。/, "没有失败时不得编造记录");
+assert.match(apiLayer, /开发信失败或退信/, "详情标题必须是开发信失败或退信，不叫抑制原因");
+assert.match(apiLayer, /outreachFailureRewriteLabel\(/, "失败态必须复用重写草稿的入口文案");
+const failureQueue = kbSourceBetween(apiLayer, "function outreachFailureCandidates()", "\nfunction renderDashboardOutreachFailures");
+assert.match(failureQueue, /shortlistedAt/, "工作台失败只包含搜客清单里的候选");
+assert.match(failureQueue, /prospectOutreachFailure/, "工作台失败只包含有失败或退信的候选");
+const failureClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardOutreachFailures")?.addEventListener');
+const failureClick = apiLayer.slice(failureClickStart, failureClickStart + 700);
+assert.match(failureClick, /openOutreachFailureFromDashboard/, "点工作台失败必须打开候选详情");
+assert.doesNotMatch(failureClick, /sendProspectDevelopmentEmail|openOutreachFailureDraft|convert-to-lead|convertProspectsToLeads/, "点工作台失败不得发送、重写或转线索");
+const openFailure = kbSourceBetween(apiLayer, "function openOutreachFailureFromDashboard", "\nfunction bindOutreachFailureDraft");
+assert.match(openFailure, /prospectOutreachFailureFilter = "hit"/, "打开失败必须落到有失败/退信筛选");
+assert.match(openFailure, /不会自动重发，也不会解除抑制/, "打开失败时必须说明不会自动重发、不会解除抑制");
+assert.doesNotMatch(openFailure, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachFailureDraft|\/approve/, "打开失败不得发送、转线索或批准");
+const openFailureDraft = kbSourceBetween(apiLayer, "function openOutreachFailureDraft", "\nconst OUTREACH_FAILURE_LIMIT");
+assert.match(openFailureDraft, /openProspectDraftFromAcquisition/, "重写捷径必须打开现有开发信草稿");
+assert.doesNotMatch(openFailureDraft, /sendProspectDevelopmentEmail|convert-to-lead|\/approve|setProspectSuppression/, "重写捷径不得发送、转线索或解除抑制");
+assert.match(prototype, /\.prospect-outreach-failure\b/, "开发信失败说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

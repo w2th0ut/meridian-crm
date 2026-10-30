@@ -512,6 +512,7 @@ import {
   ProspectQualificationError
 } from "./prospect-qualification.js";
 import { describeProspectComplianceNotices } from "./prospect-compliance-notice.js";
+import { describeProspectOutreachFailure } from "./prospect-outreach-failure.js";
 import {
   assertCrmOutreachEligible,
   assertProspectEmailOutreachEligible,
@@ -18717,6 +18718,13 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
       // 发信资格灯：可发信 / 缺邮箱 / 已抑制（附原因），供清单行直接渲染，不抛错。
       emailEligibility: evaluateProspectEmailOutreachEligibility(store, verified),
       complianceNotices: describeProspectComplianceNotices(store, verified),
+      outreachFailure: describeProspectOutreachFailure({
+        candidate: verified,
+        emailLogs: store.outboundEmailLogs,
+        touchpoints: store.prospectTouchpoints,
+        batches: store.prospectOutreachBatches,
+        plans: store.prospectOutreachPlans
+      }),
       latestFollowUp: describeProspectLatestFollowUp(store, verified),
       // 转线索资格：复用 convert_to_lead 的可联系门禁，只解释缺什么，不在这里放行。
       leadConversionEligibility: evaluateProspectLeadConversionEligibility(

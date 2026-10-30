@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5188",
     "build": "tsc -b && vite build",
-    "test": "tsx src/self-test.ts && tsx src/prospect-acquisition-stage-test.ts && tsx src/prospect-coverage-pool-test.ts && tsx src/prospect-crm-collision-test.ts && tsx src/integrations/integration-api-test.ts",
+    "test": "tsx src/self-test.ts && tsx src/prospect-acquisition-stage-test.ts && tsx src/prospect-coverage-pool-test.ts && tsx src/prospect-crm-collision-test.ts && tsx src/prospect-outreach-failure-test.ts && tsx src/integrations/integration-api-test.ts",
     "test:mysql-import": "tsx src/mysql-dump-import-test.ts",
     "test:e2e": "playwright test"
   },
