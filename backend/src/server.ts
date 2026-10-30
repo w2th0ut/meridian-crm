@@ -454,6 +454,8 @@ import {
 import {
   convertProspectToLeadBodySchema,
   evaluateProspectLeadConversionEligibility,
+  FORMAL_ENTERPRISE_COVERAGE_POOL_GAP,
+  isInFormalEnterpriseCoveragePool,
   PROSPECT_LEAD_SOURCE_CHANNEL,
   ProspectLeadConversionError
 } from "./prospect-lead-conversion.js";
@@ -20196,7 +20198,9 @@ async function convertAgentProspectToLead(
     item.id === candidateId && item.teamId === session.teamId && item.ownerId === session.id
   );
   if (!candidate) throw new Error("候选不存在或不属于当前账号");
-  if (!candidate.tenantProspectId) throw new Error("候选尚未进入正式企业覆盖池，不能转为线索");
+  if (!isInFormalEnterpriseCoveragePool(candidate)) {
+    throw new Error(FORMAL_ENTERPRISE_COVERAGE_POOL_GAP);
+  }
   if (!store.convertProspectToLead) throw new Error("候选转线索服务暂不可用");
   const approvedDecision = store.prospectContactabilityDecisions
     .filter((decision) =>

@@ -22,6 +22,11 @@ import {
   type AcquisitionStageFilter,
   type AcquisitionStageInput
 } from "./prospect-acquisition-stage";
+import {
+  coveragePoolNextAction,
+  deriveCoveragePool,
+  type CoveragePoolListFilter
+} from "./prospect-coverage-pool";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -3805,6 +3810,7 @@ interface AppState {
   selectedProspectIds: string[];
   prospectFilter: "all" | "preview" | "contactable" | "contacted" | "synced" | "excluded";
   prospectStageFilter: "all" | AcquisitionStageFilter;
+  prospectCoverageFilter: CoveragePoolListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4023,6 +4029,7 @@ const state: AppState = {
   selectedProspectIds: [],
   prospectFilter: "all",
   prospectStageFilter: "all",
+  prospectCoverageFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -13601,6 +13608,7 @@ function renderLeadDrawer(
     state.selectedProspectId = sourceProspect.id;
     state.prospectFilter = "all";
     state.prospectStageFilter = "all";
+    state.prospectCoverageFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33503,6 +33511,7 @@ function prospectFilteredRows() {
       if (keyword && !haystack.includes(keyword)) return false;
       if (state.prospectFilter !== "all" && item.status !== state.prospectFilter) return false;
       if (state.prospectStageFilter !== "all" && deriveAcquisitionStage(acquisitionStageInput(item)).filter !== state.prospectStageFilter) return false;
+      if (state.prospectCoverageFilter !== "all" && deriveCoveragePool({ tenantProspectId: item.tenantProspectId }).filter !== state.prospectCoverageFilter) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35628,6 +35637,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   closeLeadFinderVerificationDrawer();
   state.prospectFilter = "all";
   state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35644,6 +35654,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   if (search) search.value = "";
   state.prospectFilter = "all";
   state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35666,6 +35677,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   if (search) search.value = "";
   state.prospectFilter = "all";
   state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35715,12 +35727,13 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   const procurementContext = state.procurementContexts[item.id];
   box.innerHTML = `
     <div class="prospect-detail-hero">
-      ${renderAcquisitionStageBadge(item)} ${badge(status.label, status.tone)} ${badge(`行动优先 ${score}`, score >= 76 ? "green" : score >= 60 ? "amber" : "gray")} ${badge(duplicate.text, duplicate.tone)} ${prospectEmailEligibilityBadge(item)}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}
+      ${renderAcquisitionStageBadge(item)} ${renderCoveragePoolBadge(item)} ${badge(status.label, status.tone)} ${badge(`行动优先 ${score}`, score >= 76 ? "green" : score >= 60 ? "amber" : "gray")} ${badge(duplicate.text, duplicate.tone)} ${prospectEmailEligibilityBadge(item)}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}
       <h2>${escapeHtml(item.company)}</h2>
       <p>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(item.business || "业务待维护")} · ${escapeHtml(websiteDomain(item.website || ""))}</p>
       <p>加入搜客清单：${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</p>
     </div>
     ${renderProspectAcquisitionStage(item)}
+    ${renderProspectCoveragePool(item)}
     ${renderProspectComplianceNotices(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
@@ -35777,6 +35790,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement));
   bindContactableApprovalEntries(box, item);
   bindAcquisitionStageHold(box);
+  bindCoveragePoolNext(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -35851,6 +35865,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   }
   focusProspectHoldNotice(item.id, box);
   focusProspectFollowUpInput(item.id);
+  focusCoveragePoolTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36405,6 +36420,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
   if (index < 0) {
     state.prospectFilter = "all";
     state.prospectStageFilter = "all";
+    state.prospectCoverageFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -36724,6 +36740,225 @@ function bindAcquisitionStageHold(root: ParentNode) {
   });
 }
 
+let prospectCoverageFocusId = "";
+let prospectCoverageFocusTarget: "coverage" | "convert" | "identity" | "" = "";
+
+function coverageNextForItem(item: WebsiteOpportunity) {
+  const pool = deriveCoveragePool({ tenantProspectId: item.tenantProspectId });
+  return coveragePoolNextAction({
+    inPool: pool.inPool,
+    convertReady: prospectConvertGate(item).ready,
+    needsDevelopmentEmail: prospectNeedsDevelopmentEmail(item),
+    approvalPending: prospectContactableApprovalPending(item, prospectConvertGate(item))
+  });
+}
+
+function coveragePoolNextButton(item: WebsiteOpportunity) {
+  const action = coverageNextForItem(item);
+  if (!action) return "";
+  return `<button class="btn prospect-coverage-next" type="button" data-coverage-next="${escapeHtml(item.id)}" data-coverage-action="${action.kind}">${escapeHtml(action.label)}</button>`;
+}
+
+function renderCoveragePoolBadge(item: WebsiteOpportunity) {
+  const pool = deriveCoveragePool({ tenantProspectId: item.tenantProspectId });
+  return `<span class="prospect-coverage-badge" data-coverage-pool="${pool.filter}" title="${escapeHtml(pool.summary)}">${badge(pool.label, pool.tone)}</span>`;
+}
+
+function renderProspectCoveragePool(item: WebsiteOpportunity) {
+  const pool = deriveCoveragePool({ tenantProspectId: item.tenantProspectId });
+  const action = coverageNextForItem(item);
+  const hint = action ? `<p class="prospect-coverage-next-hint">${escapeHtml(action.hint)}</p>` : "";
+  return `<section class="prospect-coverage" id="prospectCoveragePool" data-coverage-pool="${pool.filter}">
+    <div class="prospect-coverage-head"><b>正式企业覆盖池</b>${badge(pool.label, pool.tone)}</div>
+    <p>${escapeHtml(pool.summary)}</p>
+    ${hint}
+    ${coveragePoolNextButton(item)}
+  </section>`;
+}
+
+function renderCoveragePoolLine(item: WebsiteOpportunity) {
+  const pool = deriveCoveragePool({ tenantProspectId: item.tenantProspectId });
+  if (pool.inPool) return "";
+  const action = coverageNextForItem(item);
+  const hint = action?.hint || pool.summary;
+  return `<div class="prospect-coverage is-compact" data-coverage-pool="out" title="${escapeHtml(pool.summary)}">${badge(pool.label, pool.tone)}<span>${escapeHtml(hint)}</span>${coveragePoolNextButton(item)}</div>`;
+}
+
+function focusCoveragePoolTarget(itemId: string, root: ParentNode | null) {
+  if (prospectCoverageFocusId !== itemId) return;
+  const target = prospectCoverageFocusTarget;
+  const node = target === "convert"
+    ? root?.querySelector<HTMLElement>("#prospectConvertGate, #prospectConvertGatePanel")
+    : target === "identity"
+      ? root?.querySelector<HTMLElement>(".prospect-identity-panel")
+      : root?.querySelector<HTMLElement>("#prospectCoveragePool");
+  if (node) {
+    node.classList.add("is-attention");
+    node.scrollIntoView({ block: "nearest" });
+    if (target === "identity") {
+      root?.querySelector<HTMLInputElement>("#prospectIdentityRegistration")?.focus();
+    }
+    window.setTimeout(() => node.classList.remove("is-attention"), 1600);
+  }
+  const item = state.websiteOpportunities.find((row) => row.id === itemId);
+  const identityExpected = target === "identity" && Boolean(state.user && item && item.ownerId === state.user.id);
+  const identityBlocking = identityExpected && !prospectIdentityBootstrapViews.has(itemId);
+  const qualificationBlocking = prospectQualificationLoading.has(itemId);
+  if (!identityBlocking && !qualificationBlocking) {
+    prospectCoverageFocusId = "";
+    prospectCoverageFocusTarget = "";
+  }
+}
+
+function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | "convert" | "identity") {
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = target === "coverage" ? "out" : "all";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  prospectCoverageFocusId = item.id;
+  prospectCoverageFocusTarget = target;
+  closeLeadFinderVerificationDrawer();
+}
+
+/** 从工作台打开未进池候选的详情。不入池、不发信、不转线索。 */
+function openCoverageGapFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return;
+  if (deriveCoveragePool({ tenantProspectId: item.tenantProspectId }).inPool) return;
+  showProspectForCoverage(item, "coverage");
+  const show = () => {
+    renderProspectList();
+    toast("已打开这条候选。只读，不会自动入池，也不会转为线索。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+/** 只打开现有「转为线索」确认区，不调用转换接口。 */
+function openConvertConfirmationFromCoverage(item: WebsiteOpportunity) {
+  if (!prospectConvertGate(item).ready) return;
+  showProspectForCoverage(item, "convert");
+  const show = () => {
+    renderProspectList();
+    toast("已打开转为线索。还要再点「转为线索」，并在确认框里确认才会转入。这里不会直接转入。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+/** 只打开现有正式企业身份。不开始核验，不自动入池。 */
+function openIdentityFromCoverage(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) {
+    toast("正式企业身份在搜客清单详情里。先加入搜客清单后再补。这里不会自动加入，也不会自动入池。", "error");
+    return;
+  }
+  showProspectForCoverage(item, "identity");
+  const show = () => {
+    renderProspectList();
+    toast("已打开正式企业身份。不会自动开始核验，也不会自动入池。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+function openCoveragePoolNext(item: WebsiteOpportunity, kind: string) {
+  const action = coverageNextForItem(item);
+  if (!action || action.kind !== kind) return;
+  if (action.kind === "convert") {
+    openConvertConfirmationFromCoverage(item);
+    return;
+  }
+  if (action.kind === "write_email") {
+    openProspectDraftFromAcquisition(item);
+    return;
+  }
+  if (action.kind === "request_approval") {
+    void openContactableApproval(item);
+    return;
+  }
+  openIdentityFromCoverage(item);
+}
+
+function bindCoveragePoolNext(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-coverage-next]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = button.dataset.coverageNext || "";
+      const kind = button.dataset.coverageAction || "";
+      const target = state.websiteOpportunities.find((row) => row.id === id);
+      if (target) openCoveragePoolNext(target, kind);
+    });
+  });
+}
+
+const COVERAGE_POOL_GAP_LIMIT = 8;
+
+function coveragePoolGapCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => Boolean(item.shortlistedAt) && !deriveCoveragePool({ tenantProspectId: item.tenantProspectId }).inPool)
+    .slice()
+    .sort((left, right) => {
+      const leftTime = new Date(left.shortlistedAt || left.createdAt).getTime();
+      const rightTime = new Date(right.shortlistedAt || right.createdAt).getTime();
+      const difference = (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+      return difference || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardCoverageGaps() {
+  const scope = qs<HTMLElement>("#dashboardCoverageGapScope");
+  const list = qs<HTMLElement>("#dashboardCoverageGapList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看。这里不会编造名单，也不会自动入池。</div>`;
+    return;
+  }
+  const gaps = coveragePoolGapCandidates();
+  if (!gaps.length) {
+    scope.textContent = "当前可见的搜客清单都已在正式企业覆盖池";
+    list.innerHTML = `<div class="empty-cell">当前可见的搜客清单都已在正式企业覆盖池。这里不会编造缺口，也不会自动入池。</div>`;
+    return;
+  }
+  const shown = gaps.slice(0, COVERAGE_POOL_GAP_LIMIT);
+  scope.textContent = gaps.length > shown.length
+    ? `可见范围 ${gaps.length} 条未进正式企业覆盖池，这里显示 ${shown.length} 条`
+    : `可见范围 ${gaps.length} 条未进正式企业覆盖池`;
+  list.innerHTML = shown.map((item) => {
+    const action = coverageNextForItem(item);
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-coverage-gap="${escapeHtml(item.id)}" aria-label="查看覆盖池缺口：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>未进正式企业覆盖池</span>
+      <em>${escapeHtml(action?.label || "查看详情")}</em>
+    </button>`;
+  }).join("");
+}
+
 function ownedAcquisitionCandidates() {
   const ownerId = state.user?.id || "";
   if (!ownerId) return [];
@@ -36764,6 +36999,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   if (search) search.value = "";
   state.prospectFilter = "all";
   state.prospectStageFilter = filter;
+  state.prospectCoverageFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -36823,6 +37059,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-coverage-filter]").forEach((button) => {
+    const active = button.dataset.prospectCoverageFilter === state.prospectCoverageFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -36836,6 +37077,11 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
+  const coverageEmpty = state.prospectCoverageFilter === "out"
+    ? "没有未进正式企业覆盖池的候选。这里不会编造公司，也不会自动入池。"
+    : state.prospectCoverageFilter === "in"
+      ? "没有已在正式企业覆盖池的候选。这里不会编造公司。"
+      : "搜客清单暂无匹配记录。请从当前搜索结果中勾选候选加入。";
   if (rows) {
     rows.innerHTML = pageRows.length ? pageRows.map((item) => {
       const score = leadFinderScore(item);
@@ -36850,7 +37096,7 @@ function renderProspectList() {
             <div class="prospect-item-top"><h3>${escapeHtml(item.company)}</h3><span class="prospect-score">${score}</span></div>
             <p>${escapeHtml(item.business || "业务待维护")}</p>
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
-            <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
+            <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectComplianceNotices(item)}
             ${renderProspectFollowUpSummary(item)}
             ${renderProspectNextFollow(item)}
@@ -36861,11 +37107,12 @@ function renderProspectList() {
             </div>
             <span class="prospect-next-action">下一步：${escapeHtml(status.action)}</span>
             ${prospectConvertGateLine(item)}
+            ${renderCoveragePoolLine(item)}
             <div class="prospect-joined-at"><span>加入搜客清单</span><time datetime="${escapeHtml(item.shortlistedAt || item.createdAt)}" title="${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}">${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</time></div>
           </div>
         </article>
       `;
-    }).join("") : `<div class="empty-cell">搜客清单暂无匹配记录。请从当前搜索结果中勾选候选加入。</div>`;
+    }).join("") : `<div class="empty-cell">${coverageEmpty}</div>`;
     qsa<HTMLInputElement>("[data-prospect-select]", rows).forEach((input) => {
       input.addEventListener("change", () => {
         const id = input.dataset.prospectSelect || "";
@@ -36904,6 +37151,7 @@ function renderProspectList() {
     });
     bindContactableApprovalEntries(rows);
     bindAcquisitionStageHold(rows);
+    bindCoveragePoolNext(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -36911,6 +37159,7 @@ function renderProspectList() {
   renderDashboardFollowUps();
   renderDashboardDueFollowUps();
   renderDashboardAcquisitionStages();
+  renderDashboardCoverageGaps();
 }
 
 function markProspectConverted(item: WebsiteOpportunity, leadId: string) {
@@ -38103,6 +38352,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (followScope) followScope.textContent = "跟进暂时读不到";
     if (dueScope) dueScope.textContent = "今日到期暂时读不到";
     if (stageScope) stageScope.textContent = "阶段暂时读不到";
+    const coverageScope = qs<HTMLElement>("#dashboardCoverageGapScope");
+    const coverageList = qs<HTMLElement>("#dashboardCoverageGapList");
+    if (coverageScope) coverageScope.textContent = "覆盖池暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
@@ -38117,6 +38369,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     }
     if (!websiteOpportunitiesLoaded && stageList) {
       stageList.innerHTML = `<div class="empty-cell">阶段暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造数字。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && coverageList) {
+      coverageList.innerHTML = `<div class="empty-cell">覆盖池暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单，也不会自动入池。</div>`;
     }
   } finally {
     if (button) {
@@ -39938,6 +40193,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
   openButton.onclick = () => activateNavView("prospect-list", () => {
     state.prospectFilter = "all";
     state.prospectStageFilter = "all";
+    state.prospectCoverageFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -41977,6 +42233,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
       <button class="btn icon-only" id="leadFinderVerificationClose" type="button" title="关闭">×</button>
     </div>
     ${renderProspectAcquisitionStage(item)}
+    ${renderProspectCoveragePool(item)}
     ${renderProspectComplianceNotices(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
@@ -42075,6 +42332,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindProspectFollowUpEntry(item, box, "lead-finder");
   bindContactableApprovalEntries(box, item);
   bindAcquisitionStageHold(box);
+  bindCoveragePoolNext(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -42092,6 +42350,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     void loadProspectResearchHistory(item, drawerResearchBox);
   }
   focusProspectHoldNotice(item.id, box);
+  focusCoveragePoolTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -44047,6 +44306,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     state.selectedProspectId = first.id;
     state.prospectFilter = "all";
     state.prospectStageFilter = "all";
+    state.prospectCoverageFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -47293,6 +47553,15 @@ function installEvents() {
     if (!ACQUISITION_STAGE_FILTERS.some((item) => item.key === filter)) return;
     openAcquisitionStageFromDashboard(filter as AcquisitionStageFilter);
   });
+  qs<HTMLButtonElement>("#dashboardCoverageGapsRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardCoverageGaps")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-coverage-gap]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardCoverageGap);
+    if (!item || !item.shortlistedAt || deriveCoveragePool({ tenantProspectId: item.tenantProspectId }).inPool) return;
+    openCoverageGapFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
@@ -47602,6 +47871,14 @@ function installEvents() {
       state.prospectStageFilter = next === "all" || ACQUISITION_STAGE_FILTERS.some((item) => item.key === next)
         ? next as AppState["prospectStageFilter"]
         : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-coverage-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectCoverageFilter || "all";
+      state.prospectCoverageFilter = next === "in" || next === "out" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
