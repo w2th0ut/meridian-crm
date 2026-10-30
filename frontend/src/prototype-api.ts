@@ -140,6 +140,21 @@ import {
   type ContactGapView
 } from "./prospect-contact-gap";
 import {
+  JOIN_AGE_LIMIT,
+  joinAgeDaysLabel,
+  joinAgeEntryLabel,
+  joinAgeIsOlder,
+  joinAgeLineLabel,
+  joinAgeListFilterForOpen,
+  joinAgeMatchesFilter,
+  joinAgeStatusLabel,
+  joinAgeSummary,
+  listJoinAgeQueue,
+  presentJoinAge,
+  type JoinAgeListFilter,
+  type JoinAgeView
+} from "./prospect-join-age";
+import {
   INBOUND_SYNC_LIMIT,
   inboundSyncEntryLabel,
   inboundSyncSummary,
@@ -3959,6 +3974,7 @@ interface AppState {
   prospectStageStuckFilter: StageStuckListFilter;
   prospectFollowUpGapFilter: FollowUpGapListFilter;
   prospectContactGapFilter: ContactGapListFilter;
+  prospectJoinAgeFilter: JoinAgeListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4188,6 +4204,7 @@ const state: AppState = {
   prospectStageStuckFilter: "all",
   prospectFollowUpGapFilter: "all",
   prospectContactGapFilter: "all",
+  prospectJoinAgeFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -11685,6 +11702,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardStageStuck();
   renderDashboardFollowUpGap();
   renderDashboardContactGap();
+  renderDashboardJoinAge();
   renderDashboardInboundSync();
 }
 
@@ -13786,6 +13804,7 @@ function renderLeadDrawer(
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33699,6 +33718,7 @@ function prospectFilteredRows() {
       if (state.prospectStageStuckFilter !== "all" && !stageStuckMatchesFilter(prospectStageStuck(item), state.prospectStageStuckFilter)) return false;
       if (state.prospectFollowUpGapFilter !== "all" && !followUpGapMatchesFilter(prospectFollowUpGap(item), state.prospectFollowUpGapFilter)) return false;
       if (state.prospectContactGapFilter !== "all" && !contactGapMatchesFilter(prospectContactGap(item), state.prospectContactGapFilter)) return false;
+      if (state.prospectJoinAgeFilter !== "all" && !joinAgeMatchesFilter(prospectJoinAge(item), state.prospectJoinAgeFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35835,6 +35855,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35862,6 +35883,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35895,6 +35917,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35947,7 +35970,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       ${renderAcquisitionStageBadge(item)} ${renderCoveragePoolBadge(item)} ${renderCrmCollisionBadge(item)} ${badge(status.label, status.tone)} ${badge(`行动优先 ${score}`, score >= 76 ? "green" : score >= 60 ? "amber" : "gray")} ${badge(duplicate.text, duplicate.tone)} ${prospectEmailEligibilityBadge(item)}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}
       <h2>${escapeHtml(item.company)}</h2>
       <p>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(item.business || "业务待维护")} · ${escapeHtml(websiteDomain(item.website || ""))}</p>
-      <p>加入搜客清单：${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</p>
+      <p class="prospect-shortlist-joined">加入搜客清单：${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</p>
     </div>
     ${renderProspectAcquisitionStage(item)}
     ${renderProspectCoveragePool(item)}
@@ -35962,6 +35985,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectStageStuck(item)}
     ${renderProspectFollowUpGap(item)}
     ${renderProspectContactGap(item)}
+    ${renderProspectJoinAge(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -36027,6 +36051,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindStageStuckLinks(box);
   bindFollowUpGapLinks(box);
   bindContactGapLinks(box);
+  bindJoinAgeLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -36112,6 +36137,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusStageStuckTarget(item.id, box);
   focusFollowUpGapTarget(item.id, box);
   focusContactGapTarget(item.id, box);
+  focusJoinAgeTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36677,6 +36703,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -37082,6 +37109,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37425,6 +37453,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37495,6 +37524,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37632,6 +37662,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37782,6 +37813,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37906,6 +37938,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-join-age-filter]").forEach((button) => {
+    const active = button.dataset.prospectJoinAgeFilter === state.prospectJoinAgeFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -37919,11 +37956,15 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const contactGapEmpty = state.prospectContactGapFilter === "email"
-    ? "没有缺邮箱的候选。这里不会编造联系方式，也不会自动补齐。"
-    : state.prospectContactGapFilter === "phone"
-      ? "没有缺电话的候选。这里不会编造联系方式，也不会自动补齐。"
-      : "";
+  const joinAgeEmpty = state.prospectJoinAgeFilter === "older"
+    ? "没有加入超过 7 天的候选。这里不会编造加入时间，也不会改名单。"
+    : "";
+  const contactGapEmpty = joinAgeEmpty
+    || (state.prospectContactGapFilter === "email"
+      ? "没有缺邮箱的候选。这里不会编造联系方式，也不会自动补齐。"
+      : state.prospectContactGapFilter === "phone"
+        ? "没有缺电话的候选。这里不会编造联系方式，也不会自动补齐。"
+        : "");
   const followUpGapEmpty = contactGapEmpty
     || (state.prospectFollowUpGapFilter === "gap"
       ? "没有跟进空档。这里不会编造跟进，也不会自动记下跟进。"
@@ -38007,6 +38048,7 @@ function renderProspectList() {
             ${renderStageStuckLine(item)}
             ${renderFollowUpGapLine(item)}
             ${renderContactGapLine(item)}
+            ${renderJoinAgeLine(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -38069,6 +38111,7 @@ function renderProspectList() {
     bindStageStuckLinks(rows);
     bindFollowUpGapLinks(rows);
     bindContactGapLinks(rows);
+    bindJoinAgeLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -38087,6 +38130,7 @@ function renderProspectList() {
   renderDashboardStageStuck();
   renderDashboardFollowUpGap();
   renderDashboardContactGap();
+  renderDashboardJoinAge();
   renderDashboardInboundSync();
 }
 
@@ -38252,6 +38296,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38516,6 +38561,7 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachDraftBacklogFilter = "pending";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38724,6 +38770,7 @@ function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -40173,6 +40220,12 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (!websiteOpportunitiesLoaded && contactGapList) {
       contactGapList.innerHTML = `<div class="empty-cell">联系方式缺口暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造联系方式，也不会自动补齐。</div>`;
     }
+    const joinAgeScope = qs<HTMLElement>("#dashboardJoinAgeScope");
+    const joinAgeList = qs<HTMLElement>("#dashboardJoinAgeList");
+    if (joinAgeScope) joinAgeScope.textContent = "加入日龄暂时读不到";
+    if (!websiteOpportunitiesLoaded && joinAgeList) {
+      joinAgeList.innerHTML = `<div class="empty-cell">加入日龄暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造加入时间，也不会改名单。</div>`;
+    }
     acquisitionTodoReadError = message;
     renderDashboardAcquisitionTodoSummary();
   } finally {
@@ -40441,6 +40494,7 @@ function openNextFollowDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40575,6 +40629,7 @@ function openStageStuckFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = view.kind === "stuck" ? "stuck" : "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40701,6 +40756,7 @@ function openFollowUpGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = view.kind === "gap" ? "gap" : "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40841,6 +40897,7 @@ function openContactGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = contactGapListFilterForOpen(view);
+  state.prospectJoinAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40882,6 +40939,139 @@ function renderDashboardProspectRuns() {
       <em>${escapeHtml(sourceValue)} · 候选 ${escapeHtml(leadFinderCountText(snap.candidateCount))}</em>
     </button>`;
   }).join("");
+}
+
+function prospectJoinAge(item: WebsiteOpportunity, now = new Date()): JoinAgeView {
+  return presentJoinAge({ shortlistedAt: item.shortlistedAt || "" }, now);
+}
+
+function joinAgeBadgeTone(kind: JoinAgeView["kind"]) {
+  if (kind === "recent") return "green";
+  if (kind === "older") return "amber";
+  return "gray";
+}
+
+function renderProspectJoinAge(item: WebsiteOpportunity) {
+  const view = prospectJoinAge(item);
+  return `<section class="prospect-join-age" id="prospectJoinAge" data-join-age="${view.kind}">
+    <div class="prospect-join-age-head"><b>短名单加入日龄</b>${badge(joinAgeStatusLabel(view), joinAgeBadgeTone(view.kind))}</div>
+    <p>${escapeHtml(joinAgeSummary(view))}</p>
+    <p class="prospect-join-age-body" data-join-age-body="${view.kind}">${escapeHtml(joinAgeLineLabel(view))}</p>
+    <div class="prospect-action-row"><button class="btn" type="button" data-join-age-entry="${escapeHtml(item.id)}">${escapeHtml(joinAgeEntryLabel())}</button></div>
+  </section>`;
+}
+
+function renderJoinAgeLine(item: WebsiteOpportunity) {
+  const view = prospectJoinAge(item);
+  const compact = view.kind === "none" ? " is-empty" : ` is-compact is-${view.kind}`;
+  return `<div class="prospect-join-age${compact}" data-join-age="${view.kind}">${escapeHtml(joinAgeLineLabel(view))}</div>`;
+}
+
+let joinAgeFocusId = "";
+
+/** 只滚到已有的加入搜客清单时间。不改加入时间，也不改名单。 */
+function scrollToExistingJoinStamp(root: ParentNode) {
+  const entry = root.querySelector<HTMLElement>(".prospect-shortlist-joined");
+  if (!entry) return false;
+  entry.classList.add("is-attention");
+  entry.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => entry.classList.remove("is-attention"), 1600);
+  return true;
+}
+
+function focusJoinAgeTarget(itemId: string, root: ParentNode | null) {
+  if (joinAgeFocusId !== itemId || !root) return;
+  joinAgeFocusId = "";
+  scrollToExistingJoinStamp(root);
+}
+
+function bindJoinAgeLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-join-age-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (scrollToExistingJoinStamp(root)) {
+        toast("已打开现有加入时间。只读，不会改名单，也不会发信。");
+      }
+    });
+  });
+}
+
+function renderDashboardJoinAge(now = new Date()) {
+  const scope = qs<HTMLElement>("#dashboardJoinAgeScope");
+  const list = qs<HTMLElement>("#dashboardJoinAgeList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看加入日龄。这里不会编造名单，也不会改名单。</div>`;
+    return;
+  }
+  const queue = listJoinAgeQueue(visible, (item) => prospectJoinAge(item, now), JOIN_AGE_LIMIT);
+  if (!queue.total) {
+    scope.textContent = "当前可见的搜客清单没有可判断的加入时间";
+    list.innerHTML = `<div class="empty-cell">未加入。当前可见的搜客清单没有可判断的加入时间。这里不会编造加入时间，也不会改名单。</div>`;
+    return;
+  }
+  const shown = queue.rows;
+  scope.textContent = queue.total > shown.length
+    ? `可见范围 ${queue.total} 条能判断加入日龄，这里显示 ${shown.length} 条，较久在前`
+    : `可见范围 ${queue.total} 条能判断加入日龄，较久在前`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectJoinAge(item, now);
+    return `<button class="dashboard-prospect-row${joinAgeIsOlder(view) ? " is-older" : ""}" type="button" data-dashboard-join-age="${escapeHtml(item.id)}" data-join-age="${view.kind}" aria-label="打开短名单加入日龄：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(joinAgeStatusLabel(view))}</span>
+      <em>${escapeHtml(joinAgeDaysLabel(view))}</em>
+    </button>`;
+  }).join("");
+}
+
+function openJoinAgeFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return;
+  const view = prospectJoinAge(item);
+  if (view.kind === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
+  state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
+  state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = joinAgeListFilterForOpen(view);
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  joinAgeFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开现有候选。只读，不会改名单，也不会发信。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
 }
 
 async function refreshProspectProgress(button?: HTMLButtonElement | null) {
@@ -42538,6 +42728,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -44573,6 +44764,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
         <span class="lead-verification-kicker">候选校验报告</span>
         <h2>${escapeHtml(item.company)}</h2>
         <p>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(domain || "官网待补")} · ${escapeHtml(item.business || "业务待维护")}</p>
+        ${item.shortlistedAt ? `<p class="prospect-shortlist-joined">加入搜客清单：${escapeHtml(formatProspectJoinedAt(item.shortlistedAt))}</p>` : ""}
       </div>
       <button class="btn icon-only" id="leadFinderVerificationClose" type="button" title="关闭">×</button>
     </div>
@@ -44589,6 +44781,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectStageStuck(item)}
     ${renderProspectFollowUpGap(item)}
     ${renderProspectContactGap(item)}
+    ${renderProspectJoinAge(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -44696,6 +44889,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindStageStuckLinks(box);
   bindFollowUpGapLinks(box);
   bindContactGapLinks(box);
+  bindJoinAgeLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -44724,6 +44918,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusStageStuckTarget(item.id, box);
   focusFollowUpGapTarget(item.id, box);
   focusContactGapTarget(item.id, box);
+  focusJoinAgeTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -46690,6 +46885,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
   state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -49983,6 +50179,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectContactGap(item).kind === "none") return;
     openContactGapFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardJoinAgeRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardJoinAge")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-join-age]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardJoinAge);
+    if (!item || !item.shortlistedAt || prospectJoinAge(item).kind === "none") return;
+    openJoinAgeFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#dashboardAcquisitionStagesRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
   });
@@ -50453,6 +50658,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectContactGapFilter || "all";
       state.prospectContactGapFilter = next === "email" || next === "phone" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-join-age-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectJoinAgeFilter || "all";
+      state.prospectJoinAgeFilter = next === "older" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });

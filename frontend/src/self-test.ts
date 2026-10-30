@@ -1436,6 +1436,68 @@ assert.match(scrollContact, /#prospectEditContactInfo, #leadFinderDetailContactI
 assert.doesNotMatch(scrollContact, /\.value\s*=|fetch\(|mergeProspectContactEmail|startContactEnrichment|saveProspect/, "跳到联系方式不得写入、补齐或发请求");
 assert.match(prototype, /\.prospect-contact-gap\b/, "联系方式缺口必须有可见样式");
 assert.match(prototype, /\.dashboard-contact-gap-note\b/, "联系方式缺口说明必须有可见样式");
+const joinAgeLayer = readFileSync(new URL("./prospect-join-age.ts", import.meta.url), "utf8");
+assert.match(joinAgeLayer, /export function presentJoinAge/, "短名单加入日龄必须只消费已有加入时间");
+assert.match(joinAgeLayer, /JOIN_AGE_LIMIT = 8/, "短名单加入日龄最多 8 条");
+assert.match(joinAgeLayer, /JOIN_AGE_WINDOW_DAYS = 7/, "加入日龄窗口必须是 7 天");
+assert.match(joinAgeLayer, /shortlistedAt/, "加入日龄必须复用 shortlistedAt");
+assert.match(joinAgeLayer, /未加入/, "没有加入时间时文案必须是未加入");
+assert.match(joinAgeLayer, /较久/, "超过窗口必须标较久");
+assert.match(joinAgeLayer, /新近/, "窗口内必须标新近");
+assert.match(joinAgeLayer, /查看加入时间/, "必须能打开现有加入时间");
+assert.match(joinAgeLayer, /这不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是跟进记录空档/, "加入日龄必须和日期范围、联系方式缺口、覆盖池缺口、跟进记录空档区分开");
+assert.match(joinAgeLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "加入日龄必须和获客待办摘要、下次跟进逾期、转化阶段卡住区分开");
+assert.match(joinAgeLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步/, "加入日龄必须和待记跟进、草稿、序列、回复、打开或点击、失败、抑制、收信同步区分开");
+assert.match(joinAgeLayer, /不会改名单，不会发信，也不会改 convert_to_lead 或 approved_contactable/, "加入日龄不得改名单、发信或改门禁");
+assert.match(joinAgeLayer, /创建时间不算加入时间/, "创建时间不得算成加入时间");
+assert.doesNotMatch(joinAgeLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|lastDevelopmentEmailAt/i, "加入日龄不得发请求、读跟进或外联时间、读 WhatsApp 或改门禁");
+assert.doesNotMatch(kbSourceBetween(joinAgeLayer, "function joinAgeLineLabel", "\nexport function joinAgeStatusLabel"), /缺邮箱|缺电话|完备|无联系字段|空档|无记录|卡住|推进中|无阶段|逾期|覆盖池|获客待办|发信资格|已抑制/, "行文案必须用较久、新近、未加入和日龄");
+assert.match(prospectListRender, /renderJoinAgeLine\(item\)/, "搜客清单每一行必须显示短名单加入日龄");
+assert.match(prospectListRender, /renderContactGapLine\(item\)[\s\S]{0,120}renderJoinAgeLine\(item\)/, "加入日龄必须和联系方式缺口分开显示");
+assert.match(prospectListRender, /renderDashboardJoinAge\(\)/, "清单刷新必须同时更新加入日龄入口");
+const joinAgeRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(joinAgeRows, /prospectJoinAgeFilter[\s\S]*prospectJoinAge/, "加入日龄筛选只按已有加入时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectContactGap\(item\)\}\n    \$\{renderProspectJoinAge\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在联系方式缺口后面单独说明短名单加入日龄"
+);
+assert.match(apiLayer, /没有加入超过 7 天的候选。这里不会编造加入时间，也不会改名单。/, "筛不到较久时必须写清空态");
+assert.match(prototype, /data-prospect-join-age-filter="older"[\s\S]*较久/, "清单必须能筛较久");
+assert.match(prototype, /data-prospect-date-filter="7d"[\s\S]*近 7 天/, "原来的加入时间日期范围还在");
+assert.match(prototype, /id="dashboardContactGap"[\s\S]{0,4000}id="dashboardJoinAge"[\s\S]*短名单加入日龄/, "工作台加入日龄必须在联系方式缺口下面");
+assert.match(prototype, /id="dashboardJoinAgeNote"[\s\S]*不是加入时间的日期范围/, "工作台说明必须和加入时间的日期范围分开");
+assert.match(prototype, /id="dashboardJoinAgeNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardJoinAgeNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardContactGap"[\s\S]*联系方式缺口/, "联系方式缺口原条还在");
+assert.match(apiLayer, /JOIN_AGE_LIMIT/, "工作台加入日龄必须守住 8 条上限");
+assert.match(apiLayer, /listJoinAgeQueue\(/, "工作台必须复用较久在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看加入日龄。这里不会编造名单，也不会改名单。/, "没有清单时不得编造加入日龄");
+assert.match(apiLayer, /未加入。当前可见的搜客清单没有可判断的加入时间。这里不会编造加入时间，也不会改名单。/, "没有加入时间时不得编造日龄");
+assert.match(apiLayer, /短名单加入日龄/, "详情标题必须是短名单加入日龄");
+assert.match(apiLayer, /joinAgeEntryLabel\(/, "详情必须复用查看加入时间入口文案");
+const joinAgeAdapter = kbSourceBetween(apiLayer, "function prospectJoinAge", "\nfunction joinAgeBadgeTone");
+assert.match(joinAgeAdapter, /shortlistedAt/, "加入日龄必须复用 shortlistedAt");
+assert.doesNotMatch(joinAgeAdapter, /createdAt|latestFollowUp|lastDevelopmentEmailAt|whatsapp/i, "加入日龄不得改读创建时间、跟进、外联或 WhatsApp");
+const joinAgeQueue = kbSourceBetween(apiLayer, "function renderDashboardJoinAge", "\nfunction openJoinAgeFromDashboard");
+assert.match(joinAgeQueue, /shortlistedAt/, "工作台加入日龄只包含搜客清单里的候选");
+assert.match(joinAgeQueue, /listJoinAgeQueue\(/, "工作台加入日龄只按已有加入时间排序");
+assert.match(joinAgeQueue, /JOIN_AGE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(joinAgeQueue, /较久在前/, "工作台必须较久在前");
+const joinAgeClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardJoinAge")?.addEventListener');
+const joinAgeClick = apiLayer.slice(joinAgeClickStart, joinAgeClickStart + 700);
+assert.match(joinAgeClick, /openJoinAgeFromDashboard/, "点工作台加入日龄必须打开现有候选");
+assert.doesNotMatch(joinAgeClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard/, "点工作台加入日龄不得改名单、记跟进、发送或转线索");
+const openJoinAge = kbSourceBetween(apiLayer, "function openJoinAgeFromDashboard", "\nasync function refreshProspectProgress");
+assert.match(openJoinAge, /prospectJoinAgeFilter = joinAgeListFilterForOpen\(view\)/, "打开较久必须落到较久筛选，新近保持全部");
+assert.match(openJoinAge, /joinAgeFocusId = item\.id/, "打开后必须停在现有加入时间");
+assert.match(openJoinAge, /不会改名单，也不会发信/, "打开时必须说明不会改名单、不会发信");
+assert.doesNotMatch(openJoinAge, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve/, "打开加入日龄不得改名单、记跟进、发送、转线索或批准");
+const scrollJoinAge = kbSourceBetween(apiLayer, "function scrollToExistingJoinStamp", "\nfunction focusJoinAgeTarget");
+assert.match(scrollJoinAge, /prospect-shortlist-joined/, "查看加入时间必须滚到现有加入时间");
+assert.doesNotMatch(scrollJoinAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead/, "跳到加入时间不得改名单、写入或发请求");
+assert.match(prototype, /\.prospect-join-age\b/, "短名单加入日龄必须有可见样式");
+assert.match(prototype, /\.dashboard-join-age-note\b/, "短名单加入日龄说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
