@@ -2018,6 +2018,14 @@ interface WebsiteOpportunity {
     reason: string;
     source: string;
   }>;
+  /** 最近一条人工跟进。没有记录时为 null，界面写「暂无跟进」。 */
+  latestFollowUp?: {
+    id: string;
+    at: string;
+    type: string;
+    typeLabel: string;
+    excerpt: string;
+  } | null;
   /** 转线索资格：与 convert_to_lead 的可联系门禁一致，只说明缺什么。 */
   leadConversionEligibility?: ProspectLeadConversionEligibility;
   selected?: boolean;
@@ -11493,6 +11501,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardProspectRuns();
   renderDashboardPendingEmails();
   renderDashboardRecentOutreach();
+  renderDashboardFollowUps();
 }
 
 async function loadBadges(containerId = "leaderboardBadges", tagId?: string) {
@@ -35615,6 +35624,26 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   });
 }
 
+/** 从工作台打开已可联系候选，停在跟进输入框。不发送，也不转线索。 */
+function openFollowUpFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt || !prospectFollowUpWritable(item)) return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  prospectFollowUpFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  activateNavView("prospect-list", () => {
+    renderProspectList();
+    toast("可以补一条跟进。不会发送，也不会转为线索。");
+  });
+}
+
 /** 从工作台打开一条已发开发信：只选中候选，不打开发送区，也不再发。 */
 function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   if (!item.shortlistedAt || !item.lastDevelopmentEmailAt) return;
@@ -35715,6 +35744,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProcurementContextPanel(procurementContext, item)}
     ${renderProspectConvertGate(item, "prospectDetailSyncButton")}
     ${renderContactableApprovalPanel(item, "prospect")}
+    ${renderProspectFollowUpEntry(item, "prospect")}
     <div class="prospect-action-row">
       ${item.status !== "synced" ? `<button class="btn" id="prospectSaveButton">保存候选资料</button>` : ""}
       ${item.status === "excluded" && !dnc ? `<button class="btn" id="prospectRestoreButton">恢复待核验</button>` : ""}
@@ -35729,6 +35759,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   qs<HTMLButtonElement>("#prospectRestoreButton", box)?.addEventListener("click", (event) => void updateProspectBatch("restore", [item.id], event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement));
   bindContactableApprovalEntries(box, item);
+  bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
   qs<HTMLButtonElement>("#prospectLeadDraftButton", box)?.addEventListener("click", () => {
@@ -35800,6 +35831,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   if (!state.prospectQualifications[item.id] && !prospectQualificationLoading.has(item.id)) {
     void loadProspectQualification(item);
   }
+  focusProspectFollowUpInput(item.id);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36390,6 +36422,105 @@ function bindContactableApprovalEntries(root: ParentNode, item?: WebsiteOpportun
   bindProspectQualificationActions(root as HTMLElement, item);
 }
 
+let prospectFollowUpFocusId = "";
+
+/**
+ * 已可联系、已联系、已是线索，或转线索资格已经就绪（当前人工可联系批准）。
+ * 未批准的待处理不出现写入按钮。不改转线索门禁。
+ */
+function prospectFollowUpWritable(item: WebsiteOpportunity) {
+  if (!state.user || item.ownerId !== state.user.id) return false;
+  if (item.status === "excluded") return false;
+  if (item.status === "contactable" || item.status === "contacted" || item.status === "synced" || item.leadId) {
+    return true;
+  }
+  const gate = prospectConvertGate(item);
+  return gate.ready;
+}
+
+function renderProspectFollowUpSummary(item: WebsiteOpportunity) {
+  const latest = item.latestFollowUp;
+  if (!latest?.at || !latest.excerpt) {
+    return `<div class="prospect-follow-up is-empty" data-follow-up="empty">暂无跟进</div>`;
+  }
+  const label = latest.typeLabel || LEAD_ACTIVITY_LABEL[latest.type] || latest.type;
+  return `<div class="prospect-follow-up" data-follow-up="latest"><span>最近跟进</span><time datetime="${escapeHtml(latest.at)}">${escapeHtml(formatDateTime(latest.at))}</time><b>${escapeHtml(label)}</b><em>${escapeHtml(latest.excerpt)}</em></div>`;
+}
+
+function renderProspectFollowUpEntry(
+  item: WebsiteOpportunity,
+  surface: "prospect" | "lead-finder"
+) {
+  const inputId = surface === "prospect" ? "prospectFollowUpInput" : "leadFinderFollowUpInput";
+  const buttonId = surface === "prospect" ? "prospectFollowUpButton" : "leadFinderFollowUpButton";
+  const writable = prospectFollowUpWritable(item);
+  return `<section class="prospect-follow-up-entry" data-follow-up-write="${writable ? "1" : "0"}">
+    <div class="prospect-follow-up-head"><b>跟进记录</b></div>
+    ${renderProspectFollowUpSummary(item)}
+    ${writable ? `<label class="form-field"><span>本次跟进</span><textarea id="${inputId}" maxlength="2000" placeholder="写下这次跟进，例如已回复、约了时间、暂时没需求"></textarea></label>
+      <div class="prospect-action-row"><button class="btn primary" id="${buttonId}" type="button">记录跟进</button></div>
+      <small>只记一条文本注记。不会发送开发信，也不会转为线索。</small>` : ""}
+  </section>`;
+}
+
+function focusProspectFollowUpInput(itemId: string) {
+  if (prospectFollowUpFocusId !== itemId) return;
+  const input = qs<HTMLTextAreaElement>("#prospectFollowUpInput");
+  prospectFollowUpFocusId = "";
+  if (!input) return;
+  input.closest(".prospect-follow-up-entry")?.scrollIntoView({ block: "nearest" });
+  input.focus();
+}
+
+function bindProspectFollowUpEntry(
+  item: WebsiteOpportunity,
+  root: ParentNode,
+  surface: "prospect" | "lead-finder"
+) {
+  const buttonId = surface === "prospect" ? "prospectFollowUpButton" : "leadFinderFollowUpButton";
+  const inputId = surface === "prospect" ? "prospectFollowUpInput" : "leadFinderFollowUpInput";
+  qs<HTMLButtonElement>(`#${buttonId}`, root)?.addEventListener("click", (event) => {
+    void saveProspectFollowUp(item, root, inputId, event.currentTarget as HTMLButtonElement);
+  });
+}
+
+async function saveProspectFollowUp(
+  item: WebsiteOpportunity,
+  root: ParentNode,
+  inputId: string,
+  button: HTMLButtonElement
+) {
+  if (!prospectFollowUpWritable(item)) {
+    toast("达到可联系后再记录跟进", "error");
+    return;
+  }
+  const content = qs<HTMLTextAreaElement>(`#${inputId}`, root)?.value.trim() || "";
+  if (!content) {
+    toast("请填写跟进内容", "error");
+    return;
+  }
+  button.disabled = true;
+  const original = button.textContent || "";
+  button.textContent = "记录中";
+  try {
+    const result = await api<{
+      latestFollowUp: WebsiteOpportunity["latestFollowUp"];
+      opportunity: WebsiteOpportunity;
+    }>(`/api/prospect-list/${encodeURIComponent(item.id)}/follow-ups`, {
+      method: "POST",
+      body: JSON.stringify({ content })
+    });
+    Object.assign(item, result.opportunity);
+    renderProspectList();
+    if (state.selectedLeadFinderId === item.id) renderLeadFinderDetail(item);
+    toast("跟进已记录");
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "跟进记录失败", "error");
+    button.disabled = false;
+    button.textContent = original || "记录跟进";
+  }
+}
+
 function renderProspectList() {
   const rows = qs<HTMLElement>("#prospectListRows");
   const total = qs<HTMLElement>("#prospectTotalCount");
@@ -36464,6 +36595,7 @@ function renderProspectList() {
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
             <div class="prospect-meta-row">${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectComplianceNotices(item)}
+            ${renderProspectFollowUpSummary(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -36517,6 +36649,7 @@ function renderProspectList() {
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
   renderDashboardRecentOutreach();
+  renderDashboardFollowUps();
 }
 
 function markProspectConverted(item: WebsiteOpportunity, leadId: string) {
@@ -37698,13 +37831,19 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     const message = error instanceof Error ? error.message : "候选暂时读不到";
     const recentScope = qs<HTMLElement>("#dashboardRecentOutreachScope");
     const recentList = qs<HTMLElement>("#dashboardRecentOutreachList");
+    const followScope = qs<HTMLElement>("#dashboardFollowUpScope");
+    const followList = qs<HTMLElement>("#dashboardFollowUpList");
     if (scope) scope.textContent = "候选暂时读不到";
     if (recentScope) recentScope.textContent = "已发记录暂时读不到";
+    if (followScope) followScope.textContent = "跟进暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
     if (!websiteOpportunitiesLoaded && recentList) {
       recentList.innerHTML = `<div class="empty-cell">已发记录暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造记录。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && followList) {
+      followList.innerHTML = `<div class="empty-cell">跟进暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
   } finally {
     if (button) {
@@ -37755,6 +37894,56 @@ function renderDashboardRecentOutreach() {
       <b>${escapeHtml(item.company)}</b>
       <span>已发开发信</span>
       <em>${escapeHtml(when)} · ${escapeHtml(subject)}</em>
+    </button>`;
+  }).join("");
+}
+
+const FOLLOW_UP_QUEUE_LIMIT = 8;
+
+/** 工作台只列出搜客清单里已经可记跟进的候选。待处理、未批准的不放进来。 */
+function followUpQueueCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => Boolean(item.shortlistedAt) && prospectFollowUpWritable(item))
+    .slice()
+    .sort((left, right) => {
+      const leftEmpty = left.latestFollowUp?.excerpt ? 1 : 0;
+      const rightEmpty = right.latestFollowUp?.excerpt ? 1 : 0;
+      if (leftEmpty !== rightEmpty) return leftEmpty - rightEmpty;
+      const leftAt = left.latestFollowUp?.at || left.shortlistedAt || left.createdAt;
+      const rightAt = right.latestFollowUp?.at || right.shortlistedAt || right.createdAt;
+      return leftAt.localeCompare(rightAt) || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardFollowUps() {
+  const list = qs<HTMLElement>("#dashboardFollowUpList");
+  const scope = qs<HTMLElement>("#dashboardFollowUpScope");
+  if (!list || !scope) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const queue = followUpQueueCandidates();
+  if (!queue.length) {
+    scope.textContent = "当前没有可记跟进";
+    list.innerHTML = `<div class="empty-cell">没有可记跟进的候选。去搜客清单，留下已可联系的候选后再回来。这里不会编造名单。</div>`;
+    return;
+  }
+  const shown = queue.slice(0, FOLLOW_UP_QUEUE_LIMIT);
+  scope.textContent = queue.length > shown.length
+    ? `共 ${queue.length} 条，这里显示 ${shown.length} 条`
+    : `${queue.length} 条可记跟进`;
+  list.innerHTML = shown.map((item) => {
+    const status = prospectStatusMeta(item);
+    const latest = item.latestFollowUp;
+    const summary = latest?.excerpt
+      ? `${formatDateTime(latest.at)} · ${latest.typeLabel || latest.type} · ${latest.excerpt}`
+      : "暂无跟进";
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-follow-up="${escapeHtml(item.id)}" aria-label="记录跟进：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(status.label)}</span>
+      <em>${escapeHtml(summary)}</em>
     </button>`;
   }).join("");
 }
@@ -41521,6 +41710,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     </section>
     ${renderProspectConvertGate(item, "leadFinderDetailConvertButton")}
     ${renderContactableApprovalPanel(item, "lead-finder")}
+    ${renderProspectFollowUpEntry(item, "lead-finder")}
     <div class="lead-detail-actions">
       ${item.status !== "synced" ? `<button class="btn" id="leadFinderDetailSaveButton">保存核验资料</button>` : ""}
       ${canSelectLeadFinderItem(item) ? `<button class="btn primary" id="leadFinderDetailShortlistButton">加入搜客清单</button>` : ""}
@@ -41557,6 +41747,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   qs<HTMLButtonElement>("#leadFinderDetailConvertButton", box)?.addEventListener("click", (event) => {
     void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement);
   });
+  bindProspectFollowUpEntry(item, box, "lead-finder");
   bindContactableApprovalEntries(box, item);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
@@ -46746,6 +46937,15 @@ function installEvents() {
     const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardRecentOutreach);
     if (!item || !item.lastDevelopmentEmailAt) return;
     openSentProspectFromDashboard(item);
+  });
+  qs<HTMLButtonElement>("#dashboardFollowUpsRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardFollowUps")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-follow-up]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardFollowUp);
+    if (!item || !item.shortlistedAt || !prospectFollowUpWritable(item)) return;
+    openFollowUpFromDashboard(item);
   });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));

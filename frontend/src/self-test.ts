@@ -729,6 +729,44 @@ assert.match(prospectListRender, /renderProspectComplianceNotices\(item\)/, "搜
 assert.match(apiLayer, /prospect-detail-hero[\s\S]{0,1200}renderProspectComplianceNotices\(item\)/, "搜客清单详情必须展示同一份原因");
 assert.match(apiLayer, /lead-verification-drawer-head[\s\S]{0,900}renderProspectComplianceNotices\(item\)/, "候选详情必须展示同一份原因");
 assert.match(prototype, /\.prospect-hold-notice/, "原因条必须有可见样式");
+const followWritable = kbSourceBetween(apiLayer, "function prospectFollowUpWritable", "\nfunction renderProspectFollowUpSummary");
+assert.match(followWritable, /status === "excluded"/, "已排除的候选不开放跟进写入");
+assert.match(followWritable, /ownerId !== state\.user/, "不是当前业务员时不开放跟进写入");
+assert.match(followWritable, /contactable/, "可联系候选可以记跟进");
+assert.match(followWritable, /contacted/, "已联系候选可以记跟进");
+assert.match(followWritable, /synced/, "已转入线索的候选可以记跟进");
+assert.match(followWritable, /gate\.ready/, "已有人工可联系批准时可以记跟进");
+assert.match(apiLayer, /function renderProspectFollowUpSummary[\s\S]{0,500}暂无跟进/, "没有跟进时必须写暂无跟进");
+assert.match(apiLayer, /data-follow-up="latest"/, "有跟进时必须展示最近一条");
+assert.match(prospectListRender, /renderProspectFollowUpSummary\(item\)/, "搜客清单行必须展示最近跟进");
+assert.match(apiLayer, /renderContactableApprovalPanel\(item, "prospect"\)\}[\s\S]{0,120}renderProspectFollowUpEntry\(item, "prospect"\)/, "搜客清单详情必须能记跟进");
+assert.match(apiLayer, /renderContactableApprovalPanel\(item, "lead-finder"\)\}[\s\S]{0,120}renderProspectFollowUpEntry\(item, "lead-finder"\)/, "候选详情必须能记跟进");
+const followEntry = kbSourceBetween(apiLayer, "function renderProspectFollowUpEntry", "\nfunction focusProspectFollowUpInput");
+assert.match(followEntry, /记录跟进/, "写入按钮文案必须是记录跟进");
+assert.match(followEntry, /不会发送开发信，也不会转为线索/, "跟进说明必须写明不会发送、不会转线索");
+assert.match(followEntry, /prospectFollowUpWritable\(item\)/, "未达可联系时详情不放写入框");
+assert.doesNotMatch(followEntry, /convert-to-lead|send-development-email|解除抑制/, "跟进入口不得转线索、发信或解除抑制");
+const saveFollowUp = kbSourceBetween(apiLayer, "async function saveProspectFollowUp", "\nfunction renderProspectList");
+assert.match(saveFollowUp, /\/api\/prospect-list\/\$\{encodeURIComponent\(item\.id\)\}\/follow-ups/, "记录跟进必须走现有候选接口");
+assert.match(saveFollowUp, /JSON\.stringify\(\{ content \}\)/, "跟进只提交文本");
+assert.doesNotMatch(saveFollowUp, /convert-to-lead|send-development-email|approved_contactable/, "记录跟进不得转线索或改批准");
+const followQueue = kbSourceBetween(apiLayer, "function followUpQueueCandidates()", "\nfunction renderDashboardFollowUps");
+assert.match(followQueue, /shortlistedAt/, "待记跟进只包含搜客清单里的候选");
+assert.match(followQueue, /prospectFollowUpWritable\(item\)/, "待记跟进只包含已可联系的候选");
+assert.match(apiLayer, /没有可记跟进的候选。去搜客清单，留下已可联系的候选后再回来。这里不会编造名单。/, "没有可记跟进时必须指向搜客清单，不能编造名单");
+assert.match(prototype, /id="dashboardFollowUps"[\s\S]*待记跟进/, "工作台必须有待记跟进");
+const followBoard = kbSourceBetween(apiLayer, "function renderDashboardFollowUps()", "\nfunction renderDashboardProspectRuns");
+assert.match(followBoard, /data-dashboard-follow-up/, "待记跟进每一行必须能打开");
+assert.match(followBoard, /暂无跟进/, "待记跟进每一行在没有记录时写暂无跟进");
+const followClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardFollowUps")?.addEventListener');
+const followClick = apiLayer.slice(followClickStart, followClickStart + 520);
+assert.match(followClick, /openFollowUpFromDashboard\(item\)/, "点待记跟进必须打开跟进");
+assert.doesNotMatch(followClick, /sendProspectDevelopmentEmail|send-development-email|convertProspectsToLeads|openProspectOutreachDraft/, "点待记跟进不得发送或转线索");
+const openFollow = kbSourceBetween(apiLayer, "function openFollowUpFromDashboard", "\nfunction openSentProspectFromDashboard");
+assert.match(openFollow, /prospectFollowUpFocusId = item\.id/, "打开待记跟进必须落到输入框");
+assert.match(openFollow, /不会发送，也不会转为线索/, "打开待记跟进时必须说明不会发送、不会转线索");
+assert.doesNotMatch(openFollow, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead/, "打开待记跟进不得发送或转线索");
+assert.match(prototype, /\.prospect-follow-up/, "跟进摘要必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

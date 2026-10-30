@@ -7312,6 +7312,42 @@
       line-height: 1.45;
     }
 
+    .prospect-follow-up-entry {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .prospect-follow-up-entry small,
+    .prospect-follow-up-head {
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-follow-up {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: baseline;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(30, 64, 175, 0.06);
+      color: #1e3a5f;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .prospect-follow-up.is-empty {
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+    }
+
+    .prospect-follow-up em {
+      font-style: normal;
+    }
+
     .prospect-convert-gate {
       margin-top: 8px;
       display: flex;
@@ -10164,6 +10200,7 @@
     #dashboardProspectRuns,
     #dashboardPendingEmails,
     #dashboardRecentOutreach { margin: 0 0 16px; }
+    #dashboardFollowUps { margin: 0 0 16px; }
     .dashboard-prospect-row {
       display: grid;
       grid-template-columns: minmax(0, 1.4fr) minmax(88px, auto) minmax(140px, auto);
@@ -26002,6 +26039,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
               </div>
             </div>
             <div id="dashboardRecentOutreachList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
+          <section class="panel section" id="dashboardFollowUps" aria-label="待记跟进">
+            <div class="section-head">
+              <div class="section-title"><div><h2>待记跟进</h2><p id="dashboardFollowUpScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardFollowUpsRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <div id="dashboardFollowUpList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
