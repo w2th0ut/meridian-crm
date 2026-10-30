@@ -7312,6 +7312,93 @@
       line-height: 1.45;
     }
 
+    .prospect-hold-notice.is-attention {
+      outline: 2px solid #b91c1c;
+      outline-offset: 2px;
+    }
+
+    .prospect-stage-badge {
+      display: inline-flex;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    span.prospect-stage-badge {
+      cursor: default;
+    }
+
+    .prospect-stage {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #d9e2ef;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-stage-head,
+    .prospect-stage-when {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-stage p,
+    .prospect-stage-when {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .acquisition-stage-counts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .acquisition-stage-count {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      min-width: 88px;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fff;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .acquisition-stage-count b {
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .acquisition-stage-count span {
+      color: #526178;
+      font-size: 12px;
+    }
+
+    .prospect-stage-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-stage-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
     .prospect-follow-up-entry {
       margin-top: 10px;
       display: flex;
@@ -10237,7 +10324,8 @@
     #dashboardProspectRuns,
     #dashboardPendingEmails,
     #dashboardRecentOutreach { margin: 0 0 16px; }
-    #dashboardFollowUps { margin: 0 0 16px; }
+    #dashboardFollowUps,
+    #dashboardAcquisitionStages { margin: 0 0 16px; }
     .dashboard-prospect-row {
       display: grid;
       grid-template-columns: minmax(0, 1.4fr) minmax(88px, auto) minmax(140px, auto);
@@ -26044,6 +26132,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </div>
           </div>
 
+          <section class="panel section" id="dashboardAcquisitionStages" aria-label="获客阶段">
+            <div class="section-head">
+              <div class="section-title"><div><h2>获客阶段</h2><p id="dashboardAcquisitionStageScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardAcquisitionStagesRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <div id="dashboardAcquisitionStageCounts"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="panel section" id="dashboardProspectRuns" aria-label="进行中的搜客">
             <div class="section-head">
               <div class="section-title"><div><h2>进行中的搜客</h2><p id="dashboardProspectRunScope">正在读取搜客任务</p></div></div>
@@ -26729,6 +26828,19 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <button data-prospect-filter="contacted">已联系</button>
                 <button data-prospect-filter="synced">已入线索</button>
                 <button data-prospect-filter="excluded">已排除</button>
+              </div>
+              <div class="prospect-stage-filter">
+                <span>阶段</span>
+                <div class="prospect-tabs" role="group" aria-label="按获客阶段筛选">
+                  <button class="active" type="button" data-prospect-stage-filter="all" aria-pressed="true">全部阶段</button>
+                  <button type="button" data-prospect-stage-filter="pending" aria-pressed="false">待触达</button>
+                  <button type="button" data-prospect-stage-filter="reached" aria-pressed="false">已触达</button>
+                  <button type="button" data-prospect-stage-filter="contactable" aria-pressed="false">可联系</button>
+                  <button type="button" data-prospect-stage-filter="following" aria-pressed="false">跟进中</button>
+                  <button type="button" data-prospect-stage-filter="converted" aria-pressed="false">已转线索</button>
+                  <button type="button" data-prospect-stage-filter="held" aria-pressed="false">抑制</button>
+                  <button type="button" data-prospect-stage-filter="excluded" aria-pressed="false">已排除</button>
+                </div>
               </div>
               <div class="prospect-bulkbar">
                 <label><input id="prospectSelectPage" type="checkbox">本页全选</label>
