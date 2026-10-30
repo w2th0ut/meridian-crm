@@ -514,6 +514,7 @@ import {
 import { describeProspectComplianceNotices } from "./prospect-compliance-notice.js";
 import { describeProspectOutreachFailure } from "./prospect-outreach-failure.js";
 import { describeProspectOutreachEngagement } from "./prospect-outreach-engagement.js";
+import { describeProspectOutreachReply } from "./prospect-outreach-reply.js";
 import {
   assertCrmOutreachEligible,
   assertProspectEmailOutreachEligible,
@@ -18727,6 +18728,11 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
         plans: store.prospectOutreachPlans
       }),
       outreachEngagement: describeProspectOutreachEngagement({
+        candidate: verified,
+        emailLogs: store.outboundEmailLogs,
+        touchpoints: store.prospectTouchpoints
+      }),
+      outreachReply: describeProspectOutreachReply({
         candidate: verified,
         emailLogs: store.outboundEmailLogs,
         touchpoints: store.prospectTouchpoints

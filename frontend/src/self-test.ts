@@ -997,6 +997,54 @@ assert.match(openEngagement, /prospectOutreachEngagementFilter = "hit"/, "打开
 assert.match(openEngagement, /不会自动跟进，也不会自动发下一封/, "打开触达反馈时必须说明不会自动跟进、不会自动发下一封");
 assert.doesNotMatch(openEngagement, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachFailureDraft|\/approve|recordProspect/, "打开触达反馈不得发送、转线索、批准或记跟进");
 assert.match(prototype, /\.prospect-outreach-engagement\b/, "开发信打开或点击必须有可见样式");
+const replyLayer = readFileSync(new URL("./prospect-outreach-reply.ts", import.meta.url), "utf8");
+assert.match(replyLayer, /export function presentOutreachReply/, "开发信回复必须只消费接口带回的结果");
+assert.match(replyLayer, /无回复/, "没有回复时文案必须是无回复");
+assert.match(replyLayer, /有回复/, "没有摘要时必须写有回复");
+assert.match(replyLayer, /这不是打开或点击条，也不是失败条，也不是抑制条/, "回复必须和打开或点击、失败条、抑制条区分开");
+assert.match(replyLayer, /不会自动跟进，也不会自动发下一封/, "回复不得自动跟进或自动发下一封");
+assert.match(replyLayer, /去跟进记录/, "有回复时必须能跳到现有跟进记录");
+assert.match(replyLayer, /查看回复记录/, "有回复时必须能跳到现有回复记录");
+assert.doesNotMatch(replyLayer, /原因未回传|已退信|解除抑制|fetch\(|convert-to-lead|send-development-email|deliveredAt\s*:/, "回复不得混用失败文案，也不得发请求、转线索或编造送达字段");
+assert.match(prospectListRender, /renderOutreachReplyLine\(item\)/, "搜客清单每一行必须显示开发信回复");
+assert.match(prospectListRender, /renderOutreachEngagementLine\(item\)[\s\S]{0,80}renderOutreachReplyLine\(item\)/, "回复必须和打开或点击分开显示");
+assert.match(prospectListRender, /renderDashboardOutreachReplies\(\)/, "清单刷新必须同时更新开发信回复入口");
+const replyRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(replyRows, /prospectOutreachReplyFilter[\s\S]*prospectOutreachReply/, "回复筛选只按已有结果过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectOutreachEngagement\(item\)\}\n    \$\{renderProspectOutreachReply\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在打开或点击后面单独说明回复"
+);
+assert.match(apiLayer, /没有回复的候选。这里不会编造记录，也不会自动跟进。/, "筛不到回复时必须写清空态");
+assert.match(prototype, /data-prospect-outreach-reply-filter="hit"[\s\S]*有回复/, "清单必须能筛有回复");
+assert.match(prototype, /id="dashboardOutreachReplies"[\s\S]*开发信回复/, "工作台必须有开发信回复");
+assert.match(apiLayer, /OUTREACH_REPLY_LIMIT = 8/, "工作台开发信回复最多显示 8 行");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看回复。这里不会编造名单，也不会自动跟进。/, "没有清单时不得编造开发信回复");
+assert.match(apiLayer, /当前可见的搜客清单没有开发信回复。这里不会编造记录，也不会自动跟进。/, "没有回复时不得编造记录");
+assert.match(apiLayer, /开发信回复/, "详情标题必须是开发信回复，不叫打开或失败或抑制");
+assert.match(apiLayer, /outreachReplyFollowLabel\(/, "有回复时必须复用跟进入口文案");
+assert.match(apiLayer, /outreachReplyHistoryLabel\(/, "有回复时必须复用回复记录入口文案");
+const replyQueue = kbSourceBetween(apiLayer, "function outreachReplyCandidates()", "\nfunction renderDashboardOutreachReplies");
+assert.match(replyQueue, /shortlistedAt/, "工作台回复只包含搜客清单里的候选");
+assert.match(replyQueue, /prospectOutreachReply/, "工作台回复只包含有回复的候选");
+const replyClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardOutreachReplies")?.addEventListener');
+const replyClick = apiLayer.slice(replyClickStart, replyClickStart + 760);
+assert.match(replyClick, /openOutreachReplyFromDashboard/, "点工作台回复必须打开候选详情");
+assert.doesNotMatch(replyClick, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachReplyFollow|openOutreachReplyHistory|openProspectReplyModal|saveProspectFollowUp/, "点工作台回复不得发送、转线索、打开跟进或记下回复");
+const openReply = kbSourceBetween(apiLayer, "function openOutreachReplyFromDashboard", "\nfunction markProspectConverted");
+assert.match(openReply, /prospectOutreachReplyFilter = "hit"/, "打开回复必须落到有回复筛选");
+assert.match(openReply, /不会自动跟进，也不会自动发下一封/, "打开回复时必须说明不会自动跟进、不会自动发下一封");
+assert.doesNotMatch(openReply, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachReplyFollow|openOutreachReplyHistory|openProspectReplyModal|\/approve|saveProspectFollowUp/, "打开回复不得发送、转线索、批准或记跟进");
+const replyFollow = kbSourceBetween(apiLayer, "function openOutreachReplyFollow", "\nfunction openOutreachReplyHistory");
+assert.match(replyFollow, /prospect-follow-up-entry/, "去跟进记录必须滚到现有跟进记录");
+assert.match(replyFollow, /不会自动记下跟进，也不会发信/, "跳到跟进时必须说明不会自动记下跟进");
+assert.doesNotMatch(replyFollow, /saveProspectFollowUp|sendProspectDevelopmentEmail|convert-to-lead|openProspectReplyModal/, "跳到跟进不得提交跟进、发信或打开记录回复");
+const replyHistory = kbSourceBetween(apiLayer, "function openOutreachReplyHistory", "\nfunction bindOutreachReplyLinks");
+assert.match(replyHistory, /openProspectTouchpointHistory/, "查看回复记录必须打开现有触达记录");
+assert.match(replyHistory, /不会自动跟进，也不会发信/, "查看回复记录时必须说明不会自动跟进");
+assert.doesNotMatch(replyHistory, /saveProspectFollowUp|sendProspectDevelopmentEmail|convert-to-lead|openProspectReplyModal|\/replies/, "查看回复记录不得提交跟进、发信或新写回复");
+assert.match(prototype, /\.prospect-outreach-reply\b/, "开发信回复必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
