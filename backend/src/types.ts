@@ -893,6 +893,8 @@ export interface LeadSourceEvent {
 export interface LeadActivity {
   id: string;
   leadId: string;
+  /** 搜客候选上的跟进。转入线索前 leadId 可为空，转入后补上。 */
+  prospectCandidateId?: string;
   type: LeadActivityType;
   content: string;
   operatorId: string;

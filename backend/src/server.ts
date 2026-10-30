@@ -515,6 +515,10 @@ import {
   recordProspectTouchpoint
 } from "./prospect-outreach.js";
 import {
+  describeProspectLatestFollowUp,
+  recordProspectFollowUp
+} from "./prospect-follow-up.js";
+import {
   TRANSPARENT_GIF,
   buildOutboundMessageId,
   buildTrackedEmailHtml,
@@ -4576,6 +4580,47 @@ app.post("/api/prospect-list/:id/follow-up", requireAuth, asyncRoute(async (req,
   res.status(result.created ? 201 : 200).json({
     ...result,
     opportunity: candidate
+  });
+}));
+
+app.post("/api/prospect-list/:id/follow-ups", requireAuth, asyncRoute(async (req, res) => {
+  const body = z.object({
+    content: z.string().trim().min(1).max(2000)
+  }).parse(req.body || {});
+  const store = getStore();
+  const candidate = store.websiteOpportunities.find((item) =>
+    item.id === req.params.id
+    && canSeeOwner(req.user!, item.ownerId, item.teamId)
+  );
+  if (!candidate) {
+    res.status(404).json({ message: "搜客候选不存在或无权访问" });
+    return;
+  }
+  if (candidate.ownerId !== req.user!.id) {
+    res.status(403).json({ message: "只有候选归属业务员可以记录跟进" });
+    return;
+  }
+  const result = recordProspectFollowUp(store, {
+    candidate,
+    actorId: req.user!.id,
+    content: body.content
+  });
+  await store.persist();
+  const latestFollowUp = result.latestFollowUp;
+  res.status(201).json({
+    activity: {
+      id: result.activity.id,
+      leadId: result.activity.leadId,
+      prospectCandidateId: result.activity.prospectCandidateId || "",
+      type: result.activity.type,
+      content: result.activity.content,
+      createdAt: result.activity.createdAt
+    },
+    latestFollowUp,
+    opportunity: {
+      ...candidate,
+      latestFollowUp
+    }
   });
 }));
 
@@ -18623,6 +18668,7 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
       // 发信资格灯：可发信 / 缺邮箱 / 已抑制（附原因），供清单行直接渲染，不抛错。
       emailEligibility: evaluateProspectEmailOutreachEligibility(store, verified),
       complianceNotices: describeProspectComplianceNotices(store, verified),
+      latestFollowUp: describeProspectLatestFollowUp(store, verified),
       // 转线索资格：复用 convert_to_lead 的可联系门禁，只解释缺什么，不在这里放行。
       leadConversionEligibility: evaluateProspectLeadConversionEligibility(
         store,
@@ -24701,6 +24747,7 @@ app.post("/api/prospects/:id/convert-to-lead", requireAuth, asyncRoute(async (re
       opportunities: linkedCandidates.map((candidate) => ({
         ...candidate,
         complianceNotices: describeProspectComplianceNotices(store, candidate),
+        latestFollowUp: describeProspectLatestFollowUp(store, candidate),
         leadConversionEligibility: evaluateProspectLeadConversionEligibility(
           store,
           candidate,

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { CrmStore } from "./store.js";
+import { linkProspectFollowUpNotes } from "./prospect-follow-up.js";
 import type {
   ProspectOutreachChannel,
   ProspectReplyClassification,
@@ -484,6 +485,7 @@ export function migrateProspectFollowUpTodos(
     todo.title = todo.title.replace(/^跟进候选：/u, "跟进线索：");
     todo.related = `${candidate.company} · 线索 ${leadId}`;
   });
+  linkProspectFollowUpNotes(store, candidate, leadId);
 }
 
 export function prospectReplyLabel(value?: ProspectReplyClassification) {

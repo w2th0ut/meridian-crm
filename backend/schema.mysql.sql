@@ -346,12 +346,14 @@ CREATE TABLE leads (
 CREATE TABLE lead_activities (
   id VARCHAR(64) PRIMARY KEY,
   lead_id VARCHAR(64) NOT NULL,
+  prospect_candidate_id VARCHAR(64) DEFAULT '',
   type VARCHAR(30) DEFAULT 'note',
   content TEXT,
   operator_id VARCHAR(64) DEFAULT '',
   next_follow_at VARCHAR(100) DEFAULT '',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_lead_activities_lead(lead_id)
+  INDEX idx_lead_activities_lead(lead_id),
+  INDEX idx_lead_activities_candidate(prospect_candidate_id)
 );
 
 CREATE TABLE lead_source_events (

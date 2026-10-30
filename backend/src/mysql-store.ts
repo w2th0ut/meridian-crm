@@ -2678,13 +2678,17 @@ async function ensureSchema(pool: mysql.Pool) {
   await pool.query(`CREATE TABLE IF NOT EXISTS lead_activities (
     id VARCHAR(64) PRIMARY KEY,
     lead_id VARCHAR(64) NOT NULL,
+    prospect_candidate_id VARCHAR(64) DEFAULT '',
     type VARCHAR(30) DEFAULT 'note',
     content TEXT,
     operator_id VARCHAR(64) DEFAULT '',
     next_follow_at VARCHAR(100) DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_lead_activities_lead(lead_id)
+    INDEX idx_lead_activities_lead(lead_id),
+    INDEX idx_lead_activities_candidate(prospect_candidate_id)
   )`);
+  await ensureColumn(pool, "lead_activities", "prospect_candidate_id", "VARCHAR(64) DEFAULT ''");
+  await ensureIndex(pool, "lead_activities", "idx_lead_activities_candidate", "(prospect_candidate_id)");
   await pool.query(`CREATE TABLE IF NOT EXISTS lead_source_events (
     id VARCHAR(64) PRIMARY KEY,
     lead_id VARCHAR(64) NOT NULL,
@@ -6488,7 +6492,7 @@ async function loadLeads(pool: mysql.Pool): Promise<Lead[]> {
 
 async function loadLeadActivities(pool: mysql.Pool): Promise<LeadActivity[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM lead_activities ORDER BY created_at DESC")).map((row) => ({
-    id: row.id, leadId: row.lead_id, type: row.type || "note", content: row.content || "", operatorId: row.operator_id || "", nextFollowAt: row.next_follow_at || "", createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at || new Date().toISOString()
+    id: row.id, leadId: row.lead_id || "", prospectCandidateId: row.prospect_candidate_id || "", type: row.type || "note", content: row.content || "", operatorId: row.operator_id || "", nextFollowAt: row.next_follow_at || "", createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at || new Date().toISOString()
   }));
 }
 
@@ -12184,7 +12188,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
     await replaceRows(connection, "customer_activities", store.customerActivities, (item) => [item.id, item.customerId, item.type || "note", item.content || "", item.operatorId || "", item.nextReminder || "", mysqlDate(item.createdAt), item.updatedAt ? mysqlDate(item.updatedAt) : null, item.editedBy || ""], "(id,customer_id,type,content,operator_id,next_reminder,created_at,updated_at,edited_by)");
     await replaceRows(connection, "customer_intelligence_suggestions", store.customerIntelligenceSuggestions, (item) => [item.id, item.teamId, item.ownerId, item.customerId, item.prospectCandidateId, item.tenantProspectId || "", item.organizationId || "", item.leadId || "", item.sourceEventId || "", item.sourceLabel || "", item.sourceUrl || "", JSON.stringify(item.suggestedFields || []), item.website || "", item.business || "", item.contactInfo || "", item.evidenceSummary || "", JSON.stringify(item.evidenceRefs || []), item.payloadHash, item.status, JSON.stringify(item.acceptedFields || []), item.reviewedBy || "", item.reviewedAt ? mysqlDate(item.reviewedAt) : null, item.reviewNote || "", mysqlDate(item.createdAt), mysqlDate(item.updatedAt)], "(id,team_id,owner_id,customer_id,prospect_candidate_id,tenant_prospect_id,organization_id,lead_id,source_event_id,source_label,source_url,suggested_fields_json,website,business,contact_info,evidence_summary,evidence_refs_json,payload_hash,suggestion_status,accepted_fields_json,reviewed_by,reviewed_at,review_note,created_at,updated_at)");
     await replaceRows(connection, "leads", store.leads, (item) => [item.id, item.company, item.contact || "", item.country || "", item.email || "", item.phone || "", item.wechat || "", item.source || "", item.sourceType || "outbound", item.sourceChannel || "manual", item.sourceCampaign || "", item.externalId || "", item.sourceUrl || "", item.intent || "中", item.stage || "新线索", item.status || "new", item.ownerId, item.teamId, item.estimatedAmount || 0, item.nextFollowAt || "", item.lastActivityAt || "", item.remark || "", item.inquiryContent || "", item.convertedCustomerId || "", item.convertedDealId || "", item.deletedAt ? mysqlDate(item.deletedAt) : null, item.deletedReason || "", item.deletedBy || "", item.purgeAt ? mysqlDate(item.purgeAt) : null, item.statusBeforeDelete || "", mysqlDate(item.createdAt), item.lastEmailReplyAt || ""], "(id,company,contact,country,email,phone,wechat,source,source_type,source_channel,source_campaign,external_id,source_url,intent,stage,status,owner_id,team_id,estimated_amount,next_follow_at,last_activity_at,remark,inquiry_content,converted_customer_id,converted_deal_id,deleted_at,deleted_reason,deleted_by,purge_at,status_before_delete,created_at,last_email_reply_at)");
-    await replaceRows(connection, "lead_activities", store.leadActivities, (item) => [item.id, item.leadId, item.type || "note", item.content || "", item.operatorId || "", item.nextFollowAt || "", mysqlDate(item.createdAt)], "(id,lead_id,type,content,operator_id,next_follow_at,created_at)");
+    await replaceRows(connection, "lead_activities", store.leadActivities, (item) => [item.id, item.leadId || "", item.prospectCandidateId || "", item.type || "note", item.content || "", item.operatorId || "", item.nextFollowAt || "", mysqlDate(item.createdAt)], "(id,lead_id,prospect_candidate_id,type,content,operator_id,next_follow_at,created_at)");
     await replaceRows(connection, "lead_source_events", store.leadSourceEvents, (item) => [item.id, item.leadId, item.sourceType, item.channel, item.campaign || "", item.externalId || "", item.sourceUrl || "", mysqlDate(item.occurredAt), mysqlDate(item.receivedAt), item.rawPayload || "{}", item.ownerId, item.teamId], "(id,lead_id,source_type,channel,campaign,external_id,source_url,occurred_at,received_at,raw_payload,owner_id,team_id)");
     await replaceRows(connection, "deals", store.deals, (item) => [item.id, item.customerId, item.title, item.stage, item.product || "", item.quantity || 0, item.unitPrice || 0, JSON.stringify(item.items || []), item.amount, item.currency || "USD", item.amountType || "estimate", item.ownerId, item.teamId, item.nextAction, item.nextActionAt || "", item.expectedCloseAt || "", mysqlDate(item.stageChangedAt), item.closedAt ? mysqlDate(item.closedAt) : null, item.wonReason || "", item.lostReason || "", item.lostReasonCategory || "", item.revisitAt || "", item.archivedAt ? mysqlDate(item.archivedAt) : null], "(id,customer_id,title,stage,product,quantity,unit_price,items_json,amount,currency,amount_type,owner_id,team_id,next_action,next_action_at,expected_close_at,stage_changed_at,closed_at,won_reason,lost_reason,lost_reason_category,revisit_at,archived_at)");
     await replaceRows(connection, "deal_events", store.dealEvents, (item) => [item.id, item.dealId, item.type, item.content || "", item.operatorId, item.fromStage || "", item.toStage || "", item.nextAction || "", item.nextActionAt || "", item.relatedDocumentId || "", mysqlDate(item.createdAt)], "(id,deal_id,event_type,content,operator_id,from_stage,to_stage,next_action,next_action_at,related_document_id,created_at)");
