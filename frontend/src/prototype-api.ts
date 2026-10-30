@@ -64,6 +64,18 @@ import {
   type OutreachReplyListFilter,
   type OutreachReplyView
 } from "./prospect-outreach-reply";
+import {
+  outreachSequenceEntryLabel,
+  outreachSequenceLineLabel,
+  outreachSequenceMatchesFilter,
+  outreachSequenceRank,
+  outreachSequenceSummary,
+  outreachSequenceTitle,
+  outreachSequenceUpdatedAt,
+  presentOutreachSequence,
+  type OutreachSequenceListFilter,
+  type OutreachSequenceView
+} from "./prospect-outreach-sequence";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -1973,6 +1985,8 @@ interface WebsiteOpportunity {
   outreachEngagement?: OutreachEngagementView;
   /** 最近一次开发信回复。没有记录时为无回复，不替代打开/点击、失败条或抑制条。 */
   outreachReply?: OutreachReplyView;
+  /** 当前外联序列。没有方案或步骤时为无序列，不替代回复、打开/点击、失败条或抑制条。 */
+  outreachSequence?: OutreachSequenceView;
   organizationId?: string;
   coverageClassification?: string;
   coverageQueueState?: string;
@@ -3859,6 +3873,7 @@ interface AppState {
   prospectOutreachFailureFilter: OutreachFailureListFilter;
   prospectOutreachEngagementFilter: OutreachEngagementListFilter;
   prospectOutreachReplyFilter: OutreachReplyListFilter;
+  prospectOutreachSequenceFilter: OutreachSequenceListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4082,6 +4097,7 @@ const state: AppState = {
   prospectOutreachFailureFilter: "all",
   prospectOutreachEngagementFilter: "all",
   prospectOutreachReplyFilter: "all",
+  prospectOutreachSequenceFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -13665,6 +13681,7 @@ function renderLeadDrawer(
     state.prospectOutreachFailureFilter = "all";
     state.prospectOutreachEngagementFilter = "all";
     state.prospectOutreachReplyFilter = "all";
+    state.prospectOutreachSequenceFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33572,6 +33589,7 @@ function prospectFilteredRows() {
       if (state.prospectOutreachFailureFilter !== "all" && !outreachFailureMatchesFilter(prospectOutreachFailure(item), state.prospectOutreachFailureFilter)) return false;
       if (state.prospectOutreachEngagementFilter !== "all" && !outreachEngagementMatchesFilter(prospectOutreachEngagement(item), state.prospectOutreachEngagementFilter)) return false;
       if (state.prospectOutreachReplyFilter !== "all" && !outreachReplyMatchesFilter(prospectOutreachReply(item), state.prospectOutreachReplyFilter)) return false;
+      if (state.prospectOutreachSequenceFilter !== "all" && !outreachSequenceMatchesFilter(prospectOutreachSequence(item), state.prospectOutreachSequenceFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35702,6 +35720,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectOutreachFailureFilter = "all";
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35723,6 +35742,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectOutreachFailureFilter = "all";
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35750,6 +35770,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachFailureFilter = "all";
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35811,6 +35832,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectOutreachFailure(item)}
     ${renderProspectOutreachEngagement(item)}
     ${renderProspectOutreachReply(item)}
+    ${renderProspectOutreachSequence(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -35870,6 +35892,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindCrmCollisionLinks(box);
   bindOutreachFailureDraft(box);
   bindOutreachReplyLinks(box);
+  bindOutreachSequenceLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -35949,6 +35972,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusOutreachFailureTarget(item.id, box);
   focusOutreachEngagementTarget(item.id, box);
   focusOutreachReplyTarget(item.id, box);
+  focusOutreachSequenceTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36508,6 +36532,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
     state.prospectOutreachFailureFilter = "all";
     state.prospectOutreachEngagementFilter = "all";
     state.prospectOutreachReplyFilter = "all";
+    state.prospectOutreachSequenceFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -36907,6 +36932,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectOutreachFailureFilter = "all";
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37244,6 +37270,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachFailureFilter = "all";
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37308,6 +37335,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectOutreachFailureFilter = "all";
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37439,6 +37467,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachFailureFilter = "hit";
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37583,6 +37612,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachFailureFilter = "all";
   state.prospectOutreachEngagementFilter = "hit";
   state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37677,6 +37707,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-outreach-sequence-filter]").forEach((button) => {
+    const active = button.dataset.prospectOutreachSequenceFilter === state.prospectOutreachSequenceFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -37690,11 +37725,17 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const replyEmpty = state.prospectOutreachReplyFilter === "hit"
-    ? "没有回复的候选。这里不会编造记录，也不会自动跟进。"
-    : state.prospectOutreachReplyFilter === "clear"
-      ? "没有无回复的候选。这里不会编造公司。"
+  const sequenceEmpty = state.prospectOutreachSequenceFilter === "active"
+    ? "没有进行中的序列。这里不会编造记录，也不会推进序列。"
+    : state.prospectOutreachSequenceFilter === "stopped"
+      ? "没有已停的序列。这里不会编造记录，也不会推进序列。"
       : "";
+  const replyEmpty = sequenceEmpty
+    || (state.prospectOutreachReplyFilter === "hit"
+      ? "没有回复的候选。这里不会编造记录，也不会自动跟进。"
+      : state.prospectOutreachReplyFilter === "clear"
+        ? "没有无回复的候选。这里不会编造公司。"
+        : "");
   const engagementEmpty = replyEmpty
     || (state.prospectOutreachEngagementFilter === "hit"
       ? "没有打开或点击的候选。这里不会编造记录，也不会自动跟进。"
@@ -37738,6 +37779,7 @@ function renderProspectList() {
             ${renderOutreachFailureLine(item)}
             ${renderOutreachEngagementLine(item)}
             ${renderOutreachReplyLine(item)}
+            ${renderOutreachSequenceLine(item)}
             ${renderProspectFollowUpSummary(item)}
             ${renderProspectNextFollow(item)}
             <div class="prospect-contact-quick-row">
@@ -37796,6 +37838,7 @@ function renderProspectList() {
     bindCrmCollisionLinks(rows);
     bindOutreachFailureDraft(rows);
     bindOutreachReplyLinks(rows);
+    bindOutreachSequenceLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -37808,6 +37851,7 @@ function renderProspectList() {
   renderDashboardOutreachFailures();
   renderDashboardOutreachEngagements();
   renderDashboardOutreachReplies();
+  renderDashboardOutreachSequences();
 }
 
 function prospectOutreachReply(item: WebsiteOpportunity) {
@@ -37966,6 +38010,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachFailureFilter = "all";
   state.prospectOutreachEngagementFilter = "all";
   state.prospectOutreachReplyFilter = "hit";
+  state.prospectOutreachSequenceFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37989,6 +38034,185 @@ function markProspectConverted(item: WebsiteOpportunity, leadId: string) {
   item.status = "synced";
   item.leadId = leadId;
   item.leadConversionEligibility = prospectAlreadyLeadGate(item, leadId);
+}
+
+function prospectOutreachSequence(item: WebsiteOpportunity) {
+  return presentOutreachSequence(item.outreachSequence);
+}
+
+function outreachSequenceTone(view: OutreachSequenceView) {
+  if (view.progress === "active") return "green";
+  if (view.progress === "stopped") return "amber";
+  return "gray";
+}
+
+function outreachSequenceJumpButton(item: WebsiteOpportunity) {
+  const view = prospectOutreachSequence(item);
+  const label = outreachSequenceEntryLabel(view);
+  if (!label) return "";
+  return `<div class="prospect-action-row"><button class="btn" type="button" data-outreach-sequence-entry="${escapeHtml(item.id)}">${escapeHtml(label)}</button></div>`;
+}
+
+function renderProspectOutreachSequence(item: WebsiteOpportunity) {
+  const view = prospectOutreachSequence(item);
+  const title = outreachSequenceTitle(view);
+  const step = view.progress !== "none" && view.stepName && view.stepName !== title
+    ? `<p class="prospect-outreach-sequence-step">当前步骤 ${escapeHtml(view.stepName)}</p>`
+    : "";
+  const body = view.progress === "none"
+    ? `<p class="prospect-outreach-sequence-body" data-outreach-sequence-body="empty">无序列</p>`
+    : `<p class="prospect-outreach-sequence-body" data-outreach-sequence-body="${view.name ? "name" : view.stepName ? "step" : "status"}">${escapeHtml(title || view.statusLabel)}</p>`;
+  return `<section class="prospect-outreach-sequence" id="prospectOutreachSequence" data-outreach-sequence="${view.progress}">
+    <div class="prospect-outreach-sequence-head"><b>外联序列</b>${badge(view.progress === "none" ? "无序列" : view.statusLabel, outreachSequenceTone(view))}</div>
+    <p>${escapeHtml(outreachSequenceSummary(view))}</p>
+    ${body}
+    ${step}
+    ${outreachSequenceJumpButton(item)}
+  </section>`;
+}
+
+function renderOutreachSequenceLine(item: WebsiteOpportunity) {
+  const view = prospectOutreachSequence(item);
+  const compact = view.progress === "none" ? " is-empty" : " is-compact";
+  return `<div class="prospect-outreach-sequence${compact}" data-outreach-sequence="${view.progress}">${escapeHtml(outreachSequenceLineLabel(view))}</div>`;
+}
+
+let prospectOutreachSequenceFocusId = "";
+
+function focusOutreachSequenceTarget(itemId: string, root: ParentNode | null) {
+  if (prospectOutreachSequenceFocusId !== itemId) return;
+  prospectOutreachSequenceFocusId = "";
+  const node = root?.querySelector<HTMLElement>("#prospectOutreachSequence");
+  if (!node) return;
+  node.classList.add("is-attention");
+  node.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => node.classList.remove("is-attention"), 1600);
+}
+
+function openOutreachSequenceEntry(item: WebsiteOpportunity) {
+  const view = prospectOutreachSequence(item);
+  if (view.progress === "none" || !view.sourceId) return;
+  if (view.source === "plan") {
+    toast("已打开现有方案。只读，不会推进步骤，也不会发信。");
+    void openOutreachPlanDetail(view.sourceId);
+    return;
+  }
+  if (view.source === "batch") {
+    outreachBatchCollapsed.delete(view.sourceId);
+    const reveal = () => {
+      const node = document.querySelector<HTMLElement>(`[data-batch-id="${CSS.escape(view.sourceId)}"]`);
+      if (node) node.scrollIntoView({ block: "nearest" });
+      toast(node
+        ? "已打开现有发信批次。只读，不会推进步骤，也不会发信。"
+        : "现有发信批次不在当前列表。不会推进步骤，也不会发信。");
+    };
+    activateNavView("outreach-batches", () => {
+      void loadOutreachBatches().then(reveal);
+    });
+    return;
+  }
+  activateNavView("ai-agent", () => {
+    qs<HTMLElement>("#agentSequenceList")?.scrollIntoView({ block: "nearest" });
+    toast("已打开现有触达序列。只读，不会推进步骤，也不会发信。");
+  });
+}
+
+function bindOutreachSequenceLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-outreach-sequence-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = state.websiteOpportunities.find((row) => row.id === (button.dataset.outreachSequenceEntry || ""));
+      if (item) openOutreachSequenceEntry(item);
+    });
+  });
+}
+
+const OUTREACH_SEQUENCE_LIMIT = 8;
+
+function outreachSequenceCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => Boolean(item.shortlistedAt) && prospectOutreachSequence(item).progress !== "none")
+    .slice()
+    .sort((left, right) => {
+      const leftView = prospectOutreachSequence(left);
+      const rightView = prospectOutreachSequence(right);
+      const rank = outreachSequenceRank(rightView) - outreachSequenceRank(leftView);
+      if (rank) return rank;
+      const difference = outreachSequenceUpdatedAt(rightView) - outreachSequenceUpdatedAt(leftView);
+      return difference || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardOutreachSequences() {
+  const scope = qs<HTMLElement>("#dashboardOutreachSequenceScope");
+  const list = qs<HTMLElement>("#dashboardOutreachSequenceList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看序列。这里不会编造名单，也不会推进序列。</div>`;
+    return;
+  }
+  const hits = outreachSequenceCandidates();
+  if (!hits.length) {
+    scope.textContent = "当前可见的搜客清单没有外联序列";
+    list.innerHTML = `<div class="empty-cell">当前可见的搜客清单没有外联序列。这里不会编造记录，也不会推进序列。</div>`;
+    return;
+  }
+  const shown = hits.slice(0, OUTREACH_SEQUENCE_LIMIT);
+  scope.textContent = hits.length > shown.length
+    ? `可见范围 ${hits.length} 条有外联序列，这里显示 ${shown.length} 条`
+    : `可见范围 ${hits.length} 条有外联序列`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectOutreachSequence(item);
+    const title = outreachSequenceTitle(view) || view.statusLabel;
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-outreach-sequence="${escapeHtml(item.id)}" aria-label="查看外联序列：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(title)}</span>
+      <em>${escapeHtml(view.statusLabel)}</em>
+    </button>`;
+  }).join("");
+}
+
+function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
+  const view = prospectOutreachSequence(item);
+  if (!item.shortlistedAt || view.progress === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectJoinedRange = "all";
+  state.prospectOutreachSequenceFilter = view.progress === "active" || view.progress === "stopped" ? view.progress : "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  prospectOutreachSequenceFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开这条候选。只读，不会推进步骤，也不会自动发下一封。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
 }
 
 function openProspectConvertFollowUp(item: WebsiteOpportunity) {
@@ -39190,6 +39414,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     const replyScope = qs<HTMLElement>("#dashboardOutreachReplyScope");
     const replyList = qs<HTMLElement>("#dashboardOutreachReplyList");
     if (replyScope) replyScope.textContent = "开发信回复暂时读不到";
+    const sequenceScope = qs<HTMLElement>("#dashboardOutreachSequenceScope");
+    const sequenceList = qs<HTMLElement>("#dashboardOutreachSequenceList");
+    if (sequenceScope) sequenceScope.textContent = "外联序列暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
@@ -39219,6 +39446,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     }
     if (!websiteOpportunitiesLoaded && replyList) {
       replyList.innerHTML = `<div class="empty-cell">开发信回复暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造记录，也不会自动跟进。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && sequenceList) {
+      sequenceList.innerHTML = `<div class="empty-cell">外联序列暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造记录，也不会推进序列。</div>`;
     }
   } finally {
     if (button) {
@@ -41045,6 +41275,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
     state.prospectOutreachFailureFilter = "all";
     state.prospectOutreachEngagementFilter = "all";
     state.prospectOutreachReplyFilter = "all";
+    state.prospectOutreachSequenceFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -43090,6 +43321,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectOutreachFailure(item)}
     ${renderProspectOutreachEngagement(item)}
     ${renderProspectOutreachReply(item)}
+    ${renderProspectOutreachSequence(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -43191,6 +43423,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindCrmCollisionLinks(box);
   bindOutreachFailureDraft(box);
   bindOutreachReplyLinks(box);
+  bindOutreachSequenceLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -43213,6 +43446,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusOutreachFailureTarget(item.id, box);
   focusOutreachEngagementTarget(item.id, box);
   focusOutreachReplyTarget(item.id, box);
+  focusOutreachSequenceTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -45173,6 +45407,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     state.prospectOutreachFailureFilter = "all";
     state.prospectOutreachEngagementFilter = "all";
     state.prospectOutreachReplyFilter = "all";
+    state.prospectOutreachSequenceFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -48464,6 +48699,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectOutreachReply(item).status !== "hit") return;
     openOutreachReplyFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardOutreachSequencesRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardOutreachSequences")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-outreach-sequence]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardOutreachSequence);
+    if (!item || !item.shortlistedAt || prospectOutreachSequence(item).progress === "none") return;
+    openOutreachSequenceFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
@@ -48813,6 +49057,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectOutreachReplyFilter || "all";
       state.prospectOutreachReplyFilter = next === "hit" || next === "clear" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-outreach-sequence-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectOutreachSequenceFilter || "all";
+      state.prospectOutreachSequenceFilter = next === "active" || next === "stopped" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
