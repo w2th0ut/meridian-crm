@@ -16,6 +16,11 @@ export interface ProspectOutreachSequenceView {
   source: OutreachSequenceSource;
   sourceId: string;
   updatedAt: string;
+  /**
+   * 下一步（正在发，否则待发）上已经有的 scheduledAt。
+   * 没有下一步，或时间不是带 T 的 ISO，留空。不另存到期，也不读方案/批次的下一次运行时间。
+   */
+  scheduledAt: string;
 }
 
 export interface OutreachSequenceCandidate {
@@ -28,6 +33,8 @@ export interface OutreachSequenceCandidate {
 export interface OutreachSequenceStep {
   subject?: string;
   status?: string;
+  /** 这一步计划发送时间。只读，不在这里改排期。 */
+  scheduledAt?: string;
   /** 失败原因留给失败条，序列进度不读、不回传。 */
   error?: string;
 }
@@ -85,6 +92,7 @@ interface SequenceHit {
   source: Exclude<OutreachSequenceSource, "none">;
   sourceId: string;
   updatedAt: string;
+  scheduledAt: string;
 }
 
 function text(value: unknown) {
@@ -115,8 +123,25 @@ function emptySequence(): ProspectOutreachSequenceView {
     stepName: "",
     source: "none",
     sourceId: "",
-    updatedAt: ""
+    updatedAt: "",
+    scheduledAt: ""
   };
+}
+
+/** 只认带 T 的 ISO。墙上时钟和空字符串都不算下一步到期。 */
+function isoTime(value: unknown) {
+  const cleaned = text(value);
+  if (!cleaned.includes("T") || Number.isNaN(Date.parse(cleaned))) return "";
+  return cleaned;
+}
+
+/** 正在发优先，否则第一条待发。已发出的 scheduledAt 不是下一步。 */
+function nextOpenStepDue(steps: OutreachSequenceStep[] | undefined) {
+  const list = steps || [];
+  const next = list.find((step) => text(step.status) === "sending")
+    || list.find((step) => text(step.status) === "pending");
+  if (!next) return "";
+  return isoTime(next.scheduledAt);
 }
 
 function currentStepName(steps: OutreachSequenceStep[] | undefined) {
@@ -272,7 +297,8 @@ export function describeProspectOutreachSequence(input: {
         name,
         source: "plan",
         sourceId: text(plan.id),
-        updatedAt: validTime(plan.updatedAt)
+        updatedAt: validTime(plan.updatedAt),
+        scheduledAt: nextOpenStepDue(item.steps)
       });
     }
   }
@@ -290,7 +316,8 @@ export function describeProspectOutreachSequence(input: {
         name: "",
         source: "batch",
         sourceId: text(batch.id),
-        updatedAt: validTime(batch.updatedAt)
+        updatedAt: validTime(batch.updatedAt),
+        scheduledAt: nextOpenStepDue(item.steps)
       });
     }
   }
@@ -305,7 +332,8 @@ export function describeProspectOutreachSequence(input: {
       name: "",
       source: "sequence",
       sourceId: text(sequence.id),
-      updatedAt: validTime(sequence.updatedAt)
+      updatedAt: validTime(sequence.updatedAt),
+      scheduledAt: nextOpenStepDue(sequence.steps)
     });
   }
 
@@ -318,6 +346,7 @@ export function describeProspectOutreachSequence(input: {
     stepName: current.stepName,
     source: current.source,
     sourceId: current.sourceId,
-    updatedAt: current.updatedAt
+    updatedAt: current.updatedAt,
+    scheduledAt: current.scheduledAt
   };
 }
