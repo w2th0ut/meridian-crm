@@ -1320,6 +1320,61 @@ assert.match(scrollStage, /\.prospect-stage/, "查看当前阶段必须滚到现
 assert.doesNotMatch(scrollStage, /saveProspectNextFollow|saveProspectFollowUp|\.value\s*=|fetch\(|convert-to-lead|send-development-email/, "跳到当前阶段不得改阶段、提交跟进或发请求");
 assert.match(prototype, /\.prospect-stage-stuck\b/, "转化阶段卡住必须有可见样式");
 assert.match(prototype, /\.dashboard-stage-stuck-note\b/, "转化阶段卡住说明必须有可见样式");
+const followUpGapLayer = readFileSync(new URL("./prospect-follow-up-gap.ts", import.meta.url), "utf8");
+assert.match(followUpGapLayer, /export function presentFollowUpGap/, "跟进记录空档必须只消费已有跟进注记时间");
+assert.match(followUpGapLayer, /FOLLOW_UP_GAP_LIMIT = 8/, "跟进记录空档最多 8 条");
+assert.match(followUpGapLayer, /FOLLOW_UP_GAP_WINDOW_DAYS = 7/, "空档窗口必须是 7 天");
+assert.match(followUpGapLayer, /无记录/, "没有跟进记录时文案必须是无记录");
+assert.match(followUpGapLayer, /空档/, "超过窗口必须标空档");
+assert.match(followUpGapLayer, /近期有跟进/, "窗口内必须标近期有跟进");
+assert.match(followUpGapLayer, /去跟进记录/, "必须能跳到现有跟进记录");
+assert.match(followUpGapLayer, /!text\.includes\("T"\)/, "下次跟进那种时间不算跟进记录");
+assert.match(followUpGapLayer, /这不是下次跟进逾期，也不是转化阶段卡住，也不是获客待办摘要/, "跟进记录空档必须和下次跟进逾期、转化阶段卡住、获客待办摘要区分开");
+assert.match(followUpGapLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步/, "跟进记录空档必须和待记跟进、草稿、序列、回复、打开或点击、失败、抑制、收信同步区分开");
+assert.match(followUpGapLayer, /不会自动记下跟进，不会改下次跟进，不会发信，也不会改 convert_to_lead 或 approved_contactable/, "跟进记录空档不得自动记下跟进、改下次跟进、发信或改门禁");
+assert.doesNotMatch(followUpGapLayer, /fetch\(|convert-to-lead|send-development-email|saveProspectNextFollow|saveProspectFollowUp|approved_contactable\s*=/, "跟进记录空档不得发请求、改下次跟进、记跟进或改门禁");
+assert.doesNotMatch(kbSourceBetween(followUpGapLayer, "function followUpGapLineLabel", "\nexport function followUpGapStatusLabel"), /逾期|今日到期|无下次跟进|卡住|推进中|无阶段|获客待办|暂无跟进|已逾期|未设下次跟进/, "行文案必须用空档、近期有跟进、无记录");
+assert.match(prospectListRender, /renderFollowUpGapLine\(item\)/, "搜客清单每一行必须显示跟进记录空档");
+assert.match(prospectListRender, /renderStageStuckLine\(item\)[\s\S]{0,120}renderFollowUpGapLine\(item\)/, "跟进记录空档必须和转化阶段卡住分开显示");
+assert.match(prospectListRender, /renderDashboardFollowUpGap\(\)/, "清单刷新必须同时更新跟进记录空档入口");
+const followUpGapRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(followUpGapRows, /prospectFollowUpGapFilter[\s\S]*prospectFollowUpGap/, "跟进记录空档筛选只按已有跟进时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectStageStuck\(item\)\}\n    \$\{renderProspectFollowUpGap\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在转化阶段卡住后面单独说明跟进记录空档"
+);
+assert.match(apiLayer, /没有跟进空档。这里不会编造跟进，也不会自动记下跟进。/, "筛不到空档时必须写清空态");
+assert.match(prototype, /data-prospect-follow-up-gap-filter="gap"[\s\S]*空档/, "清单必须能筛空档");
+assert.match(prototype, /id="dashboardStageStuck"[\s\S]{0,4000}id="dashboardFollowUpGap"[\s\S]*跟进记录空档/, "工作台跟进记录空档必须在转化阶段卡住下面");
+assert.match(prototype, /id="dashboardFollowUpGapNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和下次跟进逾期分开");
+assert.match(prototype, /id="dashboardFollowUps"[\s\S]*待记跟进/, "待记跟进原条还在");
+assert.match(prototype, /id="dashboardDueFollowUps"[\s\S]*今日到期/, "今日到期原条还在");
+assert.match(apiLayer, /FOLLOW_UP_GAP_LIMIT/, "工作台跟进记录空档必须守住 8 条上限");
+assert.match(apiLayer, /listFollowUpGapQueue\(/, "工作台必须复用空档在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看跟进空档。这里不会编造名单，也不会自动记下跟进。/, "没有清单时不得编造跟进空档");
+assert.match(apiLayer, /无记录。当前可见的搜客清单没有跟进记录。这里不会编造跟进，也不会自动记下跟进。/, "没有跟进记录时不得编造跟进");
+assert.match(apiLayer, /跟进记录空档/, "详情标题必须是跟进记录空档");
+assert.match(apiLayer, /followUpGapEntryLabel\(/, "详情必须复用去跟进记录入口文案");
+assert.match(apiLayer, /latestFollowUp\?\.at/, "跟进记录空档必须复用已有跟进注记时间");
+const followUpGapQueue = kbSourceBetween(apiLayer, "function renderDashboardFollowUpGap", "\nfunction openFollowUpGapFromDashboard");
+assert.match(followUpGapQueue, /shortlistedAt/, "工作台跟进记录空档只包含搜客清单里的候选");
+assert.match(followUpGapQueue, /listFollowUpGapQueue\(/, "工作台跟进记录空档只按已有跟进时间排序");
+assert.match(followUpGapQueue, /FOLLOW_UP_GAP_LIMIT/, "工作台渲染必须传入 8 条上限");
+const followUpGapClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardFollowUpGap")?.addEventListener');
+const followUpGapClick = apiLayer.slice(followUpGapClickStart, followUpGapClickStart + 700);
+assert.match(followUpGapClick, /openFollowUpGapFromDashboard/, "点工作台跟进记录空档必须打开现有跟进记录");
+assert.doesNotMatch(followUpGapClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openFollowUpFromDashboard/, "点工作台跟进记录空档不得改下次跟进、记跟进、发送或转线索");
+const openFollowUpGap = kbSourceBetween(apiLayer, "function openFollowUpGapFromDashboard", "\nfunction renderDashboardProspectRuns");
+assert.match(openFollowUpGap, /prospectFollowUpGapFilter = view\.kind === "gap" \? "gap" : "all"/, "打开空档必须落到空档筛选，近期有跟进保持全部");
+assert.match(openFollowUpGap, /followUpGapFocusId = item\.id/, "打开后必须停在现有跟进记录");
+assert.match(openFollowUpGap, /不会自动记下跟进，也不会改下次跟进/, "打开时必须说明不会自动记下跟进、不会改下次跟进");
+assert.doesNotMatch(openFollowUpGap, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|\/approve/, "打开跟进记录空档不得改下次跟进、记跟进、发送、转线索或批准");
+const scrollFollowUpGap = kbSourceBetween(apiLayer, "function scrollToExistingFollowUp", "\nfunction focusFollowUpGapTarget");
+assert.match(scrollFollowUpGap, /prospect-follow-up-entry/, "去跟进记录必须滚到现有跟进记录");
+assert.doesNotMatch(scrollFollowUpGap, /saveProspectNextFollow|saveProspectFollowUp|\.value\s*=|fetch\(|convert-to-lead|send-development-email/, "跳到跟进记录不得改下次跟进、提交跟进或发请求");
+assert.match(prototype, /\.prospect-follow-up-gap\b/, "跟进记录空档必须有可见样式");
+assert.match(prototype, /\.dashboard-follow-up-gap-note\b/, "跟进记录空档说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
