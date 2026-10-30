@@ -36,6 +36,14 @@ import {
   type CrmCollisionListFilter,
   type CrmCollisionView
 } from "./prospect-crm-collision";
+import {
+  outreachFailureMatchesFilter,
+  outreachFailureRewriteLabel,
+  outreachFailureSummary,
+  presentOutreachFailure,
+  type OutreachFailureListFilter,
+  type OutreachFailureView
+} from "./prospect-outreach-failure";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -1939,6 +1947,8 @@ interface WebsiteOpportunity {
   shortlistSourceRunId?: string;
   tenantProspectId?: string;
   crmCollision?: CrmCollisionView;
+  /** 最近一次开发信发送失败或退信。没有记录时为无失败记录，不替代抑制原因条。 */
+  outreachFailure?: OutreachFailureView;
   organizationId?: string;
   coverageClassification?: string;
   coverageQueueState?: string;
@@ -3822,6 +3832,7 @@ interface AppState {
   prospectStageFilter: "all" | AcquisitionStageFilter;
   prospectCoverageFilter: CoveragePoolListFilter;
   prospectCollisionFilter: CrmCollisionListFilter;
+  prospectOutreachFailureFilter: OutreachFailureListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4042,6 +4053,7 @@ const state: AppState = {
   prospectStageFilter: "all",
   prospectCoverageFilter: "all",
   prospectCollisionFilter: "all",
+  prospectOutreachFailureFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -13622,6 +13634,7 @@ function renderLeadDrawer(
     state.prospectStageFilter = "all";
     state.prospectCoverageFilter = "all";
     state.prospectCollisionFilter = "all";
+    state.prospectOutreachFailureFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33526,6 +33539,7 @@ function prospectFilteredRows() {
       if (state.prospectStageFilter !== "all" && deriveAcquisitionStage(acquisitionStageInput(item)).filter !== state.prospectStageFilter) return false;
       if (state.prospectCoverageFilter !== "all" && deriveCoveragePool({ tenantProspectId: item.tenantProspectId }).filter !== state.prospectCoverageFilter) return false;
       if (state.prospectCollisionFilter !== "all" && !crmCollisionMatchesFilter(prospectCrmCollision(item), state.prospectCollisionFilter)) return false;
+      if (state.prospectOutreachFailureFilter !== "all" && !outreachFailureMatchesFilter(prospectOutreachFailure(item), state.prospectOutreachFailureFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35653,6 +35667,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35671,6 +35686,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35695,6 +35711,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35753,6 +35770,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectCoveragePool(item)}
     ${renderProspectCrmCollision(item)}
     ${renderProspectComplianceNotices(item)}
+    ${renderProspectOutreachFailure(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -35810,6 +35828,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindAcquisitionStageHold(box);
   bindCoveragePoolNext(box);
   bindCrmCollisionLinks(box);
+  bindOutreachFailureDraft(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -35886,6 +35905,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusProspectFollowUpInput(item.id);
   focusCoveragePoolTarget(item.id, box);
   focusCrmCollisionTarget(item.id, box);
+  focusOutreachFailureTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36442,6 +36462,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
     state.prospectStageFilter = "all";
     state.prospectCoverageFilter = "all";
     state.prospectCollisionFilter = "all";
+    state.prospectOutreachFailureFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -36838,6 +36859,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = target === "coverage" ? "out" : "all";
   state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37172,6 +37194,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "hit";
+  state.prospectOutreachFailureFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37233,12 +37256,166 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectStageFilter = filter;
   state.prospectCoverageFilter = "all";
   state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
   activateNavView("prospect-list", () => {
     renderProspectList();
     toast("已按阶段筛选。只读，不会发送，也不会转为线索。");
+  });
+}
+
+function prospectOutreachFailure(item: WebsiteOpportunity) {
+  return presentOutreachFailure(item.outreachFailure);
+}
+
+function outreachFailureCanRewrite(item: WebsiteOpportunity) {
+  return Boolean(item.shortlistedAt) && (item.status === "contactable" || item.status === "contacted");
+}
+
+function outreachFailureTone(kind: OutreachFailureView["kind"]) {
+  return kind === "none" ? "gray" : "red";
+}
+
+function outreachFailureRewriteButton(item: WebsiteOpportunity) {
+  const label = outreachFailureRewriteLabel(prospectOutreachFailure(item), outreachFailureCanRewrite(item));
+  if (!label) return "";
+  return `<button class="btn prospect-outreach-failure-draft" type="button" data-outreach-failure-draft="${escapeHtml(item.id)}">${escapeHtml(label)}</button>`;
+}
+
+function renderProspectOutreachFailure(item: WebsiteOpportunity) {
+  const failure = prospectOutreachFailure(item);
+  const formattedAt = failure.at ? formatProspectJoinedAt(failure.at) : "";
+  const whenText = formattedAt && formattedAt !== "时间未知" ? formattedAt : "";
+  const when = failure.at && whenText
+    ? `<p class="prospect-outreach-failure-when"><span>发生时间</span><time datetime="${escapeHtml(failure.at)}">${escapeHtml(whenText)}</time></p>`
+    : "";
+  return `<section class="prospect-outreach-failure" id="prospectOutreachFailure" data-outreach-failure="${failure.kind}">
+    <div class="prospect-outreach-failure-head"><b>开发信失败或退信</b>${badge(failure.label, outreachFailureTone(failure.kind))}</div>
+    <p>${escapeHtml(outreachFailureSummary(failure, whenText, outreachFailureCanRewrite(item)))}</p>
+    ${when}
+    ${outreachFailureRewriteButton(item)}
+  </section>`;
+}
+
+function renderOutreachFailureLine(item: WebsiteOpportunity) {
+  const failure = prospectOutreachFailure(item);
+  if (failure.status === "none") {
+    return `<div class="prospect-outreach-failure is-empty" data-outreach-failure="none">无失败记录</div>`;
+  }
+  const formattedAt = failure.at ? formatProspectJoinedAt(failure.at) : "";
+  const when = formattedAt && formattedAt !== "时间未知" ? ` · ${formattedAt}` : "";
+  return `<div class="prospect-outreach-failure is-compact" data-outreach-failure="${failure.kind}">${badge(failure.label, "red")}<span>${escapeHtml(failure.reason)}${escapeHtml(when)}</span>${outreachFailureRewriteButton(item)}</div>`;
+}
+
+let prospectOutreachFailureFocusId = "";
+
+function focusOutreachFailureTarget(itemId: string, root: ParentNode | null) {
+  if (prospectOutreachFailureFocusId !== itemId) return;
+  prospectOutreachFailureFocusId = "";
+  const node = root?.querySelector<HTMLElement>("#prospectOutreachFailure");
+  if (!node) return;
+  node.classList.add("is-attention");
+  node.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => node.classList.remove("is-attention"), 1600);
+}
+
+function openOutreachFailureDraft(item: WebsiteOpportunity) {
+  if (!outreachFailureCanRewrite(item) || prospectOutreachFailure(item).status !== "hit") return;
+  openProspectDraftFromAcquisition(item);
+}
+
+const OUTREACH_FAILURE_LIMIT = 8;
+
+function outreachFailureCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => Boolean(item.shortlistedAt) && prospectOutreachFailure(item).status === "hit")
+    .slice()
+    .sort((left, right) => {
+      const leftTime = new Date(prospectOutreachFailure(left).at).getTime();
+      const rightTime = new Date(prospectOutreachFailure(right).at).getTime();
+      const difference = (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+      return difference || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardOutreachFailures() {
+  const scope = qs<HTMLElement>("#dashboardOutreachFailureScope");
+  const list = qs<HTMLElement>("#dashboardOutreachFailureList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看。这里不会编造名单，也不会自动重发。</div>`;
+    return;
+  }
+  const hits = outreachFailureCandidates();
+  if (!hits.length) {
+    scope.textContent = "当前可见的搜客清单没有开发信失败或退信";
+    list.innerHTML = `<div class="empty-cell">当前可见的搜客清单没有开发信失败或退信。这里不会编造记录，也不会自动重发。</div>`;
+    return;
+  }
+  const shown = hits.slice(0, OUTREACH_FAILURE_LIMIT);
+  scope.textContent = hits.length > shown.length
+    ? `可见范围 ${hits.length} 条有失败或退信，这里显示 ${shown.length} 条`
+    : `可见范围 ${hits.length} 条有失败或退信`;
+  list.innerHTML = shown.map((item) => {
+    const failure = prospectOutreachFailure(item);
+    const when = failure.at ? formatProspectJoinedAt(failure.at) : "";
+    const timeText = when && when !== "时间未知" ? ` · ${when}` : "";
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-outreach-failure="${escapeHtml(item.id)}" aria-label="查看开发信失败：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(failure.label)}</span>
+      <em>${escapeHtml(failure.reason)}${escapeHtml(timeText)}</em>
+    </button>`;
+  }).join("");
+}
+
+function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt || prospectOutreachFailure(item).status !== "hit") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "hit";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  prospectOutreachFailureFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开这条候选。只读，不会自动重发，也不会解除抑制。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+function bindOutreachFailureDraft(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-outreach-failure-draft]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = state.websiteOpportunities.find((row) => row.id === (button.dataset.outreachFailureDraft || ""));
+      if (item) openOutreachFailureDraft(item);
+    });
   });
 }
 
@@ -37302,6 +37479,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-outreach-failure-filter]").forEach((button) => {
+    const active = button.dataset.prospectOutreachFailureFilter === state.prospectOutreachFailureFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -37315,11 +37497,17 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const collisionEmpty = state.prospectCollisionFilter === "hit"
-    ? "没有已撞库的候选。这里不会编造命中，也不会自动合并。"
-    : state.prospectCollisionFilter === "clear"
-      ? "没有未撞库的候选。这里不会编造公司。"
+  const failureEmpty = state.prospectOutreachFailureFilter === "hit"
+    ? "没有失败或退信的候选。这里不会编造记录，也不会自动重发。"
+    : state.prospectOutreachFailureFilter === "clear"
+      ? "没有无失败记录的候选。这里不会编造公司。"
       : "";
+  const collisionEmpty = failureEmpty
+    || (state.prospectCollisionFilter === "hit"
+      ? "没有已撞库的候选。这里不会编造命中，也不会自动合并。"
+      : state.prospectCollisionFilter === "clear"
+        ? "没有未撞库的候选。这里不会编造公司。"
+        : "");
   const coverageEmpty = collisionEmpty
     || (state.prospectCoverageFilter === "out"
       ? "没有未进正式企业覆盖池的候选。这里不会编造公司，也不会自动入池。"
@@ -37342,6 +37530,7 @@ function renderProspectList() {
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
             <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectComplianceNotices(item)}
+            ${renderOutreachFailureLine(item)}
             ${renderProspectFollowUpSummary(item)}
             ${renderProspectNextFollow(item)}
             <div class="prospect-contact-quick-row">
@@ -37398,6 +37587,7 @@ function renderProspectList() {
     bindAcquisitionStageHold(rows);
     bindCoveragePoolNext(rows);
     bindCrmCollisionLinks(rows);
+    bindOutreachFailureDraft(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -37407,6 +37597,7 @@ function renderProspectList() {
   renderDashboardAcquisitionStages();
   renderDashboardCoverageGaps();
   renderDashboardCrmCollisions();
+  renderDashboardOutreachFailures();
 }
 
 function markProspectConverted(item: WebsiteOpportunity, leadId: string) {
@@ -38603,8 +38794,11 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     const coverageList = qs<HTMLElement>("#dashboardCoverageGapList");
     const collisionScope = qs<HTMLElement>("#dashboardCrmCollisionScope");
     const collisionList = qs<HTMLElement>("#dashboardCrmCollisionList");
+    const failureScope = qs<HTMLElement>("#dashboardOutreachFailureScope");
+    const failureList = qs<HTMLElement>("#dashboardOutreachFailureList");
     if (coverageScope) coverageScope.textContent = "覆盖池暂时读不到";
     if (collisionScope) collisionScope.textContent = "撞库暂时读不到";
+    if (failureScope) failureScope.textContent = "开发信失败暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
@@ -38625,6 +38819,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     }
     if (!websiteOpportunitiesLoaded && collisionList) {
       collisionList.innerHTML = `<div class="empty-cell">撞库暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造命中，也不会自动合并。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && failureList) {
+      failureList.innerHTML = `<div class="empty-cell">开发信失败暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造记录，也不会自动重发。</div>`;
     }
   } finally {
     if (button) {
@@ -40448,6 +40645,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
     state.prospectStageFilter = "all";
     state.prospectCoverageFilter = "all";
     state.prospectCollisionFilter = "all";
+    state.prospectOutreachFailureFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -42490,6 +42688,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectCoveragePool(item)}
     ${renderProspectCrmCollision(item)}
     ${renderProspectComplianceNotices(item)}
+    ${renderProspectOutreachFailure(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -42589,6 +42788,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindAcquisitionStageHold(box);
   bindCoveragePoolNext(box);
   bindCrmCollisionLinks(box);
+  bindOutreachFailureDraft(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -42608,6 +42808,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusProspectHoldNotice(item.id, box);
   focusCoveragePoolTarget(item.id, box);
   focusCrmCollisionTarget(item.id, box);
+  focusOutreachFailureTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -44565,6 +44766,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     state.prospectStageFilter = "all";
     state.prospectCoverageFilter = "all";
     state.prospectCollisionFilter = "all";
+    state.prospectOutreachFailureFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -47829,6 +48031,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectCrmCollision(item).status === "none") return;
     openCrmCollisionFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardOutreachFailuresRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardOutreachFailures")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-outreach-failure]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardOutreachFailure);
+    if (!item || !item.shortlistedAt || prospectOutreachFailure(item).status !== "hit") return;
+    openOutreachFailureFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
@@ -48154,6 +48365,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectCollisionFilter || "all";
       state.prospectCollisionFilter = next === "hit" || next === "clear" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-outreach-failure-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectOutreachFailureFilter || "all";
+      state.prospectOutreachFailureFilter = next === "hit" || next === "clear" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });

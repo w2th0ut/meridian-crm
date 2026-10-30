@@ -7505,6 +7505,74 @@
       gap: 6px;
     }
 
+    .prospect-outreach-failure-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-outreach-failure-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-outreach-failure:not(.is-empty) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e7c7c7;
+      border-radius: 8px;
+      background: #fff7f7;
+    }
+
+    .prospect-outreach-failure-head,
+    .prospect-outreach-failure.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-outreach-failure p,
+    .prospect-outreach-failure.is-compact span,
+    .prospect-outreach-failure-when {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-outreach-failure.is-compact {
+      flex-direction: row;
+      margin-top: 6px;
+      padding: 4px 6px;
+      background: rgba(185, 28, 28, 0.06);
+    }
+
+    .prospect-outreach-failure.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-outreach-failure.is-attention {
+      outline: 2px solid #b91c1c;
+      outline-offset: 2px;
+    }
+
+    .prospect-outreach-failure-when {
+      display: flex;
+      gap: 6px;
+    }
+
     .prospect-follow-up-entry {
       margin-top: 10px;
       display: flex;
@@ -26271,6 +26339,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardCrmCollisionList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardOutreachFailures" aria-label="开发信失败或退信">
+            <div class="section-head">
+              <div class="section-title"><div><h2>开发信失败或退信</h2><p id="dashboardOutreachFailureScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardOutreachFailuresRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <div id="dashboardOutreachFailureList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="panel section" id="dashboardProspectRuns" aria-label="进行中的搜客">
             <div class="section-head">
               <div class="section-title"><div><h2>进行中的搜客</h2><p id="dashboardProspectRunScope">正在读取搜客任务</p></div></div>
@@ -26984,6 +27063,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
                   <button class="active" type="button" data-prospect-collision-filter="all" aria-pressed="true">全部撞库</button>
                   <button type="button" data-prospect-collision-filter="hit" aria-pressed="false">已撞库</button>
                   <button type="button" data-prospect-collision-filter="clear" aria-pressed="false">未撞库</button>
+                </div>
+              </div>
+              <div class="prospect-outreach-failure-filter">
+                <span>开发信失败</span>
+                <div class="prospect-tabs" role="group" aria-label="按开发信失败或退信筛选">
+                  <button class="active" type="button" data-prospect-outreach-failure-filter="all" aria-pressed="true">全部外联</button>
+                  <button type="button" data-prospect-outreach-failure-filter="hit" aria-pressed="false">有失败/退信</button>
+                  <button type="button" data-prospect-outreach-failure-filter="clear" aria-pressed="false">无失败记录</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
