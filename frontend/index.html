@@ -7700,6 +7700,69 @@
       outline-offset: 2px;
     }
 
+    .prospect-outreach-sequence-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-outreach-sequence-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-outreach-sequence:not(.is-empty) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #99f6e4;
+      border-radius: 8px;
+      background: #f0fdfa;
+    }
+
+    .prospect-outreach-sequence-head,
+    .prospect-outreach-sequence.is-compact,
+    .prospect-outreach-sequence-step {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-outreach-sequence p,
+    .prospect-outreach-sequence.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-outreach-sequence.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 118, 110, 0.08);
+    }
+
+    .prospect-outreach-sequence.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-outreach-sequence.is-attention {
+      outline: 2px solid #0f766e;
+      outline-offset: 2px;
+    }
+
     .prospect-follow-up-entry {
       margin-top: 10px;
       display: flex;
@@ -26499,6 +26562,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardOutreachReplyList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardOutreachSequences" aria-label="外联序列">
+            <div class="section-head">
+              <div class="section-title"><div><h2>外联序列</h2><p id="dashboardOutreachSequenceScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardOutreachSequencesRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <div id="dashboardOutreachSequenceList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="panel section" id="dashboardProspectRuns" aria-label="进行中的搜客">
             <div class="section-head">
               <div class="section-title"><div><h2>进行中的搜客</h2><p id="dashboardProspectRunScope">正在读取搜客任务</p></div></div>
@@ -27236,6 +27310,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
                   <button class="active" type="button" data-prospect-outreach-reply-filter="all" aria-pressed="true">全部回复</button>
                   <button type="button" data-prospect-outreach-reply-filter="hit" aria-pressed="false">有回复</button>
                   <button type="button" data-prospect-outreach-reply-filter="clear" aria-pressed="false">无回复</button>
+                </div>
+              </div>
+              <div class="prospect-outreach-sequence-filter">
+                <span>外联序列</span>
+                <div class="prospect-tabs" role="group" aria-label="按外联序列进度筛选">
+                  <button class="active" type="button" data-prospect-outreach-sequence-filter="all" aria-pressed="true">全部序列</button>
+                  <button type="button" data-prospect-outreach-sequence-filter="active" aria-pressed="false">进行中</button>
+                  <button type="button" data-prospect-outreach-sequence-filter="stopped" aria-pressed="false">已停</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">

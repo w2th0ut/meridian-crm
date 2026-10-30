@@ -1045,6 +1045,53 @@ assert.match(replyHistory, /openProspectTouchpointHistory/, "查看回复记录�
 assert.match(replyHistory, /不会自动跟进，也不会发信/, "查看回复记录时必须说明不会自动跟进");
 assert.doesNotMatch(replyHistory, /saveProspectFollowUp|sendProspectDevelopmentEmail|convert-to-lead|openProspectReplyModal|\/replies/, "查看回复记录不得提交跟进、发信或新写回复");
 assert.match(prototype, /\.prospect-outreach-reply\b/, "开发信回复必须有可见样式");
+const sequenceLayer = readFileSync(new URL("./prospect-outreach-sequence.ts", import.meta.url), "utf8");
+assert.match(sequenceLayer, /export function presentOutreachSequence/, "外联序列必须只消费接口带回的结果");
+assert.match(sequenceLayer, /无序列/, "没有序列时文案必须是无序列");
+assert.match(sequenceLayer, /查看方案/, "有方案时必须能跳到现有方案");
+assert.match(sequenceLayer, /查看发信批次/, "有发信批次时必须能跳到现有批次");
+assert.match(sequenceLayer, /查看触达序列/, "有触达序列时必须能跳到现有序列");
+assert.match(sequenceLayer, /这不是回复条，也不是打开或点击条，也不是失败条，也不是抑制条/, "序列必须和回复、打开或点击、失败条、抑制条区分开");
+assert.match(sequenceLayer, /不会推进序列，也不会自动发下一封/, "序列不得推进步骤或自动发下一封");
+assert.doesNotMatch(sequenceLayer, /原因未回传|已退信|解除抑制|fetch\(|convert-to-lead|send-development-email|controlOutreachSequence/, "序列不得混用失败文案，也不得发请求、转线索或推进序列");
+assert.match(prospectListRender, /renderOutreachSequenceLine\(item\)/, "搜客清单每一行必须显示外联序列");
+assert.match(prospectListRender, /renderOutreachReplyLine\(item\)[\s\S]{0,80}renderOutreachSequenceLine\(item\)/, "序列必须和回复分开显示");
+assert.match(prospectListRender, /renderDashboardOutreachSequences\(\)/, "清单刷新必须同时更新外联序列入口");
+const sequenceRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(sequenceRows, /prospectOutreachSequenceFilter[\s\S]*prospectOutreachSequence/, "序列筛选只按已有结果过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectOutreachReply\(item\)\}\n    \$\{renderProspectOutreachSequence\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在回复后面单独说明外联序列"
+);
+assert.match(apiLayer, /没有进行中的序列。这里不会编造记录，也不会推进序列。/, "筛不到进行中序列时必须写清空态");
+assert.match(apiLayer, /没有已停的序列。这里不会编造记录，也不会推进序列。/, "筛不到已停序列时必须写清空态");
+assert.match(prototype, /data-prospect-outreach-sequence-filter="active"[\s\S]*进行中/, "清单必须能筛进行中");
+assert.match(prototype, /data-prospect-outreach-sequence-filter="stopped"[\s\S]*已停/, "清单必须能筛已停");
+assert.match(prototype, /id="dashboardOutreachSequences"[\s\S]*外联序列/, "工作台必须有外联序列");
+assert.match(apiLayer, /OUTREACH_SEQUENCE_LIMIT = 8/, "工作台外联序列最多显示 8 行");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看序列。这里不会编造名单，也不会推进序列。/, "没有清单时不得编造外联序列");
+assert.match(apiLayer, /当前可见的搜客清单没有外联序列。这里不会编造记录，也不会推进序列。/, "没有序列时不得编造记录");
+assert.match(apiLayer, /外联序列/, "详情标题必须是外联序列，不叫回复或失败或抑制");
+assert.match(apiLayer, /outreachSequenceEntryLabel\(/, "有序列时必须复用现有入口文案");
+const sequenceQueue = kbSourceBetween(apiLayer, "function outreachSequenceCandidates()", "\nfunction renderDashboardOutreachSequences");
+assert.match(sequenceQueue, /shortlistedAt/, "工作台序列只包含搜客清单里的候选");
+assert.match(sequenceQueue, /prospectOutreachSequence/, "工作台序列只包含已有序列的候选");
+const sequenceClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardOutreachSequences")?.addEventListener');
+const sequenceClick = apiLayer.slice(sequenceClickStart, sequenceClickStart + 760);
+assert.match(sequenceClick, /openOutreachSequenceFromDashboard/, "点工作台序列必须打开候选详情");
+assert.doesNotMatch(sequenceClick, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachSequenceEntry|controlOutreachSequence/, "点工作台序列不得发送、转线索或推进序列");
+const openSequence = kbSourceBetween(apiLayer, "function openOutreachSequenceFromDashboard", "\nfunction openProspectConvertFollowUp");
+assert.match(openSequence, /prospectOutreachSequenceFilter = view\.progress === "active" \|\| view\.progress === "stopped" \? view\.progress : "all"/, "打开序列必须落到进行中或已停筛选");
+assert.match(openSequence, /不会推进步骤，也不会自动发下一封/, "打开序列时必须说明不会推进步骤、不会自动发下一封");
+assert.doesNotMatch(openSequence, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|openOutreachSequenceEntry|openOutreachPlanDetail|\/approve|controlOutreachSequence/, "打开序列不得发送、转线索、打开方案或推进步骤");
+const sequenceEntry = kbSourceBetween(apiLayer, "function openOutreachSequenceEntry", "\nfunction bindOutreachSequenceLinks");
+assert.match(sequenceEntry, /openOutreachPlanDetail/, "查看方案必须打开现有方案详情");
+assert.match(sequenceEntry, /loadOutreachBatches/, "查看发信批次必须打开现有批次");
+assert.match(sequenceEntry, /#agentSequenceList/, "查看触达序列必须打开现有序列入口");
+assert.match(sequenceEntry, /不会推进步骤，也不会发信/, "跳到序列入口时必须说明不会推进步骤");
+assert.doesNotMatch(sequenceEntry, /sendProspectDevelopmentEmail|convert-to-lead|controlOutreachSequence|\/approve|data-sequence-control|data-plan-action/, "跳到序列入口不得发信、转线索或推进步骤");
+assert.match(prototype, /\.prospect-outreach-sequence\b/, "外联序列必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
