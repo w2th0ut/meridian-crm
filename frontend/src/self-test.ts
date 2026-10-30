@@ -1725,6 +1725,89 @@ assert.doesNotMatch(scrollSequenceNextDue, /\.value\s*=|fetch\(|shortlistLeadFin
 assert.match(prototype, /\.prospect-sequence-next-due\b/, "序列下一步到期必须有可见样式");
 assert.match(prototype, /\.dashboard-sequence-next-due-note\b/, "序列下一步到期说明必须有可见样式");
 
+
+const replyBacklogLayer = readFileSync(new URL("./prospect-reply-backlog.ts", import.meta.url), "utf8");
+assert.match(replyBacklogLayer, /export function presentReplyBacklog/, "回复待处理积压必须只消费已有回复时间");
+assert.match(replyBacklogLayer, /REPLY_BACKLOG_LIMIT = 8/, "回复待处理积压最多 8 条");
+assert.match(replyBacklogLayer, /REPLY_BACKLOG_WINDOW_DAYS = 7/, "积压窗口必须是 7 天");
+assert.match(replyBacklogLayer, /replyAt/, "回复待处理积压必须写明复用回复时间");
+assert.match(replyBacklogLayer, /无待处理回复/, "没有可解析回复时文案必须是无待处理回复");
+assert.match(replyBacklogLayer, /积压较久/, "超过 7 天必须标积压较久");
+assert.match(replyBacklogLayer, /积压较新/, "7 天内必须标积压较新");
+assert.match(replyBacklogLayer, /查看最近回复/, "必须能跳到现有最近回复");
+assert.match(replyBacklogLayer, /kind !== "none"/, "无待处理回复不得占工作台名额");
+assert.match(replyBacklogLayer, /这不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "回复待处理积压必须和序列到期、外联空档、静默、跟进空档、加入日龄区分开");
+assert.match(replyBacklogLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "回复待处理积压必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(replyBacklogLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "回复待处理积压必须和获客待办摘要、逾期、卡住区分开");
+assert.match(replyBacklogLayer, /也不是待记跟进或今日到期，也不是待发草稿，也不是外联序列进度/, "回复待处理积压必须和待记跟进、草稿、外联序列进度区分开");
+assert.match(replyBacklogLayer, /也不是打开或点击、失败或抑制、收信同步/, "回复待处理积压必须和打开或点击、失败、抑制、收信同步区分开");
+assert.match(replyBacklogLayer, /不替代开发信回复那一块/, "回复待处理积压不得替代开发信回复那一块");
+assert.match(replyBacklogLayer, /不会发信，不会自动回复，不会标成已处理，不会改名单，也不会改 convert_to_lead 或 approved_contactable/, "回复待处理积压不得发信、自动回复、标成已处理、改名单或改门禁");
+assert.match(replyBacklogLayer, /刚好 7 天仍算积压较新/, "刚好 7 天仍算积压较新");
+assert.match(replyBacklogLayer, /跟进记录不算这封回复的时间/, "跟进记录不得算成这封回复");
+assert.match(replyBacklogLayer, /最近一封开发信的发出时间不算这封回复的时间/, "开发信发出时间不得算成这封回复");
+assert.match(replyBacklogLayer, /序列下一步的计划时间不算这封回复的时间/, "序列下一步不得算成这封回复");
+assert.match(replyBacklogLayer, /最近触达（含话机）不算这封回复的时间/, "最近触达和话机不得算成这封回复");
+assert.doesNotMatch(replyBacklogLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextExecutionAt/i, "回复待处理积压模块不得发请求、改读别的时间、读 WhatsApp 或改门禁");
+assert.doesNotMatch(kbSourceBetween(replyBacklogLayer, "function replyBacklogLineLabel", "\nexport function replyBacklogStatusLabel"), /空档|已到期|静默|跟进空档|逾期|有回复|即将到期|未临近|无序列到期/, "行文案必须用积压较久、积压较新、无待处理回复");
+assert.match(prospectListRender, /renderReplyBacklogLine\(item\)/, "搜客清单每一行必须显示回复待处理积压");
+assert.match(prospectListRender, /renderSequenceNextDueLine\(item\)[\s\S]{0,160}renderReplyBacklogLine\(item\)/, "回复待处理积压必须和序列下一步到期分开显示");
+assert.match(prospectListRender, /renderDashboardReplyBacklog\(\)/, "清单刷新必须同时更新回复待处理积压入口");
+const replyBacklogRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(replyBacklogRows, /prospectReplyBacklogFilter[\s\S]*prospectReplyBacklog/, "回复待处理积压筛选只按已有回复时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectSequenceNextDue\(item\)\}\n    \$\{renderProspectReplyBacklog\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在序列下一步到期后面单独说明回复待处理积压"
+);
+assert.match(apiLayer, /没有积压较久的回复。这里不会编造回复时间，也不会发信，也不会标成已处理。/, "筛不到积压较久时必须写清空态");
+assert.match(prototype, /data-prospect-reply-backlog-filter="stale"[\s\S]*积压较久/, "清单必须能筛积压较久");
+assert.match(prototype, /data-prospect-sequence-next-due-filter="overdue"[\s\S]*已到期/, "原来的序列下一步到期筛选还在");
+assert.match(prototype, /id="dashboardSequenceNextDue"[\s\S]{0,5000}id="dashboardReplyBacklog"[\s\S]*回复待处理积压/, "工作台回复待处理积压必须在序列下一步到期下面");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是序列下一步到期/, "工作台说明必须和序列下一步到期分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是外联最近动作空档/, "工作台说明必须和外联空档分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardReplyBacklogNote"[\s\S]*不替代开发信回复那一块/, "工作台说明必须和开发信回复那一块分开");
+assert.match(prototype, /id="dashboardSequenceNextDue"[\s\S]*序列下一步到期/, "序列下一步到期原条还在");
+assert.match(apiLayer, /REPLY_BACKLOG_LIMIT/, "工作台回复待处理积压必须守住 8 条上限");
+assert.match(apiLayer, /listReplyBacklogQueue\(/, "工作台必须复用积压较久在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看回复待处理积压。这里不会编造名单，也不会发信，也不会自动回复，也不会标成已处理。/, "没有清单时不得编造回复待处理积压");
+assert.match(apiLayer, /回复待处理积压/, "详情标题必须是回复待处理积压");
+assert.match(apiLayer, /replyBacklogEntryLabel\(/, "详情必须复用查看最近回复入口文案");
+const replyBacklogAdapter = kbSourceBetween(apiLayer, "function prospectReplyBacklog", "\nfunction replyBacklogBadgeTone");
+assert.match(replyBacklogAdapter, /presentOutreachReply/, "回复待处理积压必须复用 Day16 回复投影");
+assert.match(replyBacklogAdapter, /outreachReply/, "回复待处理积压必须读候选上已有的回复");
+assert.match(replyBacklogAdapter, /reply\.status === "hit" \? reply\.at : ""/, "只有可解析的回复时间才进入积压");
+assert.doesNotMatch(replyBacklogAdapter, /updatedAt|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextRunAt|nextExecutionAt|whatsapp|lastReplyClassification|createdAt/i, "回复待处理积压不得改读更新时间、跟进、加入时间、下次跟进、触达、开发信发出时间、序列计划或 WhatsApp");
+const replyBacklogQueue = kbSourceBetween(apiLayer, "function renderDashboardReplyBacklog", "\nfunction openReplyBacklogFromDashboard");
+assert.match(replyBacklogQueue, /shortlistedAt/, "工作台回复待处理积压只包含搜客清单里的候选");
+assert.match(replyBacklogQueue, /listReplyBacklogQueue\(/, "工作台回复待处理积压只按已有回复时间排序");
+assert.match(replyBacklogQueue, /REPLY_BACKLOG_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(replyBacklogQueue, /积压较久在前/, "工作台必须积压较久在前");
+assert.doesNotMatch(replyBacklogQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|updatedAt|scheduledAt|nextExecutionAt/i, "工作台回复待处理积压不得改读跟进、下次跟进、触达、开发信发出时间或序列计划");
+const replyBacklogClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardReplyBacklog")?.addEventListener');
+const replyBacklogClick = apiLayer.slice(replyBacklogClickStart, replyBacklogClickStart + 700);
+assert.match(replyBacklogClick, /openReplyBacklogFromDashboard/, "点工作台回复待处理积压必须打开现有候选");
+assert.doesNotMatch(replyBacklogClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard|openOutreachReplyFollow|openProspectReplyModal/, "点工作台回复待处理积压不得改名单、记跟进、发送、转线索或标成已处理");
+const openReplyBacklog = kbSourceBetween(apiLayer, "function openReplyBacklogFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openReplyBacklog, /prospectReplyBacklogFilter = replyBacklogListFilterForOpen\(view\)/, "打开积压较久必须落到积压较久筛选，积压较新保持全部");
+assert.match(openReplyBacklog, /replyBacklogFocusId = item\.id/, "打开后必须停在现有最近回复或详情顶部");
+assert.match(openReplyBacklog, /不会发信，也不会自动回复，也不会标成已处理，也不会改名单/, "打开时必须说明不会发信、不会自动回复、不会标成已处理、不会改名单");
+assert.doesNotMatch(openReplyBacklog, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve|openOutreachReplyFollow|openProspectReplyModal/, "打开回复待处理积压不得改名单、记跟进、发送、转线索、批准或标成已处理");
+const scrollReplyBacklog = kbSourceBetween(apiLayer, "function scrollToReplyBacklogTarget", "\nfunction focusReplyBacklogTarget");
+assert.match(scrollReplyBacklog, /#prospectOutreachReply/, "必须滚到现有最近回复");
+assert.match(scrollReplyBacklog, /prospect-detail-hero/, "没有最近回复时必须能停在详情顶部");
+assert.doesNotMatch(scrollReplyBacklog, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail|openProspectReplyModal/, "跳到最近回复不得改名单、写入、发信或发请求");
+assert.match(prototype, /\.prospect-reply-backlog\b/, "回复待处理积压必须有可见样式");
+assert.match(prototype, /\.dashboard-reply-backlog-note\b/, "回复待处理积压说明必须有可见样式");
+
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
 //

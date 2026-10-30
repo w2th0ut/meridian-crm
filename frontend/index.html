@@ -8146,7 +8146,8 @@
     .dashboard-prospect-row.is-older,
     .dashboard-prospect-row.is-silent,
     .dashboard-prospect-row.is-outreach-gap,
-    .dashboard-prospect-row.is-sequence-due {
+    .dashboard-prospect-row.is-sequence-due,
+    .dashboard-prospect-row.is-reply-stale {
       border-color: #fecaca;
     }
 
@@ -8456,6 +8457,81 @@
     }
 
     .prospect-sequence-next-due.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-reply-backlog-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-reply-backlog-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-reply-backlog:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-reply-backlog[data-reply-backlog="stale"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-reply-backlog[data-reply-backlog="fresh"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-reply-backlog-head,
+    .prospect-reply-backlog.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-reply-backlog p,
+    .prospect-reply-backlog.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-reply-backlog.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-reply-backlog.is-compact.is-stale {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-reply-backlog.is-compact.is-fresh {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-reply-backlog.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -11399,6 +11475,7 @@
     #dashboardSilentAge,
     #dashboardOutreachActionGap,
     #dashboardSequenceNextDue,
+    #dashboardReplyBacklog,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
@@ -11410,6 +11487,7 @@
     .dashboard-silent-age-note,
     .dashboard-outreach-action-gap-note,
     .dashboard-sequence-next-due-note,
+    .dashboard-reply-backlog-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -27495,6 +27573,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardSequenceNextDueList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardReplyBacklog" aria-label="回复待处理积压">
+            <div class="section-head">
+              <div class="section-title"><div><h2>回复待处理积压</h2><p id="dashboardReplyBacklogScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardReplyBacklogRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardReplyBacklogNote" class="dashboard-reply-backlog-note">这是待人工处理的开发信回复相对现在的只读积压，复用已有最近回复时间。有待处理回复且距现在超过 7 天算积压较久，未超过（含刚好 7 天）算积压较新。没有可解析的回复时间写无待处理回复。不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列进度、打开或点击、失败或抑制、收信同步。不替代开发信回复那一块。点一行只打开现有候选详情并滚到现有最近回复。不会发信，不会自动回复，不会标成已处理，不会改名单，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardReplyBacklogList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -28250,6 +28340,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按序列下一步到期筛选">
                   <button class="active" type="button" data-prospect-sequence-next-due-filter="all" aria-pressed="true">全部下一步</button>
                   <button type="button" data-prospect-sequence-next-due-filter="overdue" aria-pressed="false">已到期</button>
+                </div>
+              </div>
+              <div class="prospect-reply-backlog-filter">
+                <span>回复积压</span>
+                <div class="prospect-tabs" role="group" aria-label="按回复待处理积压筛选">
+                  <button class="active" type="button" data-prospect-reply-backlog-filter="all" aria-pressed="true">全部积压</button>
+                  <button type="button" data-prospect-reply-backlog-filter="stale" aria-pressed="false">积压较久</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
