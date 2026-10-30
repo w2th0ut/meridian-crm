@@ -1645,6 +1645,85 @@ assert.match(scrollOutreachActionGap, /prospect-detail-hero/, "没有最近开�
 assert.doesNotMatch(scrollOutreachActionGap, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail/, "跳到最近开发信不得改名单、写入、发信或发请求");
 assert.match(prototype, /\.prospect-outreach-action-gap\b/, "外联最近动作空档必须有可见样式");
 assert.match(prototype, /\.dashboard-outreach-action-gap-note\b/, "外联最近动作空档说明必须有可见样式");
+const sequenceNextDueLayer = readFileSync(new URL("./prospect-sequence-next-due.ts", import.meta.url), "utf8");
+assert.match(sequenceNextDueLayer, /export function presentSequenceNextDue/, "序列下一步到期必须只消费已有下一步计划时间");
+assert.match(sequenceNextDueLayer, /SEQUENCE_NEXT_DUE_LIMIT = 8/, "序列下一步到期最多 8 条");
+assert.match(sequenceNextDueLayer, /SEQUENCE_NEXT_DUE_WINDOW_DAYS = 7/, "即将到期窗口必须是 7 天");
+assert.match(sequenceNextDueLayer, /scheduledAt/, "序列下一步到期必须写明复用下一步 scheduledAt");
+assert.match(sequenceNextDueLayer, /无序列到期/, "没有下一步到期时文案必须是无序列到期");
+assert.match(sequenceNextDueLayer, /已到期/, "早于现在必须标已到期");
+assert.match(sequenceNextDueLayer, /即将到期/, "7 天内必须标即将到期");
+assert.match(sequenceNextDueLayer, /未临近/, "超过 7 天必须标未临近");
+assert.match(sequenceNextDueLayer, /查看外联序列/, "必须能跳到现有外联序列");
+assert.match(sequenceNextDueLayer, /!text\.includes\("T"\)/, "下次跟进那种时间不算下一步到期");
+assert.match(sequenceNextDueLayer, /kind !== "none"/, "无序列到期不得占工作台名额");
+assert.match(sequenceNextDueLayer, /这不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "序列下一步到期必须和外联空档、静默、跟进空档、加入日龄区分开");
+assert.match(sequenceNextDueLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "序列下一步到期必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(sequenceNextDueLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "序列下一步到期必须和获客待办摘要、逾期、卡住区分开");
+assert.match(sequenceNextDueLayer, /也不是待记跟进或今日到期，也不是待发草稿，也不是外联序列进度/, "序列下一步到期必须和待记跟进、草稿、外联序列进度区分开");
+assert.match(sequenceNextDueLayer, /也不是回复、打开或点击、失败或抑制、收信同步/, "序列下一步到期必须和回复、打开或点击、失败、抑制、收信同步区分开");
+assert.match(sequenceNextDueLayer, /不会发信，不会推进序列，不会改名单，也不会改 convert_to_lead 或 approved_contactable/, "序列下一步到期不得发信、推进序列、改名单或改门禁");
+assert.match(sequenceNextDueLayer, /刚好 7 天和此刻仍算即将到期/, "刚好 7 天和此刻仍算即将到期");
+assert.match(sequenceNextDueLayer, /更新时间不算下一步到期/, "更新时间不得算成下一步到期");
+assert.match(sequenceNextDueLayer, /跟进记录不算下一步到期/, "跟进记录不得算成下一步到期");
+assert.match(sequenceNextDueLayer, /最近一封开发信的时间不算下一步到期/, "最近开发信不得算成下一步到期");
+assert.match(sequenceNextDueLayer, /最近触达（含话机）不算下一步到期/, "最近触达和话机不得算成下一步到期");
+assert.doesNotMatch(sequenceNextDueLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|nextRunAt|nextSendAt|nextExecutionAt/i, "序列下一步到期模块不得发请求、改读别的时间、读 WhatsApp 或改门禁");
+assert.doesNotMatch(kbSourceBetween(sequenceNextDueLayer, "function sequenceNextDueLineLabel", "\nexport function sequenceNextDueStatusLabel"), /空档|静默|跟进空档|加入日龄|逾期|近期有外联|无外联记录|有动作|较久|新近|未加入|近期有跟进|无记录|缺邮箱|卡住/, "行文案必须用已到期、即将到期、未临近、无序列到期");
+assert.match(prospectListRender, /renderSequenceNextDueLine\(item\)/, "搜客清单每一行必须显示序列下一步到期");
+assert.match(prospectListRender, /renderOutreachActionGapLine\(item\)[\s\S]{0,160}renderSequenceNextDueLine\(item\)/, "序列下一步到期必须和外联最近动作空档分开显示");
+assert.match(prospectListRender, /renderDashboardSequenceNextDue\(\)/, "清单刷新必须同时更新序列下一步到期入口");
+const sequenceNextDueRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(sequenceNextDueRows, /prospectSequenceNextDueFilter[\s\S]*prospectSequenceNextDue/, "序列下一步到期筛选只按已有下一步计划时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectOutreachActionGap\(item\)\}\n    \$\{renderProspectSequenceNextDue\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在外联空档后面单独说明序列下一步到期"
+);
+assert.match(apiLayer, /没有已到期的序列下一步。这里不会编造到期时间，也不会推进序列，也不会发信。/, "筛不到已到期时必须写清空态");
+assert.match(prototype, /data-prospect-sequence-next-due-filter="overdue"[\s\S]*已到期/, "清单必须能筛已到期");
+assert.match(prototype, /data-prospect-outreach-action-gap-filter="gap"[\s\S]*空档/, "原来的外联空档筛选还在");
+assert.match(prototype, /id="dashboardOutreachActionGap"[\s\S]{0,4000}id="dashboardSequenceNextDue"[\s\S]*序列下一步到期/, "工作台序列下一步到期必须在外联空档下面");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是外联最近动作空档/, "工作台说明必须和外联空档分开");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardSequenceNextDueNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardOutreachActionGap"[\s\S]*外联最近动作空档/, "外联最近动作空档原条还在");
+assert.match(apiLayer, /SEQUENCE_NEXT_DUE_LIMIT/, "工作台序列下一步到期必须守住 8 条上限");
+assert.match(apiLayer, /listSequenceNextDueQueue\(/, "工作台必须复用已到期在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看序列下一步到期。这里不会编造名单，也不会推进序列，也不会发信。/, "没有清单时不得编造序列下一步到期");
+assert.match(apiLayer, /序列下一步到期/, "详情标题必须是序列下一步到期");
+assert.match(apiLayer, /sequenceNextDueEntryLabel\(/, "详情必须复用查看外联序列入口文案");
+const sequenceNextDueAdapter = kbSourceBetween(apiLayer, "function prospectSequenceNextDue", "\nfunction sequenceNextDueBadgeTone");
+assert.match(sequenceNextDueAdapter, /scheduledAt/, "序列下一步到期必须复用下一步 scheduledAt");
+assert.match(sequenceNextDueAdapter, /prospectOutreachSequence/, "序列下一步到期必须走 Day17 同一条外联序列");
+assert.doesNotMatch(sequenceNextDueAdapter, /updatedAt|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|nextRunAt|nextSendAt|nextExecutionAt|whatsapp|createdAt/i, "序列下一步到期不得改读更新时间、跟进、加入时间、下次跟进、触达、开发信、方案运行时间或 WhatsApp");
+const sequenceNextDueQueue = kbSourceBetween(apiLayer, "function renderDashboardSequenceNextDue", "\nfunction openSequenceNextDueFromDashboard");
+assert.match(sequenceNextDueQueue, /shortlistedAt/, "工作台序列下一步到期只包含搜客清单里的候选");
+assert.match(sequenceNextDueQueue, /listSequenceNextDueQueue\(/, "工作台序列下一步到期只按已有下一步计划时间排序");
+assert.match(sequenceNextDueQueue, /SEQUENCE_NEXT_DUE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(sequenceNextDueQueue, /已到期在前/, "工作台必须已到期在前");
+assert.doesNotMatch(sequenceNextDueQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|updatedAt|nextRunAt|nextExecutionAt/i, "工作台序列下一步到期不得改读跟进、下次跟进、触达、开发信或方案运行时间");
+const sequenceNextDueClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardSequenceNextDue")?.addEventListener');
+const sequenceNextDueClick = apiLayer.slice(sequenceNextDueClickStart, sequenceNextDueClickStart + 700);
+assert.match(sequenceNextDueClick, /openSequenceNextDueFromDashboard/, "点工作台序列下一步到期必须打开现有候选");
+assert.doesNotMatch(sequenceNextDueClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard|controlOutreachSequence|openOutreachSequenceEntry/, "点工作台序列下一步到期不得改名单、记跟进、发送、转线索或推进序列");
+const openSequenceNextDue = kbSourceBetween(apiLayer, "function openSequenceNextDueFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openSequenceNextDue, /prospectSequenceNextDueFilter = sequenceNextDueListFilterForOpen\(view\)/, "打开已到期必须落到已到期筛选，即将到期和未临近保持全部");
+assert.match(openSequenceNextDue, /sequenceNextDueFocusId = item\.id/, "打开后必须停在现有外联序列或详情顶部");
+assert.match(openSequenceNextDue, /不会发信，也不会推进序列，也不会改名单/, "打开时必须说明不会发信、不会推进序列、不会改名单");
+assert.doesNotMatch(openSequenceNextDue, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve|controlOutreachSequence|openOutreachSequenceEntry/, "打开序列下一步到期不得改名单、记跟进、发送、转线索、批准或推进序列");
+const scrollSequenceNextDue = kbSourceBetween(apiLayer, "function scrollToSequenceNextDueTarget", "\nfunction focusSequenceNextDueTarget");
+assert.match(scrollSequenceNextDue, /#prospectOutreachSequence/, "必须滚到现有外联序列");
+assert.match(scrollSequenceNextDue, /prospect-detail-hero/, "没有外联序列时必须能停在详情顶部");
+assert.doesNotMatch(scrollSequenceNextDue, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail|controlOutreachSequence/, "跳到外联序列不得改名单、写入、发信、推进序列或发请求");
+assert.match(prototype, /\.prospect-sequence-next-due\b/, "序列下一步到期必须有可见样式");
+assert.match(prototype, /\.dashboard-sequence-next-due-note\b/, "序列下一步到期说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

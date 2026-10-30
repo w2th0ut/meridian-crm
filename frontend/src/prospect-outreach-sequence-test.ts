@@ -81,6 +81,32 @@ assert.equal(outreachSequenceMatchesFilter(active, "active"), true);
 assert.equal(outreachSequenceMatchesFilter(active, "stopped"), false);
 assert.equal(outreachSequenceRank(active), 3);
 assert.equal(outreachSequenceUpdatedAt(active), Date.parse("2026-10-04T08:00:00.000Z"));
+assert.equal(active.scheduledAt, "");
+assert.equal(none.scheduledAt, "");
+
+const withDue = presentOutreachSequence({
+  progress: "active",
+  statusLabel: "进行中",
+  name: "泰国台秤",
+  stepName: "下一封",
+  source: "plan",
+  sourceId: "plan_due",
+  updatedAt: "2026-10-01T00:00:00.000Z",
+  scheduledAt: "  2026-10-20T08:30:00.000Z  "
+});
+assert.equal(withDue.scheduledAt, "2026-10-20T08:30:00.000Z");
+assert.equal(withDue.updatedAt, "2026-10-01T00:00:00.000Z");
+assert.notEqual(withDue.scheduledAt, withDue.updatedAt);
+
+const wallDue = presentOutreachSequence({
+  progress: "active",
+  statusLabel: "进行中",
+  source: "batch",
+  sourceId: "batch_wall",
+  scheduledAt: "2026-10-20 08:30"
+});
+assert.equal(wallDue.progress, "active");
+assert.equal(wallDue.scheduledAt, "");
 
 const stopped = presentOutreachSequence({
   progress: "stopped",

@@ -10,6 +10,7 @@ assert.equal(none.name, "");
 assert.equal(none.stepName, "");
 assert.equal(none.source, "none");
 assert.equal(none.sourceId, "");
+assert.equal(none.scheduledAt, "");
 
 const running = describeProspectOutreachSequence({
   candidate,
@@ -290,7 +291,103 @@ const namedWinsTie = describeProspectOutreachSequence({
 assert.equal(namedWinsTie.name, "有名字的方案");
 assert.equal(namedWinsTie.source, "plan");
 
+const nextDue = describeProspectOutreachSequence({
+  candidate,
+  plans: [{
+    id: "plan_due",
+    teamId: "team",
+    name: "有下一步",
+    status: "running",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+    items: [{
+      candidateId: "cand_1",
+      status: "ready",
+      steps: [
+        { status: "sent", subject: "第一封", scheduledAt: "2026-09-01T00:00:00.000Z" },
+        { status: "pending", subject: "下一封", scheduledAt: "2026-10-20T08:30:00.000Z" },
+        { status: "pending", subject: "更后", scheduledAt: "2026-12-01T00:00:00.000Z" }
+      ]
+    }]
+  }]
+});
+assert.equal(nextDue.progress, "active");
+assert.equal(nextDue.stepName, "下一封");
+assert.equal(nextDue.scheduledAt, "2026-10-20T08:30:00.000Z");
+assert.notEqual(nextDue.scheduledAt, nextDue.updatedAt);
+
+const sendingWins = describeProspectOutreachSequence({
+  candidate,
+  batches: [{
+    id: "batch_sending",
+    teamId: "team",
+    status: "approved",
+    updatedAt: "2026-10-04T08:00:00.000Z",
+    items: [{
+      candidateId: "cand_1",
+      status: "sending",
+      steps: [
+        { status: "pending", subject: "还在后面", scheduledAt: "2026-12-01T00:00:00.000Z" },
+        { status: "sending", subject: "正在发", scheduledAt: "2026-10-02T00:00:00.000Z" }
+      ]
+    }]
+  }]
+});
+assert.equal(sendingWins.scheduledAt, "2026-10-02T00:00:00.000Z");
+assert.equal(sendingWins.stepName, "正在发");
+
+const badDue = describeProspectOutreachSequence({
+  candidate,
+  plans: [{
+    id: "plan_bad_due",
+    teamId: "team",
+    name: "时间不对",
+    status: "running",
+    updatedAt: "2026-10-08T00:00:00.000Z",
+    items: [{
+      candidateId: "cand_1",
+      status: "ready",
+      steps: [{ status: "sending", subject: "正在发但时间坏了", scheduledAt: "2026-10-20 08:30" }]
+    }]
+  }]
+});
+assert.equal(badDue.progress, "active");
+assert.equal(badDue.scheduledAt, "");
+
+const finished = describeProspectOutreachSequence({
+  candidate,
+  sequences: [{
+    id: "seq_finished",
+    teamId: "team",
+    entityType: "lead",
+    entityId: "lead_1",
+    channel: "email",
+    status: "completed",
+    updatedAt: "2026-10-09T00:00:00.000Z",
+    steps: [{ status: "sent", subject: "已经发完", scheduledAt: "2026-10-01T00:00:00.000Z" }]
+  }]
+});
+assert.equal(finished.progress, "done");
+assert.equal(finished.scheduledAt, "");
+
+const sequenceDue = describeProspectOutreachSequence({
+  candidate,
+  sequences: [{
+    id: "seq_due",
+    teamId: "team",
+    entityType: "lead",
+    entityId: "lead_1",
+    channel: "email",
+    status: "active",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+    steps: [{ status: "pending", subject: "线索下一封", scheduledAt: "2026-10-28T01:00:00.000Z" }]
+  }]
+});
+assert.equal(sequenceDue.scheduledAt, "2026-10-28T01:00:00.000Z");
+assert.equal(sequenceDue.updatedAt, "2026-10-01T00:00:00.000Z");
+
 const source = readFileSync(new URL("./prospect-outreach-sequence.ts", import.meta.url), "utf8");
+assert.match(source, /scheduledAt/);
+assert.doesNotMatch(source, /nextRunAt|nextSendAt|nextExecutionAt/);
 assert.match(source, /status === "running"/);
 assert.match(source, /channel\) !== "email"/);
 assert.doesNotMatch(source, /convert_to_lead|approved_contactable|controlOutreachSequence|send-development-email|createOutreachSequence/);

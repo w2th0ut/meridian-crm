@@ -16,6 +16,8 @@ export interface OutreachSequenceView {
   source: OutreachSequenceSource;
   sourceId: string;
   updatedAt: string;
+  /** 下一步上已有的 scheduledAt。没有或解析不了则为空。 */
+  scheduledAt: string;
 }
 
 const NAME_LENGTH = 48;
@@ -29,7 +31,8 @@ export function emptyOutreachSequence(): OutreachSequenceView {
     stepName: "",
     source: "none",
     sourceId: "",
-    updatedAt: ""
+    updatedAt: "",
+    scheduledAt: ""
   };
 }
 
@@ -45,6 +48,13 @@ function clip(value: string) {
 function timeOf(value: unknown) {
   const cleaned = text(value);
   if (!cleaned || Number.isNaN(Date.parse(cleaned))) return "";
+  return cleaned;
+}
+
+/** 下一步到期只认带 T 的 ISO。下次跟进那种墙上时钟不算。 */
+function isoTime(value: unknown) {
+  const cleaned = text(value);
+  if (!cleaned.includes("T") || Number.isNaN(Date.parse(cleaned))) return "";
   return cleaned;
 }
 
@@ -76,7 +86,8 @@ export function presentOutreachSequence(raw: unknown): OutreachSequenceView {
     stepName: clip(text(record.stepName)),
     source,
     sourceId,
-    updatedAt: timeOf(record.updatedAt)
+    updatedAt: timeOf(record.updatedAt),
+    scheduledAt: isoTime(record.scheduledAt)
   };
 }
 

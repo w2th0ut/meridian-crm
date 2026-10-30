@@ -8145,7 +8145,8 @@
     .dashboard-prospect-row.is-contact-gap,
     .dashboard-prospect-row.is-older,
     .dashboard-prospect-row.is-silent,
-    .dashboard-prospect-row.is-outreach-gap {
+    .dashboard-prospect-row.is-outreach-gap,
+    .dashboard-prospect-row.is-sequence-due {
       border-color: #fecaca;
     }
 
@@ -8376,6 +8377,85 @@
     }
 
     .prospect-outreach-action-gap.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-sequence-next-due-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-sequence-next-due-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-sequence-next-due:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-sequence-next-due[data-sequence-next-due="overdue"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-sequence-next-due[data-sequence-next-due="soon"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-sequence-next-due-head,
+    .prospect-sequence-next-due.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-sequence-next-due p,
+    .prospect-sequence-next-due.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-sequence-next-due.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-sequence-next-due.is-compact.is-overdue {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-sequence-next-due.is-compact.is-soon {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-sequence-next-due.is-compact.is-later {
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-sequence-next-due.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -11318,6 +11398,7 @@
     #dashboardJoinAge,
     #dashboardSilentAge,
     #dashboardOutreachActionGap,
+    #dashboardSequenceNextDue,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
@@ -11328,6 +11409,7 @@
     .dashboard-join-age-note,
     .dashboard-silent-age-note,
     .dashboard-outreach-action-gap-note,
+    .dashboard-sequence-next-due-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -27401,6 +27483,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardOutreachActionGapList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardSequenceNextDue" aria-label="序列下一步到期">
+            <div class="section-head">
+              <div class="section-title"><div><h2>序列下一步到期</h2><p id="dashboardSequenceNextDueScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardSequenceNextDueRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardSequenceNextDueNote" class="dashboard-sequence-next-due-note">这是外联序列下一步相对现在的只读到期，复用已有下一步计划时间。到期早于现在算已到期，还没到且 7 天内（含刚好 7 天）算即将到期，更远算未临近。没有序列或没有下一步到期写无序列到期。不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列进度、回复、打开或点击、失败或抑制、收信同步。点一行只打开现有候选详情并滚到现有外联序列。不会发信，不会推进序列，不会改名单，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardSequenceNextDueList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -28149,6 +28243,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按外联最近动作空档筛选">
                   <button class="active" type="button" data-prospect-outreach-action-gap-filter="all" aria-pressed="true">全部外联</button>
                   <button type="button" data-prospect-outreach-action-gap-filter="gap" aria-pressed="false">空档</button>
+                </div>
+              </div>
+              <div class="prospect-sequence-next-due-filter">
+                <span>序列到期</span>
+                <div class="prospect-tabs" role="group" aria-label="按序列下一步到期筛选">
+                  <button class="active" type="button" data-prospect-sequence-next-due-filter="all" aria-pressed="true">全部下一步</button>
+                  <button type="button" data-prospect-sequence-next-due-filter="overdue" aria-pressed="false">已到期</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
