@@ -502,6 +502,15 @@ export interface SessionUser {
   lastInboundSyncAt?: string;
   lastInboundSyncStatus?: "ok" | "error" | "";
   lastInboundSyncError?: string;
+  /** 收信同步的只读投影。不是发件健康，也不触发同步。 */
+  inboundSync?: {
+    condition: "clear" | "error";
+    label: "正常" | "收信同步异常";
+    error: string;
+    syncedAt: string;
+    accountId: string;
+    accountName: string;
+  };
   lastInboundUid?: number;
   inboundUidValidity?: string;
   lastDevelopmentEmailAt?: string;

@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import type { NextFunction, Request, Response } from "express";
 import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { describeInboundSyncStatus } from "./inbound-sync-status.js";
 import { getStore } from "./store.js";
 import type { SessionUser } from "./types.js";
 import { legacyPermissionScope } from "./iam/iam-foundation.js";
@@ -112,6 +113,13 @@ export function publicUser(user: ReturnType<typeof getStore>["users"][number]): 
     lastInboundSyncAt: user.lastInboundSyncAt || "",
     lastInboundSyncStatus: user.lastInboundSyncStatus || undefined,
     lastInboundSyncError: user.lastInboundSyncError || "",
+    inboundSync: describeInboundSyncStatus({
+      id: user.id,
+      name: user.name,
+      lastInboundSyncStatus: user.lastInboundSyncStatus,
+      lastInboundSyncError: user.lastInboundSyncError,
+      lastInboundSyncAt: user.lastInboundSyncAt
+    }),
     lastInboundUid: user.lastInboundUid || 0,
     inboundUidValidity: user.inboundUidValidity || "",
     lastDevelopmentEmailAt: user.lastDevelopmentEmailAt || "",
