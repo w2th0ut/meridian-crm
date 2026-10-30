@@ -12,12 +12,18 @@ export type ProspectComplianceNoticeKind =
   | "bounced"
   | "invalid";
 
-/** 只读投影：不写库，也不生成解除动作。 */
+/**
+ * 只读投影：不写库，也不生成解除动作。
+ * effectiveAt 只复用已经在读的时间：抑制事件的生效时间；
+ * 退订没有抑制事件时，才用同一条退订核验上的 verifiedAt。没有则留空。
+ */
 export interface ProspectComplianceNotice {
   kind: ProspectComplianceNoticeKind;
   label: string;
   reason: string;
   source: string;
+  /** 抑制或退订生效时间。退信和无效留空，不拿别的时间冒充。 */
+  effectiveAt: string;
 }
 
 const MISSING_REASON = "原因未回传";
@@ -39,6 +45,21 @@ function joined(values: Array<string | undefined>, separator = "；") {
 
 function reasonOrMissing(value: string) {
   return value.trim() || MISSING_REASON;
+}
+
+/** 同一类里取更早的可解析时间。解析不了的不当生效时间。 */
+function earliestStamp(values: Array<string | undefined>) {
+  let best = "";
+  let bestMs = Number.POSITIVE_INFINITY;
+  for (const value of values) {
+    const text = (value || "").trim();
+    if (!text) continue;
+    const ms = Date.parse(text);
+    if (!Number.isFinite(ms) || ms >= bestMs) continue;
+    bestMs = ms;
+    best = text;
+  }
+  return best;
 }
 
 function isOptOutCode(code: string) {
@@ -186,7 +207,8 @@ export function describeProspectComplianceNotices(
         || prospectReason
         || excluded
       ),
-      source: ""
+      source: "",
+      effectiveAt: earliestStamp(otherSuppressions.map((item) => item.effectiveAt))
     });
   }
 
@@ -203,7 +225,9 @@ export function describeProspectComplianceNotices(
         || joined(optOutSuppressions.map((item) => item.reasonCode))
         || excluded
       ),
-      source: joined(optOutVerifications.map((item) => item.providerCode), "、")
+      source: joined(optOutVerifications.map((item) => item.providerCode), "、"),
+      effectiveAt: earliestStamp(optOutSuppressions.map((item) => item.effectiveAt))
+        || earliestStamp(optOutVerifications.map((item) => item.verifiedAt))
     });
   }
 
@@ -212,7 +236,8 @@ export function describeProspectComplianceNotices(
       kind: "bounced",
       label: "已退信",
       reason: reasonOrMissing(joined(bouncedVerifications.map((item) => item.reasonCode))),
-      source: joined(bouncedVerifications.map((item) => item.providerCode), "、")
+      source: joined(bouncedVerifications.map((item) => item.providerCode), "、"),
+      effectiveAt: ""
     });
   }
 
@@ -221,7 +246,8 @@ export function describeProspectComplianceNotices(
       kind: "invalid",
       label: "联系方式无效",
       reason: reasonOrMissing(joined(invalidVerifications.map((item) => item.reasonCode))),
-      source: joined(invalidVerifications.map((item) => item.providerCode), "、")
+      source: joined(invalidVerifications.map((item) => item.providerCode), "、"),
+      effectiveAt: ""
     });
   }
 

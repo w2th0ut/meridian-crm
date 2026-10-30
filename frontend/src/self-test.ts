@@ -1895,6 +1895,96 @@ assert.doesNotMatch(scrollReleaseBatchAge, /\.value\s*=|fetch\(|shortlistLeadFin
 assert.match(prototype, /\.prospect-release-batch-age\b/, "待放行批次必须有可见样式");
 assert.match(prototype, /\.dashboard-release-batch-age-note\b/, "待放行批次说明必须有可见样式");
 
+const suppressListAgeLayer = readFileSync(new URL("./prospect-suppress-list-age.ts", import.meta.url), "utf8");
+assert.match(suppressListAgeLayer, /export function presentSuppressListAge/, "抑制名单日龄必须只消费已有生效时间");
+assert.match(suppressListAgeLayer, /SUPPRESS_LIST_AGE_LIMIT = 8/, "抑制名单日龄最多 8 条");
+assert.match(suppressListAgeLayer, /SUPPRESS_LIST_AGE_WINDOW_DAYS = 7/, "抑制名单日龄窗口必须是 7 天");
+assert.match(suppressListAgeLayer, /effectiveAt/, "抑制名单日龄必须写明复用生效时间");
+assert.match(suppressListAgeLayer, /held/, "抑制名单日龄必须先确认当前有抑制或退订");
+assert.match(suppressListAgeLayer, /无抑制日龄/, "没有可解析抑制或退订时间时文案必须是无抑制日龄");
+assert.match(suppressListAgeLayer, /抑制超七日/, "超过 7 天必须标抑制超七日");
+assert.match(suppressListAgeLayer, /抑制七日内/, "7 天内必须标抑制七日内");
+assert.match(suppressListAgeLayer, /查看抑制或退订/, "必须能跳到现有抑制或退订说明");
+assert.match(suppressListAgeLayer, /kind !== "none"/, "无抑制日龄不得占工作台名额");
+assert.match(suppressListAgeLayer, /这不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "抑制名单日龄必须和待放行批次、回复积压、序列到期、外联空档、静默、跟进空档、加入日龄区分开");
+assert.match(suppressListAgeLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "抑制名单日龄必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(suppressListAgeLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "抑制名单日龄必须和获客待办摘要、逾期、卡住区分开");
+assert.match(suppressListAgeLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列进度/, "抑制名单日龄必须和待记跟进、待发草稿、外联序列进度区分开");
+assert.match(suppressListAgeLayer, /也不是打开或点击、失败或退信、收信同步/, "抑制名单日龄必须和打开或点击、失败或退信、收信同步区分开");
+assert.match(suppressListAgeLayer, /不替代抑制或退订原因那一块/, "抑制名单日龄不得替代抑制或退订原因那一块");
+assert.match(suppressListAgeLayer, /不会解除抑制，不会发信，不会改名单，也不会改 convert_to_lead 或 approved_contactable/, "抑制名单日龄不得解除抑制、发信、改名单或改门禁");
+assert.match(suppressListAgeLayer, /刚好 7 天仍算抑制七日内/, "刚好 7 天仍算抑制七日内");
+assert.match(suppressListAgeLayer, /退信和联系方式无效不算抑制名单/, "退信和无效不得算成抑制名单");
+assert.match(suppressListAgeLayer, /跟进记录不算这次抑制的时间/, "跟进记录不得算成这次抑制的时间");
+assert.match(suppressListAgeLayer, /最近一封开发信的发出时间不算这次抑制的时间/, "开发信发出时间不得算成这次抑制的时间");
+assert.match(suppressListAgeLayer, /序列下一步的计划时间不算这次抑制的时间/, "序列下一步不得算成这次抑制的时间");
+assert.match(suppressListAgeLayer, /最近一次开发信回复的时间不算这次抑制的时间/, "最近回复不得算成这次抑制的时间");
+assert.match(suppressListAgeLayer, /最近触达（含话机）不算这次抑制的时间/, "最近触达和话机不得算成这次抑制的时间");
+assert.match(suppressListAgeLayer, /待放行批次的更新时间不算这次抑制的时间/, "待放行批次更新时间不得算成这次抑制的时间");
+assert.doesNotMatch(suppressListAgeLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextExecutionAt|outreachReply|statusChangedAt|unsuppress/i, "抑制名单日龄模块不得发请求、改读别的时间、读 WhatsApp、解除抑制或改门禁");
+assert.doesNotMatch(kbSourceBetween(suppressListAgeLayer, "function suppressListAgeLineLabel", "\nexport function suppressListAgeStatusLabel"), /空档|已到期|静默|跟进空档|逾期|有回复|即将到期|未临近|无序列到期|积压较久|积压较新|无待处理回复|待放已久|待放未久|无待放行/, "行文案必须用抑制超七日、抑制七日内、无抑制日龄");
+assert.match(prospectListRender, /renderSuppressListAgeLine\(item\)/, "搜客清单每一行必须显示抑制名单日龄");
+assert.match(prospectListRender, /renderReleaseBatchAgeLine\(item\)[\s\S]{0,160}renderSuppressListAgeLine\(item\)/, "抑制名单日龄必须和待放行批次分开显示");
+assert.match(prospectListRender, /renderDashboardSuppressListAge\(\)/, "清单刷新必须同时更新抑制名单日龄入口");
+const suppressListAgeRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(suppressListAgeRows, /prospectSuppressListAgeFilter[\s\S]*prospectSuppressListAge/, "抑制名单日龄筛选只按已有生效时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectReleaseBatchAge\(item\)\}\n    \$\{renderProspectSuppressListAge\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在待放行批次后面单独说明抑制名单日龄"
+);
+assert.match(apiLayer, /没有抑制超七日的候选。这里不会编造抑制时间，也不会解除抑制，也不会发信。/, "筛不到抑制超七日时必须写清空态");
+assert.match(prototype, /data-prospect-suppress-list-age-filter="long"[\s\S]*抑制超七日/, "清单必须能筛抑制超七日");
+assert.match(prototype, /data-prospect-release-batch-age-filter="held"[\s\S]*待放已久/, "原来的待放行批次筛选还在");
+assert.match(prototype, /id="dashboardReleaseBatchAge"[\s\S]{0,5000}id="dashboardSuppressListAge"[\s\S]*抑制名单日龄/, "工作台抑制名单日龄必须在待放行批次下面");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是待放行批次/, "工作台说明必须和待放行批次分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是回复待处理积压/, "工作台说明必须和回复待处理积压分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是序列下一步到期/, "工作台说明必须和序列下一步到期分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是外联最近动作空档/, "工作台说明必须和外联空档分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardSuppressListAgeNote"[\s\S]*不替代抑制或退订原因那一块/, "工作台说明必须和抑制或退订原因那一块分开");
+assert.match(prototype, /id="dashboardReleaseBatchAge"[\s\S]*待放行批次/, "待放行批次原条还在");
+assert.match(apiLayer, /SUPPRESS_LIST_AGE_LIMIT/, "工作台抑制名单日龄必须守住 8 条上限");
+assert.match(apiLayer, /listSuppressListAgeQueue\(/, "工作台必须复用抑制超七日在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看抑制名单日龄。这里不会编造名单，也不会解除抑制，也不会发信。/, "没有清单时不得编造抑制名单日龄");
+assert.match(apiLayer, /抑制名单日龄/, "详情标题必须是抑制名单日龄");
+assert.match(apiLayer, /suppressListAgeEntryLabel\(/, "详情必须复用查看抑制或退订入口文案");
+const suppressListAgeAdapter = kbSourceBetween(apiLayer, "function prospectSuppressListAge", "\nfunction suppressListAgeBadgeTone");
+assert.match(suppressListAgeAdapter, /complianceNotices/, "抑制名单日龄必须复用 Day8 抑制或退订说明");
+assert.match(suppressListAgeAdapter, /effectiveAt/, "抑制名单日龄必须读说明上已有的生效时间");
+assert.match(suppressListAgeAdapter, /suppressed/, "只有抑制说明才进入日龄");
+assert.match(suppressListAgeAdapter, /opted_out/, "退订说明也进入日龄");
+assert.doesNotMatch(suppressListAgeAdapter, /outreachReply|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextRunAt|nextExecutionAt|whatsapp|createdAt|verifiedAt|updatedAt|statusChangedAt|approvedAt/i, "抑制名单日龄不得改读回复、跟进、加入时间、下次跟进、触达、开发信发出时间、序列计划、核验时间或状态变更时间");
+const suppressListAgeQueue = kbSourceBetween(apiLayer, "function renderDashboardSuppressListAge", "\nfunction openSuppressListAgeFromDashboard");
+assert.match(suppressListAgeQueue, /shortlistedAt/, "工作台抑制名单日龄只包含搜客清单里的候选");
+assert.match(suppressListAgeQueue, /listSuppressListAgeQueue\(/, "工作台抑制名单日龄只按已有生效时间排序");
+assert.match(suppressListAgeQueue, /SUPPRESS_LIST_AGE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(suppressListAgeQueue, /抑制超七日在前/, "工作台必须抑制超七日在前");
+assert.doesNotMatch(suppressListAgeQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|outreachReply|scheduledAt|nextExecutionAt|approvedAt|statusChangedAt|verifiedAt/i, "工作台抑制名单日龄不得改读跟进、下次跟进、触达、开发信发出时间、回复或状态变更时间");
+const suppressListAgeClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardSuppressListAge")?.addEventListener');
+const suppressListAgeClick = apiLayer.slice(suppressListAgeClickStart, suppressListAgeClickStart + 700);
+assert.match(suppressListAgeClick, /openSuppressListAgeFromDashboard/, "点工作台抑制名单日龄必须打开现有候选");
+assert.doesNotMatch(suppressListAgeClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard|controlOutreachSequence|approveOutreach|\/approve|unsuppress/, "点工作台抑制名单日龄不得改名单、记跟进、发送、转线索、推进序列、放行或解除抑制");
+const openSuppressListAge = kbSourceBetween(apiLayer, "function openSuppressListAgeFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openSuppressListAge, /prospectSuppressListAgeFilter = suppressListAgeListFilterForOpen\(view\)/, "打开抑制超七日必须落到抑制超七日筛选，抑制七日内保持全部");
+assert.match(openSuppressListAge, /suppressListAgeFocusId = item\.id/, "打开后必须停在现有抑制或退订说明或详情顶部");
+assert.match(openSuppressListAge, /不会解除抑制，也不会发信，也不会改名单/, "打开时必须说明不会解除抑制、不会发信、不会改名单");
+assert.doesNotMatch(openSuppressListAge, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve|controlOutreachSequence|approveOutreach|unsuppress/, "打开抑制名单日龄不得改名单、记跟进、发送、转线索、批准、放行或解除抑制");
+const scrollSuppressListAge = kbSourceBetween(apiLayer, "function scrollToSuppressListAgeTarget", "\nfunction focusSuppressListAgeTarget");
+assert.match(scrollSuppressListAge, /data-hold-kind="suppressed"/, "必须滚到现有抑制说明");
+assert.match(scrollSuppressListAge, /data-hold-kind="opted_out"/, "必须滚到现有退订说明");
+assert.match(scrollSuppressListAge, /prospect-detail-hero/, "没有抑制或退订说明时必须能停在详情顶部");
+assert.doesNotMatch(scrollSuppressListAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail|controlOutreachSequence|\/approve|unsuppress/, "跳到抑制或退订说明不得改名单、写入、发信、推进序列、放行或解除抑制");
+assert.match(prototype, /\.prospect-suppress-list-age\b/, "抑制名单日龄必须有可见样式");
+assert.match(prototype, /\.dashboard-suppress-list-age-note\b/, "抑制名单日龄说明必须有可见样式");
+
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
 //

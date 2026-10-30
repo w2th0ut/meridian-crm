@@ -152,6 +152,7 @@ assert.equal(noted[0]?.kind, "suppressed");
 assert.equal(noted[0]?.label, "已抑制");
 assert.equal(noted[0]?.reason, "法务要求暂停联系");
 assert.equal(noted[0]?.source, "");
+assert.equal(noted[0]?.effectiveAt, at(2), "抑制日龄复用已经在读的生效时间");
 
 const dnc = notices({
   events: [suppression({
@@ -183,6 +184,7 @@ assert.equal(unsubscribed[0]?.kind, "opted_out");
 assert.equal(unsubscribed[0]?.label, "已退订");
 assert.equal(unsubscribed[0]?.reason, "要求退订");
 assert.equal(unsubscribed[0]?.source, "", "获客来源不是退订来源");
+assert.equal(unsubscribed[0]?.effectiveAt, "", "只有回复分类、没有抑制事件或退订核验时不编造生效时间");
 
 const rejected = notices({
   candidate: candidate({
@@ -207,6 +209,7 @@ assert.equal(bounced[0]?.kind, "bounced");
 assert.equal(bounced[0]?.label, "已退信");
 assert.equal(bounced[0]?.reason, "outreach_bounced");
 assert.equal(bounced[0]?.source, "keduoduo_manual_outreach");
+assert.equal(bounced[0]?.effectiveAt, "", "退信时间不算抑制名单日龄");
 
 const bounceWithoutReason = notices({
   candidate: candidate({ outreachState: "contact_invalid" })
@@ -275,6 +278,64 @@ const both = notices({
 assert.deepEqual(both.map((item) => item.kind), ["suppressed", "bounced"]);
 assert.equal(both[1]?.reason, "原因未回传");
 assert.equal(both[1]?.source, "mailbox_probe");
+
+const earlierHold = notices({
+  events: [
+    suppression({
+      id: "pse-late",
+      scopeKeyHash: "scope-late",
+      effectiveAt: at(8),
+      createdAt: at(8),
+      reasonNote: "后加上的抑制"
+    }),
+    suppression({
+      id: "pse-early",
+      scopeKeyHash: "scope-early",
+      effectiveAt: at(3),
+      createdAt: at(3),
+      reasonNote: "更早的抑制"
+    })
+  ]
+});
+assert.equal(earlierHold[0]?.kind, "suppressed");
+assert.equal(earlierHold[0]?.effectiveAt, at(3), "多条仍生效的抑制取更早的生效时间");
+
+const verificationOnly = notices({
+  verifications: [verification({
+    status: "opted_out",
+    reasonCode: "contact_opted_out",
+    providerCode: "mailbox",
+    verifiedAt: at(4)
+  })]
+});
+assert.equal(verificationOnly[0]?.kind, "opted_out");
+assert.equal(verificationOnly[0]?.effectiveAt, at(4), "没有抑制事件时才用同一条退订核验的 verifiedAt");
+
+const suppressionWins = notices({
+  events: [suppression({
+    reasonCode: "unsubscribed",
+    reasonNote: "要求退订",
+    effectiveAt: at(6),
+    createdAt: at(6)
+  })],
+  verifications: [verification({
+    status: "opted_out",
+    reasonCode: "contact_opted_out",
+    providerCode: "mailbox",
+    verifiedAt: at(2)
+  })]
+});
+assert.equal(suppressionWins[0]?.kind, "opted_out");
+assert.equal(suppressionWins[0]?.effectiveAt, at(6), "已有抑制事件生效时间时不改用更早的核验时间");
+
+const statusOnly = notices({
+  prospects: [prospect({
+    status: "do_not_contact",
+    exclusionReasonCode: "HUMAN_DO_NOT_CONTACT"
+  })]
+});
+assert.equal(statusOnly[0]?.kind, "suppressed");
+assert.equal(statusOnly[0]?.effectiveAt, "", "只有正式候选状态、没有抑制事件时不借用别的时间");
 
 const serverSource = readFileSync(new URL("./server.ts", import.meta.url), "utf8");
 assert.match(
