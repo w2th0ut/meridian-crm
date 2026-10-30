@@ -7447,9 +7447,62 @@
 
     .prospect-coverage.is-attention,
     .prospect-identity-panel.is-attention,
-    .prospect-convert-gate.is-attention {
+    .prospect-convert-gate.is-attention,
+    .prospect-collision.is-attention {
       outline: 2px solid #b45309;
       outline-offset: 2px;
+    }
+
+    .prospect-collision-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-collision-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-collision {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #c9d7ea;
+      border-radius: 8px;
+      background: #f5f8fc;
+    }
+
+    .prospect-collision-head,
+    .prospect-collision.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-collision p,
+    .prospect-collision.is-compact span,
+    .prospect-collision-when {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-collision.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      background: rgba(30, 64, 175, 0.06);
+    }
+
+    .prospect-collision-when {
+      display: flex;
+      gap: 6px;
     }
 
     .prospect-follow-up-entry {
@@ -26207,6 +26260,17 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardCoverageGapList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardCrmCollisions" aria-label="已有客户或线索撞库">
+            <div class="section-head">
+              <div class="section-title"><div><h2>已有客户或线索撞库</h2><p id="dashboardCrmCollisionScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardCrmCollisionsRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <div id="dashboardCrmCollisionList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="panel section" id="dashboardProspectRuns" aria-label="进行中的搜客">
             <div class="section-head">
               <div class="section-title"><div><h2>进行中的搜客</h2><p id="dashboardProspectRunScope">正在读取搜客任务</p></div></div>
@@ -26912,6 +26976,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
                   <button class="active" type="button" data-prospect-coverage-filter="all" aria-pressed="true">全部覆盖</button>
                   <button type="button" data-prospect-coverage-filter="out" aria-pressed="false">未进正式企业覆盖池</button>
                   <button type="button" data-prospect-coverage-filter="in" aria-pressed="false">已在正式企业覆盖池</button>
+                </div>
+              </div>
+              <div class="prospect-collision-filter">
+                <span>撞库</span>
+                <div class="prospect-tabs" role="group" aria-label="按已有客户或线索撞库筛选">
+                  <button class="active" type="button" data-prospect-collision-filter="all" aria-pressed="true">全部撞库</button>
+                  <button type="button" data-prospect-collision-filter="hit" aria-pressed="false">已撞库</button>
+                  <button type="button" data-prospect-collision-filter="clear" aria-pressed="false">未撞库</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">

@@ -27,6 +27,15 @@ import {
   deriveCoveragePool,
   type CoveragePoolListFilter
 } from "./prospect-coverage-pool";
+import {
+  crmCollisionDisplayName,
+  crmCollisionLinkLabel,
+  crmCollisionMatchesFilter,
+  crmCollisionSummary,
+  presentCrmCollision,
+  type CrmCollisionListFilter,
+  type CrmCollisionView
+} from "./prospect-crm-collision";
 import { resolveLeadAiSearchDraft } from "./lead-ai-search";
 import type { CustomerMapController, CustomerMapRegion } from "./customer-map";
 import type {
@@ -1929,6 +1938,7 @@ interface WebsiteOpportunity {
   shortlistedBy?: string;
   shortlistSourceRunId?: string;
   tenantProspectId?: string;
+  crmCollision?: CrmCollisionView;
   organizationId?: string;
   coverageClassification?: string;
   coverageQueueState?: string;
@@ -3811,6 +3821,7 @@ interface AppState {
   prospectFilter: "all" | "preview" | "contactable" | "contacted" | "synced" | "excluded";
   prospectStageFilter: "all" | AcquisitionStageFilter;
   prospectCoverageFilter: CoveragePoolListFilter;
+  prospectCollisionFilter: CrmCollisionListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4030,6 +4041,7 @@ const state: AppState = {
   prospectFilter: "all",
   prospectStageFilter: "all",
   prospectCoverageFilter: "all",
+  prospectCollisionFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -13609,6 +13621,7 @@ function renderLeadDrawer(
     state.prospectFilter = "all";
     state.prospectStageFilter = "all";
     state.prospectCoverageFilter = "all";
+    state.prospectCollisionFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33512,6 +33525,7 @@ function prospectFilteredRows() {
       if (state.prospectFilter !== "all" && item.status !== state.prospectFilter) return false;
       if (state.prospectStageFilter !== "all" && deriveAcquisitionStage(acquisitionStageInput(item)).filter !== state.prospectStageFilter) return false;
       if (state.prospectCoverageFilter !== "all" && deriveCoveragePool({ tenantProspectId: item.tenantProspectId }).filter !== state.prospectCoverageFilter) return false;
+      if (state.prospectCollisionFilter !== "all" && !crmCollisionMatchesFilter(prospectCrmCollision(item), state.prospectCollisionFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35638,6 +35652,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectFilter = "all";
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35655,6 +35670,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectFilter = "all";
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35678,6 +35694,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectFilter = "all";
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35727,13 +35744,14 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   const procurementContext = state.procurementContexts[item.id];
   box.innerHTML = `
     <div class="prospect-detail-hero">
-      ${renderAcquisitionStageBadge(item)} ${renderCoveragePoolBadge(item)} ${badge(status.label, status.tone)} ${badge(`行动优先 ${score}`, score >= 76 ? "green" : score >= 60 ? "amber" : "gray")} ${badge(duplicate.text, duplicate.tone)} ${prospectEmailEligibilityBadge(item)}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}
+      ${renderAcquisitionStageBadge(item)} ${renderCoveragePoolBadge(item)} ${renderCrmCollisionBadge(item)} ${badge(status.label, status.tone)} ${badge(`行动优先 ${score}`, score >= 76 ? "green" : score >= 60 ? "amber" : "gray")} ${badge(duplicate.text, duplicate.tone)} ${prospectEmailEligibilityBadge(item)}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}
       <h2>${escapeHtml(item.company)}</h2>
       <p>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(item.business || "业务待维护")} · ${escapeHtml(websiteDomain(item.website || ""))}</p>
       <p>加入搜客清单：${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</p>
     </div>
     ${renderProspectAcquisitionStage(item)}
     ${renderProspectCoveragePool(item)}
+    ${renderProspectCrmCollision(item)}
     ${renderProspectComplianceNotices(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
@@ -35791,6 +35809,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindContactableApprovalEntries(box, item);
   bindAcquisitionStageHold(box);
   bindCoveragePoolNext(box);
+  bindCrmCollisionLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -35866,6 +35885,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusProspectHoldNotice(item.id, box);
   focusProspectFollowUpInput(item.id);
   focusCoveragePoolTarget(item.id, box);
+  focusCrmCollisionTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36421,6 +36441,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
     state.prospectFilter = "all";
     state.prospectStageFilter = "all";
     state.prospectCoverageFilter = "all";
+    state.prospectCollisionFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -36816,6 +36837,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectFilter = "all";
   state.prospectStageFilter = "all";
   state.prospectCoverageFilter = target === "coverage" ? "out" : "all";
+  state.prospectCollisionFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -36959,6 +36981,216 @@ function renderDashboardCoverageGaps() {
   }).join("");
 }
 
+function visibleCollisionCustomer(id?: string) {
+  const key = (id || "").trim();
+  if (!key) return null;
+  return state.customers.find((item) => item.id === key)
+    || state.publicCustomers.find((item) => item.id === key)
+    || null;
+}
+
+function visibleCollisionLead(id?: string) {
+  const key = (id || "").trim();
+  if (!key) return null;
+  const lead = state.leads.find((item) => item.id === key);
+  if (!lead || lead.deletedAt || lead.status === "invalid") return null;
+  return lead;
+}
+
+function prospectCrmCollision(item: WebsiteOpportunity) {
+  const customer = visibleCollisionCustomer(item.customerId);
+  const lead = visibleCollisionLead(item.leadId);
+  return presentCrmCollision(item.crmCollision, {
+    customer: customer
+      ? {
+        id: customer.id,
+        name: customer.company,
+        at: customer.lastActivityAt || customer.claimedAt || customer.lastWonAt || customer.releasedAt || ""
+      }
+      : null,
+    lead: lead
+      ? {
+        id: lead.id,
+        name: lead.company,
+        at: lead.lastActivityAt || lead.createdAt || ""
+      }
+      : null
+  });
+}
+
+function crmCollisionTone(status: CrmCollisionView["status"]) {
+  return status === "none" ? "gray" : "amber";
+}
+
+function renderCrmCollisionBadge(item: WebsiteOpportunity) {
+  const hit = prospectCrmCollision(item);
+  return `<span class="prospect-collision-badge" data-crm-collision="${hit.status}" title="${escapeHtml(crmCollisionSummary(hit))}">${badge(hit.label, crmCollisionTone(hit.status))}</span>`;
+}
+
+function crmCollisionLinkButton(item: WebsiteOpportunity) {
+  const hit = prospectCrmCollision(item);
+  const label = crmCollisionLinkLabel(hit);
+  if (!label) return "";
+  return `<button class="btn prospect-collision-link" type="button" data-crm-collision-open="${escapeHtml(item.id)}">${escapeHtml(label)}</button>`;
+}
+
+function renderProspectCrmCollision(item: WebsiteOpportunity) {
+  const hit = prospectCrmCollision(item);
+  const formattedAt = hit.at ? formatProspectJoinedAt(hit.at) : "";
+  const when = hit.at
+    ? `<p class="prospect-collision-when"><span>关键时间</span><time datetime="${escapeHtml(hit.at)}">${escapeHtml(formattedAt)}</time></p>`
+    : "";
+  return `<section class="prospect-collision" id="prospectCrmCollision" data-crm-collision="${hit.status}">
+    <div class="prospect-collision-head"><b>客户/线索撞库</b>${badge(hit.label, crmCollisionTone(hit.status))}</div>
+    <p>${escapeHtml(crmCollisionSummary(hit, formattedAt && formattedAt !== "时间未知" ? formattedAt : ""))}</p>
+    ${when}
+    ${crmCollisionLinkButton(item)}
+  </section>`;
+}
+
+function renderCrmCollisionLine(item: WebsiteOpportunity) {
+  const hit = prospectCrmCollision(item);
+  if (hit.status === "none") return "";
+  const formattedAt = hit.at ? formatProspectJoinedAt(hit.at) : "";
+  const when = formattedAt && formattedAt !== "时间未知" ? ` · ${formattedAt}` : "";
+  return `<div class="prospect-collision is-compact" data-crm-collision="${hit.status}">${badge(hit.label, "amber")}<span>${escapeHtml(crmCollisionDisplayName(hit))}${escapeHtml(when)}</span>${crmCollisionLinkButton(item)}</div>`;
+}
+
+let prospectCollisionFocusId = "";
+
+function focusCrmCollisionTarget(itemId: string, root: ParentNode | null) {
+  if (prospectCollisionFocusId !== itemId) return;
+  prospectCollisionFocusId = "";
+  const node = root?.querySelector<HTMLElement>("#prospectCrmCollision");
+  if (!node) return;
+  node.classList.add("is-attention");
+  node.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => node.classList.remove("is-attention"), 1600);
+}
+
+function bindCrmCollisionLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-crm-collision-open]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = state.websiteOpportunities.find((row) => row.id === (button.dataset.crmCollisionOpen || ""));
+      if (item) void openCrmCollisionRecord(item);
+    });
+  });
+}
+
+async function openCrmCollisionRecord(item: WebsiteOpportunity) {
+  const hit = prospectCrmCollision(item);
+  if (!hit.linkable || !hit.recordId) {
+    toast("当前账号打不开这条记录。不会自动合并，也不会改归属。", "error");
+    return;
+  }
+  if (hit.status === "customer") {
+    const customer = visibleCollisionCustomer(hit.recordId);
+    if (!customer) {
+      toast("当前列表里还没有这条客户。刷新后再打开。不会自动合并，也不会改归属。", "error");
+      return;
+    }
+    activateNavView("customers", () => {
+      state.selectedCustomerId = customer.id;
+      renderCustomers(state.customers);
+      renderCustomerDrawer(customer);
+      openCustomerDrawer();
+      toast("已打开已有客户。只读，不会自动合并，也不会改归属。");
+    });
+    return;
+  }
+  const lead = visibleCollisionLead(hit.recordId);
+  if (!lead) {
+    toast("当前列表里还没有这条线索。刷新后再打开。不会自动合并，也不会改归属。", "error");
+    return;
+  }
+  activateNavView("leads");
+  await openLead(lead.id);
+  toast("已打开已有线索。只读，不会自动合并，也不会改归属。");
+}
+
+const CRM_COLLISION_LIMIT = 8;
+
+function crmCollisionCandidates() {
+  return state.websiteOpportunities
+    .filter((item) => Boolean(item.shortlistedAt) && prospectCrmCollision(item).status !== "none")
+    .slice()
+    .sort((left, right) => {
+      const leftTime = new Date(prospectCrmCollision(left).at).getTime();
+      const rightTime = new Date(prospectCrmCollision(right).at).getTime();
+      const difference = (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+      return difference || left.id.localeCompare(right.id);
+    });
+}
+
+function renderDashboardCrmCollisions() {
+  const scope = qs<HTMLElement>("#dashboardCrmCollisionScope");
+  const list = qs<HTMLElement>("#dashboardCrmCollisionList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看。这里不会编造名单，也不会自动合并。</div>`;
+    return;
+  }
+  const hits = crmCollisionCandidates();
+  if (!hits.length) {
+    scope.textContent = "当前可见的搜客清单都未撞库";
+    list.innerHTML = `<div class="empty-cell">当前可见的搜客清单都未撞库。这里不会编造命中，也不会自动合并。</div>`;
+    return;
+  }
+  const shown = hits.slice(0, CRM_COLLISION_LIMIT);
+  scope.textContent = hits.length > shown.length
+    ? `可见范围 ${hits.length} 条已撞库，这里显示 ${shown.length} 条`
+    : `可见范围 ${hits.length} 条已撞库`;
+  list.innerHTML = shown.map((item) => {
+    const hit = prospectCrmCollision(item);
+    const when = hit.at ? formatProspectJoinedAt(hit.at) : "";
+    const name = crmCollisionDisplayName(hit);
+    return `<button class="dashboard-prospect-row" type="button" data-dashboard-crm-collision="${escapeHtml(item.id)}" aria-label="查看撞库：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(hit.label)}</span>
+      <em>${escapeHtml(name)}${when && when !== "时间未知" ? ` · ${escapeHtml(when)}` : ""}</em>
+    </button>`;
+  }).join("");
+}
+
+function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt || prospectCrmCollision(item).status === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "hit";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  prospectCollisionFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开这条候选。只读，不会自动合并，也不会改归属。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
 function ownedAcquisitionCandidates() {
   const ownerId = state.user?.id || "";
   if (!ownerId) return [];
@@ -37000,6 +37232,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectFilter = "all";
   state.prospectStageFilter = filter;
   state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37064,6 +37297,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-collision-filter]").forEach((button) => {
+    const active = button.dataset.prospectCollisionFilter === state.prospectCollisionFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -37077,11 +37315,17 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const coverageEmpty = state.prospectCoverageFilter === "out"
-    ? "没有未进正式企业覆盖池的候选。这里不会编造公司，也不会自动入池。"
-    : state.prospectCoverageFilter === "in"
-      ? "没有已在正式企业覆盖池的候选。这里不会编造公司。"
-      : "搜客清单暂无匹配记录。请从当前搜索结果中勾选候选加入。";
+  const collisionEmpty = state.prospectCollisionFilter === "hit"
+    ? "没有已撞库的候选。这里不会编造命中，也不会自动合并。"
+    : state.prospectCollisionFilter === "clear"
+      ? "没有未撞库的候选。这里不会编造公司。"
+      : "";
+  const coverageEmpty = collisionEmpty
+    || (state.prospectCoverageFilter === "out"
+      ? "没有未进正式企业覆盖池的候选。这里不会编造公司，也不会自动入池。"
+      : state.prospectCoverageFilter === "in"
+        ? "没有已在正式企业覆盖池的候选。这里不会编造公司。"
+        : "搜客清单暂无匹配记录。请从当前搜索结果中勾选候选加入。");
   if (rows) {
     rows.innerHTML = pageRows.length ? pageRows.map((item) => {
       const score = leadFinderScore(item);
@@ -37096,7 +37340,7 @@ function renderProspectList() {
             <div class="prospect-item-top"><h3>${escapeHtml(item.company)}</h3><span class="prospect-score">${score}</span></div>
             <p>${escapeHtml(item.business || "业务待维护")}</p>
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
-            <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
+            <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectComplianceNotices(item)}
             ${renderProspectFollowUpSummary(item)}
             ${renderProspectNextFollow(item)}
@@ -37108,6 +37352,7 @@ function renderProspectList() {
             <span class="prospect-next-action">下一步：${escapeHtml(status.action)}</span>
             ${prospectConvertGateLine(item)}
             ${renderCoveragePoolLine(item)}
+            ${renderCrmCollisionLine(item)}
             <div class="prospect-joined-at"><span>加入搜客清单</span><time datetime="${escapeHtml(item.shortlistedAt || item.createdAt)}" title="${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}">${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</time></div>
           </div>
         </article>
@@ -37152,6 +37397,7 @@ function renderProspectList() {
     bindContactableApprovalEntries(rows);
     bindAcquisitionStageHold(rows);
     bindCoveragePoolNext(rows);
+    bindCrmCollisionLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -37160,6 +37406,7 @@ function renderProspectList() {
   renderDashboardDueFollowUps();
   renderDashboardAcquisitionStages();
   renderDashboardCoverageGaps();
+  renderDashboardCrmCollisions();
 }
 
 function markProspectConverted(item: WebsiteOpportunity, leadId: string) {
@@ -38354,7 +38601,10 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (stageScope) stageScope.textContent = "阶段暂时读不到";
     const coverageScope = qs<HTMLElement>("#dashboardCoverageGapScope");
     const coverageList = qs<HTMLElement>("#dashboardCoverageGapList");
+    const collisionScope = qs<HTMLElement>("#dashboardCrmCollisionScope");
+    const collisionList = qs<HTMLElement>("#dashboardCrmCollisionList");
     if (coverageScope) coverageScope.textContent = "覆盖池暂时读不到";
+    if (collisionScope) collisionScope.textContent = "撞库暂时读不到";
     if (!websiteOpportunitiesLoaded && list) {
       list.innerHTML = `<div class="empty-cell">候选暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单。</div>`;
     }
@@ -38372,6 +38622,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     }
     if (!websiteOpportunitiesLoaded && coverageList) {
       coverageList.innerHTML = `<div class="empty-cell">覆盖池暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造名单，也不会自动入池。</div>`;
+    }
+    if (!websiteOpportunitiesLoaded && collisionList) {
+      collisionList.innerHTML = `<div class="empty-cell">撞库暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造命中，也不会自动合并。</div>`;
     }
   } finally {
     if (button) {
@@ -40194,6 +40447,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
     state.prospectFilter = "all";
     state.prospectStageFilter = "all";
     state.prospectCoverageFilter = "all";
+    state.prospectCollisionFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -42234,6 +42488,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     </div>
     ${renderProspectAcquisitionStage(item)}
     ${renderProspectCoveragePool(item)}
+    ${renderProspectCrmCollision(item)}
     ${renderProspectComplianceNotices(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
@@ -42333,6 +42588,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindContactableApprovalEntries(box, item);
   bindAcquisitionStageHold(box);
   bindCoveragePoolNext(box);
+  bindCrmCollisionLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -42351,6 +42607,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   }
   focusProspectHoldNotice(item.id, box);
   focusCoveragePoolTarget(item.id, box);
+  focusCrmCollisionTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -44307,6 +44564,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     state.prospectFilter = "all";
     state.prospectStageFilter = "all";
     state.prospectCoverageFilter = "all";
+    state.prospectCollisionFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -47562,6 +47820,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || deriveCoveragePool({ tenantProspectId: item.tenantProspectId }).inPool) return;
     openCoverageGapFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardCrmCollisionsRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardCrmCollisions")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-crm-collision]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardCrmCollision);
+    if (!item || !item.shortlistedAt || prospectCrmCollision(item).status === "none") return;
+    openCrmCollisionFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#leadFinderStartButton")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderStartButtonInline")?.addEventListener("click", (event) => void runLeadFinder(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#leadFinderLfindButton")?.addEventListener("click", (event) => void runLfindLeadSearch(event.currentTarget as HTMLButtonElement));
@@ -47879,6 +48146,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectCoverageFilter || "all";
       state.prospectCoverageFilter = next === "in" || next === "out" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-collision-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectCollisionFilter || "all";
+      state.prospectCollisionFilter = next === "hit" || next === "clear" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
