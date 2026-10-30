@@ -8055,8 +8055,94 @@
       font-size: 12px;
     }
 
+    .prospect-contact-gap-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-contact-gap-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-contact-gap:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-contact-gap[data-contact-gap="missing_email"]:not(.is-compact),
+    .prospect-contact-gap[data-contact-gap="missing_phone"]:not(.is-compact),
+    .prospect-contact-gap[data-contact-gap="missing_both"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-contact-gap[data-contact-gap="complete"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-contact-gap-head,
+    .prospect-contact-gap.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-contact-gap p,
+    .prospect-contact-gap.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-contact-gap.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-contact-gap.is-compact.is-missing_email,
+    .prospect-contact-gap.is-compact.is-missing_phone,
+    .prospect-contact-gap.is-compact.is-missing_both {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-contact-gap.is-compact.is-complete {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-contact-gap.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    #prospectEditContactInfo.is-attention,
+    #leadFinderDetailContactInfo.is-attention {
+      outline: 2px solid #b45309;
+      outline-offset: 2px;
+    }
+
     .dashboard-prospect-row.is-stuck,
-    .dashboard-prospect-row.is-gap {
+    .dashboard-prospect-row.is-gap,
+    .dashboard-prospect-row.is-contact-gap {
       border-color: #fecaca;
     }
 
@@ -10989,12 +11075,14 @@
     #dashboardNextFollowDue,
     #dashboardStageStuck,
     #dashboardFollowUpGap,
+    #dashboardContactGap,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
     .dashboard-next-follow-due-note,
     .dashboard-stage-stuck-note,
     .dashboard-follow-up-gap-note,
+    .dashboard-contact-gap-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -27020,6 +27108,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardFollowUpGapList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardContactGap" aria-label="联系方式缺口">
+            <div class="section-head">
+              <div class="section-title"><div><h2>联系方式缺口</h2><p id="dashboardContactGapScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardContactGapRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardContactGapNote" class="dashboard-contact-gap-note">这是联系方式的只读缺口，复用已有邮箱和电话。两个都有算完备，缺了写缺邮箱或缺电话，两项都空写缺邮箱和缺电话。字段不在写无联系字段。不是发信资格灯，也不是覆盖池缺口，也不是跟进记录空档，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步。点一行只打开现有联系方式。不会自动补齐，不会发信，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardContactGapList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -27739,6 +27839,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按跟进记录空档筛选">
                   <button class="active" type="button" data-prospect-follow-up-gap-filter="all" aria-pressed="true">全部跟进</button>
                   <button type="button" data-prospect-follow-up-gap-filter="gap" aria-pressed="false">空档</button>
+                </div>
+              </div>
+              <div class="prospect-contact-gap-filter">
+                <span>联系方式缺口</span>
+                <div class="prospect-tabs" role="group" aria-label="按联系方式缺口筛选">
+                  <button class="active" type="button" data-prospect-contact-gap-filter="all" aria-pressed="true">全部联系方式</button>
+                  <button type="button" data-prospect-contact-gap-filter="email" aria-pressed="false">缺邮箱</button>
+                  <button type="button" data-prospect-contact-gap-filter="phone" aria-pressed="false">缺电话</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">

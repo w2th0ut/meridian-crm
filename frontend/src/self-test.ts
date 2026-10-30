@@ -1375,6 +1375,67 @@ assert.match(scrollFollowUpGap, /prospect-follow-up-entry/, "去跟进记录必�
 assert.doesNotMatch(scrollFollowUpGap, /saveProspectNextFollow|saveProspectFollowUp|\.value\s*=|fetch\(|convert-to-lead|send-development-email/, "跳到跟进记录不得改下次跟进、提交跟进或发请求");
 assert.match(prototype, /\.prospect-follow-up-gap\b/, "跟进记录空档必须有可见样式");
 assert.match(prototype, /\.dashboard-follow-up-gap-note\b/, "跟进记录空档说明必须有可见样式");
+const contactGapLayer = readFileSync(new URL("./prospect-contact-gap.ts", import.meta.url), "utf8");
+assert.match(contactGapLayer, /export function presentContactGap/, "联系方式缺口必须只消费已有联系方式字段");
+assert.match(contactGapLayer, /CONTACT_GAP_LIMIT = 8/, "联系方式缺口最多 8 条");
+assert.match(contactGapLayer, /无联系字段/, "字段不在时文案必须是无联系字段");
+assert.match(contactGapLayer, /缺邮箱/, "没有邮箱时必须标缺邮箱");
+assert.match(contactGapLayer, /缺电话/, "没有电话时必须标缺电话");
+assert.match(contactGapLayer, /完备/, "邮箱和电话都有时必须标完备");
+assert.match(contactGapLayer, /去联系方式/, "必须能跳到现有联系方式");
+assert.match(contactGapLayer, /这不是发信资格灯，也不是覆盖池缺口，也不是跟进记录空档/, "联系方式缺口必须和发信资格灯、覆盖池缺口、跟进记录空档区分开");
+assert.match(contactGapLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "联系方式缺口必须和获客待办摘要、下次跟进逾期、转化阶段卡住区分开");
+assert.match(contactGapLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步/, "联系方式缺口必须和待记跟进、草稿、序列、回复、打开或点击、失败、抑制、收信同步区分开");
+assert.match(contactGapLayer, /不会自动补齐联系方式，不会发信，也不会改 convert_to_lead 或 approved_contactable/, "联系方式缺口不得自动补齐、发信或改门禁");
+assert.doesNotMatch(contactGapLayer, /fetch\(|convert-to-lead|send-development-email|mergeProspectContactEmail|startContactEnrichment|whatsapp|emailEligibility|approved_contactable\s*=/i, "联系方式缺口不得发请求、补齐、读 WhatsApp、读发信资格或改门禁");
+assert.doesNotMatch(kbSourceBetween(contactGapLayer, "function contactGapLineLabel", "\nexport function contactGapStatusLabel"), /逾期|今日到期|无下次跟进|卡住|推进中|无阶段|获客待办|暂无跟进|已逾期|未设下次跟进|空档|无记录|覆盖池|发信资格/, "行文案必须用缺邮箱、缺电话、完备、无联系字段");
+assert.match(prospectListRender, /renderContactGapLine\(item\)/, "搜客清单每一行必须显示联系方式缺口");
+assert.match(prospectListRender, /renderFollowUpGapLine\(item\)[\s\S]{0,120}renderContactGapLine\(item\)/, "联系方式缺口必须和跟进记录空档分开显示");
+assert.match(prospectListRender, /renderDashboardContactGap\(\)/, "清单刷新必须同时更新联系方式缺口入口");
+const contactGapRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(contactGapRows, /prospectContactGapFilter[\s\S]*prospectContactGap/, "联系方式缺口筛选只按已有联系方式过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectFollowUpGap\(item\)\}\n    \$\{renderProspectContactGap\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在跟进记录空档后面单独说明联系方式缺口"
+);
+assert.match(apiLayer, /没有缺邮箱的候选。这里不会编造联系方式，也不会自动补齐。/, "筛不到缺邮箱时必须写清空态");
+assert.match(apiLayer, /没有缺电话的候选。这里不会编造联系方式，也不会自动补齐。/, "筛不到缺电话时必须写清空态");
+assert.match(prototype, /data-prospect-contact-gap-filter="email"[\s\S]*缺邮箱/, "清单必须能筛缺邮箱");
+assert.match(prototype, /data-prospect-contact-gap-filter="phone"[\s\S]*缺电话/, "清单必须能筛缺电话");
+assert.match(prototype, /id="dashboardFollowUpGap"[\s\S]{0,4000}id="dashboardContactGap"[\s\S]*联系方式缺口/, "工作台联系方式缺口必须在跟进记录空档下面");
+assert.match(prototype, /id="dashboardContactGapNote"[\s\S]*不是发信资格灯/, "工作台说明必须和发信资格灯分开");
+assert.match(prototype, /id="dashboardContactGapNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardFollowUpGap"[\s\S]*跟进记录空档/, "跟进记录空档原条还在");
+assert.match(apiLayer, /CONTACT_GAP_LIMIT/, "工作台联系方式缺口必须守住 8 条上限");
+assert.match(apiLayer, /listContactGapQueue\(/, "工作台必须复用缺口在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看联系方式缺口。这里不会编造名单，也不会自动补齐。/, "没有清单时不得编造联系方式缺口");
+assert.match(apiLayer, /无联系字段。当前可见的搜客清单没有可判断的联系方式字段。这里不会编造联系方式，也不会自动补齐。/, "没有联系方式字段时不得编造缺口");
+assert.match(apiLayer, /联系方式缺口/, "详情标题必须是联系方式缺口");
+assert.match(apiLayer, /contactGapEntryLabel\(/, "详情必须复用去联系方式入口文案");
+const contactGapAdapter = kbSourceBetween(apiLayer, "function prospectContactGap", "\nfunction contactGapBadgeTone");
+assert.match(contactGapAdapter, /contactInfo/, "联系方式缺口必须复用 contactInfo");
+assert.match(contactGapAdapter, /emails/, "联系方式缺口必须复用已有邮箱列表");
+assert.match(contactGapAdapter, /phones/, "联系方式缺口必须复用已有电话列表");
+assert.doesNotMatch(contactGapAdapter, /whatsapp|emailEligibility/i, "联系方式缺口不得读 WhatsApp 或发信资格灯");
+const contactGapQueue = kbSourceBetween(apiLayer, "function renderDashboardContactGap", "\nfunction openContactGapFromDashboard");
+assert.match(contactGapQueue, /shortlistedAt/, "工作台联系方式缺口只包含搜客清单里的候选");
+assert.match(contactGapQueue, /listContactGapQueue\(/, "工作台联系方式缺口只按已有联系方式排序");
+assert.match(contactGapQueue, /CONTACT_GAP_LIMIT/, "工作台渲染必须传入 8 条上限");
+const contactGapClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardContactGap")?.addEventListener');
+const contactGapClick = apiLayer.slice(contactGapClickStart, contactGapClickStart + 700);
+assert.match(contactGapClick, /openContactGapFromDashboard/, "点工作台联系方式缺口必须打开现有联系方式");
+assert.doesNotMatch(contactGapClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|startContactEnrichment|mergeProspectContactEmail|openFollowUpFromDashboard/, "点工作台联系方式缺口不得补齐、记跟进、发送或转线索");
+const openContactGap = kbSourceBetween(apiLayer, "function openContactGapFromDashboard", "\nfunction renderDashboardProspectRuns");
+assert.match(openContactGap, /prospectContactGapFilter = contactGapListFilterForOpen\(view\)/, "打开缺口必须落到对应筛选，完备保持全部");
+assert.match(openContactGap, /contactGapFocusId = item\.id/, "打开后必须停在现有联系方式");
+assert.match(openContactGap, /不会自动补齐，也不会发信/, "打开时必须说明不会自动补齐、不会发信");
+assert.doesNotMatch(openContactGap, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|startContactEnrichment|mergeProspectContactEmail|\/approve/, "打开联系方式缺口不得补齐、记跟进、发送、转线索或批准");
+const scrollContact = kbSourceBetween(apiLayer, "function scrollToExistingContact", "\nfunction focusContactGapTarget");
+assert.match(scrollContact, /#prospectEditContactInfo, #leadFinderDetailContactInfo/, "去联系方式必须滚到现有联系方式输入");
+assert.doesNotMatch(scrollContact, /\.value\s*=|fetch\(|mergeProspectContactEmail|startContactEnrichment|saveProspect/, "跳到联系方式不得写入、补齐或发请求");
+assert.match(prototype, /\.prospect-contact-gap\b/, "联系方式缺口必须有可见样式");
+assert.match(prototype, /\.dashboard-contact-gap-note\b/, "联系方式缺口说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

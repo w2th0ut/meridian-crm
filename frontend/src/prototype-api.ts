@@ -126,6 +126,20 @@ import {
   type FollowUpGapView
 } from "./prospect-follow-up-gap";
 import {
+  CONTACT_GAP_LIMIT,
+  contactGapEntryLabel,
+  contactGapIsGap,
+  contactGapLineLabel,
+  contactGapListFilterForOpen,
+  contactGapMatchesFilter,
+  contactGapStatusLabel,
+  contactGapSummary,
+  listContactGapQueue,
+  presentContactGap,
+  type ContactGapListFilter,
+  type ContactGapView
+} from "./prospect-contact-gap";
+import {
   INBOUND_SYNC_LIMIT,
   inboundSyncEntryLabel,
   inboundSyncSummary,
@@ -3944,6 +3958,7 @@ interface AppState {
   prospectNextFollowDueFilter: NextFollowDueListFilter;
   prospectStageStuckFilter: StageStuckListFilter;
   prospectFollowUpGapFilter: FollowUpGapListFilter;
+  prospectContactGapFilter: ContactGapListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4172,6 +4187,7 @@ const state: AppState = {
   prospectNextFollowDueFilter: "all",
   prospectStageStuckFilter: "all",
   prospectFollowUpGapFilter: "all",
+  prospectContactGapFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -11668,6 +11684,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardNextFollowDue();
   renderDashboardStageStuck();
   renderDashboardFollowUpGap();
+  renderDashboardContactGap();
   renderDashboardInboundSync();
 }
 
@@ -13768,6 +13785,7 @@ function renderLeadDrawer(
     state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33680,6 +33698,7 @@ function prospectFilteredRows() {
       if (state.prospectNextFollowDueFilter !== "all" && !nextFollowDueMatchesFilter(prospectNextFollowDue(item), state.prospectNextFollowDueFilter)) return false;
       if (state.prospectStageStuckFilter !== "all" && !stageStuckMatchesFilter(prospectStageStuck(item), state.prospectStageStuckFilter)) return false;
       if (state.prospectFollowUpGapFilter !== "all" && !followUpGapMatchesFilter(prospectFollowUpGap(item), state.prospectFollowUpGapFilter)) return false;
+      if (state.prospectContactGapFilter !== "all" && !contactGapMatchesFilter(prospectContactGap(item), state.prospectContactGapFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35815,6 +35834,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35841,6 +35861,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35873,6 +35894,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35939,6 +35961,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectNextFollowDue(item)}
     ${renderProspectStageStuck(item)}
     ${renderProspectFollowUpGap(item)}
+    ${renderProspectContactGap(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -36003,6 +36026,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindNextFollowDueLinks(box);
   bindStageStuckLinks(box);
   bindFollowUpGapLinks(box);
+  bindContactGapLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -36087,6 +36111,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusNextFollowDueTarget(item.id, box);
   focusStageStuckTarget(item.id, box);
   focusFollowUpGapTarget(item.id, box);
+  focusContactGapTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36651,6 +36676,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
     state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -37055,6 +37081,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37397,6 +37424,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37466,6 +37494,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37602,6 +37631,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37751,6 +37781,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37870,6 +37901,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-contact-gap-filter]").forEach((button) => {
+    const active = button.dataset.prospectContactGapFilter === state.prospectContactGapFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -37883,9 +37919,15 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const followUpGapEmpty = state.prospectFollowUpGapFilter === "gap"
-    ? "没有跟进空档。这里不会编造跟进，也不会自动记下跟进。"
-    : "";
+  const contactGapEmpty = state.prospectContactGapFilter === "email"
+    ? "没有缺邮箱的候选。这里不会编造联系方式，也不会自动补齐。"
+    : state.prospectContactGapFilter === "phone"
+      ? "没有缺电话的候选。这里不会编造联系方式，也不会自动补齐。"
+      : "";
+  const followUpGapEmpty = contactGapEmpty
+    || (state.prospectFollowUpGapFilter === "gap"
+      ? "没有跟进空档。这里不会编造跟进，也不会自动记下跟进。"
+      : "");
   const stageStuckEmpty = followUpGapEmpty
     || (state.prospectStageStuckFilter === "stuck"
       ? "没有卡住的阶段。这里不会编造阶段，也不会改阶段。"
@@ -37964,6 +38006,7 @@ function renderProspectList() {
             ${renderNextFollowDueLine(item)}
             ${renderStageStuckLine(item)}
             ${renderFollowUpGapLine(item)}
+            ${renderContactGapLine(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -38025,6 +38068,7 @@ function renderProspectList() {
     bindNextFollowDueLinks(rows);
     bindStageStuckLinks(rows);
     bindFollowUpGapLinks(rows);
+    bindContactGapLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -38042,6 +38086,7 @@ function renderProspectList() {
   renderDashboardNextFollowDue();
   renderDashboardStageStuck();
   renderDashboardFollowUpGap();
+  renderDashboardContactGap();
   renderDashboardInboundSync();
 }
 
@@ -38206,6 +38251,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38469,6 +38515,7 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectOutreachSequenceFilter = "all";
   state.prospectOutreachDraftBacklogFilter = "pending";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38676,6 +38723,7 @@ function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -40119,6 +40167,12 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (!websiteOpportunitiesLoaded && followUpGapList) {
       followUpGapList.innerHTML = `<div class="empty-cell">跟进空档暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造跟进，也不会自动记下跟进。</div>`;
     }
+    const contactGapScope = qs<HTMLElement>("#dashboardContactGapScope");
+    const contactGapList = qs<HTMLElement>("#dashboardContactGapList");
+    if (contactGapScope) contactGapScope.textContent = "联系方式缺口暂时读不到";
+    if (!websiteOpportunitiesLoaded && contactGapList) {
+      contactGapList.innerHTML = `<div class="empty-cell">联系方式缺口暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造联系方式，也不会自动补齐。</div>`;
+    }
     acquisitionTodoReadError = message;
     renderDashboardAcquisitionTodoSummary();
   } finally {
@@ -40386,6 +40440,7 @@ function openNextFollowDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = view.kind === "overdue" || view.kind === "today" ? view.kind : "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40519,6 +40574,7 @@ function openStageStuckFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = view.kind === "stuck" ? "stuck" : "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40644,6 +40700,7 @@ function openFollowUpGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = view.kind === "gap" ? "gap" : "all";
+  state.prospectContactGapFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40655,6 +40712,146 @@ function openFollowUpGapFromDashboard(item: WebsiteOpportunity) {
   const show = () => {
     renderProspectList();
     toast("已打开现有跟进记录。只读，不会自动记下跟进，也不会改下次跟进。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+function prospectContactGap(item: WebsiteOpportunity): ContactGapView {
+  const extracted = item.extractedContacts;
+  const hasExtracted = Array.isArray(extracted);
+  return presentContactGap({
+    fieldsPresent: typeof item.contactInfo === "string" || typeof item.contact === "string" || hasExtracted,
+    contactInfo: typeof item.contactInfo === "string" ? item.contactInfo : null,
+    contact: typeof item.contact === "string" ? item.contact : null,
+    emails: hasExtracted ? extracted.flatMap((contact) => contact.emails || []) : null,
+    phones: hasExtracted ? extracted.flatMap((contact) => contact.phones || []) : null
+  });
+}
+
+function contactGapBadgeTone(kind: ContactGapView["kind"]) {
+  if (kind === "complete") return "green";
+  if (kind === "none") return "gray";
+  return "amber";
+}
+
+function renderProspectContactGap(item: WebsiteOpportunity) {
+  const view = prospectContactGap(item);
+  return `<section class="prospect-contact-gap" id="prospectContactGap" data-contact-gap="${view.kind}">
+    <div class="prospect-contact-gap-head"><b>联系方式缺口</b>${badge(contactGapStatusLabel(view), contactGapBadgeTone(view.kind))}</div>
+    <p>${escapeHtml(contactGapSummary(view))}</p>
+    <p class="prospect-contact-gap-body" data-contact-gap-body="${view.kind}">${escapeHtml(contactGapLineLabel(view))}</p>
+    <div class="prospect-action-row"><button class="btn" type="button" data-contact-gap-entry="${escapeHtml(item.id)}">${escapeHtml(contactGapEntryLabel())}</button></div>
+  </section>`;
+}
+
+function renderContactGapLine(item: WebsiteOpportunity) {
+  const view = prospectContactGap(item);
+  const compact = view.kind === "none" ? " is-empty" : ` is-compact is-${view.kind}`;
+  return `<div class="prospect-contact-gap${compact}" data-contact-gap="${view.kind}">${escapeHtml(contactGapLineLabel(view))}</div>`;
+}
+
+let contactGapFocusId = "";
+
+/** 只滚到已有的联系方式输入。不写入，也不发信。 */
+function scrollToExistingContact(root: ParentNode) {
+  const entry = root.querySelector<HTMLElement>("#prospectEditContactInfo, #leadFinderDetailContactInfo");
+  if (!entry) return false;
+  entry.classList.add("is-attention");
+  entry.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => entry.classList.remove("is-attention"), 1600);
+  return true;
+}
+
+function focusContactGapTarget(itemId: string, root: ParentNode | null) {
+  if (contactGapFocusId !== itemId || !root) return;
+  contactGapFocusId = "";
+  scrollToExistingContact(root);
+}
+
+function bindContactGapLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-contact-gap-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (scrollToExistingContact(root)) {
+        toast("已打开现有联系方式。只读，不会自动补齐，也不会发信。");
+      }
+    });
+  });
+}
+
+function renderDashboardContactGap() {
+  const scope = qs<HTMLElement>("#dashboardContactGapScope");
+  const list = qs<HTMLElement>("#dashboardContactGapList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看联系方式缺口。这里不会编造名单，也不会自动补齐。</div>`;
+    return;
+  }
+  const queue = listContactGapQueue(visible, (item) => prospectContactGap(item), CONTACT_GAP_LIMIT);
+  if (!queue.total) {
+    scope.textContent = "当前可见的搜客清单没有可判断的联系方式字段";
+    list.innerHTML = `<div class="empty-cell">无联系字段。当前可见的搜客清单没有可判断的联系方式字段。这里不会编造联系方式，也不会自动补齐。</div>`;
+    return;
+  }
+  const shown = queue.rows;
+  scope.textContent = queue.total > shown.length
+    ? `可见范围 ${queue.total} 条能判断联系方式，这里显示 ${shown.length} 条，缺口在前`
+    : `可见范围 ${queue.total} 条能判断联系方式，缺口在前`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectContactGap(item);
+    return `<button class="dashboard-prospect-row${contactGapIsGap(view) ? " is-contact-gap" : ""}" type="button" data-dashboard-contact-gap="${escapeHtml(item.id)}" data-contact-gap="${view.kind}" aria-label="打开联系方式缺口：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(contactGapStatusLabel(view))}</span>
+      <em>${escapeHtml(contactGapLineLabel(view))}</em>
+    </button>`;
+  }).join("");
+}
+
+function openContactGapFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return;
+  const view = prospectContactGap(item);
+  if (view.kind === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
+  state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
+  state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = contactGapListFilterForOpen(view);
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  contactGapFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开现有联系方式。只读，不会自动补齐，也不会发信。");
   };
   if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
     show();
@@ -42340,6 +42537,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
     state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -44390,6 +44588,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectNextFollowDue(item)}
     ${renderProspectStageStuck(item)}
     ${renderProspectFollowUpGap(item)}
+    ${renderProspectContactGap(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -44496,6 +44695,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindNextFollowDueLinks(box);
   bindStageStuckLinks(box);
   bindFollowUpGapLinks(box);
+  bindContactGapLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -44523,6 +44723,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusNextFollowDueTarget(item.id, box);
   focusStageStuckTarget(item.id, box);
   focusFollowUpGapTarget(item.id, box);
+  focusContactGapTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -46488,6 +46689,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
     state.prospectNextFollowDueFilter = "all";
   state.prospectStageStuckFilter = "all";
   state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -49772,6 +49974,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectFollowUpGap(item).kind === "none") return;
     openFollowUpGapFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardContactGapRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardContactGap")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-contact-gap]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardContactGap);
+    if (!item || !item.shortlistedAt || prospectContactGap(item).kind === "none") return;
+    openContactGapFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#dashboardAcquisitionStagesRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
   });
@@ -50234,6 +50445,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectFollowUpGapFilter || "all";
       state.prospectFollowUpGapFilter = next === "gap" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-contact-gap-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectContactGapFilter || "all";
+      state.prospectContactGapFilter = next === "email" || next === "phone" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
