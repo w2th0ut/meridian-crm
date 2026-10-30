@@ -720,6 +720,15 @@ const openApproval = kbSourceBetween(apiLayer, "async function openContactableAp
 assert.match(openApproval, /loadProspectQualification/, "入口必须打开现有资格检查");
 assert.match(openApproval, /prospectContactableApprovalSurface = "prospect"/, "已在搜客清单的候选要落到清单详情");
 assert.doesNotMatch(openApproval, /convert-to-lead|mutateProspectQualification|\/approve|contactability\//, "入口不得代为批准或转线索");
+const holdNotice = kbSourceBetween(apiLayer, "function prospectComplianceReasonText", "\nfunction prospectQualificationResult");
+assert.match(holdNotice, /原因未回传/, "没有原因时必须写原因未回传");
+assert.match(holdNotice, /data-hold-kind/, "抑制说明必须带状态种类");
+assert.match(holdNotice, /来源：/, "已有来源时要显示来源");
+assert.doesNotMatch(holdNotice, /<button|解除抑制|一键解除|unsuppress/, "抑制说明必须只读，不能提供解除");
+assert.match(prospectListRender, /renderProspectComplianceNotices\(item\)/, "搜客清单行必须展示抑制、退订或退信原因");
+assert.match(apiLayer, /prospect-detail-hero[\s\S]{0,1200}renderProspectComplianceNotices\(item\)/, "搜客清单详情必须展示同一份原因");
+assert.match(apiLayer, /lead-verification-drawer-head[\s\S]{0,900}renderProspectComplianceNotices\(item\)/, "候选详情必须展示同一份原因");
+assert.match(prototype, /\.prospect-hold-notice/, "原因条必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

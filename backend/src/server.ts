@@ -500,6 +500,7 @@ import {
   prospectCandidateQualificationChangedFields,
   ProspectQualificationError
 } from "./prospect-qualification.js";
+import { describeProspectComplianceNotices } from "./prospect-compliance-notice.js";
 import {
   assertCrmOutreachEligible,
   assertProspectEmailOutreachEligible,
@@ -4395,7 +4396,10 @@ app.post("/api/prospect-list/:id/touchpoints", requireAuth, asyncRoute(async (re
   await store.persist();
   res.status(result.replayed ? 200 : 201).json({
     ...result,
-    opportunity: candidate
+    opportunity: {
+      ...candidate,
+      complianceNotices: describeProspectComplianceNotices(store, candidate)
+    }
   });
 }));
 
@@ -4476,7 +4480,10 @@ app.post("/api/prospect-list/:id/replies", requireAuth, asyncRoute(async (req, r
   res.status(result.replayed ? 200 : 201).json({
     ...result,
     procurement,
-    opportunity: candidate
+    opportunity: {
+      ...candidate,
+      complianceNotices: describeProspectComplianceNotices(store, candidate)
+    }
   });
 }));
 
@@ -18615,6 +18622,7 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
       searchReport: prospectSearchReport(verified),
       // 发信资格灯：可发信 / 缺邮箱 / 已抑制（附原因），供清单行直接渲染，不抛错。
       emailEligibility: evaluateProspectEmailOutreachEligibility(store, verified),
+      complianceNotices: describeProspectComplianceNotices(store, verified),
       // 转线索资格：复用 convert_to_lead 的可联系门禁，只解释缺什么，不在这里放行。
       leadConversionEligibility: evaluateProspectLeadConversionEligibility(
         store,
@@ -18682,6 +18690,7 @@ async function finishProspectQualificationRequest(
     qualification,
     opportunity: {
       ...candidate,
+      complianceNotices: describeProspectComplianceNotices(store, candidate),
       leadConversionEligibility: evaluateProspectLeadConversionEligibility(
         store,
         candidate,
@@ -18702,6 +18711,7 @@ app.get("/api/prospect-list/:id/qualification", requireAuth, asyncRoute(async (r
       qualification: prospectQualificationView(store, candidate),
       opportunity: {
         ...candidate,
+        complianceNotices: describeProspectComplianceNotices(store, candidate),
         leadConversionEligibility: evaluateProspectLeadConversionEligibility(
           store,
           candidate,
@@ -19559,6 +19569,7 @@ app.patch("/api/prospect-list/:id/details", requireAuth, asyncRoute(async (req, 
   res.json({
     opportunity: {
       ...opportunity,
+      complianceNotices: describeProspectComplianceNotices(store, opportunity),
       leadConversionEligibility: evaluateProspectLeadConversionEligibility(
         store,
         opportunity,
@@ -19675,7 +19686,12 @@ app.patch("/api/prospect-list/batch", requireAuth, asyncRoute(async (req, res) =
       }
     }
   }
-  res.json({ opportunities });
+  res.json({
+    opportunities: opportunities.map((item) => ({
+      ...item,
+      complianceNotices: describeProspectComplianceNotices(store, item)
+    }))
+  });
 }));
 
 function agentInputText(input: Record<string, unknown>, key: string, fallback = "") {
@@ -24684,6 +24700,7 @@ app.post("/api/prospects/:id/convert-to-lead", requireAuth, asyncRoute(async (re
       prospect: result.prospect,
       opportunities: linkedCandidates.map((candidate) => ({
         ...candidate,
+        complianceNotices: describeProspectComplianceNotices(store, candidate),
         leadConversionEligibility: evaluateProspectLeadConversionEligibility(
           store,
           candidate,
