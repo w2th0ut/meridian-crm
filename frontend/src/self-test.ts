@@ -1571,6 +1571,80 @@ assert.match(scrollSilentAge, /prospect-detail-hero/, "没有动作时间时必�
 assert.doesNotMatch(scrollSilentAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead/, "跳到最近动作不得改名单、写入或发请求");
 assert.match(prototype, /\.prospect-silent-age\b/, "名单静默无动作日龄必须有可见样式");
 assert.match(prototype, /\.dashboard-silent-age-note\b/, "名单静默无动作日龄说明必须有可见样式");
+const outreachActionGapLayer = readFileSync(new URL("./prospect-outreach-action-gap.ts", import.meta.url), "utf8");
+assert.match(outreachActionGapLayer, /export function presentOutreachActionGap/, "外联最近动作空档必须只消费已有开发信时间");
+assert.match(outreachActionGapLayer, /OUTREACH_ACTION_GAP_LIMIT = 8/, "外联最近动作空档最多 8 条");
+assert.match(outreachActionGapLayer, /OUTREACH_ACTION_GAP_WINDOW_DAYS = 7/, "外联空档窗口必须是 7 天");
+assert.match(outreachActionGapLayer, /lastDevelopmentEmailAt/, "外联空档必须写明复用最近开发信时间");
+assert.match(outreachActionGapLayer, /无外联记录/, "没有开发信时间时文案必须是无外联记录");
+assert.match(outreachActionGapLayer, /空档/, "超过窗口必须标空档");
+assert.match(outreachActionGapLayer, /近期有外联/, "窗口内必须标近期有外联");
+assert.match(outreachActionGapLayer, /查看最近开发信/, "必须能跳到现有最近开发信");
+assert.match(outreachActionGapLayer, /!text\.includes\("T"\)/, "下次跟进那种时间不算开发信时间");
+assert.match(outreachActionGapLayer, /kind !== "none"/, "无外联记录不得占工作台名额");
+assert.match(outreachActionGapLayer, /这不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "外联空档必须和名单静默、跟进记录空档、加入日龄区分开");
+assert.match(outreachActionGapLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "外联空档必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(outreachActionGapLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "外联空档必须和获客待办摘要、逾期、卡住区分开");
+assert.match(outreachActionGapLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步/, "外联空档必须和待记跟进、草稿、序列、回复、打开或点击、失败、抑制、收信同步区分开");
+assert.match(outreachActionGapLayer, /不会发信，不会改名单，不会推进序列，不会自动记下跟进，也不会改 convert_to_lead 或 approved_contactable/, "外联空档不得发信、改名单、推进序列、自动记跟进或改门禁");
+assert.match(outreachActionGapLayer, /刚好 7 天仍算近期有外联/, "刚好 7 天仍算近期有外联");
+assert.match(outreachActionGapLayer, /跟进记录不算开发信时间/, "跟进记录不得算成开发信时间");
+assert.match(outreachActionGapLayer, /加入短名单的时间不算开发信时间/, "加入时间不得算成开发信时间");
+assert.match(outreachActionGapLayer, /最近触达（含话机）不算开发信时间/, "最近触达和话机不得算成开发信时间");
+assert.doesNotMatch(outreachActionGapLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt/i, "外联空档模块不得发请求、改读跟进或加入或触达、读 WhatsApp 或改门禁");
+assert.doesNotMatch(kbSourceBetween(outreachActionGapLayer, "function outreachActionGapLineLabel", "\nexport function outreachActionGapStatusLabel"), /静默|有动作|无动作时间|较久|新近|未加入|近期有跟进|无记录|缺邮箱|卡住|逾期|覆盖池/, "行文案必须用空档、近期有外联、无外联记录");
+assert.match(prospectListRender, /renderOutreachActionGapLine\(item\)/, "搜客清单每一行必须显示外联最近动作空档");
+assert.match(prospectListRender, /renderSilentAgeLine\(item\)[\s\S]{0,160}renderOutreachActionGapLine\(item\)/, "外联空档必须和名单静默无动作日龄分开显示");
+assert.match(prospectListRender, /renderDashboardOutreachActionGap\(\)/, "清单刷新必须同时更新外联空档入口");
+const outreachActionGapRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(outreachActionGapRows, /prospectOutreachActionGapFilter[\s\S]*prospectOutreachActionGap/, "外联空档筛选只按已有开发信时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectSilentAge\(item\)\}\n    \$\{renderProspectOutreachActionGap\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在名单静默后面单独说明外联最近动作空档"
+);
+assert.match(apiLayer, /没有外联空档。这里不会编造开发信时间，也不会发信。/, "筛不到外联空档时必须写清空态");
+assert.match(prototype, /data-prospect-outreach-action-gap-filter="gap"[\s\S]*空档/, "清单必须能筛外联空档");
+assert.match(prototype, /data-prospect-silent-age-filter="silent"[\s\S]*静默/, "原来的静默筛选还在");
+assert.match(prototype, /id="dashboardSilentAge"[\s\S]{0,4000}id="dashboardOutreachActionGap"[\s\S]*外联最近动作空档/, "工作台外联空档必须在名单静默下面");
+assert.match(prototype, /id="dashboardOutreachActionGapNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardOutreachActionGapNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardOutreachActionGapNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardOutreachActionGapNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardOutreachActionGapNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardOutreachActionGapNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardOutreachActionGapNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardOutreachActionGapNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardSilentAge"[\s\S]*名单静默无动作日龄/, "名单静默原条还在");
+assert.match(apiLayer, /OUTREACH_ACTION_GAP_LIMIT/, "工作台外联空档必须守住 8 条上限");
+assert.match(apiLayer, /listOutreachActionGapQueue\(/, "工作台必须复用空档在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看外联空档。这里不会编造名单，也不会发信。/, "没有清单时不得编造外联空档");
+assert.match(apiLayer, /外联最近动作空档/, "详情标题必须是外联最近动作空档");
+assert.match(apiLayer, /outreachActionGapEntryLabel\(/, "详情必须复用查看最近开发信入口文案");
+const outreachActionGapAdapter = kbSourceBetween(apiLayer, "function prospectOutreachActionGap", "\nfunction outreachActionGapBadgeTone");
+assert.match(outreachActionGapAdapter, /lastDevelopmentEmailAt/, "外联空档必须复用最近开发信时间");
+assert.doesNotMatch(outreachActionGapAdapter, /latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|whatsapp|createdAt/i, "外联空档不得改读跟进、加入时间、下次跟进、触达渠道、创建时间或 WhatsApp");
+const outreachActionGapQueue = kbSourceBetween(apiLayer, "function renderDashboardOutreachActionGap", "\nfunction openOutreachActionGapFromDashboard");
+assert.match(outreachActionGapQueue, /shortlistedAt/, "工作台外联空档只包含搜客清单里的候选");
+assert.match(outreachActionGapQueue, /listOutreachActionGapQueue\(/, "工作台外联空档只按已有开发信时间排序");
+assert.match(outreachActionGapQueue, /OUTREACH_ACTION_GAP_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(outreachActionGapQueue, /空档在前/, "工作台必须空档在前");
+assert.doesNotMatch(outreachActionGapQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|whatsapp/i, "工作台外联空档不得改读跟进、下次跟进、触达或 WhatsApp");
+const outreachActionGapClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardOutreachActionGap")?.addEventListener');
+const outreachActionGapClick = apiLayer.slice(outreachActionGapClickStart, outreachActionGapClickStart + 700);
+assert.match(outreachActionGapClick, /openOutreachActionGapFromDashboard/, "点工作台外联空档必须打开现有候选");
+assert.doesNotMatch(outreachActionGapClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard/, "点工作台外联空档不得改名单、记跟进、发送或转线索");
+const openOutreachActionGap = kbSourceBetween(apiLayer, "function openOutreachActionGapFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openOutreachActionGap, /prospectOutreachActionGapFilter = outreachActionGapListFilterForOpen\(view\)/, "打开空档必须落到空档筛选，近期有外联保持全部");
+assert.match(openOutreachActionGap, /outreachActionGapFocusId = item\.id/, "打开后必须停在现有最近开发信或详情顶部");
+assert.match(openOutreachActionGap, /不会发信，也不会改名单/, "打开时必须说明不会发信、不会改名单");
+assert.doesNotMatch(openOutreachActionGap, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve/, "打开外联空档不得改名单、记跟进、发送、转线索或批准");
+const scrollOutreachActionGap = kbSourceBetween(apiLayer, "function scrollToOutreachActionEmail", "\nfunction focusOutreachActionGapTarget");
+assert.match(scrollOutreachActionGap, /data-outreach-action-email/, "必须滚到现有最近开发信");
+assert.match(scrollOutreachActionGap, /prospect-detail-hero/, "没有最近开发信时必须能停在详情顶部");
+assert.doesNotMatch(scrollOutreachActionGap, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail/, "跳到最近开发信不得改名单、写入、发信或发请求");
+assert.match(prototype, /\.prospect-outreach-action-gap\b/, "外联最近动作空档必须有可见样式");
+assert.match(prototype, /\.dashboard-outreach-action-gap-note\b/, "外联最近动作空档说明必须有可见样式");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）

@@ -8144,7 +8144,8 @@
     .dashboard-prospect-row.is-gap,
     .dashboard-prospect-row.is-contact-gap,
     .dashboard-prospect-row.is-older,
-    .dashboard-prospect-row.is-silent {
+    .dashboard-prospect-row.is-silent,
+    .dashboard-prospect-row.is-outreach-gap {
       border-color: #fecaca;
     }
 
@@ -8226,7 +8227,8 @@
     .prospect-shortlist-joined.is-attention,
     .prospect-detail-hero.is-attention,
     .lead-verification-drawer-head.is-attention,
-    [data-silent-age-outreach].is-attention {
+    [data-silent-age-outreach].is-attention,
+    [data-outreach-action-email].is-attention {
       outline: 2px solid #b45309;
       outline-offset: 2px;
     }
@@ -8299,6 +8301,81 @@
     }
 
     .prospect-silent-age.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-outreach-action-gap-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-outreach-action-gap-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-outreach-action-gap:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-outreach-action-gap[data-outreach-action-gap="gap"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-outreach-action-gap[data-outreach-action-gap="recent"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-outreach-action-gap-head,
+    .prospect-outreach-action-gap.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-outreach-action-gap p,
+    .prospect-outreach-action-gap.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-outreach-action-gap.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-outreach-action-gap.is-compact.is-gap {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-outreach-action-gap.is-compact.is-recent {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-outreach-action-gap.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -11240,6 +11317,7 @@
     #dashboardContactGap,
     #dashboardJoinAge,
     #dashboardSilentAge,
+    #dashboardOutreachActionGap,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
@@ -11249,6 +11327,7 @@
     .dashboard-contact-gap-note,
     .dashboard-join-age-note,
     .dashboard-silent-age-note,
+    .dashboard-outreach-action-gap-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -27310,6 +27389,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardSilentAgeList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardOutreachActionGap" aria-label="外联最近动作空档">
+            <div class="section-head">
+              <div class="section-title"><div><h2>外联最近动作空档</h2><p id="dashboardOutreachActionGapScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardOutreachActionGapRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardOutreachActionGapNote" class="dashboard-outreach-action-gap-note">这是最近一封开发信相对现在的只读空档，复用已有最近开发信时间。最近一封开发信距现在超过 7 天算空档，未超过算近期有外联。没有开发信时间写无外联记录。不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列、回复、打开或点击、失败或抑制、收信同步。点一行只打开现有候选详情。不会发信，不会改名单，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardOutreachActionGapList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -28051,6 +28142,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按名单静默无动作筛选">
                   <button class="active" type="button" data-prospect-silent-age-filter="all" aria-pressed="true">全部动作</button>
                   <button type="button" data-prospect-silent-age-filter="silent" aria-pressed="false">静默</button>
+                </div>
+              </div>
+              <div class="prospect-outreach-action-gap-filter">
+                <span>外联空档</span>
+                <div class="prospect-tabs" role="group" aria-label="按外联最近动作空档筛选">
+                  <button class="active" type="button" data-prospect-outreach-action-gap-filter="all" aria-pressed="true">全部外联</button>
+                  <button type="button" data-prospect-outreach-action-gap-filter="gap" aria-pressed="false">空档</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
