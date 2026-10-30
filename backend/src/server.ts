@@ -473,6 +473,15 @@ import {
   isPublicCustomer
 } from "./customer-public-pool.js";
 import {
+  describeProspectCrmCollision,
+  existingCrmCustomerMatch,
+  existingCrmLeadMatch,
+  normalizeCrmCompanyName,
+  normalizeProviderCountry,
+  websiteDomainKey
+} from "./crm-existing-match.js";
+export { normalizeCrmCompanyName };
+import {
   ProspectCoverageMemoryError
 } from "./prospect-coverage-memory.js";
 import {
@@ -18675,6 +18684,24 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
     }
   }
   const runningResearchSet = new Set(runningResearchIds);
+  const collisionCustomers = store.customers
+    .filter((item) => item.teamId === req.user!.teamId || canSeeOwner(req.user!, item.ownerId, item.teamId))
+    .map((item) => ({
+      ...item,
+      visible: canSeeOwner(req.user!, item.ownerId, item.teamId)
+        || (item.teamId === req.user!.teamId && isPublicCustomer(item) && !isPlatformIdentity(req.user!))
+    }));
+  const collisionLeads = store.leads
+    .filter((item) => item.teamId === req.user!.teamId || canSeeOwner(req.user!, item.ownerId, item.teamId))
+    .map((item) => ({
+      ...item,
+      visible: canSeeOwner(req.user!, item.ownerId, item.teamId)
+    }));
+  const customerTouchedAt: Record<string, string> = {};
+  for (const activity of store.customerActivities) {
+    const prev = customerTouchedAt[activity.customerId] || "";
+    if ((activity.createdAt || "") > prev) customerTouchedAt[activity.customerId] = activity.createdAt;
+  }
   const scoped = store.websiteOpportunities
     .filter((item) =>
       canSeeOwner(req.user!, item.ownerId, item.teamId)
@@ -18697,6 +18724,13 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
         verified,
         req.user!.id
       ),
+      // 撞库只读：复用已有客户/线索匹配，不合并、不改归属，也不代替覆盖池。
+      crmCollision: describeProspectCrmCollision({
+        candidate: verified,
+        customers: collisionCustomers,
+        leads: collisionLeads,
+        customerTouchedAt
+      }),
       organizationId: scored.organizationId
         ? canonicalOrganizationId(
             store,
@@ -23813,228 +23847,6 @@ function providerEvidenceRecordKeys(evidence: ProviderEvidenceSnapshot[] = []) {
     .map((item) => `${item.providerId}:${item.providerRecordId}`));
 }
 
-const providerCountryAliases: Record<string, string> = {
-  at: "AT",
-  austria: "AT",
-  奥地利: "AT",
-  au: "AU",
-  australia: "AU",
-  澳大利亚: "AU",
-  be: "BE",
-  belgium: "BE",
-  比利时: "BE",
-  br: "BR",
-  brazil: "BR",
-  巴西: "BR",
-  ca: "CA",
-  canada: "CA",
-  加拿大: "CA",
-  ch: "CH",
-  switzerland: "CH",
-  瑞士: "CH",
-  cn: "CN",
-  china: "CN",
-  中国: "CN",
-  de: "DE",
-  germany: "DE",
-  deutschland: "DE",
-  德国: "DE",
-  es: "ES",
-  spain: "ES",
-  西班牙: "ES",
-  fr: "FR",
-  france: "FR",
-  法国: "FR",
-  gb: "GB",
-  uk: "GB",
-  unitedkingdom: "GB",
-  greatbritain: "GB",
-  英国: "GB",
-  id: "ID",
-  indonesia: "ID",
-  印度尼西亚: "ID",
-  in: "IN",
-  india: "IN",
-  印度: "IN",
-  it: "IT",
-  italy: "IT",
-  意大利: "IT",
-  jp: "JP",
-  japan: "JP",
-  日本: "JP",
-  kr: "KR",
-  southkorea: "KR",
-  korea: "KR",
-  韩国: "KR",
-  mx: "MX",
-  mexico: "MX",
-  墨西哥: "MX",
-  my: "MY",
-  malaysia: "MY",
-  马来西亚: "MY",
-  nl: "NL",
-  netherlands: "NL",
-  holland: "NL",
-  荷兰: "NL",
-  pl: "PL",
-  poland: "PL",
-  波兰: "PL",
-  ru: "RU",
-  russia: "RU",
-  俄罗斯: "RU",
-  sg: "SG",
-  singapore: "SG",
-  新加坡: "SG",
-  tr: "TR",
-  turkey: "TR",
-  türkiye: "TR",
-  土耳其: "TR",
-  tw: "TW",
-  taiwan: "TW",
-  中国台湾: "TW",
-  us: "US",
-  usa: "US",
-  unitedstates: "US",
-  unitedstatesofamerica: "US",
-  美国: "US",
-  vn: "VN",
-  vietnam: "VN",
-  越南: "VN"
-};
-
-function normalizeProviderCountry(country: string) {
-  const normalized = country
-    .normalize("NFKC")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[.\s_()-]+/g, "");
-  if (!normalized || ["unknown", "未知", "待维护", "n/a", "na"].includes(normalized)) return "";
-  return providerCountryAliases[normalized] || normalized;
-}
-
-export function normalizeCrmCompanyName(value: string) {
-  return value
-    .normalize("NFKC")
-    .toLocaleLowerCase("en-US")
-    .replace(/&/gu, " and ")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .split(/\s+/gu)
-    .filter(Boolean)
-    .filter((token) => ![
-      "co", "company", "corp", "corporation", "inc", "incorporated",
-      "ltd", "limited", "llc", "gmbh", "ag", "bv", "srl", "sa",
-      "spa", "pte", "plc", "kg", "oy", "ab", "sas", "sarl",
-      "tnhh", "sdn", "bhd", "jsc", "kk", "kabushiki", "kaisha", "pvt", "pty"
-    ].includes(token))
-    .join(" ")
-    .trim();
-}
-
-function emailsFromText(value: string) {
-  return [...new Set((value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/giu) || [])
-    .map((item) => item.toLocaleLowerCase("en-US")))];
-}
-
-function crmCandidateEmails(candidate: Pick<WebsiteOpportunity, "contactInfo" | "contact" | "description">) {
-  return new Set(emailsFromText([
-    candidate.contactInfo,
-    candidate.contact,
-    candidate.description
-  ].filter(Boolean).join(" ")));
-}
-
-function crmWebsiteDomains(values: string[]) {
-  return new Set(values
-    .map((value) => websiteDomainKey(value))
-    .filter((value) => value && value.includes(".")));
-}
-
-function sameKnownCompany(
-  candidateName: string,
-  candidateCountry: string,
-  existingName: string,
-  existingCountry: string
-) {
-  const leftName = normalizeCrmCompanyName(candidateName);
-  const rightName = normalizeCrmCompanyName(existingName);
-  if (!leftName || !rightName || leftName !== rightName) return false;
-  const leftCountry = normalizeProviderCountry(candidateCountry);
-  const rightCountry = normalizeProviderCountry(existingCountry);
-  if (leftCountry && rightCountry) return leftCountry === rightCountry;
-  return leftName.length >= 8;
-}
-
-function existingCrmCustomerMatch(
-  candidate: WebsiteOpportunity,
-  customer: Customer
-) {
-  if (candidate.teamId !== customer.teamId) return "";
-  const candidateDomains = crmWebsiteDomains([
-    candidate.website,
-    ...(candidate.sourceEvidence || []).flatMap((item) => [
-      item.officialWebsite,
-      item.sourceUrl
-    ])
-  ]);
-  const customerDomains = crmWebsiteDomains([
-    customer.website || ""
-  ]);
-  if ([...candidateDomains].some((domain) => customerDomains.has(domain))) {
-    return "官网域名已在客户库";
-  }
-  const candidateEmails = crmCandidateEmails(candidate);
-  const customerEmails = new Set(emailsFromText([
-    customer.email || "",
-    customer.contactRemark || "",
-    customer.documentContact || ""
-  ].join(" ")));
-  if ([...candidateEmails].some((email) => customerEmails.has(email))) {
-    return "联系邮箱已在客户库";
-  }
-  const customerNames = [
-    customer.company,
-    customer.companyFullName || "",
-    customer.billingName || ""
-  ].filter(Boolean);
-  if (customerNames.some((name) =>
-    sameKnownCompany(candidate.company, candidate.country, name, customer.country)
-  )) {
-    return "公司名称与国家已在客户库";
-  }
-  return "";
-}
-
-function existingCrmLeadMatch(
-  candidate: WebsiteOpportunity,
-  lead: Lead
-) {
-  if (candidate.teamId !== lead.teamId || lead.deletedAt || lead.status === "invalid") return "";
-  const candidateDomains = crmWebsiteDomains([
-    candidate.website,
-    ...(candidate.sourceEvidence || []).flatMap((item) => [
-      item.officialWebsite,
-      item.sourceUrl
-    ])
-  ]);
-  const leadDomains = crmWebsiteDomains([lead.sourceUrl || ""]);
-  if ([...candidateDomains].some((domain) => leadDomains.has(domain))) {
-    return "官网域名已在线索库";
-  }
-  const candidateEmails = crmCandidateEmails(candidate);
-  const leadEmails = new Set(emailsFromText([
-    lead.email,
-    lead.remark,
-    lead.inquiryContent || ""
-  ].join(" ")));
-  if ([...candidateEmails].some((email) => leadEmails.has(email))) {
-    return "联系邮箱已在线索库";
-  }
-  if (sameKnownCompany(candidate.company, candidate.country, lead.company, lead.country)) {
-    return "公司名称与国家已在线索库";
-  }
-  return "";
-}
-
 function filterExistingCrmOpportunities(
   opportunities: WebsiteOpportunity[],
   store: ReturnType<typeof getStore>,
@@ -27009,14 +26821,6 @@ app.post("/api/lead-finder/search", requireAuth, asyncRoute(async (req, res) => 
   });
 }));
 
-function websiteDomainKey(raw: string) {
-  if (!raw) return "";
-  try {
-    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).hostname.replace(/^www\./i, "").toLowerCase();
-  } catch {
-    return raw.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0].toLowerCase();
-  }
-}
 
 app.post("/api/tools/website-scrape/preview", requireAuth, asyncRoute(async (req, res) => {
   const schema = z.object({
