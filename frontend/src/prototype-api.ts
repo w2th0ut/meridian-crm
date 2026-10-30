@@ -198,6 +198,20 @@ import {
   type SequenceNextDueView
 } from "./prospect-sequence-next-due";
 import {
+  REPLY_BACKLOG_LIMIT,
+  formatReplyBacklogAt,
+  listReplyBacklogQueue,
+  presentReplyBacklog,
+  replyBacklogEntryLabel,
+  replyBacklogLineLabel,
+  replyBacklogListFilterForOpen,
+  replyBacklogMatchesFilter,
+  replyBacklogStatusLabel,
+  replyBacklogSummary,
+  type ReplyBacklogListFilter,
+  type ReplyBacklogView
+} from "./prospect-reply-backlog";
+import {
   INBOUND_SYNC_LIMIT,
   inboundSyncEntryLabel,
   inboundSyncSummary,
@@ -4021,6 +4035,7 @@ interface AppState {
   prospectSilentAgeFilter: SilentAgeListFilter;
   prospectOutreachActionGapFilter: OutreachActionGapListFilter;
   prospectSequenceNextDueFilter: SequenceNextDueListFilter;
+  prospectReplyBacklogFilter: ReplyBacklogListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4254,6 +4269,7 @@ const state: AppState = {
   prospectSilentAgeFilter: "all",
   prospectOutreachActionGapFilter: "all",
   prospectSequenceNextDueFilter: "all",
+  prospectReplyBacklogFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -11755,6 +11771,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardSilentAge();
   renderDashboardOutreachActionGap();
   renderDashboardSequenceNextDue();
+  renderDashboardReplyBacklog();
   renderDashboardInboundSync();
 }
 
@@ -13860,6 +13877,7 @@ function renderLeadDrawer(
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33777,6 +33795,7 @@ function prospectFilteredRows() {
       if (state.prospectSilentAgeFilter !== "all" && !silentAgeMatchesFilter(prospectSilentAge(item), state.prospectSilentAgeFilter)) return false;
       if (state.prospectOutreachActionGapFilter !== "all" && !outreachActionGapMatchesFilter(prospectOutreachActionGap(item), state.prospectOutreachActionGapFilter)) return false;
       if (state.prospectSequenceNextDueFilter !== "all" && !sequenceNextDueMatchesFilter(prospectSequenceNextDue(item), state.prospectSequenceNextDueFilter)) return false;
+      if (state.prospectReplyBacklogFilter !== "all" && !replyBacklogMatchesFilter(prospectReplyBacklog(item), state.prospectReplyBacklogFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35917,6 +35936,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -35948,6 +35968,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -35985,6 +36006,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -36056,6 +36078,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectSilentAge(item)}
     ${renderProspectOutreachActionGap(item)}
     ${renderProspectSequenceNextDue(item)}
+    ${renderProspectReplyBacklog(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -36125,6 +36148,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindSilentAgeLinks(box);
   bindOutreachActionGapLinks(box);
   bindSequenceNextDueLinks(box);
+  bindReplyBacklogLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -36214,6 +36238,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusSilentAgeTarget(item.id, box);
   focusOutreachActionGapTarget(item.id, box);
   focusSequenceNextDueTarget(item.id, box);
+  focusReplyBacklogTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36783,6 +36808,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -37192,6 +37218,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37539,6 +37566,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37613,6 +37641,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37754,6 +37783,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37908,6 +37938,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38052,6 +38083,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-reply-backlog-filter]").forEach((button) => {
+    const active = button.dataset.prospectReplyBacklogFilter === state.prospectReplyBacklogFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -38065,9 +38101,13 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const sequenceNextDueEmpty = state.prospectSequenceNextDueFilter === "overdue"
-    ? "没有已到期的序列下一步。这里不会编造到期时间，也不会推进序列，也不会发信。"
+  const replyBacklogEmpty = state.prospectReplyBacklogFilter === "stale"
+    ? "没有积压较久的回复。这里不会编造回复时间，也不会发信，也不会标成已处理。"
     : "";
+  const sequenceNextDueEmpty = replyBacklogEmpty
+    || (state.prospectSequenceNextDueFilter === "overdue"
+      ? "没有已到期的序列下一步。这里不会编造到期时间，也不会推进序列，也不会发信。"
+      : "");
   const outreachActionGapEmpty = sequenceNextDueEmpty
     || (state.prospectOutreachActionGapFilter === "gap"
       ? "没有外联空档。这里不会编造开发信时间，也不会发信。"
@@ -38173,6 +38213,7 @@ function renderProspectList() {
             ${renderSilentAgeLine(item)}
             ${renderOutreachActionGapLine(item)}
             ${renderSequenceNextDueLine(item)}
+            ${renderReplyBacklogLine(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -38239,6 +38280,7 @@ function renderProspectList() {
     bindSilentAgeLinks(rows);
     bindOutreachActionGapLinks(rows);
     bindSequenceNextDueLinks(rows);
+    bindReplyBacklogLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -38261,6 +38303,7 @@ function renderProspectList() {
   renderDashboardSilentAge();
   renderDashboardOutreachActionGap();
   renderDashboardSequenceNextDue();
+  renderDashboardReplyBacklog();
   renderDashboardInboundSync();
 }
 
@@ -38430,6 +38473,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38698,6 +38742,7 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38910,6 +38955,7 @@ function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -40383,6 +40429,12 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (!websiteOpportunitiesLoaded && sequenceNextDueList) {
       sequenceNextDueList.innerHTML = `<div class="empty-cell">序列下一步到期暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造到期时间，也不会推进序列，也不会发信。</div>`;
     }
+    const replyBacklogScope = qs<HTMLElement>("#dashboardReplyBacklogScope");
+    const replyBacklogList = qs<HTMLElement>("#dashboardReplyBacklogList");
+    if (replyBacklogScope) replyBacklogScope.textContent = "回复待处理积压暂时读不到";
+    if (!websiteOpportunitiesLoaded && replyBacklogList) {
+      replyBacklogList.innerHTML = `<div class="empty-cell">回复待处理积压暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造回复时间，也不会发信，也不会自动回复，也不会标成已处理。</div>`;
+    }
     acquisitionTodoReadError = message;
     renderDashboardAcquisitionTodoSummary();
   } finally {
@@ -40655,6 +40707,7 @@ function openNextFollowDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40793,6 +40846,7 @@ function openStageStuckFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -40923,6 +40977,7 @@ function openFollowUpGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41067,6 +41122,7 @@ function openContactGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41227,6 +41283,7 @@ function openJoinAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41409,6 +41466,7 @@ function openSilentAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = silentAgeListFilterForOpen(view);
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41567,6 +41625,7 @@ function openOutreachActionGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectJoinAgeFilter = "all";
   state.prospectSilentAgeFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
   state.prospectOutreachActionGapFilter = outreachActionGapListFilterForOpen(view);
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
@@ -41722,6 +41781,7 @@ function openSequenceNextDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = sequenceNextDueListFilterForOpen(view);
+  state.prospectReplyBacklogFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41733,6 +41793,163 @@ function openSequenceNextDueFromDashboard(item: WebsiteOpportunity) {
   const show = () => {
     renderProspectList();
     toast("已打开现有候选。只读，不会发信，也不会推进序列，也不会改名单。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+
+function prospectReplyBacklog(item: WebsiteOpportunity, now = new Date()): ReplyBacklogView {
+  const reply = presentOutreachReply(item.outreachReply);
+  return presentReplyBacklog({ replyAt: reply.status === "hit" ? reply.at : "" }, now);
+}
+
+function replyBacklogBadgeTone(kind: ReplyBacklogView["kind"]) {
+  if (kind === "stale") return "amber";
+  if (kind === "fresh") return "green";
+  return "gray";
+}
+
+function renderProspectReplyBacklog(item: WebsiteOpportunity) {
+  const view = prospectReplyBacklog(item);
+  return `<section class="prospect-reply-backlog" id="prospectReplyBacklog" data-reply-backlog="${view.kind}">
+    <div class="prospect-reply-backlog-head"><b>回复待处理积压</b>${badge(replyBacklogStatusLabel(view), replyBacklogBadgeTone(view.kind))}</div>
+    <p>${escapeHtml(replyBacklogSummary(view))}</p>
+    <p class="prospect-reply-backlog-body" data-reply-backlog-body="${view.kind}">${escapeHtml(replyBacklogLineLabel(view))}</p>
+    <div class="prospect-action-row"><button class="btn" type="button" data-reply-backlog-entry="${escapeHtml(item.id)}">${escapeHtml(replyBacklogEntryLabel())}</button></div>
+  </section>`;
+}
+
+function renderReplyBacklogLine(item: WebsiteOpportunity) {
+  const view = prospectReplyBacklog(item);
+  const compact = view.kind === "none" ? " is-empty" : ` is-compact is-${view.kind}`;
+  return `<div class="prospect-reply-backlog${compact}" data-reply-backlog="${view.kind}">${escapeHtml(replyBacklogLineLabel(view))}</div>`;
+}
+
+let replyBacklogFocusId = "";
+
+/** 只滚到已有的最近回复。没有这块时停在详情顶部。不发信，不自动回复，也不标成已处理。 */
+function scrollToReplyBacklogTarget(root: ParentNode): "reply" | "top" | false {
+  const mark = (entry: HTMLElement) => {
+    entry.classList.add("is-attention");
+    entry.scrollIntoView({ block: "nearest" });
+    window.setTimeout(() => entry.classList.remove("is-attention"), 1600);
+    return true;
+  };
+  const entry = root.querySelector<HTMLElement>("#prospectOutreachReply");
+  if (entry) {
+    mark(entry);
+    return "reply";
+  }
+  const top = root.querySelector<HTMLElement>(".prospect-detail-hero, .lead-verification-drawer-head");
+  if (top) {
+    mark(top);
+    return "top";
+  }
+  if (root instanceof HTMLElement) {
+    root.scrollIntoView({ block: "start" });
+    return "top";
+  }
+  return false;
+}
+
+function focusReplyBacklogTarget(itemId: string, root: ParentNode | null) {
+  if (replyBacklogFocusId !== itemId || !root) return;
+  replyBacklogFocusId = "";
+  scrollToReplyBacklogTarget(root);
+}
+
+function bindReplyBacklogLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-reply-backlog-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const landed = scrollToReplyBacklogTarget(root);
+      if (landed === "reply") {
+        toast("已打开现有最近回复。只读，不会发信，也不会自动回复，也不会标成已处理。");
+      } else if (landed === "top") {
+        toast("没有最近回复，已停在详情顶部。只读，不会发信，也不会自动回复，也不会标成已处理。");
+      }
+    });
+  });
+}
+
+function renderDashboardReplyBacklog(now = new Date()) {
+  const scope = qs<HTMLElement>("#dashboardReplyBacklogScope");
+  const list = qs<HTMLElement>("#dashboardReplyBacklogList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看回复待处理积压。这里不会编造名单，也不会发信，也不会自动回复，也不会标成已处理。</div>`;
+    return;
+  }
+  const queue = listReplyBacklogQueue(visible, (item) => prospectReplyBacklog(item, now), REPLY_BACKLOG_LIMIT);
+  if (!queue.total) {
+    scope.textContent = "当前可见的搜客清单没有可解析的待处理回复";
+    list.innerHTML = `<div class="empty-cell">无待处理回复。当前可见的搜客清单没有可解析的待处理回复。这里不会编造回复时间，也不会发信，也不会自动回复，也不会标成已处理。</div>`;
+    return;
+  }
+  const shown = queue.rows;
+  scope.textContent = queue.total > shown.length
+    ? `可见范围 ${queue.total} 条能判断回复待处理积压，这里显示 ${shown.length} 条，积压较久在前`
+    : `可见范围 ${queue.total} 条能判断回复待处理积压，积压较久在前`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectReplyBacklog(item, now);
+    return `<button class="dashboard-prospect-row${view.kind === "stale" ? " is-reply-stale" : ""}" type="button" data-dashboard-reply-backlog="${escapeHtml(item.id)}" data-reply-backlog="${view.kind}" aria-label="打开回复待处理积压：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(replyBacklogStatusLabel(view))}</span>
+      <em>${escapeHtml(formatReplyBacklogAt(view.replyMs))}</em>
+    </button>`;
+  }).join("");
+}
+
+function openReplyBacklogFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return;
+  const view = prospectReplyBacklog(item);
+  if (view.kind === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
+  state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
+  state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
+  state.prospectSilentAgeFilter = "all";
+  state.prospectOutreachActionGapFilter = "all";
+  state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = replyBacklogListFilterForOpen(view);
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  replyBacklogFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开现有候选。只读，不会发信，也不会自动回复，也不会标成已处理，也不会改名单。");
   };
   if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
     show();
@@ -43378,6 +43595,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -45434,6 +45652,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectSilentAge(item)}
     ${renderProspectOutreachActionGap(item)}
     ${renderProspectSequenceNextDue(item)}
+    ${renderProspectReplyBacklog(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -45546,6 +45765,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindSilentAgeLinks(box);
   bindOutreachActionGapLinks(box);
   bindSequenceNextDueLinks(box);
+  bindReplyBacklogLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -45578,6 +45798,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusSilentAgeTarget(item.id, box);
   focusOutreachActionGapTarget(item.id, box);
   focusSequenceNextDueTarget(item.id, box);
+  focusReplyBacklogTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -47548,6 +47769,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
   state.prospectSilentAgeFilter = "all";
   state.prospectOutreachActionGapFilter = "all";
   state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -50877,6 +51099,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectSequenceNextDue(item).kind === "none") return;
     openSequenceNextDueFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardReplyBacklogRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardReplyBacklog")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-reply-backlog]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardReplyBacklog);
+    if (!item || !item.shortlistedAt || prospectReplyBacklog(item).kind === "none") return;
+    openReplyBacklogFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#dashboardAcquisitionStagesRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
   });
@@ -51379,6 +51610,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectSequenceNextDueFilter || "all";
       state.prospectSequenceNextDueFilter = next === "overdue" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-reply-backlog-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectReplyBacklogFilter || "all";
+      state.prospectReplyBacklogFilter = next === "stale" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
