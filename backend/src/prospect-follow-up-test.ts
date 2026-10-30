@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  classifyProspectNextFollow,
   describeProspectLatestFollowUp,
   hasCurrentApprovedContactable,
   linkProspectFollowUpNotes,
   listProspectFollowUps,
+  normalizeProspectNextFollowAt,
   ProspectFollowUpError,
-  recordProspectFollowUp
+  recordProspectFollowUp,
+  setProspectNextFollowAt
 } from "./prospect-follow-up.js";
 import type {
   Lead,
@@ -281,12 +284,109 @@ assert.equal(linkStore.leadActivities[0]?.prospectCandidateId, pending.id);
 pending.leadId = "lead-linked";
 assert.equal(describeProspectLatestFollowUp(linkStore, pending)?.excerpt, "转入前的注记");
 
+const clock = new Date(2026, 9, 30, 10, 0);
+assert.equal(classifyProspectNextFollow("", clock), "empty");
+assert.equal(classifyProspectNextFollow("2026-10-30 09:00", clock), "overdue");
+assert.equal(classifyProspectNextFollow("2026-10-30 15:30", clock), "today");
+assert.equal(classifyProspectNextFollow("2026-10-31 09:00", clock), "later");
+assert.equal(classifyProspectNextFollow("明天 10:00", clock), "later");
+assert.equal(normalizeProspectNextFollowAt("2026-11-02T11:15"), "2026-11-02 11:15");
+assert.equal(normalizeProspectNextFollowAt(""), "");
+assert.throws(
+  () => normalizeProspectNextFollowAt("2026-02-31 10:00"),
+  (error: unknown) => error instanceof ProspectFollowUpError && error.status === 400
+);
+assert.throws(
+  () => normalizeProspectNextFollowAt("下周五"),
+  (error: unknown) => error instanceof ProspectFollowUpError && error.status === 400
+);
+
+const kept = candidate({ nextFollowAt: "2026-11-02 11:15" });
+const keptStore = store();
+const keptBefore = kept.status;
+recordProspectFollowUp(keptStore, {
+  candidate: kept,
+  actorId: "owner-a",
+  content: "只记一句，不改时间",
+  createdAt: at(3)
+});
+assert.equal(kept.nextFollowAt, "2026-11-02 11:15");
+assert.equal(kept.status, keptBefore);
+assert.equal(keptStore.leadActivities[0]?.nextFollowAt, "");
+assert.equal(keptStore.leadActivities.length, 1);
+
+const scheduled = recordProspectFollowUp(keptStore, {
+  candidate: kept,
+  actorId: "owner-a",
+  content: "约了下周一上午",
+  nextFollowAt: "2026-11-02T11:20",
+  createdAt: at(4)
+});
+assert.equal(scheduled.activity.nextFollowAt, "2026-11-02 11:20");
+assert.equal(scheduled.nextFollowAt, "2026-11-02 11:20");
+assert.equal(kept.nextFollowAt, "2026-11-02 11:20");
+assert.equal(kept.outreachState, "uncontacted");
+assert.equal(keptStore.prospectContactabilityDecisions.length, 0);
+
+const cleared = setProspectNextFollowAt(keptStore, {
+  candidate: kept,
+  actorId: "owner-a",
+  nextFollowAt: ""
+});
+assert.equal(cleared.nextFollowAt, "");
+assert.equal(kept.nextFollowAt, "");
+assert.equal(keptStore.leadActivities.length, 2);
+assert.equal(kept.status, "contactable");
+
+assert.throws(
+  () => setProspectNextFollowAt(store(), {
+    candidate: preview,
+    actorId: "owner-a",
+    nextFollowAt: "2026-11-02 11:15"
+  }),
+  (error: unknown) => error instanceof ProspectFollowUpError && error.status === 409
+);
+assert.throws(
+  () => setProspectNextFollowAt(store(), {
+    candidate: candidate({ status: "excluded", nextFollowAt: "2026-11-02 11:15" }),
+    actorId: "owner-a",
+    nextFollowAt: "2026-11-03 09:00"
+  }),
+  (error: unknown) => error instanceof ProspectFollowUpError && error.status === 409
+);
+assert.throws(
+  () => recordProspectFollowUp(store(), {
+    candidate: contactable,
+    actorId: "owner-a",
+    content: "时间不对",
+    nextFollowAt: "下周",
+    createdAt: at(3)
+  }),
+  (error: unknown) => error instanceof ProspectFollowUpError && error.status === 400
+);
+
+const leadForSchedule = lead({ nextFollowAt: "旧时间" });
+const scheduledCandidate = candidate({ status: "synced", leadId: leadForSchedule.id });
+const scheduleStore = store({ leads: [leadForSchedule] });
+setProspectNextFollowAt(scheduleStore, {
+  candidate: scheduledCandidate,
+  actorId: "owner-a",
+  nextFollowAt: "2026-11-04 09:30"
+});
+assert.equal(scheduledCandidate.nextFollowAt, "2026-11-04 09:30");
+assert.equal(leadForSchedule.nextFollowAt, "2026-11-04 09:30");
+assert.equal(leadForSchedule.status, "new");
+assert.equal(scheduleStore.leadActivities.length, 0);
+
 const serverSource = readFileSync(new URL("./server.ts", import.meta.url), "utf8");
 const followUpRouteStart = serverSource.indexOf('app.post("/api/prospect-list/:id/follow-ups"');
 assert.ok(followUpRouteStart > 0, "必须提供候选跟进写入接口");
-const followUpRoute = serverSource.slice(followUpRouteStart, followUpRouteStart + 1600);
+const followUpRouteEnd = serverSource.indexOf("const dailyReportBodySchema", followUpRouteStart);
+const followUpRoute = serverSource.slice(followUpRouteStart, followUpRouteEnd);
 assert.match(followUpRoute, /recordProspectFollowUp\(store/);
-assert.doesNotMatch(followUpRoute, /convertProspectToLead|convert-to-lead|approved_contactable/);
+assert.match(followUpRoute, /setProspectNextFollowAt\(store/);
+assert.match(followUpRoute, /nextFollowAt/);
+assert.doesNotMatch(followUpRoute, /convertProspectToLead|convert-to-lead|approved_contactable|ensureProspectFollowUpTodo|send-development-email|sendDevelopmentEmail/);
 assert.match(
   serverSource,
   /latestFollowUp: describeProspectLatestFollowUp\(store, verified\)/,

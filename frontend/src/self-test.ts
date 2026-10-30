@@ -743,13 +743,18 @@ assert.match(apiLayer, /renderContactableApprovalPanel\(item, "prospect"\)\}[\s\
 assert.match(apiLayer, /renderContactableApprovalPanel\(item, "lead-finder"\)\}[\s\S]{0,120}renderProspectFollowUpEntry\(item, "lead-finder"\)/, "候选详情必须能记跟进");
 const followEntry = kbSourceBetween(apiLayer, "function renderProspectFollowUpEntry", "\nfunction focusProspectFollowUpInput");
 assert.match(followEntry, /记录跟进/, "写入按钮文案必须是记录跟进");
+assert.match(followEntry, /保存下次跟进/, "详情必须能单独改下次跟进");
+assert.match(followEntry, /datetime-local/, "下次跟进使用日期时间");
 assert.match(followEntry, /不会发送开发信，也不会转为线索/, "跟进说明必须写明不会发送、不会转线索");
 assert.match(followEntry, /prospectFollowUpWritable\(item\)/, "未达可联系时详情不放写入框");
+assert.match(followEntry, /renderProspectNextFollow\(item\)/, "详情必须显示下次跟进");
 assert.doesNotMatch(followEntry, /convert-to-lead|send-development-email|解除抑制/, "跟进入口不得转线索、发信或解除抑制");
 const saveFollowUp = kbSourceBetween(apiLayer, "async function saveProspectFollowUp", "\nfunction renderProspectList");
 assert.match(saveFollowUp, /\/api\/prospect-list\/\$\{encodeURIComponent\(item\.id\)\}\/follow-ups/, "记录跟进必须走现有候选接口");
-assert.match(saveFollowUp, /JSON\.stringify\(\{ content \}\)/, "跟进只提交文本");
-assert.doesNotMatch(saveFollowUp, /convert-to-lead|send-development-email|approved_contactable/, "记录跟进不得转线索或改批准");
+assert.match(saveFollowUp, /body: \{ content: string; nextFollowAt\?: string \} = \{ content \}/, "记录跟进仍以文本为主");
+assert.match(saveFollowUp, /if \(nextFollowAt\) body\.nextFollowAt = nextFollowAt/, "有下次跟进时间才一并提交");
+assert.match(saveFollowUp, /JSON\.stringify\(\{ nextFollowAt \}\)/, "可以只改下次跟进");
+assert.doesNotMatch(saveFollowUp, /convert-to-lead|send-development-email|approved_contactable|ensureProspectFollowUpTodo/, "记录跟进不得转线索、改批准或生成待办");
 const followQueue = kbSourceBetween(apiLayer, "function followUpQueueCandidates()", "\nfunction renderDashboardFollowUps");
 assert.match(followQueue, /shortlistedAt/, "待记跟进只包含搜客清单里的候选");
 assert.match(followQueue, /prospectFollowUpWritable\(item\)/, "待记跟进只包含已可联系的候选");
@@ -767,6 +772,22 @@ assert.match(openFollow, /prospectFollowUpFocusId = item\.id/, "打开待记跟�
 assert.match(openFollow, /不会发送，也不会转为线索/, "打开待记跟进时必须说明不会发送、不会转线索");
 assert.doesNotMatch(openFollow, /sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead/, "打开待记跟进不得发送或转线索");
 assert.match(prototype, /\.prospect-follow-up/, "跟进摘要必须有可见样式");
+assert.match(prospectListRender, /renderProspectNextFollow\(item\)/, "搜客清单行必须展示下次跟进");
+assert.match(apiLayer, /未设下次跟进/, "未设置下次跟进时必须写未设下次跟进");
+assert.match(apiLayer, /data-next-follow="overdue"/, "过期的下次跟进必须标已逾期");
+assert.match(apiLayer, /已逾期/, "过期样式文案必须是已逾期");
+assert.match(prototype, /id="dashboardDueFollowUps"[\s\S]*今日到期/, "工作台必须有今日到期");
+assert.match(prototype, /\.prospect-next-follow\.is-overdue/, "逾期必须有可见样式");
+const dueQueue = kbSourceBetween(apiLayer, "function dueFollowUpCandidates", "\nfunction renderDashboardDueFollowUps");
+assert.match(dueQueue, /shortlistedAt/, "今日到期只包含搜客清单里的候选");
+assert.match(dueQueue, /prospectFollowUpWritable\(item\)/, "今日到期只包含已可联系的候选");
+assert.match(dueQueue, /"overdue"/, "今日到期包含已逾期");
+assert.match(dueQueue, /"today"/, "今日到期包含今天要跟的");
+assert.match(apiLayer, /没有今天到期或已逾期的下次跟进。去搜客清单，给已可联系的候选设一个时间后再回来。这里不会编造名单，也不会发到站外。/, "没有到期时必须指向搜客清单，不能编造名单或发到站外");
+const dueClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardDueFollowUps")?.addEventListener');
+const dueClick = apiLayer.slice(dueClickStart, dueClickStart + 700);
+assert.match(dueClick, /openFollowUpFromDashboard\(item, "next"\)/, "点今日到期必须打开下次跟进");
+assert.doesNotMatch(dueClick, /sendProspectDevelopmentEmail|send-development-email|convertProspectsToLeads|openProspectOutreachDraft/, "点今日到期不得发送或转线索");
 
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
