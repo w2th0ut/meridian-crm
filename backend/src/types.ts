@@ -4894,6 +4894,21 @@ export interface AliyunOutboundConfigAudit {
   summary: string;
 }
 
+/** 一次外呼尝试的审计。号码只留脱敏结果，不留明文，也不留密钥。 */
+export interface OutboundCallAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  targetType: "customer" | "lead" | "prospect" | "";
+  targetId: string;
+  phoneId: string;
+  maskedNumber: string;
+  result: "allowed" | "rejected";
+  reason: string;
+  jobId: string;
+}
+
 export interface CommissionCalculation {
   id: string;
   month: string;
