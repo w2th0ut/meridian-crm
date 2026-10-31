@@ -4790,6 +4790,18 @@ export interface ProspectTagAuditEvent {
   tags: string[];
 }
 
+/** 批量设置或清空下次跟进的最小审计。操作人、时间、对象、动作、原来的值到新的值。 */
+export interface NextFollowUpAuditEvent {
+  id: string;
+  actorId: string;
+  at: string;
+  objectType: "prospect_candidate";
+  objectId: string;
+  action: "set_next_follow_up" | "clear_next_follow_up";
+  oldValue: string;
+  newValue: string;
+}
+
 export interface CommissionCalculation {
   id: string;
   month: string;

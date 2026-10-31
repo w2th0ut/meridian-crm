@@ -144,6 +144,12 @@ import {
   summarizeProspectTagChange
 } from "./prospect-batch-tags";
 import {
+  buildProspectNextFollowUpBody,
+  earliestProspectNextFollowDate,
+  showProspectNextFollowUpEntry,
+  summarizeProspectNextFollowUpChange
+} from "./prospect-batch-next-follow-up";
+import {
   CONTACT_GAP_LIMIT,
   contactGapEntryLabel,
   contactGapIsGap,
@@ -38493,6 +38499,10 @@ function renderProspectList() {
     const tagButton = qs<HTMLButtonElement>(selector);
     if (tagButton) tagButton.hidden = !showProspectTagEntry(canTag);
   }
+  for (const selector of ["#prospectSetNextFollowUpButton", "#prospectClearNextFollowUpButton"]) {
+    const followButton = qs<HTMLButtonElement>(selector);
+    if (followButton) followButton.hidden = !showProspectNextFollowUpEntry(canTag);
+  }
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => button.classList.toggle("active", button.dataset.prospectFilter === state.prospectFilter));
   qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
     const active = button.dataset.prospectStageFilter === state.prospectStageFilter;
@@ -40079,6 +40089,79 @@ function requestProspectTags(
     closeModal();
     void submitProspectTags(built.body, button);
   });
+}
+
+function requestProspectNextFollowUp(
+  action: "set" | "clear",
+  ids: string[],
+  button?: HTMLButtonElement
+) {
+  const gate = buildProspectNextFollowUpBody(ids, "clear");
+  if (!gate.ok) {
+    toast(gate.message, "error");
+    return;
+  }
+  if (action === "clear") {
+    openModal(
+      "批量清空下次跟进",
+      `<p>将清空 ${gate.body.ids.length} 条候选的下次跟进。只改本地日期，不发信，不发消息，不推进序列，不放行批次，也不新建提醒。</p>`,
+      `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectNextFollowUpButton" type="button">确认清空</button>`
+    );
+    qs<HTMLButtonElement>("#confirmProspectNextFollowUpButton")?.addEventListener("click", () => {
+      closeModal();
+      void submitProspectNextFollowUp(gate.body, button);
+    });
+    return;
+  }
+  const earliest = earliestProspectNextFollowDate();
+  openModal(
+    "批量设置下次跟进",
+    `<p>将为 ${gate.body.ids.length} 条候选设置下次跟进。只改本地日期，不发信，不发消息，不推进序列，不放行批次，也不新建提醒。</p><div class="form-field"><label>下次跟进日期</label><input id="prospectNextFollowUpDate" type="date" min="${earliest}"></div>`,
+    `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectNextFollowUpButton" type="button">确认设置</button>`
+  );
+  qs<HTMLButtonElement>("#confirmProspectNextFollowUpButton")?.addEventListener("click", () => {
+    const built = buildProspectNextFollowUpBody(ids, "set", qs<HTMLInputElement>("#prospectNextFollowUpDate")?.value || "");
+    if (!built.ok) {
+      toast(built.message, "error");
+      return;
+    }
+    closeModal();
+    void submitProspectNextFollowUp(built.body, button);
+  });
+}
+
+async function submitProspectNextFollowUp(
+  body: { ids: string[]; action: "set" | "clear"; date?: string },
+  button?: HTMLButtonElement
+) {
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ results: Array<{ id: string; ok: boolean; nextFollowAt?: string; reason?: string }> }>("/api/prospect-list/next-follow-up", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    const changed = new Set<string>();
+    result.results.forEach((row) => {
+      if (!row.ok || typeof row.nextFollowAt !== "string") return;
+      const existing = state.websiteOpportunities.find((item) => item.id === row.id);
+      if (!existing) return;
+      if ((existing.nextFollowAt || "") === row.nextFollowAt) return;
+      existing.nextFollowAt = row.nextFollowAt;
+      if (existing.leadId) {
+        const lead = state.leads.find((item) => item.id === existing.leadId && item.ownerId === existing.ownerId);
+        if (lead) lead.nextFollowAt = row.nextFollowAt;
+      }
+      changed.add(row.id);
+    });
+    state.selectedProspectIds = state.selectedProspectIds.filter((id) => !changed.has(id));
+    renderProspectList();
+    renderLeadFinder(state.websiteOpportunities);
+    toast(summarizeProspectNextFollowUpChange(body.action, result.results));
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "批量改下次跟进失败", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 async function submitProspectTags(
@@ -54106,6 +54189,8 @@ function installEvents() {
   qs<HTMLButtonElement>("#prospectReassignOwnerButton")?.addEventListener("click", (event) => requestProspectOwnerReassign(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectAddTagsButton")?.addEventListener("click", (event) => requestProspectTags("add", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectRemoveTagsButton")?.addEventListener("click", (event) => requestProspectTags("remove", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectSetNextFollowUpButton")?.addEventListener("click", (event) => requestProspectNextFollowUp("set", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectClearNextFollowUpButton")?.addEventListener("click", (event) => requestProspectNextFollowUp("clear", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLInputElement>("#prospectSelectPage")?.addEventListener("change", (event) => {
     const checked = (event.currentTarget as HTMLInputElement).checked;
     const pageRows = prospectFilteredRows().slice((state.prospectPage - 1) * PROSPECT_PAGE_SIZE, state.prospectPage * PROSPECT_PAGE_SIZE);

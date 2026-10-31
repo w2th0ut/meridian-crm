@@ -551,6 +551,14 @@ import {
   applyProspectTags,
   prospectTagBlock
 } from "./prospect-tags.js";
+import { appendNextFollowUpAudit } from "./next-follow-up-audit.js";
+import {
+  PROSPECT_NEXT_FOLLOW_UP_BATCH_LIMIT,
+  PROSPECT_NEXT_FOLLOW_UP_DENIED,
+  applyProspectNextFollowUpValue,
+  normalizeProspectNextFollowDate,
+  prospectNextFollowUpBlock
+} from "./prospect-next-follow-up.js";
 import {
   TRANSPARENT_GIF,
   buildOutboundMessageId,
@@ -19857,6 +19865,66 @@ app.post("/api/prospect-list/tags", requireAuth, asyncRoute(async (req, res) => 
       action: body.action,
       tags: applied.tags,
       applied: applied.applied
+    };
+  });
+  if (changed.length) {
+    if (store.persistProspectCandidates) await store.persistProspectCandidates(changed.map((item) => item.id));
+    await store.persist();
+  }
+  res.json({ results });
+}));
+
+app.post("/api/prospect-list/next-follow-up", requireAuth, asyncRoute(async (req, res) => {
+  const schema = z.object({
+    ids: z.array(z.string().trim().min(1).max(80)).min(1).max(PROSPECT_NEXT_FOLLOW_UP_BATCH_LIMIT),
+    action: z.enum(["set", "clear"]),
+    date: z.string().max(40).optional()
+  });
+  const body = schema.parse(req.body ?? {});
+  const scheduled = body.action === "set"
+    ? normalizeProspectNextFollowDate(body.date || "")
+    : null;
+  if (scheduled && !scheduled.ok) {
+    res.status(400).json({ message: scheduled.message });
+    return;
+  }
+  const nextFollowAt = scheduled && scheduled.ok ? scheduled.nextFollowAt : "";
+  const store = getStore();
+  const actor = req.user!;
+  const ids = [...new Set(body.ids)];
+  const evaluated = ids.map((id) => {
+    const candidate = store.websiteOpportunities.find((item) => item.id === id);
+    return { id, candidate, block: prospectNextFollowUpBlock(actor, candidate) };
+  });
+  if (evaluated.every((item) => item.block === PROSPECT_NEXT_FOLLOW_UP_DENIED)) {
+    res.status(403).json({
+      message: "没有可改下次跟进的候选",
+      results: evaluated.map((item) => ({ id: item.id, ok: false, reason: item.block }))
+    });
+    return;
+  }
+  const changed: WebsiteOpportunity[] = [];
+  const results = evaluated.map((item) => {
+    if (item.block || !item.candidate) {
+      return { id: item.id, ok: false, reason: item.block || PROSPECT_NEXT_FOLLOW_UP_DENIED };
+    }
+    const previous = item.candidate.nextFollowAt || "";
+    if (previous !== nextFollowAt) {
+      applyProspectNextFollowUpValue(store, item.candidate, nextFollowAt);
+      changed.push(item.candidate);
+      appendNextFollowUpAudit(store, {
+        actorId: actor.id,
+        objectId: item.candidate.id,
+        action: body.action === "set" ? "set_next_follow_up" : "clear_next_follow_up",
+        oldValue: previous,
+        newValue: nextFollowAt
+      });
+    }
+    return {
+      id: item.id,
+      ok: true,
+      action: body.action,
+      nextFollowAt
     };
   });
   if (changed.length) {

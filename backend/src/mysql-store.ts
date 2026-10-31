@@ -126,8 +126,8 @@ import {
   validateProviderCredentialSecurity
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
-import { companyProfiles, followUpAudits, ownerReassignAudits, prospectTagAudits } from "./data.js";
-import type { FollowUpAuditEvent, OwnerReassignAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectTagAudits } from "./data.js";
+import type { FollowUpAuditEvent, NextFollowUpAuditEvent, OwnerReassignAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
 import type { DailyReport, DailyReportComment, InternalMessage } from "./types.js";
@@ -1868,6 +1868,7 @@ export async function createMysqlStore(
 		    followUpAudits: await loadFollowUpAudits(pool),
 		    ownerReassignAudits: await loadOwnerReassignAudits(pool),
 		    prospectTagAudits: await loadProspectTagAudits(pool),
+		    nextFollowUpAudits: await loadNextFollowUpAudits(pool),
 		    commissionCalculations: await loadCommissionCalculations(pool),
 		    commissionItems: await loadCommissionItems(pool),
 		    commissionExports: await loadCommissionExports(pool),
@@ -2021,6 +2022,7 @@ export async function createMysqlStore(
       store.followUpAudits.push(...followUpAudits);
       store.ownerReassignAudits.push(...ownerReassignAudits);
       store.prospectTagAudits.push(...prospectTagAudits);
+      store.nextFollowUpAudits.push(...nextFollowUpAudits);
       store.commissionCalculations.push(...commissionCalculations);
       store.commissionItems.push(...commissionItems);
       store.commissionExports.push(...commissionExports);
@@ -5994,6 +5996,18 @@ async function ensureSchema(pool: mysql.Pool) {
     tags_json JSON,
     INDEX idx_prospect_tag_audits_object(object_type, object_id),
     INDEX idx_prospect_tag_audits_actor(actor_id, occurred_at)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS next_follow_up_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    object_type VARCHAR(40) NOT NULL,
+    object_id VARCHAR(64) NOT NULL,
+    action_code VARCHAR(40) NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    INDEX idx_next_follow_up_audits_object(object_type, object_id),
+    INDEX idx_next_follow_up_audits_actor(actor_id, occurred_at)
   )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS commission_calculations (
     id VARCHAR(64) PRIMARY KEY,
@@ -12066,6 +12080,19 @@ async function loadMonthlySalesRecords(pool: mysql.Pool): Promise<MonthlySalesRe
   }));
 }
 
+async function loadNextFollowUpAudits(pool: mysql.Pool): Promise<NextFollowUpAuditEvent[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM next_follow_up_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    actorId: row.actor_id || "",
+    at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at || new Date().toISOString(),
+    objectType: "prospect_candidate",
+    objectId: row.object_id || "",
+    action: row.action_code === "clear_next_follow_up" ? "clear_next_follow_up" : "set_next_follow_up",
+    oldValue: row.old_value || "",
+    newValue: row.new_value || ""
+  }));
+}
+
 async function loadProspectTagAudits(pool: mysql.Pool): Promise<ProspectTagAuditEvent[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM prospect_tag_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
@@ -12480,6 +12507,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "follow_up_audits", store.followUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.activityId], "(id,actor_id,occurred_at,object_type,object_id,action_code,activity_id)");
 	    await replaceRows(connection, "owner_reassign_audits", store.ownerReassignAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.previousOwnerId, item.nextOwnerId], "(id,actor_id,occurred_at,object_type,object_id,action_code,previous_owner_id,next_owner_id)");
 	    await replaceRows(connection, "prospect_tag_audits", store.prospectTagAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, JSON.stringify(item.tags || [])], "(id,actor_id,occurred_at,object_type,object_id,action_code,tags_json)");
+	    await replaceRows(connection, "next_follow_up_audits", store.nextFollowUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
 	    await replaceRows(connection, "commission_calculations", store.commissionCalculations, (item) => [item.id, item.month, item.ownerId, item.teamId, item.salesAmount, item.autoCommission, item.manualAdjustment, item.finalCommission, item.status, item.version, item.isCurrent, item.calculatedAt ? mysqlDate(item.calculatedAt) : null, item.reviewedBy, item.reviewedAt ? mysqlDate(item.reviewedAt) : null, item.lockedBy, item.lockedAt ? mysqlDate(item.lockedAt) : null, item.unlockReason], "(id,month_value,owner_id,team_id,sales_amount,auto_commission,manual_adjustment,final_commission,status,version_no,is_current,calculated_at,reviewed_by,reviewed_at,locked_by,locked_at,unlock_reason)");
 	    await replaceRows(connection, "commission_items", store.commissionItems, (item) => [item.id, item.calculationId, item.recordId, item.productId, item.itemType, item.sourceType, item.ruleSnapshotJson, item.salesAmount, item.autoAmount, item.manualAmount, item.finalAmount, item.remark, item.createdBy, mysqlDate(item.createdAt)], "(id,calculation_id,record_id,product_id,item_type,source_type,rule_snapshot_json,sales_amount,auto_amount,manual_amount,final_amount,remark,created_by,created_at)");
 	    await replaceRows(connection, "commission_exports", store.commissionExports, (item) => [item.id, item.month, item.scopeType, item.scopeOwnerId, item.fileType, item.rows, item.exportedBy, mysqlDate(item.createdAt)], "(id,month_value,scope_type,scope_owner_id,file_type,rows_count,exported_by,created_at)");
