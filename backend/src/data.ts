@@ -13,7 +13,7 @@ import type {
   ProspectIcpPolicySnapshot,
   ProspectSuppressionEvent
 } from "./types.js";
-import type { AliyunOutboundConfig, AliyunOutboundConfigAudit, CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, NextFollowUpAuditEvent, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AliyunOutboundConfig, AliyunOutboundConfigAudit, CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, NextFollowUpAuditEvent, OutboundCallAudit, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 
 export const providerCatalog: ProviderCatalogItem[] = createDefaultProviderCatalog();
 export const providerConnections: ProviderConnection[] = [];
@@ -364,6 +364,7 @@ export const prospectPriorityAudits: ProspectPriorityAuditEvent[] = [];
 export const prospectIndustryAudits: ProspectIndustryAuditEvent[] = [];
 export const aliyunOutboundConfigs: AliyunOutboundConfig[] = [];
 export const aliyunOutboundConfigAudits: AliyunOutboundConfigAudit[] = [];
+export const outboundCallAudits: OutboundCallAudit[] = [];
 export const commissionCalculations: CommissionCalculation[] = [];
 export const commissionItems: CommissionItem[] = [];
 export const commissionExports: CommissionExport[] = [];
