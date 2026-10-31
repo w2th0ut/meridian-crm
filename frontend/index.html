@@ -13364,6 +13364,86 @@
       margin: 12px 0;
     }
 
+    .outbound-record-note {
+      margin: 0 0 12px;
+      color: var(--muted, #667085);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .outbound-record-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+      margin: 0 0 16px;
+    }
+
+    .outbound-record-filters label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted, #667085);
+      font-size: 12px;
+    }
+
+    .outbound-record-filters select,
+    .outbound-record-filters input {
+      min-width: 160px;
+      height: 36px;
+    }
+
+    .outbound-record-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .outbound-record-stat {
+      padding: 12px 14px;
+      border: 1px solid var(--line-soft, #e6e8ee);
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .outbound-record-stat span {
+      display: block;
+      color: var(--muted, #667085);
+      font-size: 12px;
+    }
+
+    .outbound-record-stat b {
+      font-size: 22px;
+    }
+
+    .outbound-record-empty,
+    [data-outbound-record-empty] {
+      margin: 8px 0 16px;
+      color: var(--muted, #667085);
+    }
+
+    .outbound-record-table-wrap { overflow-x: auto; }
+
+    .outbound-record-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .outbound-record-table th,
+    .outbound-record-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #edf1f5;
+      font-size: 13px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 720px) {
+      .outbound-record-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .outbound-record-filters select,
+      .outbound-record-filters input { min-width: 0; width: 100%; }
+    }
+
     .customer-contact-actions {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -27988,6 +28068,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="nav-secondary-grid">
             <button class="nav-secondary-button" data-view="phone-workspace" title="可选遗留：话机工作台"><span>话机工作台</span></button>
             <button class="nav-secondary-button" data-view="phone-calls" title="可选遗留：通话记录与录音"><span>通话记录</span></button>
+            <button class="nav-secondary-button" data-view="outbound-call-records" title="外呼通话记录"><span>外呼记录</span></button>
             <button class="nav-secondary-button" data-view="phone-strategies" title="可选遗留：周期回访策略"><span>回访策略</span></button>
             <button class="nav-secondary-button" data-view="phone-config" title="可选遗留：阿里云接入与声音配置"><span>话机配置</span></button>
           </div>
@@ -31998,6 +32079,23 @@ body.platform-mode .workspace-tabs { display:none !important; }
         </style>
         <div class="view" id="phone-workspace"><div class="kd-phone-root"></div></div>
         <div class="view" id="phone-calls"><div class="kd-phone-root"></div></div>
+        <div class="view" id="outbound-call-records">
+          <div class="page-head">
+            <div>
+              <h1>外呼通话记录</h1>
+              <p>只读。按坐席和租户当地日期查看已经记下的通话。这里不能拨号，也不能改记录。</p>
+            </div>
+          </div>
+          <p class="outbound-record-note">接通看话单 EstablishedTime 是否有内容。平均时长只统计接通通话里能当成整数秒的 CallDuration，单位是秒。起算点和接通枚举如果和真实话单不一致，以接入方案第 9 节为准，这一页不另算一套。</p>
+          <form id="outboundCallRecordFilters" class="outbound-record-filters">
+            <label>坐席<select id="outboundCallRecordAgent"></select></label>
+            <label>从<input id="outboundCallRecordFrom" type="date"></label>
+            <label>到<input id="outboundCallRecordTo" type="date"></label>
+            <button class="btn" type="submit">筛选</button>
+          </form>
+          <div id="outboundCallRecordSummary"><p data-outbound-record-empty="1">这个范围内还没有通话记录。</p></div>
+          <div id="outboundCallRecordList"></div>
+        </div>
         <div class="view" id="phone-strategies"><div class="kd-phone-root"></div></div>
         <div class="view" id="phone-config"><div class="kd-phone-root"></div></div>
 
