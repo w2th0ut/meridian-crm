@@ -1,5 +1,12 @@
 import { publishTradeWorkbenchSnapshot } from "./trade-workspace";
 import { initTelephony, isPhoneView, loadPhone, startPhonePolling, stopPhonePolling } from "./telephony";
+import {
+  buildAliyunOutboundConfigBody,
+  secretStatusText,
+  showAliyunOutboundSettings,
+  type AliyunOutboundConfigResponse,
+  type AliyunOutboundConfigView
+} from "./aliyun-outbound-config";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -16190,6 +16197,82 @@ async function saveCompanyProfile() {
     toast(error instanceof Error ? error.message : "公司资料保存失败", "error");
   } finally {
     if (button) { button.disabled = false; button.textContent = "保存公司资料"; }
+  }
+}
+
+let aliyunOutboundConfigView: AliyunOutboundConfigView | null = null;
+
+function renderAliyunOutboundConfig() {
+  const section = qs<HTMLElement>("#aliyunOutboundConfigSection");
+  const view = aliyunOutboundConfigView;
+  if (!section || !view) return;
+  section.hidden = !showAliyunOutboundSettings(true);
+  const enabled = qs<HTMLInputElement>("#aliyunOutboundEnabled");
+  if (enabled) enabled.checked = view.aliyunOutboundEnabled === true;
+  setFieldValue("#aliyunOutboundInstanceId", view.instanceId || "");
+  setFieldValue("#aliyunOutboundRegion", view.region || "");
+  setFieldValue("#aliyunOutboundCallerNumber", view.callerNumber || "");
+  setFieldValue("#aliyunOutboundAccessKeyId", "");
+  setFieldValue("#aliyunOutboundAccessKeySecret", "");
+  setFieldValue("#aliyunOutboundCallbackPathToken", "");
+  const idStatus = qs<HTMLElement>("#aliyunOutboundAccessKeyIdStatus");
+  if (idStatus) idStatus.textContent = secretStatusText(view.accessKeyId);
+  const secretStatus = qs<HTMLElement>("#aliyunOutboundAccessKeySecretStatus");
+  if (secretStatus) secretStatus.textContent = secretStatusText(view.accessKeySecret);
+  const tokenStatus = qs<HTMLElement>("#aliyunOutboundCallbackPathTokenStatus");
+  if (tokenStatus) tokenStatus.textContent = secretStatusText(view.callbackPathToken);
+}
+
+async function loadAliyunOutboundConfig() {
+  const section = qs<HTMLElement>("#aliyunOutboundConfigSection");
+  if (!section) return;
+  try {
+    const result = await api<AliyunOutboundConfigResponse>("/api/aliyun-outbound/config");
+    if (!showAliyunOutboundSettings(result.canManage)) {
+      section.hidden = true;
+      aliyunOutboundConfigView = null;
+      return;
+    }
+    aliyunOutboundConfigView = result.config;
+    renderAliyunOutboundConfig();
+  } catch {
+    section.hidden = true;
+    aliyunOutboundConfigView = null;
+  }
+}
+
+async function saveAliyunOutboundConfig() {
+  const built = buildAliyunOutboundConfigBody({
+    aliyunOutboundEnabled: Boolean(qs<HTMLInputElement>("#aliyunOutboundEnabled")?.checked),
+    instanceId: qs<HTMLInputElement>("#aliyunOutboundInstanceId")?.value || "",
+    region: qs<HTMLSelectElement>("#aliyunOutboundRegion")?.value || "",
+    callerNumber: qs<HTMLInputElement>("#aliyunOutboundCallerNumber")?.value || "",
+    accessKeyId: qs<HTMLInputElement>("#aliyunOutboundAccessKeyId")?.value || "",
+    accessKeySecret: qs<HTMLInputElement>("#aliyunOutboundAccessKeySecret")?.value || "",
+    callbackPathToken: qs<HTMLInputElement>("#aliyunOutboundCallbackPathToken")?.value || ""
+  });
+  if (!built.ok) {
+    toast(built.message, "error");
+    return;
+  }
+  const button = qs<HTMLButtonElement>("#aliyunOutboundSaveButton");
+  try {
+    if (button) { button.disabled = true; button.textContent = "保存中"; }
+    const result = await api<AliyunOutboundConfigResponse>("/api/aliyun-outbound/config", {
+      method: "PUT",
+      body: JSON.stringify(built.body)
+    });
+    if (!showAliyunOutboundSettings(result.canManage)) {
+      qs<HTMLElement>("#aliyunOutboundConfigSection")!.hidden = true;
+      return;
+    }
+    aliyunOutboundConfigView = result.config;
+    renderAliyunOutboundConfig();
+    toast("阿里云外呼配置已保存");
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "阿里云外呼配置保存失败", "error");
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "保存阿里云外呼配置"; }
   }
 }
 
@@ -53265,6 +53348,7 @@ function installEvents() {
   qs<HTMLButtonElement>("#profileTestImapButton")?.addEventListener("click", (event) => void testProfileImap(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#profileDomainAuthButton")?.addEventListener("click", (event) => void checkProfileEmailDomain(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#companyProfileSaveButton")?.addEventListener("click", () => void saveCompanyProfile());
+  qs<HTMLButtonElement>("#aliyunOutboundSaveButton")?.addEventListener("click", () => void saveAliyunOutboundConfig());
   qs<HTMLButtonElement>("#mailboxPoolAddButton")?.addEventListener("click", () => openSenderMailboxModal());
   qs<HTMLButtonElement>("#trackingSaveButton")?.addEventListener("click", (event) => void saveEmailTrackingConfig(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#mysqlImportPicker")?.addEventListener("click", () => qs<HTMLInputElement>("#mysqlImportFile")?.click());
@@ -56491,6 +56575,7 @@ function activateNavView(view: string, after?: () => void) {
   if (view === "settings") {
     void loadTeamSystemSettings().catch((error) => toast(error instanceof Error ? error.message : "系统设置加载失败", "error"));
     void loadTrialAccounts().catch(() => undefined);
+    void loadAliyunOutboundConfig();
   }
   if (view === "inbox") {
     void refreshInternalMessages(false);

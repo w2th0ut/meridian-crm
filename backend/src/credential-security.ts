@@ -266,3 +266,55 @@ export function decryptAiModelApiKey(context: AiModelCredentialContext, encrypte
     decipher.final()
   ]).toString("utf8");
 }
+
+export type AliyunOutboundSecretField = "accessKeyId" | "accessKeySecret" | "callbackPathToken";
+
+function aliyunOutboundEncryptionKey() {
+  return createHash("sha256")
+    .update("keduoduo-aliyun-outbound-v1|")
+    .update(credentialSecret())
+    .digest();
+}
+
+function aliyunOutboundAdditionalData(teamId: string, field: AliyunOutboundSecretField) {
+  return Buffer.from(["aliyun-outbound", teamId, field].join("|"), "utf8");
+}
+
+export function isEncryptedAliyunOutboundSecret(value: string) {
+  return value.startsWith("aliyun-ccc-v1.");
+}
+
+/** AES-256-GCM，附加数据绑定租户和字段。空字符串不加密。 */
+export function encryptAliyunOutboundSecret(teamId: string, field: AliyunOutboundSecretField, value: string) {
+  if (!value) return "";
+  if (!teamId || teamId === "all") throw new Error("阿里云外呼密钥必须绑定具体租户");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", aliyunOutboundEncryptionKey(), iv);
+  cipher.setAAD(aliyunOutboundAdditionalData(teamId, field));
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return [
+    "aliyun-ccc-v1",
+    iv.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+    encrypted.toString("base64url")
+  ].join(".");
+}
+
+export function decryptAliyunOutboundSecret(teamId: string, field: AliyunOutboundSecretField, encryptedValue: string) {
+  if (!encryptedValue) return "";
+  const [version, ivValue, tagValue, payloadValue] = encryptedValue.split(".");
+  if (version !== "aliyun-ccc-v1" || !ivValue || !tagValue || !payloadValue) {
+    throw new Error("阿里云外呼密钥密文格式无效");
+  }
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    aliyunOutboundEncryptionKey(),
+    Buffer.from(ivValue, "base64url")
+  );
+  decipher.setAAD(aliyunOutboundAdditionalData(teamId, field));
+  decipher.setAuthTag(Buffer.from(tagValue, "base64url"));
+  return Buffer.concat([
+    decipher.update(Buffer.from(payloadValue, "base64url")),
+    decipher.final()
+  ]).toString("utf8");
+}

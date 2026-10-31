@@ -4854,6 +4854,46 @@ export interface ProspectIndustryAuditEvent {
   newValue: string | null;
 }
 
+/** 租户级云联络中心配置。密钥字段只存密文。 */
+export interface AliyunOutboundConfig {
+  teamId: string;
+  aliyunOutboundEnabled: boolean;
+  instanceId: string;
+  region: string;
+  callerNumber: string;
+  accessKeyIdEncrypted: string;
+  accessKeySecretEncrypted: string;
+  callbackPathTokenEncrypted: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+export interface AliyunOutboundSecretMask {
+  configured: boolean;
+  last4: string;
+}
+
+/** 接口和页面使用的脱敏视图。不含密钥明文，也不含密文。 */
+export interface AliyunOutboundConfigView {
+  aliyunOutboundEnabled: boolean;
+  instanceId: string;
+  region: string;
+  callerNumber: string;
+  accessKeyId: AliyunOutboundSecretMask;
+  accessKeySecret: AliyunOutboundSecretMask;
+  callbackPathToken: AliyunOutboundSecretMask;
+}
+
+/** 配置修改审计。summary 只记字段名和非密钥值，不记 Secret 明文。 */
+export interface AliyunOutboundConfigAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "update_config";
+  summary: string;
+}
+
 export interface CommissionCalculation {
   id: string;
   month: string;

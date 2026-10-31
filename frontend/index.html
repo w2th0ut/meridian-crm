@@ -34302,6 +34302,20 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </div>
           </section>
 
+          <section class="panel section" id="aliyunOutboundConfigSection" data-admin-only hidden>
+            <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg></span><div><h2>阿里云外呼</h2><p class="section-subtitle">只保存本租户的云联络中心配置。默认关闭。不会发起呼叫，也不会请求阿里云。</p></div></div><button class="btn primary" id="aliyunOutboundSaveButton" type="button">保存阿里云外呼配置</button></div>
+            <div class="company-profile-form" style="margin-top:14px;">
+              <label style="grid-column:1 / -1;display:flex;align-items:center;gap:10px;"><span class="system-setting-switch"><input id="aliyunOutboundEnabled" type="checkbox"><i></i></span><span>启用阿里云外呼</span></label>
+              <label><span>实例 ID</span><input id="aliyunOutboundInstanceId" autocomplete="off"></label>
+              <label><span>地域</span><select id="aliyunOutboundRegion"><option value="">未选择</option><option value="cn-shanghai">华东 2（上海）cn-shanghai</option><option value="cn-hangzhou">华东 1（杭州）cn-hangzhou</option></select></label>
+              <label><span>主叫号码</span><input id="aliyunOutboundCallerNumber" autocomplete="off"></label>
+              <label><span>AccessKeyId</span><input id="aliyunOutboundAccessKeyId" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundAccessKeyIdStatus">未配置</b></label>
+              <label><span>AccessKeySecret</span><input id="aliyunOutboundAccessKeySecret" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundAccessKeySecretStatus">未配置</b></label>
+              <label><span>回调路径令牌</span><input id="aliyunOutboundCallbackPathToken" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundCallbackPathTokenStatus">未配置</b></label>
+            </div>
+            <p class="system-setting-help">只有管理员可以查看和修改。密钥加密后保存在服务器，页面只显示是否已配置和末 4 位。地域只接受 cn-shanghai 和 cn-hangzhou。这一节不拨号，不注册公网回调，也不改变获客门禁。</p>
+          </section>
+
           <section class="panel section" id="trialAccountsPanel" style="margin-top:24px;" hidden>
             <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span><div><h2>体验账号</h2><p class="section-subtitle">一键生成带有效期的试用账号并导出发给客户；到期后账号自动禁止登录、已有登录立即失效。</p></div></div><div class="head-actions"><button class="btn" id="trialRefreshButton">刷新</button><button class="btn" id="trialExportButton">导出 CSV</button><button class="btn primary" id="trialGenerateButton">批量生成</button></div></div>
             <div style="overflow-x:auto;">
