@@ -254,6 +254,21 @@ import {
   type FailureBounceAgeView
 } from "./prospect-failure-bounce-age";
 import {
+  OPEN_CLICK_AGE_LIMIT,
+  formatOpenClickAgeAt,
+  listOpenClickAgeQueue,
+  openClickAgeEntryLabel,
+  openClickAgeLineLabel,
+  openClickAgeListFilterForOpen,
+  openClickAgeMatchesFilter,
+  openClickAgeStatusLabel,
+  openClickAgeSummary,
+  openClickOccurrenceAt,
+  presentOpenClickAge,
+  type OpenClickAgeListFilter,
+  type OpenClickAgeView
+} from "./prospect-open-click-age";
+import {
   INBOUND_SYNC_LIMIT,
   inboundSyncEntryLabel,
   inboundSyncSummary,
@@ -4083,6 +4098,7 @@ interface AppState {
   prospectReleaseBatchAgeFilter: ReleaseBatchAgeListFilter;
   prospectSuppressListAgeFilter: SuppressListAgeListFilter;
   prospectFailureBounceAgeFilter: FailureBounceAgeListFilter;
+  prospectOpenClickAgeFilter: OpenClickAgeListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4320,6 +4336,7 @@ const state: AppState = {
   prospectReleaseBatchAgeFilter: "all",
   prospectSuppressListAgeFilter: "all",
   prospectFailureBounceAgeFilter: "all",
+  prospectOpenClickAgeFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -11825,6 +11842,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardReleaseBatchAge();
   renderDashboardSuppressListAge();
   renderDashboardFailureBounceAge();
+  renderDashboardOpenClickAge();
   renderDashboardInboundSync();
 }
 
@@ -13934,6 +13952,7 @@ function renderLeadDrawer(
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33855,6 +33874,7 @@ function prospectFilteredRows() {
       if (state.prospectReleaseBatchAgeFilter !== "all" && !releaseBatchAgeMatchesFilter(prospectReleaseBatchAge(item), state.prospectReleaseBatchAgeFilter)) return false;
       if (state.prospectSuppressListAgeFilter !== "all" && !suppressListAgeMatchesFilter(prospectSuppressListAge(item), state.prospectSuppressListAgeFilter)) return false;
       if (state.prospectFailureBounceAgeFilter !== "all" && !failureBounceAgeMatchesFilter(prospectFailureBounceAge(item), state.prospectFailureBounceAgeFilter)) return false;
+      if (state.prospectOpenClickAgeFilter !== "all" && !openClickAgeMatchesFilter(prospectOpenClickAge(item), state.prospectOpenClickAgeFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -35999,6 +36019,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -36034,6 +36055,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -36075,6 +36097,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -36150,6 +36173,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectReleaseBatchAge(item)}
     ${renderProspectSuppressListAge(item)}
     ${renderProspectFailureBounceAge(item)}
+    ${renderProspectOpenClickAge(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -36223,6 +36247,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindReleaseBatchAgeLinks(box);
   bindSuppressListAgeLinks(box);
   bindFailureBounceAgeLinks(box);
+  bindOpenClickAgeLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -36316,6 +36341,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusReleaseBatchAgeTarget(item.id, box);
   focusSuppressListAgeTarget(item.id, box);
   focusFailureBounceAgeTarget(item.id, box);
+  focusOpenClickAgeTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -36889,6 +36915,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -37302,6 +37329,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37653,6 +37681,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37731,6 +37760,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -37876,6 +37906,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38034,6 +38065,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38198,6 +38230,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-open-click-age-filter]").forEach((button) => {
+    const active = button.dataset.prospectOpenClickAgeFilter === state.prospectOpenClickAgeFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -38211,9 +38248,13 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const failureBounceAgeEmpty = state.prospectFailureBounceAgeFilter === "long"
-    ? "没有失败超七日的候选。这里不会编造失败时间，也不会自动重发，也不会解除抑制，也不会发信。"
+  const openClickAgeEmpty = state.prospectOpenClickAgeFilter === "long"
+    ? "没有打开超七日的候选。这里不会编造打开时间，也不会自动跟进，也不会发信，也不会推进序列。"
     : "";
+  const failureBounceAgeEmpty = openClickAgeEmpty
+    || (state.prospectFailureBounceAgeFilter === "long"
+    ? "没有失败超七日的候选。这里不会编造失败时间，也不会自动重发，也不会解除抑制，也不会发信。"
+    : "");
   const suppressListAgeEmpty = failureBounceAgeEmpty
     || (state.prospectSuppressListAgeFilter === "long"
     ? "没有抑制超七日的候选。这里不会编造抑制时间，也不会解除抑制，也不会发信。"
@@ -38339,6 +38380,7 @@ function renderProspectList() {
             ${renderReleaseBatchAgeLine(item)}
             ${renderSuppressListAgeLine(item)}
             ${renderFailureBounceAgeLine(item)}
+            ${renderOpenClickAgeLine(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -38409,6 +38451,7 @@ function renderProspectList() {
     bindReleaseBatchAgeLinks(rows);
     bindSuppressListAgeLinks(rows);
     bindFailureBounceAgeLinks(rows);
+    bindOpenClickAgeLinks(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -38435,6 +38478,7 @@ function renderProspectList() {
   renderDashboardReleaseBatchAge();
   renderDashboardSuppressListAge();
   renderDashboardFailureBounceAge();
+  renderDashboardOpenClickAge();
   renderDashboardInboundSync();
 }
 
@@ -38608,6 +38652,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38880,6 +38925,7 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -39096,6 +39142,7 @@ function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -40593,6 +40640,12 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (!websiteOpportunitiesLoaded && failureBounceAgeList) {
       failureBounceAgeList.innerHTML = `<div class="empty-cell">失败退信日龄暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造失败时间，也不会自动重发，也不会解除抑制，也不会发信。</div>`;
     }
+    const openClickAgeScope = qs<HTMLElement>("#dashboardOpenClickAgeScope");
+    const openClickAgeList = qs<HTMLElement>("#dashboardOpenClickAgeList");
+    if (openClickAgeScope) openClickAgeScope.textContent = "打开或点击日龄暂时读不到";
+    if (!websiteOpportunitiesLoaded && openClickAgeList) {
+      openClickAgeList.innerHTML = `<div class="empty-cell">打开或点击日龄暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造打开时间，也不会自动跟进，也不会发信，也不会推进序列。</div>`;
+    }
     acquisitionTodoReadError = message;
     renderDashboardAcquisitionTodoSummary();
   } finally {
@@ -40869,6 +40922,7 @@ function openNextFollowDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41011,6 +41065,7 @@ function openStageStuckFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41145,6 +41200,7 @@ function openFollowUpGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41293,6 +41349,7 @@ function openContactGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41457,6 +41514,7 @@ function openJoinAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41643,6 +41701,7 @@ function openSilentAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41805,6 +41864,7 @@ function openOutreachActionGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectOutreachActionGapFilter = outreachActionGapListFilterForOpen(view);
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
@@ -41964,6 +42024,7 @@ function openSequenceNextDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42124,6 +42185,7 @@ function openReplyBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42287,6 +42349,7 @@ function openReleaseBatchAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = releaseBatchAgeListFilterForOpen(view);
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42455,6 +42518,7 @@ function openSuppressListAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = suppressListAgeListFilterForOpen(view);
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42616,6 +42680,7 @@ function openFailureBounceAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectReplyBacklogFilter = "all";
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = failureBounceAgeListFilterForOpen(view);
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
@@ -42628,6 +42693,169 @@ function openFailureBounceAgeFromDashboard(item: WebsiteOpportunity) {
   const show = () => {
     renderProspectList();
     toast("已打开现有候选。只读，不会自动重发，也不会解除抑制，也不会发信，也不会改名单。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+function prospectOpenClickAge(item: WebsiteOpportunity, now = new Date()): OpenClickAgeView {
+  const engagement = presentOutreachEngagement(item.outreachEngagement);
+  return presentOpenClickAge({
+    opened: engagement.status === "hit",
+    at: openClickOccurrenceAt(engagement.open.at, engagement.click.at)
+  }, now);
+}
+
+function openClickAgeBadgeTone(kind: OpenClickAgeView["kind"]) {
+  if (kind === "long") return "amber";
+  if (kind === "recent") return "green";
+  return "gray";
+}
+
+function renderProspectOpenClickAge(item: WebsiteOpportunity) {
+  const view = prospectOpenClickAge(item);
+  return `<section class="prospect-open-click-age" id="prospectOpenClickAge" data-open-click-age="${view.kind}">
+    <div class="prospect-open-click-age-head"><b>打开或点击日龄</b>${badge(openClickAgeStatusLabel(view), openClickAgeBadgeTone(view.kind))}</div>
+    <p>${escapeHtml(openClickAgeSummary(view))}</p>
+    <p class="prospect-open-click-age-body" data-open-click-age-body="${view.kind}">${escapeHtml(openClickAgeLineLabel(view))}</p>
+    <div class="prospect-action-row"><button class="btn" type="button" data-open-click-age-entry="${escapeHtml(item.id)}">${escapeHtml(openClickAgeEntryLabel())}</button></div>
+  </section>`;
+}
+
+function renderOpenClickAgeLine(item: WebsiteOpportunity) {
+  const view = prospectOpenClickAge(item);
+  const compact = view.kind === "none" ? " is-empty" : ` is-compact is-${view.kind}`;
+  return `<div class="prospect-open-click-age${compact}" data-open-click-age="${view.kind}">${escapeHtml(openClickAgeLineLabel(view))}</div>`;
+}
+
+let openClickAgeFocusId = "";
+
+/** 只滚到已有的开发信打开或点击。没有这块时停在详情顶部。不自动跟进，不发信，不推进序列，也不改名单。 */
+function scrollToOpenClickAgeTarget(root: ParentNode): "engagement" | "top" | false {
+  const mark = (entry: HTMLElement) => {
+    entry.classList.add("is-attention");
+    entry.scrollIntoView({ block: "nearest" });
+    window.setTimeout(() => entry.classList.remove("is-attention"), 1600);
+    return true;
+  };
+  const entry = root.querySelector<HTMLElement>("#prospectOutreachEngagement");
+  if (entry) {
+    mark(entry);
+    return "engagement";
+  }
+  const top = root.querySelector<HTMLElement>(".prospect-detail-hero, .lead-verification-drawer-head");
+  if (top) {
+    mark(top);
+    return "top";
+  }
+  if (root instanceof HTMLElement) {
+    root.scrollIntoView({ block: "start" });
+    return "top";
+  }
+  return false;
+}
+
+function focusOpenClickAgeTarget(itemId: string, root: ParentNode | null) {
+  if (openClickAgeFocusId !== itemId || !root) return;
+  openClickAgeFocusId = "";
+  scrollToOpenClickAgeTarget(root);
+}
+
+function bindOpenClickAgeLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-open-click-age-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const landed = scrollToOpenClickAgeTarget(root);
+      if (landed === "engagement") {
+        toast("已打开现有开发信打开或点击。只读，不会自动跟进，也不会发信，也不会推进序列，也不会改名单。");
+      } else if (landed === "top") {
+        toast("没有开发信打开或点击，已停在详情顶部。只读，不会自动跟进，也不会发信，也不会推进序列，也不会改名单。");
+      }
+    });
+  });
+}
+
+function renderDashboardOpenClickAge(now = new Date()) {
+  const scope = qs<HTMLElement>("#dashboardOpenClickAgeScope");
+  const list = qs<HTMLElement>("#dashboardOpenClickAgeList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看打开或点击日龄。这里不会编造名单，也不会自动跟进，也不会发信，也不会推进序列。</div>`;
+    return;
+  }
+  const queue = listOpenClickAgeQueue(visible, (item) => prospectOpenClickAge(item, now), OPEN_CLICK_AGE_LIMIT);
+  if (!queue.total) {
+    scope.textContent = "当前可见的搜客清单没有可解析的打开或点击发生时间";
+    list.innerHTML = `<div class="empty-cell">无打开日龄。当前可见的搜客清单没有可解析的打开或点击发生时间。这里不会编造打开时间，也不会自动跟进，也不会发信，也不会推进序列。</div>`;
+    return;
+  }
+  const shown = queue.rows;
+  scope.textContent = queue.total > shown.length
+    ? `可见范围 ${queue.total} 条能判断打开或点击日龄，这里显示 ${shown.length} 条，打开超七日在前`
+    : `可见范围 ${queue.total} 条能判断打开或点击日龄，打开超七日在前`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectOpenClickAge(item, now);
+    return `<button class="dashboard-prospect-row${view.kind === "long" ? " is-open-long" : ""}" type="button" data-dashboard-open-click-age="${escapeHtml(item.id)}" data-open-click-age="${view.kind}" aria-label="打开或点击日龄：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(openClickAgeStatusLabel(view))}</span>
+      <em>${escapeHtml(formatOpenClickAgeAt(view.atMs))}</em>
+    </button>`;
+  }).join("");
+}
+
+function openOpenClickAgeFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return;
+  const view = prospectOpenClickAge(item);
+  if (view.kind === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
+  state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
+  state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
+  state.prospectSilentAgeFilter = "all";
+  state.prospectOutreachActionGapFilter = "all";
+  state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
+  state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
+  state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = openClickAgeListFilterForOpen(view);
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  openClickAgeFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开现有候选。只读，不会自动跟进，也不会发信，也不会推进序列，也不会改名单。");
   };
   if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
     show();
@@ -44277,6 +44505,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -46337,6 +46566,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectReleaseBatchAge(item)}
     ${renderProspectSuppressListAge(item)}
     ${renderProspectFailureBounceAge(item)}
+    ${renderProspectOpenClickAge(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -46453,6 +46683,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindReleaseBatchAgeLinks(box);
   bindSuppressListAgeLinks(box);
   bindFailureBounceAgeLinks(box);
+  bindOpenClickAgeLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -46489,6 +46720,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusReleaseBatchAgeTarget(item.id, box);
   focusSuppressListAgeTarget(item.id, box);
   focusFailureBounceAgeTarget(item.id, box);
+  focusOpenClickAgeTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -48463,6 +48695,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
   state.prospectReleaseBatchAgeFilter = "all";
   state.prospectSuppressListAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -51828,6 +52061,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectFailureBounceAge(item).kind === "none") return;
     openFailureBounceAgeFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardOpenClickAgeRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardOpenClickAge")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-open-click-age]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardOpenClickAge);
+    if (!item || !item.shortlistedAt || prospectOpenClickAge(item).kind === "none") return;
+    openOpenClickAgeFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#dashboardAcquisitionStagesRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
   });
@@ -52362,6 +52604,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectFailureBounceAgeFilter || "all";
       state.prospectFailureBounceAgeFilter = next === "long" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-open-click-age-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectOpenClickAgeFilter || "all";
+      state.prospectOpenClickAgeFilter = next === "long" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
