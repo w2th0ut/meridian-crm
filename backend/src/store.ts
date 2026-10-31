@@ -394,6 +394,8 @@ export interface CrmStore {
   commissionItems: CommissionItem[];
   commissionExports: CommissionExport[];
   persist(): Promise<void>;
+  /** 读取 IAM 租户时区。没有记录时返回空字符串。 */
+  readTenantTimezone?(teamId: string): Promise<string>;
   persistProducts(): Promise<void>;
   persistShipments(): Promise<void>;
   persistLogs(): Promise<void>;

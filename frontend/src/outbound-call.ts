@@ -40,6 +40,9 @@ export const OUTBOUND_CALL_REASON_TEXT: Record<string, string> = {
   not_contactable: "候选还不是已批准可联系",
   unmapped: "当前用户没有对应的云联络中心坐席",
   ambiguous: "这个号码对应多条记录，请从对应页面单独发起",
+  outside_window: "当前不在允许拨打时段",
+  daily_limit: "同一号码今日拨打次数已达上限",
+  min_interval: "距上次拨打未满最小间隔",
   dial_failed: "外呼没有发出",
   invalid_request: "参数格式错误"
 };

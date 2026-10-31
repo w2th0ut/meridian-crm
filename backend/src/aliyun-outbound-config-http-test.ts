@@ -94,6 +94,10 @@ try {
   assert.equal(initial.response.status, 200);
   assert.equal(initial.json.teamId, "europe");
   assert.equal(initial.json.config.aliyunOutboundEnabled, false);
+  assert.equal(initial.json.config.callWindowStart, "09:00");
+  assert.equal(initial.json.config.callWindowEnd, "20:00");
+  assert.equal(initial.json.config.maxCallsPerNumberPerDay, 3);
+  assert.equal(initial.json.config.minIntervalMinutes, 30);
   assert.equal(initial.json.config.accessKeyId.configured, false);
   assert.equal(initial.json.config.accessKeySecret.configured, false);
   assert.equal(initial.json.config.callbackPathToken.configured, false);
@@ -159,7 +163,35 @@ try {
   });
   assert.equal(kept.response.status, 200);
   assert.equal(kept.json.config.callerNumber, "02100002222");
+  assert.equal(kept.json.config.callWindowStart, "09:00");
   assert.equal(kept.json.config.accessKeySecret.last4, "wxyz");
+  const auditsBeforeWindow = store.aliyunOutboundConfigAudits.length;
+  const windowed = await request("/api/aliyun-outbound/config", admin, "PUT", {
+    callWindowStart: "10:00",
+    callWindowEnd: "18:00",
+    maxCallsPerNumberPerDay: 2,
+    minIntervalMinutes: 45
+  });
+  assert.equal(windowed.response.status, 200);
+  assert.equal(windowed.json.config.aliyunOutboundEnabled, false);
+  assert.equal(windowed.json.config.callWindowStart, "10:00");
+  assert.equal(windowed.json.config.callWindowEnd, "18:00");
+  assert.equal(windowed.json.config.maxCallsPerNumberPerDay, 2);
+  assert.equal(windowed.json.config.minIntervalMinutes, 45);
+  assert.equal(store.aliyunOutboundConfigAudits.length, auditsBeforeWindow + 1);
+  assert.equal(store.aliyunOutboundConfigAudits[0]?.action, "update_config");
+  assert.match(store.aliyunOutboundConfigAudits[0]?.summary || "", /callWindowStart: 09:00 → 10:00/);
+  assert.match(store.aliyunOutboundConfigAudits[0]?.summary || "", /minIntervalMinutes: 30 → 45/);
+  assert.equal(JSON.stringify(windowed.json).includes(secret), false);
+  const reversed = await request("/api/aliyun-outbound/config", admin, "PUT", {
+    callWindowStart: "20:00",
+    callWindowEnd: "09:00"
+  });
+  assert.equal(reversed.response.status, 400);
+  assert.match(String(reversed.json.message || ""), /开始必须早于结束/);
+  assert.equal(store.aliyunOutboundConfigAudits.length, auditsBeforeWindow + 1);
+  assert.equal(store.aliyunOutboundConfigs.find((item) => item.teamId === "europe")?.callWindowStart, "10:00");
+  assert.equal(store.aliyunOutboundConfigs.find((item) => item.teamId === "europe")?.aliyunOutboundEnabled, false);
   assert.equal(JSON.stringify(kept.json).includes(secret), false);
   assert.equal(JSON.stringify(store.aliyunOutboundConfigAudits).includes(secret), false);
 

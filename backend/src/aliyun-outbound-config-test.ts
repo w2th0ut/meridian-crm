@@ -46,6 +46,10 @@ const store = memoryStore();
 
 const initial = readAliyunOutboundConfig(store, admin);
 assert.equal(initial.config.aliyunOutboundEnabled, false);
+assert.equal(initial.config.callWindowStart, "09:00");
+assert.equal(initial.config.callWindowEnd, "20:00");
+assert.equal(initial.config.maxCallsPerNumberPerDay, 3);
+assert.equal(initial.config.minIntervalMinutes, 30);
 assert.equal(initial.config.accessKeySecret.configured, false);
 assert.equal(initial.config.accessKeySecret.last4, "");
 assert.deepEqual(initial.regions, [...ALIYUN_CCC_REGION_IDS]);
@@ -103,11 +107,51 @@ assert.match(store.aliyunOutboundConfigAudits[0].summary, /accessKeySecret: 已�
 assert.match(store.aliyunOutboundConfigAudits[0].summary, /instanceId: （空） → ccc-demo/);
 assert.equal(store.aliyunOutboundConfigAudits[0].summary.includes(secret), false);
 assert.equal(store.aliyunOutboundConfigAudits[0].summary.includes("false → false"), false);
+assert.equal(store.aliyunOutboundConfigAudits[0].summary.includes("callWindowStart"), false);
+assert.equal(stored.callWindowStart, "09:00");
+assert.equal(stored.maxCallsPerNumberPerDay, 3);
+assert.equal(stored.minIntervalMinutes, 30);
+
+const windowed = await updateAliyunOutboundConfig(store, admin, {
+  callWindowStart: "10:00",
+  callWindowEnd: "18:30",
+  maxCallsPerNumberPerDay: 2,
+  minIntervalMinutes: 45
+});
+assert.equal(windowed.config.aliyunOutboundEnabled, false);
+assert.equal(windowed.config.callWindowStart, "10:00");
+assert.equal(windowed.config.callWindowEnd, "18:30");
+assert.equal(windowed.config.maxCallsPerNumberPerDay, 2);
+assert.equal(windowed.config.minIntervalMinutes, 45);
+assert.equal(store.aliyunOutboundConfigAudits[0].action, "update_config");
+assert.match(store.aliyunOutboundConfigAudits[0].summary, /callWindowStart: 09:00 → 10:00/);
+assert.match(store.aliyunOutboundConfigAudits[0].summary, /callWindowEnd: 20:00 → 18:30/);
+assert.match(store.aliyunOutboundConfigAudits[0].summary, /maxCallsPerNumberPerDay: 3 → 2/);
+assert.match(store.aliyunOutboundConfigAudits[0].summary, /minIntervalMinutes: 30 → 45/);
+assert.equal(store.aliyunOutboundConfigAudits[0].summary.includes(secret), false);
+
+const auditsAfterWindow = store.aliyunOutboundConfigAudits.length;
+await assert.rejects(() => updateAliyunOutboundConfig(store, admin, {
+  callWindowStart: "21:00",
+  callWindowEnd: "09:00"
+}), (error: unknown) => {
+  assert.equal((error as { status?: number }).status, 400);
+  assert.match(String((error as { message?: string }).message), /开始必须早于结束/);
+  return true;
+});
+assert.equal(store.aliyunOutboundConfigAudits.length, auditsAfterWindow);
+assert.equal(store.aliyunOutboundConfigs[0].callWindowStart, "10:00");
+assert.equal(store.aliyunOutboundConfigs[0].aliyunOutboundEnabled, false);
 
 const schema = readFileSync(new URL("./mysql-store.ts", import.meta.url), "utf8");
 assert.match(schema, /CREATE TABLE IF NOT EXISTS aliyun_outbound_config_audits \(/);
 assert.equal(schema.includes("CREATE TABLE aliyun_outbound_config_audits"), false);
 assert.match(schema, /CREATE TABLE IF NOT EXISTS aliyun_outbound_configs \(/);
+assert.match(schema, /ensureColumn\(pool, "aliyun_outbound_configs", "call_window_start"/);
+assert.match(schema, /ensureColumn\(pool, "aliyun_outbound_configs", "call_window_end"/);
+assert.match(schema, /ensureColumn\(pool, "aliyun_outbound_configs", "max_calls_per_number_per_day"/);
+assert.match(schema, /ensureColumn\(pool, "aliyun_outbound_configs", "min_interval_minutes"/);
+assert.match(schema, /ensureColumn\(pool, "outbound_call_audits", "number_key"/);
 const source = readFileSync(new URL("./aliyun-outbound-config.ts", import.meta.url), "utf8");
 assert.doesNotMatch(source, /aliyuncs\.com|MakeCall|fetch\(/);
 assert.doesNotMatch(source, /console\.(log|info|debug|warn|error)/);

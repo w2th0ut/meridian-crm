@@ -4861,6 +4861,14 @@ export interface AliyunOutboundConfig {
   instanceId: string;
   region: string;
   callerNumber: string;
+  /** 允许拨打开始，HH:MM，按租户时区。缺省 09:00。 */
+  callWindowStart?: string;
+  /** 允许拨打结束，HH:MM，含这一分钟。缺省 20:00。 */
+  callWindowEnd?: string;
+  /** 同一号码每个租户当地日最多拨打次数。缺省 3。 */
+  maxCallsPerNumberPerDay?: number;
+  /** 同一号码两次允许拨打之间的最少间隔，分钟。缺省 30。0 表示不另加间隔。 */
+  minIntervalMinutes?: number;
   accessKeyIdEncrypted: string;
   accessKeySecretEncrypted: string;
   callbackPathTokenEncrypted: string;
@@ -4879,6 +4887,10 @@ export interface AliyunOutboundConfigView {
   instanceId: string;
   region: string;
   callerNumber: string;
+  callWindowStart: string;
+  callWindowEnd: string;
+  maxCallsPerNumberPerDay: number;
+  minIntervalMinutes: number;
   accessKeyId: AliyunOutboundSecretMask;
   accessKeySecret: AliyunOutboundSecretMask;
   callbackPathToken: AliyunOutboundSecretMask;
@@ -4907,6 +4919,8 @@ export interface OutboundCallAudit {
   result: "allowed" | "rejected";
   reason: string;
   jobId: string;
+  /** 被叫数字的摘要。不是号码本身，用来判断同一号码的频次。 */
+  numberKey?: string;
 }
 
 /** 一次 CCC 事件回调的审计。号码只留脱敏结果，不留令牌，也不留密钥。 */

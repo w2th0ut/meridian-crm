@@ -1,6 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { canSeeOwner, hasIamPermission, type IamActor } from "./auth.js";
-import { ALIYUN_CCC_REGION_IDS } from "./aliyun-outbound-config.js";
+import {
+  ALIYUN_CCC_REGION_IDS,
+  callWindowMinutes,
+  outboundCallingPolicy
+} from "./aliyun-outbound-config.js";
 import {
   CCC_MAKE_CALL_DEVICE_ID,
   createAliyunCccMakeCallDialer,
@@ -40,6 +44,9 @@ export type OutboundCallReason =
   | "not_contactable"
   | "unmapped"
   | "ambiguous"
+  | "outside_window"
+  | "daily_limit"
+  | "min_interval"
   | "dial_failed";
 
 export function customerPhoneId(customerId: string) {
@@ -68,11 +75,14 @@ const MESSAGES: Record<OutboundCallReason, string> = {
   not_contactable: "候选还不是已批准可联系",
   unmapped: "当前用户没有对应的云联络中心坐席",
   ambiguous: "这个号码对应多条记录，请从对应页面单独发起",
+  outside_window: "当前不在允许拨打时段",
+  daily_limit: "同一号码今日拨打次数已达上限",
+  min_interval: "距上次拨打未满最小间隔",
   dial_failed: "外呼没有发出"
 };
 
 function statusFor(reason: OutboundCallReason) {
-  if (reason === "invalid_request") return 400;
+  if (reason === "invalid_request" || reason === "outside_window" || reason === "daily_limit" || reason === "min_interval") return 400;
   if (reason === "forbidden" || reason === "disabled" || reason === "unmapped") return 403;
   if (reason === "not_found") return 404;
   if (reason === "dial_failed") return 502;
@@ -84,6 +94,116 @@ let dialerOverride: OutboundDialer | undefined;
 /** 测试注入 mock。传入 undefined 恢复为不访问网络的默认传输。 */
 export function setOutboundDialerForTests(dialer: OutboundDialer | undefined) {
   dialerOverride = dialer;
+}
+
+/** 没有单独设置时区的租户与 IAM 建租户时的默认值一致。 */
+export const DEFAULT_TENANT_TIMEZONE = "Asia/Shanghai";
+
+let outboundNowOverride: Date | undefined;
+const tenantTimezoneOverrides = new WeakMap<object, Map<string, string>>();
+
+/** 测试冻结“现在”。传入 undefined 恢复为真实时间。 */
+export function setOutboundNowForTests(value: Date | undefined) {
+  outboundNowOverride = value ? new Date(value.getTime()) : undefined;
+}
+
+/** 测试指定租户时区。传入 undefined 去掉覆盖，改回默认或 IAM 记录。 */
+export function setTenantTimezoneOverride(store: object, teamId: string, timeZone: string | undefined) {
+  const current = tenantTimezoneOverrides.get(store);
+  if (!timeZone) {
+    current?.delete(teamId);
+    return;
+  }
+  if (!isValidTimeZone(timeZone)) return;
+  const map = current || new Map<string, string>();
+  if (!current) tenantTimezoneOverrides.set(store, map);
+  map.set(teamId, timeZone);
+}
+
+function outboundNow() {
+  return outboundNowOverride ? new Date(outboundNowOverride.getTime()) : new Date();
+}
+
+function isValidTimeZone(timeZone: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function zonedClock(at: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(at);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  let hour = Number(pick("hour"));
+  if (hour === 24) hour = 0;
+  return {
+    dateKey: `${pick("year")}-${pick("month")}-${pick("day")}`,
+    minutes: hour * 60 + Number(pick("minute"))
+  };
+}
+
+async function resolveTenantTimezone(store: CrmStore, teamId: string) {
+  const override = tenantTimezoneOverrides.get(store)?.get(teamId);
+  if (override && isValidTimeZone(override)) return override;
+  if (store.readTenantTimezone) {
+    try {
+      const value = (await store.readTenantTimezone(teamId)).trim();
+      if (value && isValidTimeZone(value)) return value;
+    } catch {
+      // 读不到租户时区时用默认值，不因此把拨号放过去或拦死。
+    }
+  }
+  return DEFAULT_TENANT_TIMEZONE;
+}
+
+/** 只摘要数字。审计里不留号码本身。 */
+export function outboundNumberKey(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
+  return createHash("sha256").update(digits).digest("hex");
+}
+
+/**
+ * 原有门禁通过之后才看。先时段，再当日上限，再最小间隔。
+ * 只统计结果为允许的拨打。拒绝不占次数，也不刷新间隔。
+ */
+async function callingLimitReason(store: CrmStore, teamId: string, phone: string, at: Date): Promise<OutboundCallReason | null> {
+  const policy = outboundCallingPolicy(store.aliyunOutboundConfigs.find((item) => item.teamId === teamId));
+  const timeZone = await resolveTenantTimezone(store, teamId);
+  const local = zonedClock(at, timeZone);
+  const start = callWindowMinutes(policy.callWindowStart);
+  const end = callWindowMinutes(policy.callWindowEnd);
+  if (local.minutes < start || local.minutes > end) return "outside_window";
+  const key = outboundNumberKey(phone);
+  if (!key) return null;
+  const allowed = store.outboundCallAudits.filter((item) =>
+    item.teamId === teamId && item.result === "allowed" && item.numberKey === key
+  );
+  const todayCount = allowed.filter((item) => {
+    const parsed = Date.parse(item.at);
+    if (!Number.isFinite(parsed)) return false;
+    return zonedClock(new Date(parsed), timeZone).dateKey === local.dateKey;
+  }).length;
+  if (todayCount >= policy.maxCallsPerNumberPerDay) return "daily_limit";
+  if (policy.minIntervalMinutes > 0) {
+    let latest = 0;
+    for (const item of allowed) {
+      const parsed = Date.parse(item.at);
+      if (Number.isFinite(parsed) && parsed > latest) latest = parsed;
+    }
+    if (latest && at.getTime() - latest < policy.minIntervalMinutes * 60_000) return "min_interval";
+  }
+  return null;
 }
 
 function dialerFor(region: string) {
@@ -307,7 +427,8 @@ function rejected(reason: OutboundCallReason) {
 async function writeAudit(store: CrmStore, input: Omit<OutboundCallAudit, "id" | "at">) {
   const audit: OutboundCallAudit = {
     id: `oca_${randomUUID()}`,
-    at: new Date().toISOString(),
+    at: outboundNow().toISOString(),
+    numberKey: input.numberKey || "",
     ...input
   };
   store.outboundCallAudits.unshift(audit);
@@ -423,6 +544,7 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
   if (permitted) await assignOutboundScope(store, user);
   const located = permitted ? locateTarget(store, user, parsed) : { found: false, visible: false, phone: "" };
   const maskedNumber = located.visible && located.phone ? maskOutboundNumber(located.phone) : "";
+  const numberKey = located.visible && located.phone ? outboundNumberKey(located.phone) : "";
 
   let reason: OutboundCallReason | null = null;
   if (!config.enabled) reason = "disabled";
@@ -442,6 +564,11 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
     reason = "not_contactable";
   } else if (!mappedCccUserId(store, user)) reason = "unmapped";
 
+  if (!reason && located.phone) {
+    const limitReason = await callingLimitReason(store, user.teamId, located.phone, outboundNow());
+    if (limitReason) reason = limitReason;
+  }
+
   if (reason) {
     await writeAudit(store, {
       teamId: user.teamId,
@@ -450,6 +577,7 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
       targetId: parsed.targetId,
       phoneId: parsed.phoneId,
       maskedNumber,
+      numberKey,
       result: "rejected",
       reason,
       jobId: ""
@@ -481,6 +609,7 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
       targetId: parsed.targetId,
       phoneId: parsed.phoneId,
       maskedNumber,
+      numberKey,
       result: "allowed",
       reason: "",
       jobId: result.jobId
@@ -504,6 +633,7 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
       targetId: parsed.targetId,
       phoneId: parsed.phoneId,
       maskedNumber,
+      numberKey,
       result: "rejected",
       reason: "dial_failed",
       jobId: ""

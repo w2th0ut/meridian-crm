@@ -34347,11 +34347,15 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <label><span>实例 ID</span><input id="aliyunOutboundInstanceId" autocomplete="off"></label>
               <label><span>地域</span><select id="aliyunOutboundRegion"><option value="">未选择</option><option value="cn-shanghai">华东 2（上海）cn-shanghai</option><option value="cn-hangzhou">华东 1（杭州）cn-hangzhou</option></select></label>
               <label><span>主叫号码</span><input id="aliyunOutboundCallerNumber" autocomplete="off"></label>
+              <label><span>允许拨打开始</span><input id="aliyunOutboundCallWindowStart" type="time" step="60" value="09:00" autocomplete="off"></label>
+              <label><span>允许拨打结束</span><input id="aliyunOutboundCallWindowEnd" type="time" step="60" value="20:00" autocomplete="off"></label>
+              <label><span>同一号码每日上限</span><input id="aliyunOutboundMaxCallsPerDay" type="number" min="1" max="50" step="1" value="3" autocomplete="off"></label>
+              <label><span>两次间隔（分钟）</span><input id="aliyunOutboundMinIntervalMinutes" type="number" min="0" max="1440" step="1" value="30" autocomplete="off"></label>
               <label><span>AccessKeyId</span><input id="aliyunOutboundAccessKeyId" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundAccessKeyIdStatus">未配置</b></label>
               <label><span>AccessKeySecret</span><input id="aliyunOutboundAccessKeySecret" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundAccessKeySecretStatus">未配置</b></label>
               <label><span>回调路径令牌</span><input id="aliyunOutboundCallbackPathToken" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundCallbackPathTokenStatus">未配置</b></label>
             </div>
-            <p class="system-setting-help">只有管理员可以查看和修改。密钥加密后保存在服务器，页面只显示是否已配置和末 4 位。地域只接受 cn-shanghai 和 cn-hangzhou。这一节不拨号，不注册公网回调，也不改变获客门禁。</p>
+            <p class="system-setting-help">只有管理员可以查看和修改。密钥加密后保存在服务器，页面只显示是否已配置和末 4 位。地域只接受 cn-shanghai 和 cn-hangzhou。允许拨打时段按本租户时区判断，没有单独设置时区时按 Asia/Shanghai。开始和结束都包含在内，默认 09:00–20:00。同一号码每天最多 3 次，两次之间默认至少间隔 30 分钟。这些限制只在有人点击外呼时检查，不会自动拨号，也不会把功能开关打开。这一节不拨号，不注册公网回调，也不改变获客门禁。</p>
             <div id="aliyunAgentMappingBlock" style="margin-top:18px;">
               <div class="section-head"><div><h3>坐席映射</h3><p class="section-subtitle">同一租户内，一个云联络中心坐席只能对应一个用户。保存时用 ListUsers 核对坐席，不手填未出现的 ID，也不创建坐席。</p></div><button class="btn" id="aliyunAgentDirectoryButton" type="button">读取坐席</button></div>
               <div style="overflow-x:auto;"><table class="items-table"><thead><tr><th>坐席</th><th>UserId</th><th>CRM 用户</th><th></th></tr></thead><tbody id="aliyunAgentMappingBody"><tr><td colspan="4">还没有坐席。点「读取坐席」后选择用户。</td></tr></tbody></table></div>

@@ -16343,6 +16343,10 @@ function renderAliyunOutboundConfig() {
   setFieldValue("#aliyunOutboundInstanceId", view.instanceId || "");
   setFieldValue("#aliyunOutboundRegion", view.region || "");
   setFieldValue("#aliyunOutboundCallerNumber", view.callerNumber || "");
+  setFieldValue("#aliyunOutboundCallWindowStart", view.callWindowStart || "09:00");
+  setFieldValue("#aliyunOutboundCallWindowEnd", view.callWindowEnd || "20:00");
+  setFieldValue("#aliyunOutboundMaxCallsPerDay", String(view.maxCallsPerNumberPerDay ?? 3));
+  setFieldValue("#aliyunOutboundMinIntervalMinutes", String(view.minIntervalMinutes ?? 30));
   setFieldValue("#aliyunOutboundAccessKeyId", "");
   setFieldValue("#aliyunOutboundAccessKeySecret", "");
   setFieldValue("#aliyunOutboundCallbackPathToken", "");
@@ -16378,6 +16382,10 @@ async function saveAliyunOutboundConfig() {
     instanceId: qs<HTMLInputElement>("#aliyunOutboundInstanceId")?.value || "",
     region: qs<HTMLSelectElement>("#aliyunOutboundRegion")?.value || "",
     callerNumber: qs<HTMLInputElement>("#aliyunOutboundCallerNumber")?.value || "",
+    callWindowStart: qs<HTMLInputElement>("#aliyunOutboundCallWindowStart")?.value || "",
+    callWindowEnd: qs<HTMLInputElement>("#aliyunOutboundCallWindowEnd")?.value || "",
+    maxCallsPerNumberPerDay: Number(qs<HTMLInputElement>("#aliyunOutboundMaxCallsPerDay")?.value),
+    minIntervalMinutes: Number(qs<HTMLInputElement>("#aliyunOutboundMinIntervalMinutes")?.value),
     accessKeyId: qs<HTMLInputElement>("#aliyunOutboundAccessKeyId")?.value || "",
     accessKeySecret: qs<HTMLInputElement>("#aliyunOutboundAccessKeySecret")?.value || "",
     callbackPathToken: qs<HTMLInputElement>("#aliyunOutboundCallbackPathToken")?.value || ""

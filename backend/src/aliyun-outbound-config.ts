@@ -20,6 +20,66 @@ const CALLER_NUMBER_PATTERN = /^[0-9+\-\s]{5,32}$/;
 const ACCESS_KEY_ID_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 const ACCESS_KEY_SECRET_PATTERN = /^[A-Za-z0-9+/=_-]{16,256}$/;
 const CALLBACK_TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
+const CALL_WINDOW_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** 允许拨打时段默认 09:00–20:00，含两端的这一分钟。 */
+export const DEFAULT_CALL_WINDOW_START = "09:00";
+export const DEFAULT_CALL_WINDOW_END = "20:00";
+/** 同一号码每个当地日最多 3 次。 */
+export const DEFAULT_MAX_CALLS_PER_NUMBER_PER_DAY = 3;
+/** 两次允许拨打之间至少 30 分钟。 */
+export const DEFAULT_MIN_INTERVAL_MINUTES = 30;
+
+export interface OutboundCallingPolicy {
+  callWindowStart: string;
+  callWindowEnd: string;
+  maxCallsPerNumberPerDay: number;
+  minIntervalMinutes: number;
+}
+
+export function callWindowMinutes(value: string) {
+  const match = CALL_WINDOW_PATTERN.exec(value);
+  if (!match) return 0;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+export function normalizeCallWindow(value: string | undefined, fallback: string) {
+  const trimmed = (value || "").trim();
+  const hhmm = trimmed.length > 5 ? trimmed.slice(0, 5) : trimmed;
+  return CALL_WINDOW_PATTERN.test(hhmm) ? hhmm : fallback;
+}
+
+function boundedInteger(value: unknown, fallback: number, min: number, max: number) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) return fallback;
+  return value;
+}
+
+/** 缺字段或坏值时用默认。开始不早于结束时，时段也回到默认，避免把全天打开。 */
+export function outboundCallingPolicy(config: Partial<AliyunOutboundConfig> | undefined): OutboundCallingPolicy {
+  const callWindowStart = normalizeCallWindow(config?.callWindowStart, DEFAULT_CALL_WINDOW_START);
+  const callWindowEnd = normalizeCallWindow(config?.callWindowEnd, DEFAULT_CALL_WINDOW_END);
+  const maxCallsPerNumberPerDay = boundedInteger(
+    config?.maxCallsPerNumberPerDay,
+    DEFAULT_MAX_CALLS_PER_NUMBER_PER_DAY,
+    1,
+    50
+  );
+  const minIntervalMinutes = boundedInteger(
+    config?.minIntervalMinutes,
+    DEFAULT_MIN_INTERVAL_MINUTES,
+    0,
+    1440
+  );
+  if (callWindowMinutes(callWindowStart) >= callWindowMinutes(callWindowEnd)) {
+    return {
+      callWindowStart: DEFAULT_CALL_WINDOW_START,
+      callWindowEnd: DEFAULT_CALL_WINDOW_END,
+      maxCallsPerNumberPerDay,
+      minIntervalMinutes
+    };
+  }
+  return { callWindowStart, callWindowEnd, maxCallsPerNumberPerDay, minIntervalMinutes };
+}
 
 export class AliyunOutboundConfigError extends Error {
   status: number;
@@ -69,6 +129,10 @@ function blankConfig(teamId: string): AliyunOutboundConfig {
     instanceId: "",
     region: "",
     callerNumber: "",
+    callWindowStart: DEFAULT_CALL_WINDOW_START,
+    callWindowEnd: DEFAULT_CALL_WINDOW_END,
+    maxCallsPerNumberPerDay: DEFAULT_MAX_CALLS_PER_NUMBER_PER_DAY,
+    minIntervalMinutes: DEFAULT_MIN_INTERVAL_MINUTES,
     accessKeyIdEncrypted: "",
     accessKeySecretEncrypted: "",
     callbackPathTokenEncrypted: "",
@@ -87,11 +151,16 @@ function reveal(teamId: string, field: AliyunOutboundSecretField, encrypted: str
 }
 
 function present(config: AliyunOutboundConfig): AliyunOutboundConfigView {
+  const policy = outboundCallingPolicy(config);
   return {
     aliyunOutboundEnabled: config.aliyunOutboundEnabled === true,
     instanceId: config.instanceId,
     region: config.region,
     callerNumber: config.callerNumber,
+    callWindowStart: policy.callWindowStart,
+    callWindowEnd: policy.callWindowEnd,
+    maxCallsPerNumberPerDay: policy.maxCallsPerNumberPerDay,
+    minIntervalMinutes: policy.minIntervalMinutes,
     accessKeyId: maskAliyunOutboundSecret(reveal(config.teamId, "accessKeyId", config.accessKeyIdEncrypted)),
     accessKeySecret: maskAliyunOutboundSecret(reveal(config.teamId, "accessKeySecret", config.accessKeySecretEncrypted)),
     callbackPathToken: maskAliyunOutboundSecret(reveal(config.teamId, "callbackPathToken", config.callbackPathTokenEncrypted))
@@ -133,6 +202,27 @@ function optionalBoolean(body: Record<string, unknown>, key: string) {
   if (!Object.prototype.hasOwnProperty.call(body, key) || body[key] === undefined) return undefined;
   if (typeof body[key] !== "boolean") throw new AliyunOutboundConfigError(400, "参数格式错误");
   return body[key] as boolean;
+}
+
+function optionalClock(body: Record<string, unknown>, key: string) {
+  if (!Object.prototype.hasOwnProperty.call(body, key) || body[key] === undefined) return undefined;
+  if (typeof body[key] !== "string") throw new AliyunOutboundConfigError(400, "允许拨打时段必须是 HH:MM");
+  const trimmed = (body[key] as string).trim();
+  const hhmm = trimmed.length > 5 ? trimmed.slice(0, 5) : trimmed;
+  const restOk = trimmed.length === 5 || /^\d{2}:\d{2}:\d{2}$/.test(trimmed);
+  if (!restOk || !CALL_WINDOW_PATTERN.test(hhmm)) {
+    throw new AliyunOutboundConfigError(400, "允许拨打时段必须是 HH:MM");
+  }
+  return hhmm;
+}
+
+function optionalBoundedInteger(body: Record<string, unknown>, key: string, min: number, max: number, message: string) {
+  if (!Object.prototype.hasOwnProperty.call(body, key) || body[key] === undefined) return undefined;
+  const value = body[key];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    throw new AliyunOutboundConfigError(400, message);
+  }
+  return value;
 }
 
 function normalizePlain(value: string | undefined) {
@@ -224,6 +314,22 @@ export async function updateAliyunOutboundConfig(store: AliyunOutboundConfigStor
   const accessKeyId = normalizePlain(optionalString(record, "accessKeyId", 128));
   const accessKeySecret = normalizePlain(optionalString(record, "accessKeySecret", 256));
   const callbackPathToken = normalizePlain(optionalString(record, "callbackPathToken", 128));
+  const callWindowStart = optionalClock(record, "callWindowStart");
+  const callWindowEnd = optionalClock(record, "callWindowEnd");
+  const maxCallsPerNumberPerDay = optionalBoundedInteger(
+    record,
+    "maxCallsPerNumberPerDay",
+    1,
+    50,
+    "同一号码每日上限必须是 1 到 50 的整数"
+  );
+  const minIntervalMinutes = optionalBoundedInteger(
+    record,
+    "minIntervalMinutes",
+    0,
+    1440,
+    "两次拨打间隔必须是 0 到 1440 的整数"
+  );
   const clearAccessKeyId = optionalBoolean(record, "clearAccessKeyId") === true;
   const clearAccessKeySecret = optionalBoolean(record, "clearAccessKeySecret") === true;
   const clearCallbackPathToken = optionalBoolean(record, "clearCallbackPathToken") === true;
@@ -235,10 +341,18 @@ export async function updateAliyunOutboundConfig(store: AliyunOutboundConfigStor
   if (callbackPathToken) assertSecretShape(callbackPathToken, CALLBACK_TOKEN_PATTERN, "回调路径令牌不正确");
 
   const current = store.aliyunOutboundConfigs.find((item) => item.teamId === user.teamId) || blankConfig(user.teamId);
+  const currentPolicy = outboundCallingPolicy(current);
   const nextEnabled = enabled === undefined ? current.aliyunOutboundEnabled : enabled;
   const nextInstanceId = instanceId === undefined ? current.instanceId : instanceId;
   const nextRegion = region === undefined ? current.region : region;
   const nextCallerNumber = callerNumber === undefined ? current.callerNumber : callerNumber;
+  const nextCallWindowStart = callWindowStart === undefined ? currentPolicy.callWindowStart : callWindowStart;
+  const nextCallWindowEnd = callWindowEnd === undefined ? currentPolicy.callWindowEnd : callWindowEnd;
+  const nextMaxCalls = maxCallsPerNumberPerDay === undefined ? currentPolicy.maxCallsPerNumberPerDay : maxCallsPerNumberPerDay;
+  const nextMinInterval = minIntervalMinutes === undefined ? currentPolicy.minIntervalMinutes : minIntervalMinutes;
+  if (callWindowMinutes(nextCallWindowStart) >= callWindowMinutes(nextCallWindowEnd)) {
+    throw new AliyunOutboundConfigError(400, "允许拨打时段的开始必须早于结束");
+  }
   const nextAccessKeyId = resolveSecret({
     teamId: user.teamId,
     field: "accessKeyId",
@@ -280,6 +394,18 @@ export async function updateAliyunOutboundConfig(store: AliyunOutboundConfigStor
   if (nextInstanceId !== current.instanceId) parts.push(`instanceId: ${displayValue(current.instanceId)} → ${displayValue(nextInstanceId)}`);
   if (nextRegion !== current.region) parts.push(`region: ${displayValue(current.region)} → ${displayValue(nextRegion)}`);
   if (nextCallerNumber !== current.callerNumber) parts.push(`callerNumber: ${displayValue(current.callerNumber)} → ${displayValue(nextCallerNumber)}`);
+  if (nextCallWindowStart !== currentPolicy.callWindowStart) {
+    parts.push(`callWindowStart: ${currentPolicy.callWindowStart} → ${nextCallWindowStart}`);
+  }
+  if (nextCallWindowEnd !== currentPolicy.callWindowEnd) {
+    parts.push(`callWindowEnd: ${currentPolicy.callWindowEnd} → ${nextCallWindowEnd}`);
+  }
+  if (nextMaxCalls !== currentPolicy.maxCallsPerNumberPerDay) {
+    parts.push(`maxCallsPerNumberPerDay: ${currentPolicy.maxCallsPerNumberPerDay} → ${nextMaxCalls}`);
+  }
+  if (nextMinInterval !== currentPolicy.minIntervalMinutes) {
+    parts.push(`minIntervalMinutes: ${currentPolicy.minIntervalMinutes} → ${nextMinInterval}`);
+  }
   if (nextAccessKeyId.change !== "unchanged") parts.push(`accessKeyId: ${SECRET_AUDIT_LABEL[nextAccessKeyId.change]}`);
   if (nextAccessKeySecret.change !== "unchanged") parts.push(`accessKeySecret: ${SECRET_AUDIT_LABEL[nextAccessKeySecret.change]}`);
   if (nextCallbackToken.change !== "unchanged") parts.push(`callbackPathToken: ${SECRET_AUDIT_LABEL[nextCallbackToken.change]}`);
@@ -296,6 +422,10 @@ export async function updateAliyunOutboundConfig(store: AliyunOutboundConfigStor
     instanceId: nextInstanceId,
     region: nextRegion,
     callerNumber: nextCallerNumber,
+    callWindowStart: nextCallWindowStart,
+    callWindowEnd: nextCallWindowEnd,
+    maxCallsPerNumberPerDay: nextMaxCalls,
+    minIntervalMinutes: nextMinInterval,
     accessKeyIdEncrypted: nextAccessKeyId.encrypted,
     accessKeySecretEncrypted: nextAccessKeySecret.encrypted,
     callbackPathTokenEncrypted: nextCallbackToken.encrypted,

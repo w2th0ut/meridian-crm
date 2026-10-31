@@ -105,6 +105,11 @@ try {
   );
   assert.match(getRoute, /readOutboundCallAvailability/);
   assert.doesNotMatch(getRoute, /requestOutboundCall/);
+  const requestSource = source.slice(source.indexOf("export async function requestOutboundCall"));
+  const suppressedAt = requestSource.indexOf("numberSuppressed");
+  const limitAt = requestSource.indexOf("callingLimitReason");
+  const dialAt = requestSource.indexOf("dialerFor(");
+  assert.ok(suppressedAt > 0 && limitAt > suppressedAt && dialAt > limitAt);
   const availability = source.slice(
     source.indexOf("export function readOutboundCallAvailability"),
     source.indexOf("export async function requestOutboundCall")
