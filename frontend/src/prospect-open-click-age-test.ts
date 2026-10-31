@@ -274,9 +274,11 @@ const projectedFailure = presentOutreachEngagement({
   open: { count: 2, at: at(-30 * day) },
   click: { count: 1, at: at(-30 * day) }
 });
+const failureOpened = projectedFailure.status === "hit";
 assert.equal(projectedFailure.status, "none");
+assert.equal(failureOpened, false);
 assert.equal(
-  fromProjection(at(-30 * day), at(-30 * day), projectedFailure.status === "hit").kind,
+  fromProjection(at(-30 * day), at(-30 * day), failureOpened).kind,
   "none",
   "失败或退信不算打开或点击日龄"
 );
