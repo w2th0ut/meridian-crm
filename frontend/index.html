@@ -8151,7 +8151,8 @@
     .dashboard-prospect-row.is-release-held,
     .dashboard-prospect-row.is-suppress-long,
     .dashboard-prospect-row.is-failure-long,
-    .dashboard-prospect-row.is-open-long {
+    .dashboard-prospect-row.is-open-long,
+    .dashboard-prospect-row.is-reply-long {
       border-color: #fecaca;
     }
 
@@ -8836,6 +8837,81 @@
     }
 
     .prospect-open-click-age.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-reply-age-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-reply-age-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-reply-age:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-reply-age[data-reply-age="long"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-reply-age[data-reply-age="recent"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-reply-age-head,
+    .prospect-reply-age.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-reply-age p,
+    .prospect-reply-age.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-reply-age.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-reply-age.is-compact.is-long {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-reply-age.is-compact.is-recent {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-reply-age.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -11784,6 +11860,7 @@
     #dashboardSuppressListAge,
     #dashboardFailureBounceAge,
     #dashboardOpenClickAge,
+    #dashboardReplyAge,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
@@ -11800,6 +11877,7 @@
     .dashboard-suppress-list-age-note,
     .dashboard-failure-bounce-age-note,
     .dashboard-open-click-age-note,
+    .dashboard-reply-age-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -27945,6 +28023,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardOpenClickAgeList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardReplyAge" aria-label="开发信回复日龄">
+            <div class="section-head">
+              <div class="section-title"><div><h2>开发信回复日龄</h2><p id="dashboardReplyAgeScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardReplyAgeRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardReplyAgeNote" class="dashboard-reply-age-note">这是开发信回复相对现在的只读日龄，复用 Day16 已经带出的回复时间。有回复且距现在超过 7 天算回复超七日，未超过（含刚好 7 天）算回复七日内。没有可解析的回复时间写无回复日龄。不是打开或点击日龄，也不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列进度、打开或点击、失败或退信、收信同步。不替代开发信回复那一块，也不替代回复待处理积压。文案不混用。点一行只打开现有候选详情并滚到现有开发信回复。不会发信，不会自动回复，不会标成已处理，不会解除抑制，不会推进序列，不会放行批次，不会改名单，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardReplyAgeList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -28735,6 +28825,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按打开或点击日龄筛选">
                   <button class="active" type="button" data-prospect-open-click-age-filter="all" aria-pressed="true">全部打开</button>
                   <button type="button" data-prospect-open-click-age-filter="long" aria-pressed="false">打开超七日</button>
+                </div>
+              </div>
+              <div class="prospect-reply-age-filter">
+                <span>回复日龄</span>
+                <div class="prospect-tabs" role="group" aria-label="按开发信回复日龄筛选">
+                  <button class="active" type="button" data-prospect-reply-age-filter="all" aria-pressed="true">全部回复日龄</button>
+                  <button type="button" data-prospect-reply-age-filter="long" aria-pressed="false">回复超七日</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
