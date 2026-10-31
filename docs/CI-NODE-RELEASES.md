@@ -83,7 +83,7 @@ Publish then:
 1. Packs dist, resources, `agent-skills`, `agent-knowledge`, and the workspace manifests. The tarball has no `node_modules` and no `.env`.
 2. Extracts `/opt/keduoduo-crm/releases/<id>/`.
 3. Runs `npm ci --omit=dev --ignore-scripts` on the server as `keduoduo-crm`. That flag does not stop `prepare` on workspace links, so the packed manifests have no `prepare` script. `integration-sdk` is already built; activate does not run `tsc`.
-4. Links `shared/.env` with `ln -sfn` (the same link `deploy-ubuntu.sh` uses). A regular `.env` file inside the release is refused, not overwritten.
+4. Links `shared/.env` with `ln -sfn` (the same link `deploy-ubuntu.sh` uses). A regular `.env` file inside the release is refused, not overwritten. Also links `backend/.data/private` to `shared/private` when that directory already holds `website-lead-ingress.enc.json` and `website-lead-ingress.key`, or copies those two files from the current release into `shared/private` once when shared does not have them. The previous release's copy is left in place. The script does not create an ingress key and does not print the files. Production validation is unchanged: a store that is missing or not enabled still refuses to start.
 5. Runs `backend/dist/migrate-mysql.js` with that env. The file itself is not modified.
 6. Points `current` at the new release.
 7. Restarts systemd unit `keduoduo-crm`.

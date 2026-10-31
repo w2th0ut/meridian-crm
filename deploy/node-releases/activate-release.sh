@@ -2,6 +2,10 @@
 # Publish or roll back one Node release under /opt/keduoduo-crm.
 # This is the ECS entry for CI. It does not call baota-update and it does not
 # write shared/.env. Run it on the server as root (or with passwordless sudo).
+# Website lead ingress settings live in backend/.data/private, which is not in
+# the tarball. Publish points that path at shared/private and, when shared is
+# empty, copies the two existing files from the current release. It does not
+# create a key and it does not print the files.
 set -Eeuo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/keduoduo-crm}"
@@ -19,6 +23,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CURRENT_LINK="${APP_ROOT}/current"
 RELEASES_DIR="${APP_ROOT}/releases"
 ENV_FILE="${APP_ROOT}/shared/.env"
+SHARED_PRIVATE="${APP_ROOT}/shared/private"
+INGRESS_SETTINGS="website-lead-ingress.enc.json"
+INGRESS_KEY="website-lead-ingress.key"
 
 SWITCHED=false
 CREATED=false
@@ -178,6 +185,66 @@ link_shared_env() {
   [[ "$linked" == "$target" ]] || fail ".env symlink does not point at shared/.env"
 }
 
+shared_private_ready() {
+  [[ -f "$SHARED_PRIVATE/$INGRESS_SETTINGS" && -f "$SHARED_PRIVATE/$INGRESS_KEY" ]]
+}
+
+# The process resolves backend/.data/private from the real release path, not
+# from current/. A new release does not contain that directory, so production
+# validation sees an empty store and exits. Reuse the store the running
+# release already has. Never generate a key here.
+link_shared_private() {
+  local release_dir="$1"
+  local previous="" source="" group="" stage="" parent="" dest="" linked="" target=""
+  if [[ -e "$SHARED_PRIVATE/$INGRESS_SETTINGS" || -e "$SHARED_PRIVATE/$INGRESS_KEY" ]]; then
+    shared_private_ready || fail "shared/private ingress store is incomplete"
+  elif [[ -L "$CURRENT_LINK" ]]; then
+    previous="$(readlink -f "$CURRENT_LINK" || true)"
+    if [[ -n "$previous" ]]; then
+      source="${previous}/backend/.data/private"
+    fi
+    if [[ -n "$source" && -f "$source/$INGRESS_SETTINGS" && -f "$source/$INGRESS_KEY" ]]; then
+      group="$(id -gn "$APP_USER")"
+      stage="$(mktemp -d "${APP_ROOT}/shared/.private-seed.XXXXXX")"
+      if ! as_root cp -L -- "$source/$INGRESS_SETTINGS" "$source/$INGRESS_KEY" "$stage/"; then
+        rm -rf -- "$stage"
+        fail "could not copy the current ingress store into shared/private"
+      fi
+      as_root chown "$APP_USER:$group" "$stage/$INGRESS_SETTINGS" "$stage/$INGRESS_KEY"
+      as_root chmod 600 "$stage/$INGRESS_SETTINGS" "$stage/$INGRESS_KEY"
+      if [[ -e "$SHARED_PRIVATE" && ! -d "$SHARED_PRIVATE" ]]; then
+        rm -rf -- "$stage"
+        fail "shared/private exists but is not a directory"
+      fi
+      if [[ -d "$SHARED_PRIVATE" ]]; then
+        if [[ -n "$(find "$SHARED_PRIVATE" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+          rm -rf -- "$stage"
+          fail "shared/private exists but has no ingress store"
+        fi
+        as_root mv -- "$stage/$INGRESS_SETTINGS" "$stage/$INGRESS_KEY" "$SHARED_PRIVATE/"
+        rm -rf -- "$stage"
+      else
+        as_root mv "$stage" "$SHARED_PRIVATE"
+      fi
+      as_root chown "$APP_USER:$group" "$SHARED_PRIVATE"
+      as_root chmod 700 "$SHARED_PRIVATE"
+      stage=""
+    fi
+  fi
+  shared_private_ready || return 0
+  parent="${release_dir}/backend/.data"
+  dest="${parent}/private"
+  if [[ -e "$dest" && ! -L "$dest" ]]; then
+    fail "refusing to replace regular path ${dest}"
+  fi
+  group="$(id -gn "$APP_USER")"
+  as_root install -d -o "$APP_USER" -g "$group" -m 0700 "$parent"
+  ln -sfn "$SHARED_PRIVATE" "$dest"
+  linked="$(readlink -f "$dest/$INGRESS_SETTINGS")"
+  target="$(readlink -f "$SHARED_PRIVATE/$INGRESS_SETTINGS")"
+  [[ -n "$linked" && "$linked" == "$target" ]] || fail "private settings symlink does not point at shared/private"
+}
+
 chown_release() {
   local group
   group="$(id -gn "$APP_USER")"
@@ -296,6 +363,7 @@ publish_release() {
   CREATED=true
   chown_release
   link_shared_env "$RELEASE_DIR"
+  link_shared_private "$RELEASE_DIR"
   chmod_frontend
   npm_ci_release
   migrate_release
