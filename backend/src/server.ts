@@ -559,6 +559,14 @@ import {
   normalizeProspectNextFollowDate,
   prospectNextFollowUpBlock
 } from "./prospect-next-follow-up.js";
+import { appendProspectNoteAudit } from "./prospect-note-audit.js";
+import {
+  PROSPECT_NOTE_BATCH_LIMIT,
+  PROSPECT_NOTE_DENIED,
+  appendProspectNote,
+  normalizeProspectNote,
+  prospectNoteBlock
+} from "./prospect-notes.js";
 import {
   TRANSPARENT_GIF,
   buildOutboundMessageId,
@@ -19925,6 +19933,60 @@ app.post("/api/prospect-list/next-follow-up", requireAuth, asyncRoute(async (req
       ok: true,
       action: body.action,
       nextFollowAt
+    };
+  });
+  if (changed.length) {
+    if (store.persistProspectCandidates) await store.persistProspectCandidates(changed.map((item) => item.id));
+    await store.persist();
+  }
+  res.json({ results });
+}));
+
+app.post("/api/prospect-list/notes", requireAuth, asyncRoute(async (req, res) => {
+  const schema = z.object({
+    ids: z.array(z.string().trim().min(1).max(80)).min(1).max(PROSPECT_NOTE_BATCH_LIMIT),
+    note: z.string().max(4_000)
+  });
+  const body = schema.parse(req.body ?? {});
+  const normalized = normalizeProspectNote(body.note);
+  if (!normalized.ok) {
+    res.status(400).json({ message: normalized.message });
+    return;
+  }
+  const store = getStore();
+  const actor = req.user!;
+  const ids = [...new Set(body.ids)];
+  const evaluated = ids.map((id) => {
+    const candidate = store.websiteOpportunities.find((item) => item.id === id);
+    return { id, candidate, block: prospectNoteBlock(actor, candidate) };
+  });
+  if (evaluated.every((item) => item.block === PROSPECT_NOTE_DENIED)) {
+    res.status(403).json({
+      message: "没有可追加备注的候选",
+      results: evaluated.map((item) => ({ id: item.id, ok: false, reason: item.block }))
+    });
+    return;
+  }
+  const changed: WebsiteOpportunity[] = [];
+  const results = evaluated.map((item) => {
+    if (item.block || !item.candidate) {
+      return { id: item.id, ok: false, reason: item.block || PROSPECT_NOTE_DENIED };
+    }
+    const applied = appendProspectNote(item.candidate.notes, normalized.note);
+    if (applied.changed) {
+      item.candidate.notes = applied.notes;
+      changed.push(item.candidate);
+      appendProspectNoteAudit(store, {
+        actorId: actor.id,
+        objectId: item.candidate.id,
+        note: applied.appended
+      });
+    }
+    return {
+      id: item.id,
+      ok: true,
+      note: applied.appended,
+      notes: applied.notes
     };
   });
   if (changed.length) {

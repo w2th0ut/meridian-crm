@@ -150,6 +150,11 @@ import {
   summarizeProspectNextFollowUpChange
 } from "./prospect-batch-next-follow-up";
 import {
+  buildProspectNoteBody,
+  showProspectNoteEntry,
+  summarizeProspectNoteChange
+} from "./prospect-batch-notes";
+import {
   CONTACT_GAP_LIMIT,
   contactGapEntryLabel,
   contactGapIsGap,
@@ -2313,6 +2318,8 @@ interface WebsiteOpportunity {
   lastReplyClassification?: ProspectReplyClassification;
   nextFollowAt?: string;
   tags?: string[];
+  /** 只追加的本地备注。详情里的「候选备注」仍是核验描述，不写在这里。 */
+  notes?: string;
   outreachState?: "uncontacted" | "awaiting_reply" | "replied" | "suppressed" | "contact_invalid";
   invalidContactChannels?: ProspectOutreachChannel[];
   websiteProbeAttempts?: WebsiteProbeAttempt[];
@@ -36506,6 +36513,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       <div class="form-field"><label>联系方式</label><input id="prospectEditContactInfo" value="${escapeHtml(item.contactInfo)}" ${readonly}></div>
       <div class="prospect-field"><span>归属业务员</span><b>${escapeHtml(owner?.name || (item.ownerId === state.user?.id ? state.user?.name || "本人" : item.ownerId || "待分配"))}</b></div>
       <div class="prospect-field" data-prospect-tags="1"><span>标签</span><b>${escapeHtml(prospectTagText(item))}</b></div>
+      <div class="prospect-field prospect-note-field" data-prospect-notes="1" style="grid-column:1/-1"><span>追加备注</span><b class="prospect-note-text">${escapeHtml(prospectNoteText(item))}</b></div>
       <div class="prospect-field"><span>来源</span><b>${escapeHtml(item.sourceLabel || item.source || "自动获客")}</b></div>
       <div class="prospect-field" data-silent-age-outreach="1" data-outreach-action-email="1"><span>最近开发信</span><b>${item.lastDevelopmentEmailAt ? `${formatTime(item.lastDevelopmentEmailAt)} · ${escapeHtml(item.lastDevelopmentEmailSubject || "开发信")}` : "尚未发送"}</b></div>
       <div class="prospect-field"><span>最近触达</span><b>${item.lastTouchpointAt ? `${formatTime(item.lastTouchpointAt)} · ${escapeHtml(PROSPECT_CHANNEL_LABELS[item.lastTouchpointChannel || "email"])}` : "尚未记录"}</b></div>
@@ -38503,6 +38511,8 @@ function renderProspectList() {
     const followButton = qs<HTMLButtonElement>(selector);
     if (followButton) followButton.hidden = !showProspectNextFollowUpEntry(canTag);
   }
+  const noteButton = qs<HTMLButtonElement>("#prospectAppendNotesButton");
+  if (noteButton) noteButton.hidden = !showProspectNoteEntry(canTag);
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => button.classList.toggle("active", button.dataset.prospectFilter === state.prospectFilter));
   qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
     const active = button.dataset.prospectStageFilter === state.prospectStageFilter;
@@ -38780,6 +38790,7 @@ function renderProspectList() {
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
             <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectTagLine(item)}
+            ${renderProspectNoteLine(item)}
             ${renderProspectComplianceNotices(item)}
             ${renderOutreachFailureLine(item)}
             ${renderOutreachEngagementLine(item)}
@@ -40061,6 +40072,67 @@ function renderProspectTagLine(item: { tags?: string[] }) {
   const tags = (item.tags || []).map((tag) => tag.trim()).filter(Boolean);
   if (!tags.length) return "";
   return `<div class="prospect-tag-line">${tags.map((tag) => badge(escapeHtml(tag), "gray")).join("")}</div>`;
+}
+
+function prospectNoteText(item: { notes?: string }) {
+  return item.notes ? item.notes : "无备注";
+}
+
+function renderProspectNoteLine(item: { notes?: string }) {
+  const notes = item.notes || "";
+  if (!notes.trim()) return "";
+  const preview = notes.replace(/\s+/g, " ").trim();
+  const text = preview.length > 80 ? `${preview.slice(0, 80)}…` : preview;
+  return `<div class="prospect-note-line" data-prospect-notes="1">${escapeHtml(text)}</div>`;
+}
+
+function requestProspectNotes(ids: string[], button?: HTMLButtonElement) {
+  const preview = buildProspectNoteBody(ids, "备注");
+  if (!preview.ok) {
+    toast(preview.message, "error");
+    return;
+  }
+  openModal(
+    "批量追加备注",
+    `<p>将为 ${preview.body.ids.length} 条候选追加备注。只改本地备注，不发信，不发消息，不推进序列，不放行批次。已有备注会保留。</p><div class="form-field"><label>备注</label><textarea id="prospectNoteInput" maxlength="1000" placeholder="写在已有备注后面"></textarea></div>`,
+    `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectNotesButton" type="button">确认追加</button>`
+  );
+  qs<HTMLButtonElement>("#confirmProspectNotesButton")?.addEventListener("click", () => {
+    const built = buildProspectNoteBody(ids, qs<HTMLTextAreaElement>("#prospectNoteInput")?.value || "");
+    if (!built.ok) {
+      toast(built.message, "error");
+      return;
+    }
+    closeModal();
+    void submitProspectNotes(built.body, button);
+  });
+}
+
+async function submitProspectNotes(
+  body: { ids: string[]; note: string },
+  button?: HTMLButtonElement
+) {
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ results: Array<{ id: string; ok: boolean; notes?: string; reason?: string }> }>("/api/prospect-list/notes", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    const changed = new Set<string>();
+    result.results.forEach((row) => {
+      if (!row.ok || typeof row.notes !== "string") return;
+      const existing = state.websiteOpportunities.find((item) => item.id === row.id);
+      if (existing) existing.notes = row.notes;
+      changed.add(row.id);
+    });
+    state.selectedProspectIds = state.selectedProspectIds.filter((id) => !changed.has(id));
+    renderProspectList();
+    toast(summarizeProspectNoteChange(result.results));
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "批量追加备注失败", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function requestProspectTags(
@@ -54191,6 +54263,7 @@ function installEvents() {
   qs<HTMLButtonElement>("#prospectRemoveTagsButton")?.addEventListener("click", (event) => requestProspectTags("remove", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectSetNextFollowUpButton")?.addEventListener("click", (event) => requestProspectNextFollowUp("set", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectClearNextFollowUpButton")?.addEventListener("click", (event) => requestProspectNextFollowUp("clear", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectAppendNotesButton")?.addEventListener("click", (event) => requestProspectNotes(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLInputElement>("#prospectSelectPage")?.addEventListener("change", (event) => {
     const checked = (event.currentTarget as HTMLInputElement).checked;
     const pageRows = prospectFilteredRows().slice((state.prospectPage - 1) * PROSPECT_PAGE_SIZE, state.prospectPage * PROSPECT_PAGE_SIZE);
