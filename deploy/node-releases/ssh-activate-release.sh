@@ -6,6 +6,8 @@
 # statement. On run 41183804000 the inline script plus five export lines
 # failed as "bash: -c: line 9: syntax error near unexpected token ';'".
 # Fail-fast is set -euo pipefail.
+# This file only execs activate-release.sh. Old-release cleanup runs there,
+# after that script has published or rolled back successfully.
 # NODE_RELEASE_SSH_TEST is not passed by the workflow. It only lets local
 # tests point at a temp directory instead of /tmp/keduoduo-node-release.
 set -euo pipefail

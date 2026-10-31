@@ -713,6 +713,269 @@ PY
   fi
 }
 
+add_plain_release() {
+  local id="$1"
+  local when="${2:-}"
+  mkdir -p "$APP/releases/$id"
+  if [[ -n "$when" ]]; then
+    touch -d "$when" "$APP/releases/$id"
+  fi
+}
+
+assert_release_entries() {
+  local expected="$1"
+  local actual
+  actual="$(find "$APP/releases" -mindepth 1 -maxdepth 1 -printf '%P\n' | LC_ALL=C sort)"
+  [[ "$actual" == "$expected" ]] || fail "release entries
+expected:
+${expected}
+actual:
+${actual}"
+}
+
+sorted_entries() {
+  printf '%s\n' "$@" | LC_ALL=C sort
+}
+
+# Call one function from activate-release.sh with explicit roots.
+# Empty strings stay empty; sourcing the script must not fill them back in.
+activate_fn() {
+  bash -c '
+    set -uo pipefail
+    # shellcheck disable=SC1090
+    source "$1"
+    trap - ERR
+    set +e
+    APP_ROOT="$2"
+    RELEASES_DIR="$3"
+    CURRENT_LINK="$4"
+    PREVIOUS="$5"
+    fn="$6"
+    shift 6
+    "$fn" "$@"
+    exit $?
+  ' _ "$ROOT/deploy/node-releases/activate-release.sh" "$@"
+}
+
+mark_shared() {
+  mkdir -p "$APP/shared/extra"
+  printf 'shared-marker\n' > "$APP/shared/extra/keep.txt"
+  chmod 700 "$APP/shared/extra"
+}
+
+assert_shared_untouched() {
+  assert_env_unchanged
+  [[ "$(cat "$APP/shared/extra/keep.txt")" == "shared-marker" ]] || fail "shared marker changed"
+  [[ "$(stat -c %a "$APP/shared/extra")" == "700" ]] || fail "shared extra mode changed"
+}
+
+test_prune_keeps_three_newest() {
+  local expected
+  # mtimes run opposite to the timestamp names. Retention must follow the
+  # name, which is how UTC release ids order "newest".
+  add_plain_release 20261028000001 '2026-10-28 00:00:04'
+  add_plain_release 20261028000002 '2026-10-28 00:00:03'
+  add_plain_release 20261028000003 '2026-10-28 00:00:02'
+  add_plain_release 20261028000004 '2026-10-28 00:00:01'
+  touch -d '2020-01-01 00:00:00' "$APP/releases/20261029012526"
+  ln -s "$APP/shared" "$APP/releases/20261028000001/shared-link"
+  mkdir -p "$CASE/outside" "$APP/releases/bad id"
+  printf 'outside\n' > "$CASE/outside/marker"
+  printf 'junk\n' > "$APP/releases/bad id/keep.txt"
+  ln -s "$CASE/outside" "$APP/releases/20261027000099"
+  mark_shared
+  activate publish "$PACK" 20261030120000
+  [[ "$(readlink -f "$APP/current")" == "$APP/releases/20261030120000" ]] || fail "current was not the new release"
+  expected="$(sorted_entries \
+    20261027000099 \
+    20261028000004 \
+    20261029012526 \
+    20261030120000 \
+    "bad id")"
+  assert_release_entries "$expected"
+  [[ -L "$APP/releases/20261027000099" ]] || fail "symlink under releases was removed"
+  [[ "$(readlink "$APP/releases/20261027000099")" == "$CASE/outside" ]] || fail "symlink target changed"
+  [[ "$(cat "$CASE/outside/marker")" == "outside" ]] || fail "symlink target was deleted"
+  [[ "$(cat "$APP/releases/bad id/keep.txt")" == "junk" ]] || fail "non-release directory was removed"
+  [[ ! -e "$APP/releases/20261028000001" ]] || fail "older release was kept"
+  [[ ! -e "$APP/releases/20261028000002" ]] || fail "older release was kept"
+  [[ ! -e "$APP/releases/20261028000003" ]] || fail "older release was kept"
+  assert_shared_untouched
+}
+
+test_prune_keeps_previous_outside_newest() {
+  local expected
+  add_plain_release 20261029020000 '2029-01-01 00:00:00'
+  add_plain_release 20261029030000 '2028-01-01 00:00:00'
+  add_plain_release 20261029040000 '2010-01-01 00:00:00'
+  add_plain_release 20261029050000 '2011-01-01 00:00:00'
+  touch -d '2030-01-01 00:00:00' "$APP/releases/20261029012526"
+  mark_shared
+  activate publish "$PACK" 20261030120000
+  [[ "$(readlink -f "$APP/current")" == "$APP/releases/20261030120000" ]] || fail "current was not the new release"
+  expected="$(sorted_entries \
+    20261029012526 \
+    20261029040000 \
+    20261029050000 \
+    20261030120000)"
+  assert_release_entries "$expected"
+  [[ -d "$APP/releases/20261029012526" ]] || fail "previous release was removed"
+  [[ ! -e "$APP/releases/20261029020000" ]] || fail "newer-mtime old release was kept"
+  assert_shared_untouched
+}
+
+test_prune_keeps_current_when_not_newest() {
+  local expected
+  cp -a "$APP/releases/20261029012526" "$APP/releases/20261028000001"
+  add_plain_release 20261028000002 '2030-01-01 00:00:00'
+  add_plain_release 20261028000003 '2029-01-01 00:00:00'
+  add_plain_release 20261030120010 '2010-01-01 00:00:00'
+  add_plain_release 20261030120011 '2010-01-02 00:00:00'
+  add_plain_release 20261030120012 '2010-01-03 00:00:00'
+  ln -sfn "$APP/releases/20261028000002" "$APP/current"
+  mark_shared
+  activate rollback 20261028000001
+  [[ "$(readlink -f "$APP/current")" == "$APP/releases/20261028000001" ]] || fail "rollback current"
+  [[ "$(readlink -f "$APP/current")" != "$APP/releases/20261030120012" ]] || fail "current is still the newest id"
+  expected="$(sorted_entries \
+    20261028000001 \
+    20261028000002 \
+    20261030120010 \
+    20261030120011 \
+    20261030120012)"
+  assert_release_entries "$expected"
+  [[ -d "$APP/releases/20261028000002" ]] || fail "previous release was removed"
+  [[ ! -e "$APP/releases/20261028000003" ]] || fail "unprotected release was kept"
+  [[ ! -e "$APP/releases/20261029012526" ]] || fail "old current was kept"
+  assert_shared_untouched
+}
+
+test_failed_activate_does_not_prune() {
+  local id out code
+  for id in 20261028000001 20261028000002 20261028000003 20261028000004 20261028000005; do
+    add_plain_release "$id"
+  done
+  mark_shared
+  set +e
+  out="$(CURL_MODE=fail activate publish "$PACK" 20261030120999 2>&1)"
+  code=$?
+  set -e
+  [[ "$code" -ne 0 ]] || fail "unhealthy publish succeeded: $out"
+  grep -q 'health check failed' <<<"$out" || fail "missing health error: $out"
+  if grep -q 'removing old release' <<<"$out"; then
+    fail "failed activation cleaned releases: $out"
+  fi
+  [[ "$(readlink -f "$APP/current")" == "$APP/releases/20261029012526" ]] || fail "current was not restored"
+  for id in 20261028000001 20261028000002 20261028000003 20261028000004 20261028000005 20261029012526 20261030120999; do
+    [[ -d "$APP/releases/$id" ]] || fail "release $id missing after failed activate"
+  done
+  assert_shared_untouched
+}
+
+test_prune_failure_does_not_fail_activate() {
+  local out code
+  add_plain_release 20261028000001
+  add_plain_release 20261028000002
+  add_plain_release 20261028000003
+  add_plain_release 20261028000004
+  mark_shared
+  cat > "$STUBS/rm" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >> "$CASE/rm.log"
+exit 1
+EOF
+  chmod 755 "$STUBS/rm"
+  set +e
+  out="$(activate publish "$PACK" 20261030120000 2>&1)"
+  code=$?
+  set -e
+  [[ "$code" -eq 0 ]] || fail "cleanup failure failed the activation: $out"
+  grep -q 'release cleanup failed' <<<"$out" || fail "missing cleanup warning: $out"
+  grep -q 'published ' <<<"$out" || fail "success was not logged: $out"
+  [[ "$(readlink -f "$APP/current")" == "$APP/releases/20261030120000" ]] || fail "current was rolled back after cleanup failure"
+  [[ -d "$APP/releases/20261028000001" ]] || fail "cleanup failure still deleted a release"
+  [[ -d "$APP/releases/20261029012526" ]] || fail "previous release missing after cleanup failure"
+  assert_shared_untouched
+}
+
+test_prune_refuses_unsafe_paths() {
+  local out code id fixture="$CASE/guard" real="$CASE/real-releases" linkapp="$CASE/linkapp"
+  mkdir -p "$fixture/releases" "$fixture/shared" "$CASE/outside"
+  printf 'secret\n' > "$CASE/outside/secret"
+  printf 'shared\n' > "$fixture/shared/marker"
+  for id in 01 02 03 04 05; do
+    mkdir -p "$fixture/releases/202610280000$id"
+  done
+  ln -sfn "$fixture/releases/20261028000005" "$fixture/current"
+
+  set +e
+  out="$(activate_fn "" "" "" "" prune_old_releases 2>&1)"
+  code=$?
+  set -e
+  [[ "$code" -eq 0 ]] || fail "empty cleanup exited ${code}: $out"
+  grep -q 'empty APP_ROOT' <<<"$out" || fail "missing empty-path warning: $out"
+  for id in 01 02 03 04 05; do
+    [[ -d "$fixture/releases/202610280000$id" ]] || fail "empty cleanup removed ${id}"
+  done
+
+  mkdir -p "$real" "$linkapp/shared"
+  printf 'shared\n' > "$linkapp/shared/marker"
+  for id in 01 02 03 04 05; do
+    mkdir -p "$real/202610280000$id"
+  done
+  ln -s "$real" "$linkapp/releases"
+  ln -sfn "$real/20261028000005" "$linkapp/current"
+  set +e
+  out="$(activate_fn "$linkapp" "$linkapp/releases" "$linkapp/current" "$real/20261028000004" prune_old_releases 2>&1)"
+  code=$?
+  set -e
+  [[ "$code" -eq 0 ]] || fail "symlink releases cleanup exited ${code}: $out"
+  grep -q 'symlink' <<<"$out" || fail "missing symlink warning: $out"
+  for id in 01 02 03 04 05; do
+    [[ -d "$real/202610280000$id" ]] || fail "symlink releases root removed ${id}"
+  done
+  [[ "$(cat "$linkapp/shared/marker")" == "shared" ]] || fail "shared changed behind a symlink releases dir"
+
+  for id in 01 02 03 04 05; do
+    add_plain_release "202610280000$id"
+  done
+  set +e
+  out="$(activate_fn "$APP" "$APP/releases" "$APP/current" "$CASE/outside" prune_old_releases 2>&1)"
+  code=$?
+  set -e
+  [[ "$code" -eq 0 ]] || fail "outside previous cleanup exited ${code}: $out"
+  grep -q 'outside releases' <<<"$out" || fail "missing out-of-bounds warning: $out"
+  [[ "$(cat "$CASE/outside/secret")" == "secret" ]] || fail "outside path was deleted"
+  for id in 20261028000001 20261028000002 20261028000003 20261028000004 20261028000005 20261029012526; do
+    [[ -d "$APP/releases/$id" ]] || fail "out-of-bounds cleanup removed $id"
+  done
+
+  if activate_fn "$APP" "$APP/releases" "$APP/current" "" release_dir_is_removable ""; then
+    fail "empty candidate was removable"
+  fi
+  if activate_fn "$APP" "$APP/releases" "$APP/current" "" release_dir_is_removable "$APP/releases/../shared"; then
+    fail "path with .. was removable"
+  fi
+  if activate_fn "$APP" "$APP/releases" "$APP/current" "" release_dir_is_removable "$APP/shared"; then
+    fail "shared was removable"
+  fi
+  if activate_fn "$APP" "$APP/releases" "$APP/current" "" release_dir_is_removable "$APP/releases"; then
+    fail "releases directory itself was removable"
+  fi
+  if activate_fn "$APP" "$APP/releases" "$APP/current" "" release_dir_is_removable "$CASE/outside"; then
+    fail "outside directory was removable"
+  fi
+  ln -s "$CASE/outside" "$APP/releases/20261027000099"
+  if activate_fn "$APP" "$APP/releases" "$APP/current" "" release_dir_is_removable "$APP/releases/20261027000099"; then
+    fail "symlink release was removable"
+  fi
+  [[ -L "$APP/releases/20261027000099" ]] || fail "guard check removed the symlink"
+  if ! activate_fn "$APP" "$APP/releases" "$APP/current" "" release_dir_is_removable "$APP/releases/20261029012526"; then
+    fail "real release directory was refused"
+  fi
+  [[ "$(cat "$APP/shared/.env")" == 'DATABASE_URL=mysql://fixture:secret@127.0.0.1/db' ]] || fail "shared env changed in guard test"
+}
+
 run_case() {
   local name="$1"
   shift
@@ -760,6 +1023,12 @@ run_case release-id test_release_id_rules
 run_case migrate-helper test_migrate_helper_does_not_print_secrets
 run_case ecs-secrets test_require_ecs_secrets
 run_case ssh-scripts test_ssh_remote_scripts
+run_case keep-three test_prune_keeps_three_newest
+run_case keep-previous test_prune_keeps_previous_outside_newest
+run_case keep-current test_prune_keeps_current_when_not_newest
+run_case fail-no-prune test_failed_activate_does_not_prune
+run_case prune-warn test_prune_failure_does_not_fail_activate
+run_case prune-guards test_prune_refuses_unsafe_paths
 test_workflow_contract
 printf 'ok workflow\n'
 printf 'all node-release tests passed\n'

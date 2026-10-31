@@ -6,6 +6,12 @@
 # the tarball. Publish points that path at shared/private and, when shared is
 # empty, copies the two existing files from the current release. It does not
 # create a key and it does not print the files.
+# After publish or rollback succeeds, old directories under releases/ are
+# removed. The three newest release ids stay. The directory current points at
+# and the previous release stay even when they are older. shared/ is left
+# alone. Cleanup errors are warnings and do not undo the activation.
+# ssh-activate-release.sh is the remote entry; it runs this script, so the
+# same cleanup applies on that path.
 set -Eeuo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/keduoduo-crm}"
@@ -18,6 +24,9 @@ HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-30}"
 HEALTH_SLEEP_SECONDS="${HEALTH_SLEEP_SECONDS:-2}"
 SKIP_MIGRATE="${SKIP_MIGRATE:-false}"
 SKIP_NPM_CI="${SKIP_NPM_CI:-false}"
+# Newest release directory names kept after a successful activate.
+# current and the previous release are kept in addition to this count.
+RELEASE_KEEP_COUNT=3
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CURRENT_LINK="${APP_ROOT}/current"
@@ -36,6 +45,10 @@ NPM_HOME=""
 
 log() {
   printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
 }
 
 restore_previous() {
@@ -344,6 +357,169 @@ reload_nginx() {
   fi
 }
 
+# True when candidate is a real directory directly under releases/.
+# Empty paths, "..", symlinks, shared/, and anything that resolves elsewhere
+# are not removable.
+release_dir_is_removable() {
+  local candidate="${1:-}"
+  local base="" app_real="" releases_real="" resolved="" shared_real=""
+
+  [[ -n "$candidate" && -n "${APP_ROOT:-}" && -n "${RELEASES_DIR:-}" ]] || return 1
+  [[ "$candidate" != *..* && "$APP_ROOT" != *..* && "$RELEASES_DIR" != *..* ]] || return 1
+  [[ -L "$APP_ROOT" || -L "$RELEASES_DIR" ]] && return 1
+  [[ -d "$APP_ROOT" && -d "$RELEASES_DIR" ]] || return 1
+  [[ -L "$candidate" ]] && return 1
+  [[ -d "$candidate" ]] || return 1
+
+  base="$(basename -- "$candidate")"
+  [[ -n "$base" && "$base" != "." && "$base" != ".." && "$base" != *"/"* ]] || return 1
+  validate_release_id "$base" || return 1
+
+  app_real="$(readlink -f -- "$APP_ROOT" 2>/dev/null || true)"
+  releases_real="$(readlink -f -- "$RELEASES_DIR" 2>/dev/null || true)"
+  resolved="$(readlink -f -- "$candidate" 2>/dev/null || true)"
+  [[ -n "$app_real" && -n "$releases_real" && -n "$resolved" ]] || return 1
+  [[ "$releases_real" == "$app_real/releases" ]] || return 1
+  [[ "$resolved" == "$releases_real/$base" ]] || return 1
+  [[ "$resolved" != "$releases_real" && "$resolved" != "$app_real" ]] || return 1
+
+  shared_real="$(readlink -f -- "$app_real/shared" 2>/dev/null || true)"
+  if [[ -n "$shared_real" ]]; then
+    [[ "$resolved" != "$shared_real" && "$resolved" != "$shared_real"/* ]] || return 1
+  fi
+  [[ "$resolved" != "$app_real/shared" && "$resolved" != "$app_real/shared"/* ]] || return 1
+  return 0
+}
+
+# Rank release ids by directory name, newest first. UTC timestamp ids sort
+# that way. current and previous are added to the keep set even when older.
+prune_old_releases() {
+  local app_real="" releases_real="" current_resolved="" previous_resolved=""
+  local entry="" base="" name="" target="" resolved=""
+  local -a names=()
+  local -a sorted=()
+  local -A keep=()
+  local count=0
+
+  if [[ -z "${APP_ROOT:-}" || -z "${RELEASES_DIR:-}" || -z "${CURRENT_LINK:-}" ]]; then
+    warn "skip release cleanup: empty APP_ROOT, RELEASES_DIR, or current"
+    return 0
+  fi
+  if [[ "$APP_ROOT" == *..* || "$RELEASES_DIR" == *..* || "$CURRENT_LINK" == *..* ]]; then
+    warn "skip release cleanup: path contains .."
+    return 0
+  fi
+  if [[ -L "$APP_ROOT" || -L "$RELEASES_DIR" || ! -d "$APP_ROOT" || ! -d "$RELEASES_DIR" ]]; then
+    warn "skip release cleanup: app root or releases is missing or a symlink"
+    return 0
+  fi
+  app_real="$(readlink -f -- "$APP_ROOT" 2>/dev/null || true)"
+  releases_real="$(readlink -f -- "$RELEASES_DIR" 2>/dev/null || true)"
+  if [[ -z "$app_real" || -z "$releases_real" || "$releases_real" != "$app_real/releases" ]]; then
+    warn "skip release cleanup: releases is not APP_ROOT/releases"
+    return 0
+  fi
+  if [[ ! -L "$CURRENT_LINK" ]]; then
+    warn "skip release cleanup: current is not a symlink"
+    return 0
+  fi
+  current_resolved="$(readlink -f -- "$CURRENT_LINK" 2>/dev/null || true)"
+  if [[ -z "$current_resolved" || -L "$current_resolved" || ! -d "$current_resolved" ]]; then
+    warn "skip release cleanup: current does not resolve to a directory"
+    return 0
+  fi
+  base="$(basename -- "$current_resolved")"
+  if [[ "$current_resolved" != "$releases_real/$base" ]] || ! validate_release_id "$base"; then
+    warn "skip release cleanup: current is outside releases"
+    return 0
+  fi
+  keep["$base"]=1
+
+  if [[ -n "${PREVIOUS:-}" ]]; then
+    if [[ "$PREVIOUS" == *..* || -L "$PREVIOUS" || ! -d "$PREVIOUS" ]]; then
+      warn "skip release cleanup: previous release is unsafe or missing"
+      return 0
+    fi
+    previous_resolved="$(readlink -f -- "$PREVIOUS" 2>/dev/null || true)"
+    if [[ -z "$previous_resolved" || ! -d "$previous_resolved" ]]; then
+      warn "skip release cleanup: previous is outside releases"
+      return 0
+    fi
+    base="$(basename -- "$previous_resolved")"
+    if [[ "$previous_resolved" != "$releases_real/$base" ]] || ! validate_release_id "$base"; then
+      warn "skip release cleanup: previous is outside releases"
+      return 0
+    fi
+    keep["$base"]=1
+  fi
+
+  while IFS= read -r -d '' entry; do
+    [[ -n "$entry" ]] || continue
+    if release_dir_is_removable "$entry"; then
+      names+=("$(basename -- "$entry")")
+    fi
+  done < <(find -P "$releases_real" -mindepth 1 -maxdepth 1 -print0 2>/dev/null || true)
+
+  if ((${#names[@]} == 0)); then
+    return 0
+  fi
+
+  mapfile -t sorted < <(printf '%s\n' "${names[@]}" | LC_ALL=C sort -r)
+  count=0
+  for name in "${sorted[@]}"; do
+    [[ -n "$name" ]] || continue
+    if (( count < RELEASE_KEEP_COUNT )); then
+      keep["$name"]=1
+      count=$((count + 1))
+    fi
+  done
+
+  for name in "${sorted[@]}"; do
+    [[ -n "$name" ]] || continue
+    [[ -n "${keep[$name]:-}" ]] && continue
+    if [[ -z "$releases_real" || -z "$name" ]]; then
+      warn "skipping release cleanup: empty path"
+      continue
+    fi
+    target="${releases_real}/${name}"
+    if [[ "$target" != "$releases_real/$name" ]]; then
+      warn "refusing to remove out-of-bounds path ${target}"
+      continue
+    fi
+    if ! release_dir_is_removable "$target"; then
+      warn "skipping unsafe release path ${target}"
+      continue
+    fi
+    resolved="$(readlink -f -- "$target" 2>/dev/null || true)"
+    if [[ -z "$resolved" || -L "$target" || ! -d "$target" ]]; then
+      warn "skipping unsafe release path ${target}"
+      continue
+    fi
+    if [[ "$resolved" == "$current_resolved" || ( -n "$previous_resolved" && "$resolved" == "$previous_resolved" ) ]]; then
+      warn "refusing to remove protected release ${target}"
+      continue
+    fi
+    if [[ "$resolved" != "$releases_real/$name" || "$resolved" == "$app_real" || "$resolved" == "$app_real/shared" || "$resolved" == "$app_real/shared"/* ]]; then
+      warn "refusing to remove out-of-bounds path ${target}"
+      continue
+    fi
+    log "removing old release ${name}"
+    if ! rm -rf -- "$target"; then
+      warn "release cleanup failed for ${target}; activation stays in place"
+    fi
+  done
+  return 0
+}
+
+# Activation has already succeeded. A cleanup error must not restore current.
+run_release_cleanup() {
+  trap - ERR
+  set +e
+  prune_old_releases
+  set -e
+  trap 'on_err "$LINENO"' ERR
+}
+
 publish_release() {
   local tarball="$1"
   local rid="$2"
@@ -378,6 +554,7 @@ publish_release() {
     log "warning: nginx reload failed. API health passed. If the UI is stale, reload nginx on the host."
   fi
   log "published ${RELEASE_DIR}"
+  run_release_cleanup
 }
 
 rollback_release() {
@@ -400,6 +577,7 @@ rollback_release() {
     log "warning: nginx reload failed after rollback. API health passed."
   fi
   log "rolled back to ${RELEASE_DIR}"
+  run_release_cleanup
 }
 
 main() {
