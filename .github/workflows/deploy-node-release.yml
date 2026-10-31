@@ -126,23 +126,8 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           password: ${{ secrets.ECS_SSH_PASSWORD }}
           command_timeout: 2m
-          script_stop: true
           envs: APP_ROOT,RID
-          script: |
-            set -euo pipefail
-            case "$APP_ROOT" in
-              /opt/keduoduo-crm) ;;
-              *) printf 'refusing unexpected APP_ROOT\n' >&2; exit 1 ;;
-            esac
-            case "$RID" in
-              ""|*[!A-Za-z0-9_.-]*) printf 'invalid release id\n' >&2; exit 1 ;;
-            esac
-            [[ "$RID" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]]
-            root="${APP_ROOT}/releases/${RID}"
-            if [[ -d "$root" && -f "$root/backend/dist/server.js" && -f "$root/frontend/dist/index.html" && ( -e "$root/node_modules/express" || -e "$root/backend/node_modules/express" ) ]]; then
-              exit 0
-            fi
-            exit 2
+          script_path: deploy/node-releases/ssh-probe-release.sh
 
       - name: Classify probe
         id: classify
@@ -451,24 +436,5 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           password: ${{ secrets.ECS_SSH_PASSWORD }}
           command_timeout: 30m
-          script_stop: true
           envs: APP_ROOT,APP_USER,SERVICE_NAME,MODE,RID
-          script: |
-            set -euo pipefail
-            case "$APP_ROOT" in
-              /opt/keduoduo-crm) ;;
-              *) printf 'refusing unexpected APP_ROOT\n' >&2; exit 1 ;;
-            esac
-            case "$MODE" in
-              publish|rollback) ;;
-              *) printf 'refusing unexpected MODE\n' >&2; exit 1 ;;
-            esac
-            cd /tmp/keduoduo-node-release
-            chmod 0755 ./activate-release.sh
-            if [[ "$MODE" == publish ]]; then
-              test -f ./release.tar.gz
-              ./activate-release.sh publish ./release.tar.gz "$RID"
-            else
-              ./activate-release.sh rollback "$RID"
-            fi
-            rm -f ./release.tar.gz
+          script_path: deploy/node-releases/ssh-activate-release.sh
