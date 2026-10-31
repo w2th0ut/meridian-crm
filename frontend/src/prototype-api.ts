@@ -155,6 +155,12 @@ import {
   summarizeProspectNoteChange
 } from "./prospect-batch-notes";
 import {
+  buildProspectPriorityBody,
+  prospectPriorityLabel,
+  showProspectPriorityEntry,
+  summarizeProspectPriorityChange
+} from "./prospect-batch-priority";
+import {
   CONTACT_GAP_LIMIT,
   contactGapEntryLabel,
   contactGapIsGap,
@@ -2320,6 +2326,8 @@ interface WebsiteOpportunity {
   tags?: string[];
   /** 只追加的本地备注。详情里的「候选备注」仍是核验描述，不写在这里。 */
   notes?: string;
+  /** 本地优先级。没有优先级、星级或重要度可复用，取 high、normal、low 或空。 */
+  priority?: "high" | "normal" | "low" | null;
   outreachState?: "uncontacted" | "awaiting_reply" | "replied" | "suppressed" | "contact_invalid";
   invalidContactChannels?: ProspectOutreachChannel[];
   websiteProbeAttempts?: WebsiteProbeAttempt[];
@@ -36513,6 +36521,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       <div class="form-field"><label>联系方式</label><input id="prospectEditContactInfo" value="${escapeHtml(item.contactInfo)}" ${readonly}></div>
       <div class="prospect-field"><span>归属业务员</span><b>${escapeHtml(owner?.name || (item.ownerId === state.user?.id ? state.user?.name || "本人" : item.ownerId || "待分配"))}</b></div>
       <div class="prospect-field" data-prospect-tags="1"><span>标签</span><b>${escapeHtml(prospectTagText(item))}</b></div>
+      <div class="prospect-field" data-prospect-priority="1"><span>优先级</span><b>${escapeHtml(prospectPriorityLabel(item.priority))}</b></div>
       <div class="prospect-field prospect-note-field" data-prospect-notes="1" style="grid-column:1/-1"><span>追加备注</span><b class="prospect-note-text">${escapeHtml(prospectNoteText(item))}</b></div>
       <div class="prospect-field"><span>来源</span><b>${escapeHtml(item.sourceLabel || item.source || "自动获客")}</b></div>
       <div class="prospect-field" data-silent-age-outreach="1" data-outreach-action-email="1"><span>最近开发信</span><b>${item.lastDevelopmentEmailAt ? `${formatTime(item.lastDevelopmentEmailAt)} · ${escapeHtml(item.lastDevelopmentEmailSubject || "开发信")}` : "尚未发送"}</b></div>
@@ -38513,6 +38522,10 @@ function renderProspectList() {
   }
   const noteButton = qs<HTMLButtonElement>("#prospectAppendNotesButton");
   if (noteButton) noteButton.hidden = !showProspectNoteEntry(canTag);
+  for (const selector of ["#prospectSetPriorityButton", "#prospectClearPriorityButton"]) {
+    const priorityButton = qs<HTMLButtonElement>(selector);
+    if (priorityButton) priorityButton.hidden = !showProspectPriorityEntry(canTag);
+  }
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => button.classList.toggle("active", button.dataset.prospectFilter === state.prospectFilter));
   qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
     const active = button.dataset.prospectStageFilter === state.prospectStageFilter;
@@ -38790,6 +38803,7 @@ function renderProspectList() {
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
             <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectTagLine(item)}
+            ${renderProspectPriorityLine(item)}
             ${renderProspectNoteLine(item)}
             ${renderProspectComplianceNotices(item)}
             ${renderOutreachFailureLine(item)}
@@ -40072,6 +40086,78 @@ function renderProspectTagLine(item: { tags?: string[] }) {
   const tags = (item.tags || []).map((tag) => tag.trim()).filter(Boolean);
   if (!tags.length) return "";
   return `<div class="prospect-tag-line">${tags.map((tag) => badge(escapeHtml(tag), "gray")).join("")}</div>`;
+}
+
+function renderProspectPriorityLine(item: { priority?: "high" | "normal" | "low" | null }) {
+  const priority = item.priority === "high" || item.priority === "normal" || item.priority === "low" ? item.priority : "none";
+  return `<div class="prospect-priority-line" data-prospect-priority="${priority}">优先级 ${escapeHtml(prospectPriorityLabel(item.priority))}</div>`;
+}
+
+function requestProspectPriority(
+  action: "set" | "clear",
+  ids: string[],
+  button?: HTMLButtonElement
+) {
+  const gate = buildProspectPriorityBody(ids, "clear");
+  if (!gate.ok) {
+    toast(gate.message, "error");
+    return;
+  }
+  if (action === "clear") {
+    openModal(
+      "批量清除优先级",
+      `<p>将清除 ${gate.body.ids.length} 条候选的优先级。只改本地优先级，不发信，不发消息，不推进序列，不放行批次。</p>`,
+      `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectPriorityButton" type="button">确认清除</button>`
+    );
+    qs<HTMLButtonElement>("#confirmProspectPriorityButton")?.addEventListener("click", () => {
+      closeModal();
+      void submitProspectPriority(gate.body, button);
+    });
+    return;
+  }
+  openModal(
+    "批量设置优先级",
+    `<p>将为 ${gate.body.ids.length} 条候选设置优先级。只改本地优先级，不发信，不发消息，不推进序列，不放行批次。</p><div class="form-field"><label>优先级</label><select id="prospectPriorityInput"><option value="">选择优先级</option><option value="high">高</option><option value="normal">普通</option><option value="low">低</option></select></div>`,
+    `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectPriorityButton" type="button">确认设置</button>`
+  );
+  qs<HTMLButtonElement>("#confirmProspectPriorityButton")?.addEventListener("click", () => {
+    const built = buildProspectPriorityBody(ids, "set", qs<HTMLSelectElement>("#prospectPriorityInput")?.value || "");
+    if (!built.ok) {
+      toast(built.message, "error");
+      return;
+    }
+    closeModal();
+    void submitProspectPriority(built.body, button);
+  });
+}
+
+async function submitProspectPriority(
+  body: { ids: string[]; action: "set" | "clear"; priority?: "high" | "normal" | "low" },
+  button?: HTMLButtonElement
+) {
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ results: Array<{ id: string; ok: boolean; priority?: "high" | "normal" | "low" | null; reason?: string }> }>("/api/prospect-list/priority", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    const changed = new Set<string>();
+    result.results.forEach((row) => {
+      if (!row.ok) return;
+      if (row.priority !== "high" && row.priority !== "normal" && row.priority !== "low" && row.priority !== null) return;
+      const existing = state.websiteOpportunities.find((item) => item.id === row.id);
+      if (!existing) return;
+      existing.priority = row.priority;
+      changed.add(row.id);
+    });
+    state.selectedProspectIds = state.selectedProspectIds.filter((id) => !changed.has(id));
+    renderProspectList();
+    toast(summarizeProspectPriorityChange(body.action, result.results));
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "批量改优先级失败", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function prospectNoteText(item: { notes?: string }) {
@@ -54264,6 +54350,8 @@ function installEvents() {
   qs<HTMLButtonElement>("#prospectSetNextFollowUpButton")?.addEventListener("click", (event) => requestProspectNextFollowUp("set", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectClearNextFollowUpButton")?.addEventListener("click", (event) => requestProspectNextFollowUp("clear", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectAppendNotesButton")?.addEventListener("click", (event) => requestProspectNotes(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectSetPriorityButton")?.addEventListener("click", (event) => requestProspectPriority("set", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectClearPriorityButton")?.addEventListener("click", (event) => requestProspectPriority("clear", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLInputElement>("#prospectSelectPage")?.addEventListener("change", (event) => {
     const checked = (event.currentTarget as HTMLInputElement).checked;
     const pageRows = prospectFilteredRows().slice((state.prospectPage - 1) * PROSPECT_PAGE_SIZE, state.prospectPage * PROSPECT_PAGE_SIZE);

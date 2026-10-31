@@ -567,6 +567,15 @@ import {
   normalizeProspectNote,
   prospectNoteBlock
 } from "./prospect-notes.js";
+import { appendProspectPriorityAudit } from "./prospect-priority-audit.js";
+import {
+  PROSPECT_PRIORITY_BATCH_LIMIT,
+  PROSPECT_PRIORITY_DENIED,
+  applyProspectPriority,
+  normalizeProspectPriority,
+  prospectPriorityBlock,
+  readProspectPriority
+} from "./prospect-priority.js";
 import {
   TRANSPARENT_GIF,
   buildOutboundMessageId,
@@ -19987,6 +19996,65 @@ app.post("/api/prospect-list/notes", requireAuth, asyncRoute(async (req, res) =>
       ok: true,
       note: applied.appended,
       notes: applied.notes
+    };
+  });
+  if (changed.length) {
+    if (store.persistProspectCandidates) await store.persistProspectCandidates(changed.map((item) => item.id));
+    await store.persist();
+  }
+  res.json({ results });
+}));
+
+app.post("/api/prospect-list/priority", requireAuth, asyncRoute(async (req, res) => {
+  const schema = z.object({
+    ids: z.array(z.string().trim().min(1).max(80)).min(1).max(PROSPECT_PRIORITY_BATCH_LIMIT),
+    action: z.enum(["set", "clear"]),
+    priority: z.string().max(40).optional()
+  });
+  const body = schema.parse(req.body ?? {});
+  const normalized = body.action === "set" ? normalizeProspectPriority(body.priority) : null;
+  if (normalized && !normalized.ok) {
+    res.status(400).json({ message: normalized.message });
+    return;
+  }
+  const nextPriority = normalized && normalized.ok ? normalized.priority : null;
+  const store = getStore();
+  const actor = req.user!;
+  const ids = [...new Set(body.ids)];
+  const evaluated = ids.map((id) => {
+    const candidate = store.websiteOpportunities.find((item) => item.id === id);
+    return { id, candidate, block: prospectPriorityBlock(actor, candidate) };
+  });
+  if (evaluated.every((item) => item.block === PROSPECT_PRIORITY_DENIED)) {
+    res.status(403).json({
+      message: "没有可改优先级的候选",
+      results: evaluated.map((item) => ({ id: item.id, ok: false, reason: item.block }))
+    });
+    return;
+  }
+  const changed: WebsiteOpportunity[] = [];
+  const results = evaluated.map((item) => {
+    if (item.block || !item.candidate) {
+      return { id: item.id, ok: false, reason: item.block || PROSPECT_PRIORITY_DENIED };
+    }
+    const previous = readProspectPriority(item.candidate.priority);
+    const applied = applyProspectPriority(item.candidate.priority, nextPriority);
+    if (applied.changed) {
+      item.candidate.priority = applied.priority;
+      changed.push(item.candidate);
+      appendProspectPriorityAudit(store, {
+        actorId: actor.id,
+        objectId: item.candidate.id,
+        action: body.action === "set" ? "set_priority" : "clear_priority",
+        oldValue: previous,
+        newValue: applied.priority
+      });
+    }
+    return {
+      id: item.id,
+      ok: true,
+      action: body.action,
+      priority: applied.priority
     };
   });
   if (changed.length) {
