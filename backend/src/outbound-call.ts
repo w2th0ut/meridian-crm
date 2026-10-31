@@ -124,6 +124,11 @@ function outboundNow() {
   return outboundNowOverride ? new Date(outboundNowOverride.getTime()) : new Date();
 }
 
+/** 跟进默认时间用的“现在”。测试里和拨号时段是同一只时钟。 */
+export function outboundInstant() {
+  return outboundNow();
+}
+
 function isValidTimeZone(timeZone: string) {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());

@@ -13438,10 +13438,42 @@
       white-space: nowrap;
     }
 
+    .outbound-record-detail {
+      margin-top: 16px;
+      padding: 16px;
+      border: 1px solid var(--line-soft, #e6e8ee);
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .outbound-record-detail h2 { margin: 0 0 8px; font-size: 16px; }
+
+    .outbound-record-detail form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+      margin-top: 12px;
+    }
+
+    .outbound-record-detail label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted, #667085);
+      font-size: 12px;
+    }
+
+    .outbound-record-follow-notice {
+      margin: 12px 0 0;
+      color: #8a5a00;
+    }
+
     @media (max-width: 720px) {
       .outbound-record-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .outbound-record-filters select,
-      .outbound-record-filters input { min-width: 0; width: 100%; }
+      .outbound-record-filters input,
+      .outbound-record-detail input { min-width: 0; width: 100%; }
+      .outbound-record-detail form { display: grid; }
     }
 
     .customer-contact-actions {
@@ -32083,7 +32115,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>外呼通话记录</h1>
-              <p>只读。按坐席和租户当地日期查看已经记下的通话。这里不能拨号，也不能改记录。</p>
+              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。不能拨号，不能改通话记录，也不能批量生成。</p>
             </div>
           </div>
           <p class="outbound-record-note">接通看话单 EstablishedTime 是否有内容。平均时长只统计接通通话里能当成整数秒的 CallDuration，单位是秒。起算点和接通枚举如果和真实话单不一致，以接入方案第 9 节为准，这一页不另算一套。</p>
@@ -32095,6 +32127,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           </form>
           <div id="outboundCallRecordSummary"><p data-outbound-record-empty="1">这个范围内还没有通话记录。</p></div>
           <div id="outboundCallRecordList"></div>
+          <div id="outboundCallRecordDetail" hidden></div>
         </div>
         <div class="view" id="phone-strategies"><div class="kd-phone-root"></div></div>
         <div class="view" id="phone-config"><div class="kd-phone-root"></div></div>

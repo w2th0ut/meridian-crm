@@ -4,8 +4,8 @@ import type { CrmStore } from "./store.js";
 import type { AliyunAgentMapping, OutboundCallRecord, SessionUser } from "./types.js";
 
 /**
- * 外呼通话记录只读列表。数据只来自已写入的 outbound_call_records。
- * 不拨号，不改记录，不请求阿里云。
+ * 外呼通话记录列表。统计仍只读，不改通话记录，不拨号，不请求阿里云。
+ * 未接通记录的「生成下次跟进」走单独接口，不在这里改话单。
  *
  * 接通：establishedTimeRaw 去掉空白后非空。单通详情页写未建立时该字段为空。
  * 不把 ContactDisposition 的 Success 单独当成接通。dispositionCode 与话单是否一一对应见接入方案第 9.4 节。
@@ -177,7 +177,7 @@ function agentLabel(mapping: AliyunAgentMapping | undefined, cccUserId: string) 
   return mapping?.displayName || mapping?.loginName || cccUserId;
 }
 
-function presentRecord(record: OutboundCallRecord, timeZone: string, labels: Map<string, string>) {
+export function presentOutboundCallRecord(record: OutboundCallRecord, timeZone: string, labels: Map<string, string>) {
   const agentIds = splitAgentIds(record.agentIds);
   return {
     id: record.id,
@@ -194,23 +194,35 @@ function presentRecord(record: OutboundCallRecord, timeZone: string, labels: Map
   };
 }
 
-export async function listOutboundCallRecords(
-  store: CrmStore,
-  user: SessionUser | undefined,
-  query: Record<string, unknown>
+export interface OutboundCallRecordAccess {
+  tenantWide: boolean;
+  teamScope: boolean;
+  allowed: Set<string>;
+  timeZone: string;
+  labels: Map<string, string>;
+}
+
+/** 和列表相同的可见范围。tenantWide 为真时，没有坐席 ID 的本租户记录也可见。 */
+export function outboundCallRecordVisible(
+  record: OutboundCallRecord,
+  teamId: string,
+  access: Pick<OutboundCallRecordAccess, "tenantWide" | "allowed">
 ) {
-  if (!user?.id || !user.teamId) {
-    return { status: 401, body: { message: "未登录" } };
-  }
+  if (record.teamId !== teamId) return false;
+  if (access.tenantWide) return true;
+  return splitAgentIds(record.agentIds).some((id) => access.allowed.has(id));
+}
+
+export async function resolveOutboundCallRecordAccess(
+  store: CrmStore,
+  user: SessionUser
+): Promise<{ ok: false; status: number; body: Record<string, unknown> } | { ok: true; access: OutboundCallRecordAccess }> {
   if (!hasIamPermission(user as IamActor, OUTBOUND_CALL_RECORD_PERMISSION)) {
     return {
+      ok: false,
       status: 403,
       body: { message: "当前账号没有执行该业务操作的权限", permissionCode: OUTBOUND_CALL_RECORD_PERMISSION }
     };
-  }
-  const parsed = parseOutboundCallRecordQuery(query);
-  if (!parsed) {
-    return { status: 400, body: { result: "rejected", reason: "invalid_request", message: "参数格式错误" } };
   }
   await ensureReadScope(store, user);
   const tenantWide = user.iamDataScope?.tenantWide === true;
@@ -233,23 +245,49 @@ export async function listOutboundCallRecords(
       if (owners.has(item.crmUserId)) allowed.add(item.cccUserId);
     }
   }
-  if (parsed.agentId && !tenantWide && !allowed.has(parsed.agentId)) {
+  const timeZone = await tenantTimeZoneFor(store, user.teamId);
+  return { ok: true, access: { tenantWide, teamScope, allowed, timeZone, labels } };
+}
+
+export async function listOutboundCallRecords(
+  store: CrmStore,
+  user: SessionUser | undefined,
+  query: Record<string, unknown>
+) {
+  if (!user?.id || !user.teamId) {
+    return { status: 401, body: { message: "未登录" } };
+  }
+  const resolved = await resolveOutboundCallRecordAccess(store, user);
+  if (!resolved.ok) return { status: resolved.status, body: resolved.body };
+  const parsed = parseOutboundCallRecordQuery(query);
+  if (!parsed) {
+    return { status: 400, body: { result: "rejected", reason: "invalid_request", message: "参数格式错误" } };
+  }
+  const access = resolved.access;
+  if (parsed.agentId && !access.tenantWide && !access.allowed.has(parsed.agentId)) {
     return { status: 403, body: { result: "rejected", reason: "forbidden", message: "不能查看这个坐席的通话记录" } };
   }
-  const timeZone = await tenantTimeZoneFor(store, user.teamId);
   const selected = selectOutboundCallRecords({
     records: store.outboundCallRecords,
     teamId: user.teamId,
-    teamWide: tenantWide,
-    agentIds: allowed,
+    teamWide: access.tenantWide,
+    agentIds: access.allowed,
     agentId: parsed.agentId,
     from: parsed.from,
     to: parsed.to,
-    timeZone
+    timeZone: access.timeZone
   });
   const summary = summarizeOutboundCallRecords(selected);
+  const generated = new Set(
+    store.outboundMissedFollowUps
+      .filter((item) => item.teamId === user.teamId)
+      .map((item) => item.callRecordId)
+  );
   const records = selected
-    .map((record) => presentRecord(record, timeZone, labels))
+    .map((record) => ({
+      ...presentOutboundCallRecord(record, access.timeZone, access.labels),
+      followUpGenerated: generated.has(record.id)
+    }))
     .sort((left, right) => {
       if (left.localDate && right.localDate && left.localDate !== right.localDate) {
         return left.localDate < right.localDate ? 1 : -1;
@@ -258,15 +296,15 @@ export async function listOutboundCallRecords(
       if (!left.localDate && right.localDate) return 1;
       return left.id < right.id ? 1 : -1;
     });
-  const agents = [...allowed].map((cccUserId) => ({
+  const agents = [...access.allowed].map((cccUserId) => ({
     cccUserId,
-    label: labels.get(cccUserId) || cccUserId
+    label: access.labels.get(cccUserId) || cccUserId
   })).sort((left, right) => left.label.localeCompare(right.label, "zh") || left.cccUserId.localeCompare(right.cccUserId));
   return {
     status: 200,
     body: {
-      scope: teamScope ? "team" as const : "self" as const,
-      timeZone,
+      scope: access.teamScope ? "team" as const : "self" as const,
+      timeZone: access.timeZone,
       filters: parsed,
       agents,
       criteria: {
