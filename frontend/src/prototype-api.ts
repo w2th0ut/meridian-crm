@@ -126,6 +126,14 @@ import {
   type FollowUpGapView
 } from "./prospect-follow-up-gap";
 import {
+  buildWorkbenchFollowUpBody,
+  followUpTypesFor,
+  prospectReadoutsAfterFollowUp,
+  showCustomerRecordEntry,
+  WORKBENCH_FOLLOW_UP_TYPE_LABEL,
+  type WorkbenchFollowUpSubject
+} from "./workbench-record-follow-up";
+import {
   CONTACT_GAP_LIMIT,
   contactGapEntryLabel,
   contactGapIsGap,
@@ -714,6 +722,7 @@ interface Customer {
   pipelineAmount?: number;
   activeDealCount?: number;
   ownerId?: string;
+  teamId?: string;
   ownerName?: string;
   activities?: CustomerActivity[];
   lastActivityAt?: string;
@@ -12779,15 +12788,182 @@ function renderTodoInsights(summary: DashboardSummary) {
   }
 }
 
+function customerFollowUpWritable(customerId: string) {
+  const user = state.user;
+  const customer = state.customers.find((item) => item.id === customerId);
+  if (!user || !customer || customer.poolStatus === "public") return false;
+  const scopes = state.iamCapabilities?.permissions["customer.update"] || user.iamPermissions?.["customer.update"] || [];
+  return showCustomerRecordEntry({
+    userId: user.id,
+    ownerId: customer.ownerId || "",
+    teamId: customer.teamId || user.teamId,
+    userTeamId: user.teamId,
+    userRole: user.role,
+    inOwnedList: true,
+    tenantWide: scopes.includes("tenant")
+  });
+}
+
+function workbenchRecordFollowUpButton(subject: WorkbenchFollowUpSubject, id: string, company: string) {
+  return `<button class="btn workbench-record-follow-up" type="button" data-workbench-record-follow-up="${subject}" data-workbench-record-id="${escapeHtml(id)}" aria-label="记跟进：${escapeHtml(company)}">记跟进</button>`;
+}
+
+function withWorkbenchRecordFollowUp(rowHtml: string, id: string, company: string, writable: boolean) {
+  if (!writable) return rowHtml;
+  return `<div class="dashboard-prospect-row-wrap">${rowHtml}${workbenchRecordFollowUpButton("prospect", id, company)}</div>`;
+}
+
+let workbenchFollowPopover: HTMLElement | null = null;
+
+function closeWorkbenchFollowPopover() {
+  workbenchFollowPopover?.remove();
+  workbenchFollowPopover = null;
+}
+
+function refreshWorkbenchProspectReadouts() {
+  renderDashboardFollowUps();
+  renderDashboardDueFollowUps();
+  renderDashboardNextFollowDue();
+  renderDashboardFollowUpGap();
+  renderDashboardSilentAge();
+  renderProspectList();
+}
+
+function refreshCustomerFollowUpRow(customer: Customer) {
+  state.customers = state.customers.map((item) => item.id === customer.id ? customer : item);
+  if (state.summary) {
+    state.summary.priorityTasks = state.summary.priorityTasks.map((task) => {
+      if (task.customerId !== customer.id) return task;
+      const overdue = (customer.nextReminder || "").includes("逾期");
+      return {
+        ...task,
+        badge: overdue ? "逾期" : task.badge === "逾期" ? "跟进" : task.badge
+      };
+    });
+    renderPriorityTasks(state.summary);
+  }
+  if (qs<HTMLElement>("#customers")?.classList.contains("active")) renderCustomers(state.customers);
+  if (state.selectedCustomerId === customer.id && qs<HTMLElement>("#customer-detail")?.classList.contains("active")) {
+    renderCustomerDetailPage(customer);
+  }
+}
+
+function openWorkbenchFollowUpPopover(anchor: HTMLButtonElement) {
+  const subject = anchor.dataset.workbenchRecordFollowUp === "customer" ? "customer" : "prospect";
+  const id = anchor.dataset.workbenchRecordId || "";
+  if (subject === "prospect") {
+    const item = state.websiteOpportunities.find((row) => row.id === id);
+    if (!item || !prospectFollowUpWritable(item)) return;
+  } else if (!customerFollowUpWritable(id)) {
+    return;
+  }
+  closeWorkbenchFollowPopover();
+  const types = followUpTypesFor(subject);
+  const popover = document.createElement("div");
+  popover.className = "workbench-follow-popover";
+  popover.setAttribute("role", "dialog");
+  popover.setAttribute("aria-label", "记跟进");
+  popover.innerHTML = `<form class="workbench-follow-form">
+    <b>记跟进</b>
+    <label>跟进内容<textarea name="content" maxlength="2000" required placeholder="写下这次跟进"></textarea></label>
+    <label>方式<select name="type">${types.map((type) => `<option value="${type}">${escapeHtml(WORKBENCH_FOLLOW_UP_TYPE_LABEL[type] || type)}</option>`).join("")}</select></label>
+    <label>下次跟进<input name="nextFollowAt" type="datetime-local"></label>
+    <p>只写入跟进记录。不会发信，不会发消息，不会推进序列，不会放行批次。</p>
+    <div class="workbench-follow-actions"><button class="btn" type="button" data-workbench-follow-cancel>取消</button><button class="btn primary" type="submit">保存</button></div>
+  </form>`;
+  document.body.appendChild(popover);
+  const rect = anchor.getBoundingClientRect();
+  const width = 280;
+  popover.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+  popover.style.top = `${Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 320))}px`;
+  workbenchFollowPopover = popover;
+  popover.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+  popover.querySelector<HTMLButtonElement>("[data-workbench-follow-cancel]")?.addEventListener("click", () => {
+    closeWorkbenchFollowPopover();
+  });
+  popover.querySelector("form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const content = String(new FormData(form).get("content") || "");
+    const type = String(new FormData(form).get("type") || "");
+    const nextFollowAt = String(new FormData(form).get("nextFollowAt") || "");
+    const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
+    void submitWorkbenchFollowUp(subject, id, content, type, nextFollowAt, submit);
+  });
+}
+
+async function submitWorkbenchFollowUp(
+  subject: WorkbenchFollowUpSubject,
+  id: string,
+  content: string,
+  type: string,
+  nextFollowAt: string,
+  button?: HTMLButtonElement | null
+) {
+  const built = buildWorkbenchFollowUpBody({ subject, content, type, nextFollowAt });
+  if (!built.ok) {
+    toast(built.message, "error");
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+    button.textContent = "保存中";
+  }
+  const path = subject === "prospect"
+    ? `/api/prospect-list/${encodeURIComponent(id)}/follow-ups`
+    : `/api/customers/${encodeURIComponent(id)}/activities`;
+  try {
+    if (subject === "prospect") {
+      const result = await api<{
+        latestFollowUp: WebsiteOpportunity["latestFollowUp"];
+        nextFollowAt: string;
+        opportunity: WebsiteOpportunity;
+      }>(path, { method: "POST", body: JSON.stringify(built.body) });
+      const item = state.websiteOpportunities.find((row) => row.id === id);
+      if (item) {
+        Object.assign(item, result.opportunity);
+        prospectReadoutsAfterFollowUp({
+          latestFollowUpAt: item.latestFollowUp?.at || "",
+          nextFollowAt: item.nextFollowAt || ""
+        });
+      }
+      closeWorkbenchFollowPopover();
+      refreshWorkbenchProspectReadouts();
+      toast("跟进已记录");
+      return;
+    }
+    const result = await api<{ customer: Customer }>(path, {
+      method: "POST",
+      body: JSON.stringify(built.body)
+    });
+    closeWorkbenchFollowPopover();
+    refreshCustomerFollowUpRow(result.customer);
+    toast(`已记录 ${result.customer.company} 的跟进`);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "跟进记录失败", "error");
+    if (button) {
+      button.disabled = false;
+      button.textContent = "保存";
+    }
+  }
+}
+
 function renderPriorityTasks(summary: DashboardSummary) {
   const list = qs<HTMLElement>("#dashboard .task-list");
   if (!list) return;
-  list.innerHTML = summary.priorityTasks.length ? summary.priorityTasks.map((task) => `<article class="task" data-priority-task-id="${escapeHtml(task.id)}" style="--accent: var(--${task.tone === "red" ? "rose" : task.tone})">
+  list.innerHTML = summary.priorityTasks.length ? summary.priorityTasks.map((task) => {
+    const customer = state.customers.find((item) => item.id === task.customerId);
+    const record = customer && customerFollowUpWritable(customer.id)
+      ? workbenchRecordFollowUpButton("customer", customer.id, customer.company)
+      : "";
+    return `<article class="task" data-priority-task-id="${escapeHtml(task.id)}" data-priority-customer-id="${escapeHtml(task.customerId)}" style="--accent: var(--${task.tone === "red" ? "rose" : task.tone})">
     <i class="task-line"></i>
-    <div><h3>${escapeHtml(task.action)}</h3><p>${escapeHtml(task.subtitle)}</p><div class="priority-task-meta"><span>${escapeHtml(task.reason)}</span></div></div>
+    <div><h3>${escapeHtml(task.action)}</h3><p>${escapeHtml(task.subtitle)}</p><div class="priority-task-meta"><span>${escapeHtml(task.reason)}</span>${customer?.nextReminder ? `<span data-customer-next-follow="${escapeHtml(customer.id)}">${escapeHtml(customer.nextReminder)}</span>` : ""}</div></div>
     <div class="priority-score">${task.score}<br>分</div>
     ${badge(task.badge, task.tone === "red" ? "red" : task.tone === "amber" ? "amber" : "")}
-  </article>`).join("") : `<div class="todo-history-empty">暂无高优先级跟进任务</div>`;
+    ${record}
+  </article>`;
+  }).join("") : `<div class="todo-history-empty">暂无高优先级跟进任务</div>`;
 }
 
 async function batchProcessPriorityTasks(button?: HTMLButtonElement) {
@@ -41136,11 +41312,12 @@ function renderDashboardFollowUps() {
     const summary = latest?.excerpt
       ? `${formatDateTime(latest.at)} · ${latest.typeLabel || latest.type} · ${latest.excerpt}`
       : "暂无跟进";
-    return `<button class="dashboard-prospect-row" type="button" data-dashboard-follow-up="${escapeHtml(item.id)}" aria-label="记录跟进：${escapeHtml(item.company)}">
+    const row = `<button class="dashboard-prospect-row" type="button" data-dashboard-follow-up="${escapeHtml(item.id)}" aria-label="记录跟进：${escapeHtml(item.company)}">
       <b>${escapeHtml(item.company)}</b>
       <span>${escapeHtml(status.label)}</span>
       <em>${escapeHtml(summary)}</em>
     </button>`;
+    return withWorkbenchRecordFollowUp(row, item.id, item.company, prospectFollowUpWritable(item));
   }).join("");
 }
 
@@ -41186,11 +41363,12 @@ function renderDashboardDueFollowUps() {
     const status = prospectStatusMeta(item);
     const kind = classifyProspectNextFollow(item.nextFollowAt);
     const label = kind === "overdue" ? "已逾期" : "今日到期";
-    return `<button class="dashboard-prospect-row${kind === "overdue" ? " is-overdue" : ""}" type="button" data-dashboard-due-follow-up="${escapeHtml(item.id)}" aria-label="打开下次跟进：${escapeHtml(item.company)}">
+    const row = `<button class="dashboard-prospect-row${kind === "overdue" ? " is-overdue" : ""}" type="button" data-dashboard-due-follow-up="${escapeHtml(item.id)}" aria-label="打开下次跟进：${escapeHtml(item.company)}">
       <b>${escapeHtml(item.company)}</b>
       <span>${escapeHtml(status.label)} · ${escapeHtml(label)}</span>
       <em>${escapeHtml(formatProspectNextFollow(item.nextFollowAt))}</em>
     </button>`;
+    return withWorkbenchRecordFollowUp(row, item.id, item.company, prospectFollowUpWritable(item));
   }).join("");
 }
 
@@ -41280,11 +41458,12 @@ function renderDashboardNextFollowDue(now = new Date()) {
     : `可见范围 ${queue.total} 条有下次跟进，逾期在前`;
   list.innerHTML = shown.map((item) => {
     const view = prospectNextFollowDue(item, now);
-    return `<button class="dashboard-prospect-row${view.kind === "overdue" ? " is-overdue" : ""}" type="button" data-dashboard-next-follow-due="${escapeHtml(item.id)}" data-next-follow-due="${view.kind}" aria-label="打开下次跟进逾期：${escapeHtml(item.company)}">
+    const row = `<button class="dashboard-prospect-row${view.kind === "overdue" ? " is-overdue" : ""}" type="button" data-dashboard-next-follow-due="${escapeHtml(item.id)}" data-next-follow-due="${view.kind}" aria-label="打开下次跟进逾期：${escapeHtml(item.company)}">
       <b>${escapeHtml(item.company)}</b>
       <span>${escapeHtml(nextFollowDueStatusLabel(view))}</span>
       <em>${escapeHtml(formatNextFollowDue(view))}</em>
     </button>`;
+    return withWorkbenchRecordFollowUp(row, item.id, item.company, prospectFollowUpWritable(item));
   }).join("");
 }
 
@@ -41568,11 +41747,12 @@ function renderDashboardFollowUpGap(now = new Date()) {
     : `可见范围 ${queue.total} 条能判断跟进空档，空档在前`;
   list.innerHTML = shown.map((item) => {
     const view = prospectFollowUpGap(item, now);
-    return `<button class="dashboard-prospect-row${view.kind === "gap" ? " is-gap" : ""}" type="button" data-dashboard-follow-up-gap="${escapeHtml(item.id)}" data-follow-up-gap="${view.kind}" aria-label="打开跟进记录空档：${escapeHtml(item.company)}">
+    const row = `<button class="dashboard-prospect-row${view.kind === "gap" ? " is-gap" : ""}" type="button" data-dashboard-follow-up-gap="${escapeHtml(item.id)}" data-follow-up-gap="${view.kind}" aria-label="打开跟进记录空档：${escapeHtml(item.company)}">
       <b>${escapeHtml(item.company)}</b>
       <span>${escapeHtml(followUpGapStatusLabel(view))}</span>
       <em>${escapeHtml(formatFollowUpGapAt(view.atMs))}</em>
     </button>`;
+    return withWorkbenchRecordFollowUp(row, item.id, item.company, prospectFollowUpWritable(item));
   }).join("");
 }
 
@@ -53254,6 +53434,13 @@ function installEvents() {
     const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardRecentOutreach);
     if (!item || !item.lastDevelopmentEmailAt) return;
     openSentProspectFromDashboard(item);
+  });
+  qs<HTMLElement>("#dashboard")?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-workbench-record-follow-up]");
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openWorkbenchFollowUpPopover(button);
   });
   qs<HTMLButtonElement>("#dashboardFollowUpsRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);

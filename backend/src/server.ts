@@ -532,9 +532,11 @@ import {
 } from "./prospect-outreach.js";
 import {
   describeProspectLatestFollowUp,
+  PROSPECT_FOLLOW_UP_TYPE_VALUES,
   recordProspectFollowUp,
   setProspectNextFollowAt
 } from "./prospect-follow-up.js";
+import { appendFollowUpAudit } from "./follow-up-audit.js";
 import {
   TRANSPARENT_GIF,
   buildOutboundMessageId,
@@ -4603,6 +4605,7 @@ app.post("/api/prospect-list/:id/follow-up", requireAuth, asyncRoute(async (req,
 app.post("/api/prospect-list/:id/follow-ups", requireAuth, asyncRoute(async (req, res) => {
   const body = z.object({
     content: z.string().trim().max(2000).optional().default(""),
+    type: z.enum(PROSPECT_FOLLOW_UP_TYPE_VALUES).optional(),
     nextFollowAt: z.string().trim().max(40).optional()
   }).parse(req.body || {});
   const store = getStore();
@@ -4628,9 +4631,19 @@ app.post("/api/prospect-list/:id/follow-ups", requireAuth, asyncRoute(async (req
       candidate,
       actorId,
       content: body.content,
+      type: body.type,
       nextFollowAt: body.nextFollowAt
     })
     : null;
+  if (recorded) {
+    appendFollowUpAudit(store, {
+      actorId,
+      objectType: "prospect_candidate",
+      objectId: candidate.id,
+      activityId: recorded.activity.id,
+      at: recorded.activity.createdAt
+    });
+  }
   if (!recorded && body.nextFollowAt !== undefined) {
     setProspectNextFollowAt(store, {
       candidate,
@@ -9817,6 +9830,13 @@ app.post("/api/customers/:id/activities", requireAuth, asyncRoute(async (req, re
   };
   store.customerActivities.unshift(activity);
   if (body.nextReminder) customer.nextReminder = body.nextReminder;
+  appendFollowUpAudit(store, {
+    actorId: req.user!.id,
+    objectType: "customer",
+    objectId: customer.id,
+    activityId: activity.id,
+    at: activity.createdAt
+  });
   void store.persist().catch((err) => console.error("customer activity persist failed:", err));
   res.json({ activity, customer: customerWithPipeline(customer, req.user!) });
 }));

@@ -4754,6 +4754,17 @@ export interface SalesRecordAudit {
   createdAt: string;
 }
 
+/** 记跟进写入的最小审计。操作人、时间、对象、动作。不另做平行跟进表。 */
+export interface FollowUpAuditEvent {
+  id: string;
+  actorId: string;
+  at: string;
+  objectType: "prospect_candidate" | "customer";
+  objectId: string;
+  action: "record_follow_up";
+  activityId: string;
+}
+
 export interface CommissionCalculation {
   id: string;
   month: string;

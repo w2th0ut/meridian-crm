@@ -13,7 +13,7 @@ import type {
   ProspectIcpPolicySnapshot,
   ProspectSuppressionEvent
 } from "./types.js";
-import type { CompanyProfile, DocumentLetterhead, DocumentStamp } from "./types.js";
+import type { CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent } from "./types.js";
 
 export const providerCatalog: ProviderCatalogItem[] = createDefaultProviderCatalog();
 export const providerConnections: ProviderConnection[] = [];
@@ -355,6 +355,7 @@ export const commissionRules: CommissionRule[] = [
 
 export const monthlySalesRecords: MonthlySalesRecord[] = [];
 export const salesRecordAudits: SalesRecordAudit[] = [];
+export const followUpAudits: FollowUpAuditEvent[] = [];
 export const commissionCalculations: CommissionCalculation[] = [];
 export const commissionItems: CommissionItem[] = [];
 export const commissionExports: CommissionExport[] = [];

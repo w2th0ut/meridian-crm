@@ -3207,6 +3207,16 @@ assert.equal(/animation:\s*mhStamp/.test(themeCss), false, "唛头入场不得�
 assert.match(adminDeck, /organizations|organization-structure/, "后台控制台必须覆盖组织架构页");
 assert.match(adminDeck, /\.main > \.workspace > \.view\.active, \.main > \.view\.active/, "后台视图分布在 workspace 与 main 两处，必须都能命中");
 assert.match(adminDeck, /rails\.slice\(1\)/, "状态带每次只允许存在一条，重复插入必须清理");
+assert.match(apiLayer, /workbenchRecordFollowUpButton\("prospect"/, "工作台候选行必须有记跟进");
+assert.match(apiLayer, /workbenchRecordFollowUpButton\("customer"/, "工作台客户行必须有记跟进");
+assert.match(apiLayer, /prospectFollowUpWritable\(item\)/, "候选记跟进必须沿用可写判断");
+assert.match(apiLayer, /customerFollowUpWritable\(customer\.id\)/, "客户记跟进必须先判断写权限");
+assert.match(apiLayer, /\/api\/prospect-list\/\$\{encodeURIComponent\(id\)\}\/follow-ups/, "候选记跟进必须走现有接口");
+assert.match(apiLayer, /\/api\/customers\/\$\{encodeURIComponent\(id\)\}\/activities/, "客户记跟进必须走现有接口");
+assert.match(apiLayer, /refreshWorkbenchProspectReadouts/, "记跟进成功后必须局部刷新跟进空档和次回跟进");
+assert.match(apiLayer, /不会发信，不会发消息，不会推进序列，不会放行批次/, "记跟进弹层必须写明不发信、不推进");
+assert.match(prototype, /dashboard-record-follow-up-note/, "工作台必须说明记跟进只写记录");
+assert.doesNotMatch(kbSourceBetween(apiLayer, "async function submitWorkbenchFollowUp", "\nfunction renderPriorityTasks"), /sendProspectDevelopmentEmail|convert-to-lead|send-development-email|advanceSequence|releaseBatch/, "工作台记跟进不得发信、转线索、推进序列或放行批次");
 assert.match(adminDeck, /head\.nextElementSibling !== existing/, "状态带位置必须紧随页首（首次渲染早于页首时要搬正）");
 assert.match(adminDeck, /SCOPE_LEVELS/, "授权范围必须映射成可读刻度");
 assert.match(adminDeck, /select\.addEventListener\('change'/, "改授权范围必须即时更新仪表与读数");
