@@ -287,6 +287,7 @@ import {
   runCustomerMaintenanceWatch
 } from "./customer-maintenance.js";
 import { createCredentialRef, decryptProviderConfiguration, encryptProviderConfiguration, validateProviderCredentialSecurity } from "./credential-security.js";
+import { readAliyunOutboundConfig, updateAliyunOutboundConfig } from "./aliyun-outbound-config.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -8872,6 +8873,14 @@ app.put("/api/company-profile", requireAuth, asyncRoute(async (req, res) => {
   else store.companyProfiles.push(profile);
   await store.persist();
   res.json({ profile, canManage: true });
+}));
+
+app.get("/api/aliyun-outbound/config", requireAuth, asyncRoute(async (req, res) => {
+  res.json(readAliyunOutboundConfig(getStore(), req.user, req.query.teamId));
+}));
+
+app.put("/api/aliyun-outbound/config", requireAuth, asyncRoute(async (req, res) => {
+  res.json(await updateAliyunOutboundConfig(getStore(), req.user, req.body));
 }));
 
 function developmentEmailEntity(user: SessionUser, entityType: BackgroundResearchEntity, entityId: string) {
