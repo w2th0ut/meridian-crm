@@ -306,6 +306,19 @@ import {
   type InboundSyncStatusView
 } from "./inbound-sync-status";
 import {
+  INBOUND_SYNC_ANOMALY_AGE_LIMIT,
+  formatInboundSyncAnomalyAgeAt,
+  inboundSyncAnomalyAgeEntryLabel,
+  inboundSyncAnomalyAgeLineLabel,
+  inboundSyncAnomalyAgeListFilterForOpen,
+  inboundSyncAnomalyAgeStatusLabel,
+  inboundSyncAnomalyAgeSummary,
+  listInboundSyncAnomalyAgeQueue,
+  presentInboundSyncAnomalyAge,
+  type InboundSyncAnomalyAgeListFilter,
+  type InboundSyncAnomalyAgeView
+} from "./inbound-sync-anomaly-age";
+import {
   ACQUISITION_TODO_SUMMARY_NOTE,
   buildAcquisitionTodoSummary,
   type AcquisitionTodoSummaryRow
@@ -10386,6 +10399,7 @@ function renderProfile(user = state.user) {
   }
   const inboundSummary = qs<HTMLElement>("#profileInboundSyncSummary");
   if (inboundSummary) inboundSummary.textContent = inboundSyncSummary(inboundSync);
+  renderProfileInboundSyncAnomalyAge(user);
   renderDashboardInboundSync();
   updateProfileSmtpHints(user);
   renderEmailConfigurationReminders();
@@ -39036,6 +39050,7 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
 }
 
 let inboundSyncFilter: InboundSyncListFilter = "all";
+let inboundSyncAnomalyAgeFilter: InboundSyncAnomalyAgeListFilter = "all";
 let inboundSyncReadError = "";
 let acquisitionTodoReadError = "";
 
@@ -39052,6 +39067,7 @@ function inboundSyncTone(view: InboundSyncStatusView) {
 
 function renderDashboardInboundSync() {
   renderDashboardAcquisitionTodoSummary();
+  renderDashboardInboundSyncAnomalyAge();
   const scope = qs<HTMLElement>("#dashboardInboundSyncScope");
   const list = qs<HTMLElement>("#dashboardInboundSyncList");
   qsa<HTMLButtonElement>("[data-inbound-sync-filter]").forEach((button) => {
@@ -39151,6 +39167,125 @@ async function refreshInboundSyncStatus(button?: HTMLButtonElement) {
       button.textContent = original || "刷新";
     }
   }
+}
+
+function inboundSyncAnomalyAgeOf(account: User, now = new Date()) {
+  const sync = presentInboundSyncStatus(account);
+  return presentInboundSyncAnomalyAge({
+    anomaly: sync.condition === "error",
+    at: sync.syncedAt
+  }, now);
+}
+
+function inboundSyncAnomalyAgeBadgeTone(kind: InboundSyncAnomalyAgeView["kind"]) {
+  if (kind === "long") return "amber";
+  if (kind === "recent") return "green";
+  return "";
+}
+
+function renderProfileInboundSyncAnomalyAge(user: User, now = new Date()) {
+  const root = qs<HTMLElement>("#profileInboundSyncAnomalyAge");
+  if (!root) return;
+  const view = inboundSyncAnomalyAgeOf(user, now);
+  root.dataset.inboundSyncAnomalyAge = view.kind;
+  const badgeHost = qs<HTMLElement>("#profileInboundSyncAnomalyAgeBadge");
+  if (badgeHost) badgeHost.innerHTML = badge(inboundSyncAnomalyAgeStatusLabel(view), inboundSyncAnomalyAgeBadgeTone(view.kind));
+  const summary = qs<HTMLElement>("#profileInboundSyncAnomalyAgeSummary");
+  if (summary) summary.textContent = inboundSyncAnomalyAgeSummary(view);
+  const body = qs<HTMLElement>("#profileInboundSyncAnomalyAgeBody");
+  if (body) {
+    body.dataset.inboundSyncAnomalyAgeBody = view.kind;
+    body.textContent = inboundSyncAnomalyAgeLineLabel(view);
+  }
+  const entry = qs<HTMLButtonElement>("#profileInboundSyncAnomalyAgeEntry");
+  if (entry) entry.textContent = inboundSyncAnomalyAgeEntryLabel();
+}
+
+function renderDashboardInboundSyncAnomalyAge(now = new Date()) {
+  const scope = qs<HTMLElement>("#dashboardInboundSyncAnomalyAgeScope");
+  const list = qs<HTMLElement>("#dashboardInboundSyncAnomalyAgeList");
+  qsa<HTMLButtonElement>("[data-inbound-sync-anomaly-age-filter]").forEach((button) => {
+    const active = button.dataset.inboundSyncAnomalyAgeFilter === inboundSyncAnomalyAgeFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (!scope || !list) return;
+  if (inboundSyncReadError) {
+    scope.textContent = "收信同步异常日龄暂时读不到";
+    list.innerHTML = `<div class="empty-cell">收信同步异常日龄暂时读不到（${escapeHtml(inboundSyncReadError)}）。点刷新重试。这里不会编造异常时间，也不会触发同步，也不会改授权。</div>`;
+    return;
+  }
+  const accounts = inboundSyncAccountRows();
+  if (!accounts.length) {
+    scope.textContent = "正在读取当前账号";
+    list.innerHTML = `<div class="empty-cell">正在读取当前账号。这里不会编造异常，也不会触发同步。</div>`;
+    return;
+  }
+  const queue = listInboundSyncAnomalyAgeQueue(
+    accounts,
+    (account) => inboundSyncAnomalyAgeOf(account, now),
+    INBOUND_SYNC_ANOMALY_AGE_LIMIT,
+    inboundSyncAnomalyAgeFilter
+  );
+  if (!queue.total && inboundSyncAnomalyAgeFilter === "long") {
+    scope.textContent = "没有同步异常超七日";
+    list.innerHTML = `<div class="empty-cell">没有同步异常超七日的账号。这里不会编造异常时间，也不会触发同步，也不会改授权。</div>`;
+    return;
+  }
+  if (!queue.total) {
+    scope.textContent = "无同步异常日龄";
+    list.innerHTML = `<div class="empty-cell">无同步异常日龄。这里不会编造异常时间，也不会触发同步，也不会改授权。</div>`;
+    return;
+  }
+  const shown = queue.rows;
+  scope.textContent = queue.total > shown.length
+    ? `可见账号 ${accounts.length} 个里 ${queue.total} 条能判断收信同步异常日龄，这里显示 ${shown.length} 条，同步异常超七日在前`
+    : `可见账号 ${accounts.length} 个里 ${queue.total} 条能判断收信同步异常日龄，同步异常超七日在前`;
+  const currentId = state.user?.id || "";
+  list.innerHTML = shown.map((account) => {
+    const view = inboundSyncAnomalyAgeOf(account, now);
+    const name = account.name || "当前账号";
+    const when = formatInboundSyncAnomalyAgeAt(view.atMs);
+    if (account.id === currentId) {
+      return `<button class="dashboard-prospect-row${view.kind === "long" ? " is-sync-anomaly-long" : ""}" type="button" data-dashboard-inbound-sync-anomaly-age="${escapeHtml(account.id)}" data-inbound-sync-anomaly-age="${view.kind}" aria-label="收信同步异常日龄：${escapeHtml(name)}">
+        <b>${escapeHtml(name)}</b>
+        <span>${escapeHtml(inboundSyncAnomalyAgeStatusLabel(view))}</span>
+        <em>${escapeHtml(when)}</em>
+      </button>`;
+    }
+    return `<div class="dashboard-prospect-row dashboard-inbound-sync-anomaly-age-static${view.kind === "long" ? " is-sync-anomaly-long" : ""}" data-inbound-sync-anomaly-age="${view.kind}" aria-label="收信同步异常日龄：${escapeHtml(name)}">
+      <b>${escapeHtml(name)}</b>
+      <span>${escapeHtml(inboundSyncAnomalyAgeStatusLabel(view))}</span>
+      <em>${escapeHtml(when)}</em>
+    </div>`;
+  }).join("");
+}
+
+function scrollToInboundSyncStatus() {
+  const status = qs<HTMLElement>("#profileImapSyncStatus");
+  if (status) {
+    status.scrollIntoView({ block: "start" });
+    return "status" as const;
+  }
+  qs<HTMLElement>("#profileInboundSync")?.scrollIntoView({ block: "start" });
+  return "top" as const;
+}
+
+function openInboundSyncAnomalyAgeFromDashboard(accountId: string) {
+  if (!accountId || accountId !== state.user?.id || !state.user) return;
+  const view = inboundSyncAnomalyAgeOf(state.user);
+  if (view.kind === "none") return;
+  inboundSyncAnomalyAgeFilter = inboundSyncAnomalyAgeListFilterForOpen(view);
+  const show = () => {
+    renderProfile();
+    qs<HTMLElement>("#profileInboundSyncAnomalyAge")?.scrollIntoView({ block: "start" });
+    toast("已打开收信设置。只读，不会改授权，不会重连，也不会触发同步，也不会发信，也不会改邮箱配置。");
+  };
+  if (qs<HTMLElement>("#profile")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("profile", show);
 }
 
 const OUTREACH_SEQUENCE_LIMIT = 8;
@@ -51770,6 +51905,35 @@ function installEvents() {
     openInboundSyncSettings();
   });
   qs<HTMLButtonElement>("#profileSaveButton")?.addEventListener("click", (event) => void saveProfileEmailBinding(event.currentTarget as HTMLButtonElement));
+  qsa<HTMLButtonElement>("[data-inbound-sync-anomaly-age-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.inboundSyncAnomalyAgeFilter;
+      if (next !== "all" && next !== "long") return;
+      inboundSyncAnomalyAgeFilter = next;
+      renderDashboardInboundSyncAnomalyAge();
+    });
+  });
+  qs<HTMLButtonElement>("#dashboardInboundSyncAnomalyAgeRefresh")?.addEventListener("click", (event) => {
+    void refreshInboundSyncStatus(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLButtonElement>("#dashboardInboundSyncAnomalyAgeSettings")?.addEventListener("click", () => {
+    openInboundSyncSettings();
+  });
+  qs<HTMLElement>("#dashboardInboundSyncAnomalyAge")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-inbound-sync-anomaly-age]");
+    const accountId = opener?.dataset.dashboardInboundSyncAnomalyAge || "";
+    if (!accountId || accountId !== state.user?.id) return;
+    openInboundSyncAnomalyAgeFromDashboard(accountId);
+  });
+  qs<HTMLButtonElement>("#profileInboundSyncAnomalyAgeEntry")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const landed = scrollToInboundSyncStatus();
+    if (landed === "status") {
+      toast("已打开现有收信同步。只读，不会改授权，不会重连，也不会触发同步，也不会发信，也不会改邮箱配置。");
+    } else {
+      toast("没有收信同步，已停在收信设置顶部。只读，不会改授权，不会重连，也不会触发同步，也不会发信，也不会改邮箱配置。");
+    }
+  });
   qs<HTMLButtonElement>("#profileChangePasswordButton")?.addEventListener("click", (event) => void changeProfilePassword(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#profileClearImapButton")?.addEventListener("click", (event) => void clearProfileImapPassword(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#profileTestImapButton")?.addEventListener("click", (event) => void testProfileImap(event.currentTarget as HTMLButtonElement));
