@@ -2055,6 +2055,13 @@ export interface WebsiteOpportunity {
    * 已有文字原样保留，新内容接在后面。
    */
   notes?: string;
+  /**
+   * 本地行业。候选上原来没有 industry。
+   * 同行和案例的 industry、搜索词 industryTerms 都不在这条候选上。
+   * business 是业务方向，不拿来当行业。
+   * 仓库没有行业枚举。去掉首尾空白后最长 120 字；没有设置时为 null。
+   */
+  industry?: string | null;
   outreachState?: ProspectOutreachState;
   lastOpenedAt?: string;
   lastClickedAt?: string;
@@ -4833,6 +4840,18 @@ export interface ProspectPriorityAuditEvent {
   action: "set_priority" | "clear_priority";
   oldValue: "high" | "normal" | "low" | null;
   newValue: "high" | "normal" | "low" | null;
+}
+
+/** 批量设置或清除行业的最小审计。操作人、时间、对象、动作、原来的值到新的值。 */
+export interface ProspectIndustryAuditEvent {
+  id: string;
+  actorId: string;
+  at: string;
+  objectType: "prospect_candidate";
+  objectId: string;
+  action: "set_industry" | "clear_industry";
+  oldValue: string | null;
+  newValue: string | null;
 }
 
 export interface CommissionCalculation {

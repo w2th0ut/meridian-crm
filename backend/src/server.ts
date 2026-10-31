@@ -576,6 +576,15 @@ import {
   prospectPriorityBlock,
   readProspectPriority
 } from "./prospect-priority.js";
+import { appendProspectIndustryAudit } from "./prospect-industry-audit.js";
+import {
+  PROSPECT_INDUSTRY_BATCH_LIMIT,
+  PROSPECT_INDUSTRY_DENIED,
+  applyProspectIndustry,
+  normalizeProspectIndustry,
+  prospectIndustryBlock,
+  readProspectIndustry
+} from "./prospect-industry.js";
 import {
   TRANSPARENT_GIF,
   buildOutboundMessageId,
@@ -20055,6 +20064,65 @@ app.post("/api/prospect-list/priority", requireAuth, asyncRoute(async (req, res)
       ok: true,
       action: body.action,
       priority: applied.priority
+    };
+  });
+  if (changed.length) {
+    if (store.persistProspectCandidates) await store.persistProspectCandidates(changed.map((item) => item.id));
+    await store.persist();
+  }
+  res.json({ results });
+}));
+
+app.post("/api/prospect-list/industry", requireAuth, asyncRoute(async (req, res) => {
+  const schema = z.object({
+    ids: z.array(z.string().trim().min(1).max(80)).min(1).max(PROSPECT_INDUSTRY_BATCH_LIMIT),
+    action: z.enum(["set", "clear"]),
+    industry: z.string().max(400).optional()
+  });
+  const body = schema.parse(req.body ?? {});
+  const normalized = body.action === "set" ? normalizeProspectIndustry(body.industry) : null;
+  if (normalized && !normalized.ok) {
+    res.status(400).json({ message: normalized.message });
+    return;
+  }
+  const nextIndustry = normalized && normalized.ok ? normalized.industry : null;
+  const store = getStore();
+  const actor = req.user!;
+  const ids = [...new Set(body.ids)];
+  const evaluated = ids.map((id) => {
+    const candidate = store.websiteOpportunities.find((item) => item.id === id);
+    return { id, candidate, block: prospectIndustryBlock(actor, candidate) };
+  });
+  if (evaluated.every((item) => item.block === PROSPECT_INDUSTRY_DENIED)) {
+    res.status(403).json({
+      message: "没有可改行业的候选",
+      results: evaluated.map((item) => ({ id: item.id, ok: false, reason: item.block }))
+    });
+    return;
+  }
+  const changed: WebsiteOpportunity[] = [];
+  const results = evaluated.map((item) => {
+    if (item.block || !item.candidate) {
+      return { id: item.id, ok: false, reason: item.block || PROSPECT_INDUSTRY_DENIED };
+    }
+    const previous = readProspectIndustry(item.candidate.industry);
+    const applied = applyProspectIndustry(item.candidate.industry, nextIndustry);
+    if (applied.changed) {
+      item.candidate.industry = applied.industry;
+      changed.push(item.candidate);
+      appendProspectIndustryAudit(store, {
+        actorId: actor.id,
+        objectId: item.candidate.id,
+        action: body.action === "set" ? "set_industry" : "clear_industry",
+        oldValue: previous,
+        newValue: applied.industry
+      });
+    }
+    return {
+      id: item.id,
+      ok: true,
+      action: body.action,
+      industry: applied.industry
     };
   });
   if (changed.length) {

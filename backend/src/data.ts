@@ -13,7 +13,7 @@ import type {
   ProspectIcpPolicySnapshot,
   ProspectSuppressionEvent
 } from "./types.js";
-import type { CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, NextFollowUpAuditEvent, OwnerReassignAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, NextFollowUpAuditEvent, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 
 export const providerCatalog: ProviderCatalogItem[] = createDefaultProviderCatalog();
 export const providerConnections: ProviderConnection[] = [];
@@ -361,6 +361,7 @@ export const prospectTagAudits: ProspectTagAuditEvent[] = [];
 export const nextFollowUpAudits: NextFollowUpAuditEvent[] = [];
 export const prospectNoteAudits: ProspectNoteAuditEvent[] = [];
 export const prospectPriorityAudits: ProspectPriorityAuditEvent[] = [];
+export const prospectIndustryAudits: ProspectIndustryAuditEvent[] = [];
 export const commissionCalculations: CommissionCalculation[] = [];
 export const commissionItems: CommissionItem[] = [];
 export const commissionExports: CommissionExport[] = [];

@@ -126,8 +126,9 @@ import {
   validateProviderCredentialSecurity
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
-import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectNoteAudits, prospectPriorityAudits, prospectTagAudits } from "./data.js";
-import type { FollowUpAuditEvent, NextFollowUpAuditEvent, OwnerReassignAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectIndustryAudits, prospectNoteAudits, prospectPriorityAudits, prospectTagAudits } from "./data.js";
+import type { FollowUpAuditEvent, NextFollowUpAuditEvent, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import { readProspectIndustry } from "./prospect-industry.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
 import type { DailyReport, DailyReportComment, InternalMessage } from "./types.js";
@@ -1871,6 +1872,7 @@ export async function createMysqlStore(
 		    nextFollowUpAudits: await loadNextFollowUpAudits(pool),
 		    prospectNoteAudits: await loadProspectNoteAudits(pool),
 		    prospectPriorityAudits: await loadProspectPriorityAudits(pool),
+		    prospectIndustryAudits: await loadProspectIndustryAudits(pool),
 		    commissionCalculations: await loadCommissionCalculations(pool),
 		    commissionItems: await loadCommissionItems(pool),
 		    commissionExports: await loadCommissionExports(pool),
@@ -2027,6 +2029,7 @@ export async function createMysqlStore(
       store.nextFollowUpAudits.push(...nextFollowUpAudits);
       store.prospectNoteAudits.push(...prospectNoteAudits);
       store.prospectPriorityAudits.push(...prospectPriorityAudits);
+      store.prospectIndustryAudits.push(...prospectIndustryAudits);
       store.commissionCalculations.push(...commissionCalculations);
       store.commissionItems.push(...commissionItems);
       store.commissionExports.push(...commissionExports);
@@ -3207,6 +3210,7 @@ async function ensureSchema(pool: mysql.Pool) {
   await ensureColumn(pool, "website_opportunities", "tags_json", "JSON");
   await ensureColumn(pool, "website_opportunities", "notes", "TEXT");
   await ensureColumn(pool, "website_opportunities", "priority", "VARCHAR(20) NULL");
+  await ensureColumn(pool, "website_opportunities", "industry", "VARCHAR(120) NULL");
   await pool.query(`CREATE TABLE IF NOT EXISTS prospect_touchpoints (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -6038,6 +6042,18 @@ async function ensureSchema(pool: mysql.Pool) {
     INDEX idx_prospect_priority_audits_object(object_type, object_id),
     INDEX idx_prospect_priority_audits_actor(actor_id, occurred_at)
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS prospect_industry_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    object_type VARCHAR(40) NOT NULL,
+    object_id VARCHAR(64) NOT NULL,
+    action_code VARCHAR(40) NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    INDEX idx_prospect_industry_audits_object(object_type, object_id),
+    INDEX idx_prospect_industry_audits_actor(actor_id, occurred_at)
+  )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS commission_calculations (
     id VARCHAR(64) PRIMARY KEY,
     month_value VARCHAR(20) NOT NULL,
@@ -7575,6 +7591,7 @@ async function loadWebsiteOpportunities(pool: MysqlQuerySource): Promise<Website
     tags: parseStoredStringList(row.tags_json),
     notes: row.notes || "",
     priority: row.priority === "high" || row.priority === "normal" || row.priority === "low" ? row.priority : null,
+    industry: readProspectIndustry(row.industry),
     invalidContactChannels: row.invalid_contact_channels_json
       ? (typeof row.invalid_contact_channels_json === "string"
         ? JSON.parse(row.invalid_contact_channels_json)
@@ -12124,6 +12141,19 @@ async function loadProspectPriorityAudits(pool: mysql.Pool): Promise<ProspectPri
   }));
 }
 
+async function loadProspectIndustryAudits(pool: mysql.Pool): Promise<ProspectIndustryAuditEvent[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM prospect_industry_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    actorId: row.actor_id || "",
+    at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at || new Date().toISOString(),
+    objectType: "prospect_candidate",
+    objectId: row.object_id || "",
+    action: row.action_code === "clear_industry" ? "clear_industry" : "set_industry",
+    oldValue: readProspectIndustry(row.old_value),
+    newValue: readProspectIndustry(row.new_value)
+  }));
+}
+
 async function loadProspectNoteAudits(pool: mysql.Pool): Promise<ProspectNoteAuditEvent[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM prospect_note_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
@@ -12566,6 +12596,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "next_follow_up_audits", store.nextFollowUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
 	    await replaceRows(connection, "prospect_note_audits", store.prospectNoteAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.note || ""], "(id,actor_id,occurred_at,object_type,object_id,action_code,note)");
 	    await replaceRows(connection, "prospect_priority_audits", store.prospectPriorityAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
+	    await replaceRows(connection, "prospect_industry_audits", store.prospectIndustryAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
 	    await replaceRows(connection, "commission_calculations", store.commissionCalculations, (item) => [item.id, item.month, item.ownerId, item.teamId, item.salesAmount, item.autoCommission, item.manualAdjustment, item.finalCommission, item.status, item.version, item.isCurrent, item.calculatedAt ? mysqlDate(item.calculatedAt) : null, item.reviewedBy, item.reviewedAt ? mysqlDate(item.reviewedAt) : null, item.lockedBy, item.lockedAt ? mysqlDate(item.lockedAt) : null, item.unlockReason], "(id,month_value,owner_id,team_id,sales_amount,auto_commission,manual_adjustment,final_commission,status,version_no,is_current,calculated_at,reviewed_by,reviewed_at,locked_by,locked_at,unlock_reason)");
 	    await replaceRows(connection, "commission_items", store.commissionItems, (item) => [item.id, item.calculationId, item.recordId, item.productId, item.itemType, item.sourceType, item.ruleSnapshotJson, item.salesAmount, item.autoAmount, item.manualAmount, item.finalAmount, item.remark, item.createdBy, mysqlDate(item.createdAt)], "(id,calculation_id,record_id,product_id,item_type,source_type,rule_snapshot_json,sales_amount,auto_amount,manual_amount,final_amount,remark,created_by,created_at)");
 	    await replaceRows(connection, "commission_exports", store.commissionExports, (item) => [item.id, item.month, item.scopeType, item.scopeOwnerId, item.fileType, item.rows, item.exportedBy, mysqlDate(item.createdAt)], "(id,month_value,scope_type,scope_owner_id,file_type,rows_count,exported_by,created_at)");
@@ -12664,9 +12695,10 @@ async function persistWebsiteOpportunityRows(
       item.clickCount ?? 0,
       JSON.stringify(item.tags || []),
       item.notes || "",
-      item.priority === "high" || item.priority === "normal" || item.priority === "low" ? item.priority : null
+      item.priority === "high" || item.priority === "normal" || item.priority === "low" ? item.priority : null,
+      readProspectIndustry(item.industry)
     ],
-    "(id,company,business,country,website,contact,contact_info,description,owner_id,team_id,status,customer_id,deal_id,lead_id,parse_mode,source,source_label,source_evidence_json,extracted_contacts_json,contact_enrichment_attempts_json,verification_report_json,search_report_json,scorecard_json,confidence,last_development_email_at,last_development_email_subject,last_development_email_to,verified_at,status_changed_at,excluded_reason,shortlisted_at,shortlisted_by,shortlist_source_run_id,tenant_prospect_id,organization_id,coverage_classification,coverage_queue_state,coverage_reason_code,last_touchpoint_at,last_touchpoint_channel,last_reply_classification,next_follow_at,outreach_state,invalid_contact_channels_json,website_probe_attempts_json,website_discovery_attempts_json,identity_bootstrap_attempts_json,created_at,last_opened_at,last_clicked_at,open_count,click_count,tags_json,notes,priority)"
+    "(id,company,business,country,website,contact,contact_info,description,owner_id,team_id,status,customer_id,deal_id,lead_id,parse_mode,source,source_label,source_evidence_json,extracted_contacts_json,contact_enrichment_attempts_json,verification_report_json,search_report_json,scorecard_json,confidence,last_development_email_at,last_development_email_subject,last_development_email_to,verified_at,status_changed_at,excluded_reason,shortlisted_at,shortlisted_by,shortlist_source_run_id,tenant_prospect_id,organization_id,coverage_classification,coverage_queue_state,coverage_reason_code,last_touchpoint_at,last_touchpoint_channel,last_reply_classification,next_follow_at,outreach_state,invalid_contact_channels_json,website_probe_attempts_json,website_discovery_attempts_json,identity_bootstrap_attempts_json,created_at,last_opened_at,last_clicked_at,open_count,click_count,tags_json,notes,priority,industry)"
   );
 }
 

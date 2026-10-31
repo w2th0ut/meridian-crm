@@ -161,6 +161,12 @@ import {
   summarizeProspectPriorityChange
 } from "./prospect-batch-priority";
 import {
+  buildProspectIndustryBody,
+  prospectIndustryLabel,
+  showProspectIndustryEntry,
+  summarizeProspectIndustryChange
+} from "./prospect-batch-industry";
+import {
   CONTACT_GAP_LIMIT,
   contactGapEntryLabel,
   contactGapIsGap,
@@ -2328,6 +2334,8 @@ interface WebsiteOpportunity {
   notes?: string;
   /** 本地优先级。没有优先级、星级或重要度可复用，取 high、normal、low 或空。 */
   priority?: "high" | "normal" | "low" | null;
+  /** 本地行业。候选上原来没有 industry，业务方向不拿来当行业。去掉首尾空白，最长 120 字。 */
+  industry?: string | null;
   outreachState?: "uncontacted" | "awaiting_reply" | "replied" | "suppressed" | "contact_invalid";
   invalidContactChannels?: ProspectOutreachChannel[];
   websiteProbeAttempts?: WebsiteProbeAttempt[];
@@ -36522,6 +36530,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       <div class="prospect-field"><span>归属业务员</span><b>${escapeHtml(owner?.name || (item.ownerId === state.user?.id ? state.user?.name || "本人" : item.ownerId || "待分配"))}</b></div>
       <div class="prospect-field" data-prospect-tags="1"><span>标签</span><b>${escapeHtml(prospectTagText(item))}</b></div>
       <div class="prospect-field" data-prospect-priority="1"><span>优先级</span><b>${escapeHtml(prospectPriorityLabel(item.priority))}</b></div>
+      <div class="prospect-field" data-prospect-industry="1"><span>行业</span><b>${escapeHtml(prospectIndustryLabel(item.industry))}</b></div>
       <div class="prospect-field prospect-note-field" data-prospect-notes="1" style="grid-column:1/-1"><span>追加备注</span><b class="prospect-note-text">${escapeHtml(prospectNoteText(item))}</b></div>
       <div class="prospect-field"><span>来源</span><b>${escapeHtml(item.sourceLabel || item.source || "自动获客")}</b></div>
       <div class="prospect-field" data-silent-age-outreach="1" data-outreach-action-email="1"><span>最近开发信</span><b>${item.lastDevelopmentEmailAt ? `${formatTime(item.lastDevelopmentEmailAt)} · ${escapeHtml(item.lastDevelopmentEmailSubject || "开发信")}` : "尚未发送"}</b></div>
@@ -38526,6 +38535,10 @@ function renderProspectList() {
     const priorityButton = qs<HTMLButtonElement>(selector);
     if (priorityButton) priorityButton.hidden = !showProspectPriorityEntry(canTag);
   }
+  for (const selector of ["#prospectSetIndustryButton", "#prospectClearIndustryButton"]) {
+    const industryButton = qs<HTMLButtonElement>(selector);
+    if (industryButton) industryButton.hidden = !showProspectIndustryEntry(canTag);
+  }
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => button.classList.toggle("active", button.dataset.prospectFilter === state.prospectFilter));
   qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
     const active = button.dataset.prospectStageFilter === state.prospectStageFilter;
@@ -38804,6 +38817,7 @@ function renderProspectList() {
             <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectTagLine(item)}
             ${renderProspectPriorityLine(item)}
+            ${renderProspectIndustryLine(item)}
             ${renderProspectNoteLine(item)}
             ${renderProspectComplianceNotices(item)}
             ${renderOutreachFailureLine(item)}
@@ -40155,6 +40169,79 @@ async function submitProspectPriority(
     toast(summarizeProspectPriorityChange(body.action, result.results));
   } catch (error) {
     toast(error instanceof Error ? error.message : "批量改优先级失败", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function renderProspectIndustryLine(item: { industry?: string | null }) {
+  const industry = prospectIndustryLabel(item.industry);
+  const marker = industry === "未设行业" ? "none" : "set";
+  return `<div class="prospect-industry-line" data-prospect-industry="${marker}">行业 ${escapeHtml(industry)}</div>`;
+}
+
+function requestProspectIndustry(
+  action: "set" | "clear",
+  ids: string[],
+  button?: HTMLButtonElement
+) {
+  const gate = buildProspectIndustryBody(ids, "clear");
+  if (!gate.ok) {
+    toast(gate.message, "error");
+    return;
+  }
+  if (action === "clear") {
+    openModal(
+      "批量清除行业",
+      `<p>将清除 ${gate.body.ids.length} 条候选的行业。只改本地行业，不发信，不发消息，不推进序列，不放行批次。</p>`,
+      `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectIndustryButton" type="button">确认清除</button>`
+    );
+    qs<HTMLButtonElement>("#confirmProspectIndustryButton")?.addEventListener("click", () => {
+      closeModal();
+      void submitProspectIndustry(gate.body, button);
+    });
+    return;
+  }
+  openModal(
+    "批量设置行业",
+    `<p>将为 ${gate.body.ids.length} 条候选设置行业。只改本地行业，不发信，不发消息，不推进序列，不放行批次。</p><div class="form-field"><label>行业</label><input id="prospectIndustryInput" maxlength="120" placeholder="填写行业"></div>`,
+    `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectIndustryButton" type="button">确认设置</button>`
+  );
+  qs<HTMLButtonElement>("#confirmProspectIndustryButton")?.addEventListener("click", () => {
+    const built = buildProspectIndustryBody(ids, "set", qs<HTMLInputElement>("#prospectIndustryInput")?.value || "");
+    if (!built.ok) {
+      toast(built.message, "error");
+      return;
+    }
+    closeModal();
+    void submitProspectIndustry(built.body, button);
+  });
+}
+
+async function submitProspectIndustry(
+  body: { ids: string[]; action: "set" | "clear"; industry?: string },
+  button?: HTMLButtonElement
+) {
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ results: Array<{ id: string; ok: boolean; industry?: string | null; reason?: string }> }>("/api/prospect-list/industry", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    const changed = new Set<string>();
+    result.results.forEach((row) => {
+      if (!row.ok) return;
+      if (row.industry !== null && typeof row.industry !== "string") return;
+      const existing = state.websiteOpportunities.find((item) => item.id === row.id);
+      if (!existing) return;
+      existing.industry = row.industry;
+      changed.add(row.id);
+    });
+    state.selectedProspectIds = state.selectedProspectIds.filter((id) => !changed.has(id));
+    renderProspectList();
+    toast(summarizeProspectIndustryChange(body.action, result.results));
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "批量改行业失败", "error");
   } finally {
     if (button) button.disabled = false;
   }
@@ -54352,6 +54439,8 @@ function installEvents() {
   qs<HTMLButtonElement>("#prospectAppendNotesButton")?.addEventListener("click", (event) => requestProspectNotes(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectSetPriorityButton")?.addEventListener("click", (event) => requestProspectPriority("set", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectClearPriorityButton")?.addEventListener("click", (event) => requestProspectPriority("clear", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectSetIndustryButton")?.addEventListener("click", (event) => requestProspectIndustry("set", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectClearIndustryButton")?.addEventListener("click", (event) => requestProspectIndustry("clear", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLInputElement>("#prospectSelectPage")?.addEventListener("change", (event) => {
     const checked = (event.currentTarget as HTMLInputElement).checked;
     const pageRows = prospectFilteredRows().slice((state.prospectPage - 1) * PROSPECT_PAGE_SIZE, state.prospectPage * PROSPECT_PAGE_SIZE);
