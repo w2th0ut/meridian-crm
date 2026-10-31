@@ -18,12 +18,51 @@ Known on-disk ids use UTC timestamps, for example `20261026203307` and `20261029
 
 Other containers on the same host are out of scope. This workflow does not mention them and the activate script does not call Docker.
 
+## Merge gate
+
+Order is fixed: CI passes, then the build artifact, then a person may merge or dispatch a deploy.
+
+A pull request into `master` (`opened`, `synchronize`, `reopened`) runs only:
+
+1. `verify-scripts` — `deploy/node-releases/run-tests.sh`
+2. `build` — Node.js 22, `npm ci`, `npm run build`, then the same dist file checks
+
+`build` has `needs: [verify-scripts, ...]`, and it starts only when `needs.verify-scripts.result == 'success'`. A red verify job does not install, build, or upload. The dist artifact is uploaded only after those build steps succeed, and only on a manual run that asked for ECS deploy or ACR. Pull requests do not upload it. They also do not run `guard-ecs`, `probe-ecs`, `deploy-ecs`, or `push-acr`.
+
+Push to `master` or a `v*` / `*.*.*` tag uses the same verify-then-build order. It still has no SSH step and does not push images.
+
+Deploy stays manual: `workflow_dispatch` with `deploy_ecs=true`. `probe-ecs` and `deploy-ecs` also wait for `verify-scripts`. Pack and `scp` stay inside `deploy-ecs`, which runs only after `build` succeeds. Rollback of an existing on-disk release still skips the build, and it still does not SSH until the script tests pass. If Actions cannot run, the on-server rollback below is unchanged. Push never SSHes.
+
+This gate does not run `npm test` or Playwright. Those suites need a full install and, for MySQL and e2e, extra services. The required checks are the existing script contract, then the existing `npm run build`.
+
+合并门槛：先 CI 通过，再构建产物，然后才合并或手动发布。PR 必须让 `verify-scripts` 成功，`build` 才会开始。PR 不 SSH、不推镜像、不跑 `guard-ecs` / `probe-ecs` / `deploy-ecs` / `push-acr`。推送到 master 同样只验证再构建。上线仍是手动 `workflow_dispatch` 且 `deploy_ecs=true`；探测和 SSH 也要等 `verify-scripts` 成功，打包和 scp 之前 `build` 必须成功。已有目录的回滚仍跳过构建。
+
+### Branch protection
+
+Set this in the GitHub UI on `master`. This workflow cannot change protection rules.
+
+Require a pull request before merging, and require these status checks:
+
+- `node-release / verify-scripts`
+- `node-release / build`
+
+Do not require these. On a pull request they are skipped. A required check that is skipped either blocks every merge, or shows green without running:
+
+- `node-release / guard-ecs`
+- `node-release / probe-ecs`
+- `node-release / deploy-ecs`
+- `node-release / push-acr`
+
+The workflow `name` is `node-release`. The job ids are `verify-scripts` and `build`. GitHub shows each check as `workflow / job`. The names appear in the protection picker after this workflow has run once on a pull request.
+
+在 master 的分支保护里要求上面两个检查名，并要求通过 pull request 才能合并。不要把 guard-ecs、probe-ecs、deploy-ecs、push-acr 设成必需检查。
+
 ## Push does not deploy
 
 A push to `master`, or a tag matching `v*` / `*.*.*`, only:
 
-1. Runs the pack/activate safety tests.
-2. Runs Node.js 22, `npm ci`, and `npm run build`, then checks the same dist files the app needs.
+1. Runs the pack/activate safety tests (`verify-scripts`).
+2. After that job succeeds, runs Node.js 22, `npm ci`, and `npm run build`, then checks the same dist files the app needs.
 
 That path has no SSH step and does not push images. It cannot run a remote update script.
 
@@ -62,7 +101,7 @@ Deploys use one concurrency group, `ecs-keduoduo-crm-node-release`, and SSH step
 
 ## Rollback
 
-Preferred: run **workflow_dispatch** with `deploy_ecs=true` and `release_id` set to an existing directory name, for example `20261029012526`. The probe only checks that the directory already has `backend/dist/server.js`, `frontend/dist/index.html`, and `express`. It does not build, pack, or migrate. It flips `current`, restarts, and health-checks. `push_acr` does not run on that path, because the build job is skipped.
+Preferred: run **workflow_dispatch** with `deploy_ecs=true` and `release_id` set to an existing directory name, for example `20261029012526`. The probe waits until `verify-scripts` succeeds, then only checks that the directory already has `backend/dist/server.js`, `frontend/dist/index.html`, and `express`. It does not build, pack, or migrate. It flips `current`, restarts, and health-checks. `push_acr` does not run on that path, because the build job is skipped.
 
 If Actions cannot run, on the server:
 
@@ -78,7 +117,7 @@ Old release directories are kept. Remove one only after `readlink -f /opt/keduod
 
 ## ACR is optional
 
-Image push does not run on push. Set `push_acr=true` on a manual run to build and push `backend`, `gateway`, and `communication`. The job checks `ACR_USERNAME` and `ACR_PASSWORD` in a step. If either is missing, it skips the push and stays green, so a Node release deploy in the same run is not failed by ACR.
+Image push does not run on push or on pull_request. Set `push_acr=true` on a manual run to build and push `backend`, `gateway`, and `communication`. The job checks `ACR_USERNAME` and `ACR_PASSWORD` in a step. If either is missing, it skips the push and stays green, so a Node release deploy in the same run is not failed by ACR. `push-acr` needs a successful `build`.
 
 Image tags are `<product version>-<short sha>`, the git tag, or the manual `release_id` when one was typed. The ECS directory id is the UTC timestamp unless `release_id` was set. Those two ids are allowed to differ.
 

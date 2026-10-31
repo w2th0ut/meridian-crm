@@ -400,26 +400,80 @@ path = pathlib.Path(sys.argv[1])
 text = path.read_text()
 assert "baota-update" not in text, "workflow still calls baota-update"
 assert "/opt/keduoduocrm" not in text, "workflow still targets the baota root"
-assert "pull_request" not in text
+assert re.search(r"(?m)^name: node-release$", text), "workflow name drifted; branch protection check names depend on it"
+on_block = text.split("jobs:", 1)[0]
+assert "push:" in on_block
+assert "pull_request:" in on_block, "pull_request trigger missing"
+pr = on_block.split("pull_request:", 1)[1].split("workflow_dispatch:", 1)[0]
+assert "master" in pr, "pull_request must target master"
+for kind in ("opened", "synchronize", "reopened"):
+    assert kind in pr, f"pull_request missing type {kind}"
 assert text.count("appleboy/ssh-action@") == 2
 assert text.count("script_stop: true") == 2
 assert "default: false" in text
 assert "cancel-in-progress: false" in text
 jobs_blob = text.split("jobs:", 1)[1]
 jobs = re.split(r"\n(?=  [A-Za-z0-9-]+:\n)", jobs_blob)
+
+def job_named(name):
+    matches = [job for job in jobs if job.startswith(f"  {name}:\n")]
+    assert len(matches) == 1, name
+    return matches[0]
+
+def job_head(job):
+    return job.split("steps:", 1)[0]
+
+verify = job_named("verify-scripts")
+assert "run-tests.sh" in verify
+assert "\n    if:" not in job_head(verify), "verify-scripts must run on pull_request"
+
+build = job_named("build")
+bhead = job_head(build)
+needs_line = next(line for line in bhead.splitlines() if line.strip().startswith("needs:"))
+assert "verify-scripts" in needs_line, needs_line
+assert "needs.verify-scripts.result == 'success'" in bhead
+assert "appleboy/ssh-action@" not in build
+assert "appleboy/scp-action@" not in build
+
 ssh_jobs = [job for job in jobs if "appleboy/ssh-action@" in job]
 assert len(ssh_jobs) == 2
 for job in ssh_jobs:
-    head = job.split("steps:", 1)[0]
+    head = job_head(job)
     assert "deploy_ecs" in head, head
     assert "workflow_dispatch" in head, head
+    assert "github.event_name != 'pull_request'" in head, head
     assert "script_stop: true" in job
-build = next(job for job in jobs if job.startswith("  build:\n"))
-acr = next(job for job in jobs if job.startswith("  push-acr:\n"))
-assert "appleboy/ssh-action@" not in build
+
+for name in ("guard-ecs", "probe-ecs", "deploy-ecs", "push-acr"):
+    head = job_head(job_named(name))
+    assert "github.event_name == 'workflow_dispatch'" in head, name
+    assert "github.event_name != 'pull_request'" in head, name
+    assert "github.event_name == 'pull_request'" not in head, name
+
+probe = job_named("probe-ecs")
+phead = job_head(probe)
+assert "verify-scripts" in next(line for line in phead.splitlines() if line.strip().startswith("needs:"))
+assert "needs.verify-scripts.result == 'success'" in phead
+
+deploy = job_named("deploy-ecs")
+dhead = job_head(deploy)
+assert "needs: [verify-scripts, guard-ecs, probe-ecs, build]" in dhead
+assert "needs.verify-scripts.result == 'success'" in dhead
+assert "needs.build.result == 'success'" in dhead
+assert "appleboy/scp-action@" in deploy
+
+acr = job_named("push-acr")
+ahead = job_head(acr)
 assert "appleboy/ssh-action@" not in acr
 assert "secrets.ACR_USERNAME" in acr
-assert "needs.build.result == 'success'" in text or "needs.build.result == \"success\"" in text
+assert "needs: [build]" in ahead
+assert "needs.build.result == 'success'" in ahead
+
+upload = build.split("- name: Upload dist for deploy or ACR", 1)[1].split("- name:", 1)[0]
+assert "workflow_dispatch" in upload
+assert "github.event_name != 'pull_request'" in upload
+assert "always()" not in upload
+assert "failure()" not in upload
 print("workflow contract ok")
 PY
   [[ ! -e "$ROOT/.github/workflows/deploy-acr.yml" ]] || fail "legacy deploy-acr.yml is still present"
