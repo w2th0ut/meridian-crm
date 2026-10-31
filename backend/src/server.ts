@@ -288,7 +288,7 @@ import {
 } from "./customer-maintenance.js";
 import { createCredentialRef, decryptProviderConfiguration, encryptProviderConfiguration, validateProviderCredentialSecurity } from "./credential-security.js";
 import { readAliyunOutboundConfig, updateAliyunOutboundConfig } from "./aliyun-outbound-config.js";
-import { requestOutboundCall } from "./outbound-call.js";
+import { readOutboundCallAvailability, requestOutboundCall } from "./outbound-call.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -8882,6 +8882,11 @@ app.get("/api/aliyun-outbound/config", requireAuth, asyncRoute(async (req, res) 
 
 app.put("/api/aliyun-outbound/config", requireAuth, asyncRoute(async (req, res) => {
   res.json(await updateAliyunOutboundConfig(getStore(), req.user, req.body));
+}));
+
+app.get("/api/outbound-calls/availability", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = readOutboundCallAvailability(getStore(), req.user);
+  res.status(outcome.status).json(outcome.body);
 }));
 
 app.post("/api/outbound-calls", requireAuth, asyncRoute(async (req, res) => {

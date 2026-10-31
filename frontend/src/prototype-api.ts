@@ -7,6 +7,18 @@ import {
   type AliyunOutboundConfigResponse,
   type AliyunOutboundConfigView
 } from "./aliyun-outbound-config";
+import {
+  createOutboundCallInFlight,
+  customerOutboundTarget,
+  leadOutboundTarget,
+  outboundTargetKey,
+  prospectOutboundTargets,
+  runConfirmedOutboundCall,
+  showOutboundCallButton,
+  type OutboundCallAvailability,
+  type OutboundCallResponse,
+  type OutboundCallTarget
+} from "./outbound-call";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -10200,6 +10212,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (response.status === 401 && path !== "/api/auth/login") {
       localStorage.removeItem(storage.user);
       state.user = null;
+      clearOutboundCallAvailability();
       document.body.classList.remove("is-authenticated");
     }
     throw new Error(body.message || "请求失败");
@@ -10844,6 +10857,7 @@ async function changeProfilePassword(button?: HTMLButtonElement) {
     setFieldValue("#loginPassword", "");
     localStorage.removeItem(storage.user);
     state.user = null;
+    clearOutboundCallAvailability();
     state.iamCapabilities = null;
     document.body.classList.remove("is-authenticated");
     toast("密码已修改，请使用新密码重新登录", "success");
@@ -11744,6 +11758,7 @@ async function refreshAll(user: User) {
   void loadAgentConversations();
   renderWebsiteOpportunities(state.websiteOpportunities);
   renderLeadFinder(state.websiteOpportunities);
+  await loadOutboundCallAvailability();
   renderProspectList();
   renderTopbarStats();
   await Promise.all([
@@ -14162,6 +14177,101 @@ function sourceTypeText(value?: string) {
   return labels[value || ""] || value || "未标注";
 }
 
+let outboundCallAvailability: OutboundCallAvailability = { enabled: false, permitted: false };
+const outboundCallTargets = new Map<string, OutboundCallTarget>();
+const outboundCallGate = createOutboundCallInFlight();
+
+function clearOutboundCallAvailability() {
+  outboundCallAvailability = { enabled: false, permitted: false };
+  outboundCallTargets.clear();
+}
+
+async function loadOutboundCallAvailability() {
+  try {
+    const result = await api<{ enabled?: boolean; permitted?: boolean }>("/api/outbound-calls/availability");
+    outboundCallAvailability = {
+      enabled: result.enabled === true,
+      permitted: result.permitted === true
+    };
+  } catch {
+    outboundCallAvailability = { enabled: false, permitted: false };
+  }
+}
+
+function outboundCallButtonHtml(target: OutboundCallTarget | null) {
+  if (!target || !showOutboundCallButton({ ...outboundCallAvailability, phone: target.phone })) return "";
+  outboundCallTargets.set(outboundTargetKey(target), target);
+  return `<button class="btn outbound-call-button" type="button" data-outbound-call="1" data-outbound-type="${escapeHtml(target.targetType)}" data-outbound-id="${escapeHtml(target.targetId)}" data-outbound-phone-id="${escapeHtml(target.phoneId)}" title="只拨这一个号码">外呼</button>`;
+}
+
+function outboundCallLineHtml(target: OutboundCallTarget, numberText: string) {
+  const button = outboundCallButtonHtml(target);
+  if (!button) return "";
+  return `<div class="outbound-call-line"><b>${escapeHtml(numberText)}</b>${button}<p class="outbound-call-status" data-outbound-status role="status" hidden></p></div>`;
+}
+
+function showOutboundCallStatus(button: HTMLButtonElement, feedback: { tone: "ok" | "error"; message: string }) {
+  const status = button.closest(".outbound-call-line")?.querySelector<HTMLElement>("[data-outbound-status]");
+  if (!status) return;
+  status.hidden = false;
+  status.dataset.tone = feedback.tone;
+  status.textContent = feedback.message;
+}
+
+function bindOutboundCallButtons(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-outbound-call]", root).forEach((button) => {
+    const target = outboundCallTargets.get(outboundTargetKey({
+      targetType: button.dataset.outboundType || "",
+      targetId: button.dataset.outboundId || "",
+      phoneId: button.dataset.outboundPhoneId || ""
+    }));
+    if (!target) return;
+    button.addEventListener("click", () => {
+      void startOutboundCall(target, button);
+    });
+  });
+}
+
+async function startOutboundCall(target: OutboundCallTarget, button: HTMLButtonElement) {
+  const result = await runConfirmedOutboundCall({
+    target,
+    gate: outboundCallGate,
+    confirm: () => confirmAction({
+      title: "确认外呼",
+      message: "确认后只向这个号码发起一次外呼。不会批量拨打，也不会自动重拨。",
+      detail: target.phone,
+      detailLabel: "号码",
+      confirmLabel: "确认外呼",
+      tone: "warning",
+      consequences: ["只拨这一个号码", "门禁不通过时不会拨出"]
+    }),
+    onPending: (phase) => {
+      if (phase === "idle") setButtonPending(button, false, "外呼", "外呼");
+      else setButtonPending(button, true, "外呼", phase === "request" ? "外呼中" : "请确认");
+    },
+    post: (body) => api<OutboundCallResponse>("/api/outbound-calls", {
+      method: "POST",
+      body: JSON.stringify(body)
+    })
+  });
+  if (result.busy) {
+    toast("这一通外呼还在提交，请稍候", "info");
+    return;
+  }
+  if (!result.feedback) return;
+  showOutboundCallStatus(button, result.feedback);
+  toast(result.feedback.message, result.feedback.tone === "ok" ? "ok" : "error");
+}
+
+function renderProspectOutboundCalls(item: WebsiteOpportunity) {
+  const channels = state.prospectQualifications[item.id]?.qualification?.channels || [];
+  const lines = prospectOutboundTargets(item.id, channels)
+    .map((target) => outboundCallLineHtml(target, target.phone))
+    .filter(Boolean);
+  if (!lines.length) return "";
+  return `<div class="prospect-outbound-calls">${lines.join("")}</div>`;
+}
+
 function renderLeadDrawer(
   lead: Lead,
   activities: LeadActivity[],
@@ -14189,6 +14299,14 @@ function renderLeadDrawer(
   const dedupeBasis = sourceEvent?.externalId
     ? `按业务员 + ${sourceEvent.channel} + ${sourceEvent.externalId} 去重`
     : "未提供平台外部编号，本次以系统线索编号留档";
+  const contactFieldsHtml = fields.map(([label, value]) => {
+    if (label === "电话") {
+      const target = leadOutboundTarget(lead.id, lead.phone || "");
+      const line = target ? outboundCallLineHtml(target, lead.phone || "") : "";
+      if (line) return `<div class="info"><span>电话</span>${line}</div>`;
+    }
+    return `<div class="info"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`;
+  }).join("");
   drawer.innerHTML = `
     <div class="drawer-head">
       <div><h2>${escapeHtml(lead.company)}</h2><p>${escapeHtml(lead.country || "—")} · ${escapeHtml(lead.contact || "—")}</p></div>
@@ -14222,7 +14340,7 @@ function renderLeadDrawer(
       </div>
     `}
     ${sourceProspect ? renderProcurementContextPanel(procurement, sourceProspect) : ""}
-    <section class="lead-detail-section"><h3>联系与需求</h3><div class="info-grid">${fields.map(([label, value]) => `<div class="info"><span>${label}</span><b>${escapeHtml(value)}</b></div>`).join("")}</div></section>
+    <section class="lead-detail-section"><h3>联系与需求</h3><div class="info-grid">${contactFieldsHtml}</div></section>
     <section class="lead-detail-section lead-inquiry-section"><div class="lead-section-head"><h3>询盘内容</h3><span>保存客户发来的原始需求，和内部备注分开管理</span></div><textarea id="leadInquiryContentInput" rows="7" placeholder="粘贴客户发来的询盘、邮件或平台留言">${escapeHtml(lead.inquiryContent || "")}</textarea><div class="lead-section-actions"><button class="btn" id="leadInquiryContentSaveButton">保存询盘内容</button></div></section>
     <section class="lead-detail-section">
       <h3>来源证据</h3>
@@ -14236,6 +14354,7 @@ function renderLeadDrawer(
     </div></section>`;
 
   qs("#leadDrawerClose", drawer)?.addEventListener("click", closeLeadDrawer);
+  bindOutboundCallButtons(drawer);
   qs<HTMLButtonElement>("#leadWhatsAppButton", drawer)?.addEventListener("click", () => {
     void openWhatsAppForContact({ phone: lead.phone || "", displayName: lead.contact || lead.company });
   });
@@ -16268,6 +16387,10 @@ async function saveAliyunOutboundConfig() {
     }
     aliyunOutboundConfigView = result.config;
     renderAliyunOutboundConfig();
+    outboundCallAvailability = {
+      ...outboundCallAvailability,
+      enabled: result.config.aliyunOutboundEnabled === true
+    };
     toast("阿里云外呼配置已保存");
   } catch (error) {
     toast(error instanceof Error ? error.message : "阿里云外呼配置保存失败", "error");
@@ -16929,6 +17052,11 @@ function renderCustomerDetailPage(customer?: Customer) {
   // 号码能拼出网页版直链才算「可联系」；只填了位数不够的号码同样按未维护处理。
   const whatsappHref = whatsAppEntryHref(contacts.whatsapp);
   const activeDeals = deals.filter((deal) => !deal.archivedAt && !["成交", "丢单"].includes(deal.stage));
+  const customerPhoneTarget = customerOutboundTarget(current.id, current.phone || "");
+  const customerPhoneLine = customerPhoneTarget ? outboundCallLineHtml(customerPhoneTarget, current.phone || "") : "";
+  const customerPhoneRow = customerPhoneLine
+    ? `<div class="customer-contact-row"><span>电话</span>${customerPhoneLine}<small>可直接拨号</small></div>`
+    : `<div class="customer-contact-row"><span>电话</span><b>${escapeHtml(contacts.phone || "未维护")}</b><small>${contacts.phone ? "可直接拨号" : "待补充"}</small></div>`;
   box.innerHTML = `
     <header class="customer-page-header">
       <div class="customer-page-identity">
@@ -16972,7 +17100,7 @@ function renderCustomerDetailPage(customer?: Customer) {
         <div class="customer-contact-list">
           <div class="customer-contact-row"><span>联系人</span><b>${escapeHtml(current.contact)}</b><small>主联系人</small></div>
           <div class="customer-contact-row"><span>邮箱</span><b>${escapeHtml(contacts.email || "未维护")}</b><small>${contacts.email ? "可直接发邮件" : "待补充"}</small></div>
-          <div class="customer-contact-row"><span>电话</span><b>${escapeHtml(contacts.phone || "未维护")}</b><small>${contacts.phone ? "可直接拨号" : "待补充"}</small></div>
+          ${customerPhoneRow}
           <div class="customer-contact-row"><span>WhatsApp</span><b>${contacts.whatsapp && whatsAppWebLink(contacts.whatsapp) ? `<a class="wa-web-link" href="${whatsAppWebLink(contacts.whatsapp)}" target="_blank" rel="noopener noreferrer">${escapeHtml(contacts.whatsapp)}</a>` : escapeHtml(contacts.whatsapp || "未维护")}</b><small>${contacts.whatsapp ? "点击直接打开 WhatsApp 网页版" : "待补充"}</small></div>
           <div class="customer-contact-row"><span>微信</span><b>${escapeHtml(contacts.wechat || "未维护")}</b><small>${contacts.wechat ? "点击下方按钮复制" : "待补充"}</small></div>
           <div class="customer-contact-row"><span>其它渠道</span><b>${escapeHtml(current.contactRemark || "未维护")}</b><small>${current.contactRemark ? "已登记备注" : "可补充 LinkedIn / 微信等"}</small></div>
@@ -17042,6 +17170,7 @@ function renderCustomerDetailPage(customer?: Customer) {
   qsa<HTMLButtonElement>("[data-customer-contact]", box).forEach((button) => {
     button.addEventListener("click", () => launchCustomerContact(current, button.dataset.customerContact as "email" | "phone" | "whatsapp" | "wechat"));
   });
+  bindOutboundCallButtons(box);
   void loadCustomerCommunicationInsights(current);
   void loadCustomerDevEmailHistory(current);
   renderCustomerJourney(current, qs<HTMLElement>("#customerPageJourneyTimeline", box));
@@ -17530,6 +17659,11 @@ function renderCustomerDrawer(customer?: Customer) {
   const drawer = qs<HTMLElement>("#customerDrawer");
   if (!drawer || !customer) return;
   const contacts = customerContactDetails(customer);
+  const drawerPhoneTarget = customerOutboundTarget(customer.id, customer.phone || "");
+  const drawerPhoneLine = drawerPhoneTarget ? outboundCallLineHtml(drawerPhoneTarget, customer.phone || "") : "";
+  const drawerPhoneHtml = drawerPhoneLine
+    ? `<div class="info"><span>电话</span>${drawerPhoneLine}</div>`
+    : `<div class="info"><span>电话</span><b>${escapeHtml(contacts.phone || "未维护")}</b></div>`;
   const billingName = customerDocumentName(customer);
   const billingAddress = customer.billingAddress || `${customer.country} / 地址待维护`;
   const documentContact = customer.documentContact || customer.contact;
@@ -17574,7 +17708,7 @@ function renderCustomerDrawer(customer?: Customer) {
       <div class="info-grid">
         <div class="info"><span>主联系人</span><b>${escapeHtml(customer.contact || "待维护")}</b></div>
         <div class="info"><span>邮箱</span><b>${escapeHtml(contacts.email || "未维护")}</b></div>
-        <div class="info"><span>电话</span><b>${escapeHtml(contacts.phone || "未维护")}</b></div>
+        ${drawerPhoneHtml}
         <div class="info"><span>WhatsApp</span><b>${contacts.whatsapp && whatsAppWebLink(contacts.whatsapp) ? `<a class="wa-web-link" href="${whatsAppWebLink(contacts.whatsapp)}" target="_blank" rel="noopener noreferrer">${escapeHtml(contacts.whatsapp)}</a>` : escapeHtml(contacts.whatsapp || "未维护")}</b></div>
         <div class="info"><span>微信</span><b>${escapeHtml(contacts.wechat || "未维护")}</b></div>
         <div class="info"><span>官网</span><b>${escapeHtml(customer.website || "未维护")}</b></div>
@@ -17618,6 +17752,7 @@ function renderCustomerDrawer(customer?: Customer) {
   void renderCustomerJourney(customer);
   void loadCustomerCommunicationDrawerInsights(customer);
   qs("#customerDrawerClose", drawer)?.addEventListener("click", closeCustomerDrawer);
+  bindOutboundCallButtons(drawer);
   qs<HTMLButtonElement>("[data-open-customer-page]", drawer)?.addEventListener("click", () => openCustomerDetailPage(customer));
   qs<HTMLButtonElement>("[data-customer-whatsapp-drawer]", drawer)?.addEventListener("click", () => {
     void openWhatsAppForContact({ phone: customerContactDetails(customer).whatsapp, displayName: customer.contact || customer.company });
@@ -36623,6 +36758,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       <div class="form-field" style="grid-column:1/-1"><label>候选备注</label><textarea id="prospectEditDescription" ${readonly}>${escapeHtml(item.description || "")}</textarea></div>
       ${item.excludedReason ? `<div class="prospect-field" style="grid-column:1/-1"><span>排除原因</span><b>${escapeHtml(item.excludedReason)}</b></div>` : ""}
     </div>
+    ${renderProspectOutboundCalls(item)}
     ${renderProspectIdentityBootstrapPanel(item)}
     <details class="prospect-technical-audit" ${prospectTechnicalAuditOpenId === item.id ? "open" : ""}>
       <summary><span>技术核验记录</span><small>企业身份、官网证据</small></summary>
@@ -36656,6 +36792,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       ${canWriteOutreach && item.status === "synced" && item.leadId ? `<button class="btn" id="prospectTodoButton">生成待办</button>` : ""}
     </div>
   `;
+  bindOutboundCallButtons(box);
   qs<HTMLButtonElement>("#prospectSaveButton", box)?.addEventListener("click", (event) => void saveProspectVerification(item, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectRestoreButton", box)?.addEventListener("click", (event) => void updateProspectBatch("restore", [item.id], event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement));
@@ -53279,6 +53416,7 @@ function installEvents() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => null);
     localStorage.removeItem(storage.user);
     state.user = null;
+    clearOutboundCallAvailability();
     document.body.classList.remove("is-authenticated");
     prefillLoginCredentials();
     toast("已退出登录");

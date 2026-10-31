@@ -97,7 +97,20 @@ try {
   const timer = server.slice(timerAt, pruneAt);
   assert.doesNotMatch(timer, /outbound-calls|requestOutboundCall|MakeCall/);
   assert.equal(server.includes('app.post("/api/outbound-calls"'), true);
-  assert.equal(server.includes('app.get("/api/outbound-calls"'), false);
+  const outboundGets = [...server.matchAll(/app\.get\("([^"]*outbound-calls[^"]*)"/g)].map((item) => item[1]);
+  assert.deepEqual(outboundGets, ["/api/outbound-calls/availability"]);
+  const getRoute = server.slice(
+    server.indexOf('app.get("/api/outbound-calls/availability"'),
+    server.indexOf('app.post("/api/outbound-calls"')
+  );
+  assert.match(getRoute, /readOutboundCallAvailability/);
+  assert.doesNotMatch(getRoute, /requestOutboundCall/);
+  const availability = source.slice(
+    source.indexOf("export function readOutboundCallAvailability"),
+    source.indexOf("export async function requestOutboundCall")
+  );
+  assert.match(availability, /aliyunOutboundEnabled === true/);
+  assert.doesNotMatch(availability, /writeAudit|makeCall|dialerFor|persist\(|accessKey|callerNumber|instanceId/);
 
   const telephony = readFileSync(new URL("./telephony/service.ts", import.meta.url), "utf8");
   assert.doesNotMatch(telephony, /outbound-call|requestOutboundCall|\/api\/outbound-calls/);

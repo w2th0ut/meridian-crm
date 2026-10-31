@@ -13328,6 +13328,42 @@
     .customer-contact-row a.wa-web-link:hover { text-decoration: underline; text-underline-offset: 2px; }
     .customer-contact-row small { color: #8a96a7; font-size: 9px; }
 
+    .outbound-call-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .outbound-call-line > b { min-width: 0; overflow-wrap: anywhere; }
+
+    .outbound-call-button {
+      flex: 0 0 auto;
+      height: 28px;
+      margin: 0;
+      padding: 0 10px;
+      font-size: 12px;
+      line-height: 26px;
+    }
+
+    .outbound-call-status {
+      flex-basis: 100%;
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .outbound-call-status[data-tone="ok"] { color: #0f766e; }
+    .outbound-call-status[data-tone="error"] { color: #9f3a34; }
+
+    .prospect-outbound-calls {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
     .customer-contact-actions {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -22433,6 +22469,8 @@
       .customer-profile-field:nth-child(2n) { border-right: 0; }
       .customer-contact-row { grid-template-columns: 58px minmax(0, 1fr); }
       .customer-contact-row small { grid-column: 2; }
+      .outbound-call-line { max-width: 100%; }
+      .outbound-call-button { height: auto; min-height: 36px; }
       .customer-page-deal { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
       .cust-email-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
       .cust-email-row time { order: 2; }
