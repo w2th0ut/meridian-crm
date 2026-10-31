@@ -14,7 +14,8 @@ import type {
  * 系统流水（system / stage）不是销售跟进，不出现在「最近跟进」里。
  */
 
-const HUMAN_FOLLOW_UP_TYPES = new Set<LeadActivityType>([
+/** 人工跟进方式。阶段和系统流水不是销售跟进，不能从记跟进写入。 */
+export const PROSPECT_FOLLOW_UP_TYPE_VALUES = [
   "call",
   "wechat",
   "whatsapp",
@@ -22,7 +23,9 @@ const HUMAN_FOLLOW_UP_TYPES = new Set<LeadActivityType>([
   "email",
   "meeting",
   "note"
-]);
+] as const;
+
+const HUMAN_FOLLOW_UP_TYPES = new Set<LeadActivityType>(PROSPECT_FOLLOW_UP_TYPE_VALUES);
 
 const TYPE_LABEL: Record<string, string> = {
   call: "电话",
@@ -256,6 +259,8 @@ export function recordProspectFollowUp(
     candidate: WebsiteOpportunity;
     actorId: string;
     content: string;
+    /** 省略时仍写备注，和原来的记跟进一致。 */
+    type?: LeadActivityType;
     createdAt?: string;
     /** 省略则不改已有下次跟进。空字符串表示清除。 */
     nextFollowAt?: string;
@@ -268,6 +273,10 @@ export function recordProspectFollowUp(
   if (content.length > 2000) {
     throw new ProspectFollowUpError(400, "跟进内容过长");
   }
+  const type = input.type || "note";
+  if (!HUMAN_FOLLOW_UP_TYPES.has(type)) {
+    throw new ProspectFollowUpError(400, "跟进方式不正确");
+  }
   assertFollowUpWriter(store, input.candidate, input.actorId);
   const scheduled = input.nextFollowAt === undefined
     ? undefined
@@ -277,7 +286,7 @@ export function recordProspectFollowUp(
     id: `la_${randomUUID()}`,
     leadId: input.candidate.leadId || "",
     prospectCandidateId: input.candidate.id,
-    type: "note",
+    type,
     content,
     operatorId: input.actorId,
     nextFollowAt: scheduled || "",

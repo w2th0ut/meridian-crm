@@ -12234,6 +12234,41 @@
     }
     #dashboardFollowUps,
     #dashboardAcquisitionStages { margin: 0 0 16px; }
+    .dashboard-prospect-row-wrap {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .dashboard-prospect-row-wrap > .dashboard-prospect-row { flex: 1; margin-top: 0; }
+    .workbench-record-follow-up { align-self: center; flex: none; }
+    .workbench-follow-popover {
+      position: fixed;
+      z-index: 40;
+      width: min(280px, calc(100vw - 16px));
+      padding: 12px;
+      border: 1px solid #d7dee8;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+    }
+    .workbench-follow-form { display: grid; gap: 8px; }
+    .workbench-follow-form b { font-size: 14px; }
+    .workbench-follow-form label { display: grid; gap: 4px; color: #526178; font-size: 12px; }
+    .workbench-follow-form textarea,
+    .workbench-follow-form select,
+    .workbench-follow-form input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #d7dee8;
+      border-radius: 6px;
+      color: inherit;
+      font: inherit;
+    }
+    .workbench-follow-form textarea { min-height: 72px; resize: vertical; }
+    .workbench-follow-form p { margin: 0; color: #708097; font-size: 12px; line-height: 1.45; }
+    .workbench-follow-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .dashboard-record-follow-up-note { margin: 8px 0 0; color: #526178; font-size: 12px; line-height: 1.5; }
     .dashboard-prospect-row {
       display: grid;
       grid-template-columns: minmax(0, 1.4fr) minmax(88px, auto) minmax(140px, auto);
@@ -28202,6 +28237,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
               </div>
             </div>
+            <p class="dashboard-record-follow-up-note">「记跟进」只把这次跟进写入现有跟进记录，并刷新这一行的跟进空档和次回跟进。不会发信，不会发消息，不会推进序列，不会放行批次。</p>
             <div id="dashboardFollowUpList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
