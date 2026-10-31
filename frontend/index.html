@@ -8153,7 +8153,8 @@
     .dashboard-prospect-row.is-failure-long,
     .dashboard-prospect-row.is-open-long,
     .dashboard-prospect-row.is-reply-long,
-    .dashboard-prospect-row.is-step-long {
+    .dashboard-prospect-row.is-step-long,
+    .dashboard-prospect-row.is-sync-anomaly-long {
       border-color: #fecaca;
     }
 
@@ -8995,6 +8996,41 @@
       background: rgba(100, 116, 139, 0.08);
       color: #475569;
       font-size: 12px;
+    }
+
+    .inbound-sync-anomaly-age {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .inbound-sync-anomaly-age[data-inbound-sync-anomaly-age="long"] {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .inbound-sync-anomaly-age[data-inbound-sync-anomaly-age="recent"] {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .inbound-sync-anomaly-age-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .inbound-sync-anomaly-age p {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
     }
 
     .prospect-follow-up-entry {
@@ -11938,6 +11974,7 @@
     #dashboardOpenClickAge,
     #dashboardReplyAge,
     #dashboardSequenceLastStepAge,
+    #dashboardInboundSyncAnomalyAge,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
@@ -11956,6 +11993,7 @@
     .dashboard-open-click-age-note,
     .dashboard-reply-age-note,
     .dashboard-sequence-last-step-age-note,
+    .dashboard-inbound-sync-anomaly-age-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -11979,7 +12017,8 @@
       text-align: left;
       cursor: pointer;
     }
-    .dashboard-prospect-row.dashboard-inbound-sync-static { cursor: default; }
+    .dashboard-prospect-row.dashboard-inbound-sync-static,
+    .dashboard-prospect-row.dashboard-inbound-sync-anomaly-age-static { cursor: default; }
     .dashboard-acquisition-todo-group { margin-top: 12px; }
     .dashboard-acquisition-todo-group h3 { margin: 0; color: #526178; font-size: 13px; font-weight: 600; }
     .dashboard-prospect-row b { font-size: 14px; }
@@ -28125,6 +28164,22 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardSequenceLastStepAgeList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardInboundSyncAnomalyAge" aria-label="收信同步异常日龄">
+            <div class="section-head">
+              <div class="section-title"><div><h2>收信同步异常日龄</h2><p id="dashboardInboundSyncAnomalyAgeScope">正在读取当前账号</p></div></div>
+              <div class="head-actions">
+                <div class="prospect-tabs" role="group" aria-label="按收信同步异常日龄筛选">
+                  <button class="active" type="button" data-inbound-sync-anomaly-age-filter="all" aria-pressed="true">全部日龄</button>
+                  <button type="button" data-inbound-sync-anomaly-age-filter="long" aria-pressed="false">同步异常超七日</button>
+                </div>
+                <button class="btn" id="dashboardInboundSyncAnomalyAgeRefresh" type="button">刷新</button>
+                <button class="btn" id="dashboardInboundSyncAnomalyAgeSettings" type="button">收信设置</button>
+              </div>
+            </div>
+            <p id="dashboardInboundSyncAnomalyAgeNote" class="dashboard-inbound-sync-anomaly-age-note">这是收信同步异常相对现在的只读日龄，复用 Day19 已经记下的失败同步时间。只有收信状态正好是 error 才算。距现在超过 7 天算同步异常超七日，未超过（含刚好 7 天）算同步异常七日内。没有可解析的异常时间写无同步异常日龄。成功同步写下的时间不算异常日龄。发件邮箱没有可只读复用的健康字段，这里不展示邮箱异常，也不展示邮箱正常，也不展示无健康信息。不是序列最近一步日龄，也不是开发信回复日龄，也不是打开或点击日龄，也不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列进度、打开或点击、失败或退信。不替代收信同步那一块。文案不混用。这是账号上的收信同步，不是某一家候选公司的日龄。点当前账号这一行只打开现有收信设置。别的账号只展示，不打开它们的邮箱。不会发信，不会解除抑制，不会推进序列，不会放行批次，不会改邮箱配置，不会改授权，不会重连，不会触发同步，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardInboundSyncAnomalyAgeList"><div class="empty-cell">正在读取当前账号</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -33734,6 +33789,12 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="form-field full"><div class="row-actions"><button class="btn" id="profileTestImapButton" type="button">测试 IMAP</button><button class="btn" id="profileClearImapButton" type="button">清除 IMAP 密码</button></div></div>
               </div>
               <p id="profileInboundSyncSummary" class="dashboard-inbound-sync-note">正常。这是收信同步，不是发件。不是待发草稿，也不是外联序列，也不是回复条，也不是打开或点击条，也不是失败条，也不是抑制条。不会改授权，不会重连，不会触发同步，也不会发信。</p>
+              <div class="inbound-sync-anomaly-age" id="profileInboundSyncAnomalyAge" data-inbound-sync-anomaly-age="none">
+                <div class="inbound-sync-anomaly-age-head"><b>收信同步异常日龄</b><span id="profileInboundSyncAnomalyAgeBadge"></span></div>
+                <p id="profileInboundSyncAnomalyAgeSummary">无同步异常日龄。不替代收信同步那一块。不会改授权，不会重连，不会触发同步，也不会发信。</p>
+                <p class="inbound-sync-anomaly-age-body" id="profileInboundSyncAnomalyAgeBody" data-inbound-sync-anomaly-age-body="none">无同步异常日龄</p>
+                <div class="prospect-action-row"><button class="btn" type="button" id="profileInboundSyncAnomalyAgeEntry">查看收信同步</button></div>
+              </div>
             </section>
 
             <section class="panel section">
