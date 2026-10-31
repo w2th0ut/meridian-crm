@@ -1598,6 +1598,15 @@ export async function createMysqlStore(
   });
   store = {
     mode: "mysql",
+    readTenantTimezone: async (teamId: string) => {
+      try {
+        const [result] = await pool.query("SELECT timezone FROM tenants WHERE id = ? LIMIT 1", [teamId]);
+        const timezone = (result as Array<{ timezone?: string }>)[0]?.timezone || "";
+        return String(timezone);
+      } catch {
+        return "";
+      }
+    },
     getIamCapabilitySnapshot: (actor) => loadIamCapabilitySnapshot(pool, actor),
     validateIamSession: async (actor) => {
       if (actor.iamSource === "platform" || (!actor.iamSource && actor.role === "super_admin")) {
@@ -6075,8 +6084,16 @@ async function ensureSchema(pool: mysql.Pool) {
     access_key_secret_encrypted TEXT,
     callback_path_token_encrypted TEXT,
     updated_by VARCHAR(64) NOT NULL DEFAULT '',
-    updated_at DATETIME NULL
+    updated_at DATETIME NULL,
+    call_window_start VARCHAR(5) NOT NULL DEFAULT '09:00',
+    call_window_end VARCHAR(5) NOT NULL DEFAULT '20:00',
+    max_calls_per_number_per_day INT NOT NULL DEFAULT 3,
+    min_interval_minutes INT NOT NULL DEFAULT 30
   )`);
+  await ensureColumn(pool, "aliyun_outbound_configs", "call_window_start", "VARCHAR(5) NOT NULL DEFAULT '09:00'");
+  await ensureColumn(pool, "aliyun_outbound_configs", "call_window_end", "VARCHAR(5) NOT NULL DEFAULT '20:00'");
+  await ensureColumn(pool, "aliyun_outbound_configs", "max_calls_per_number_per_day", "INT NOT NULL DEFAULT 3");
+  await ensureColumn(pool, "aliyun_outbound_configs", "min_interval_minutes", "INT NOT NULL DEFAULT 30");
   await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_outbound_config_audits (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -6099,10 +6116,12 @@ async function ensureSchema(pool: mysql.Pool) {
     result_code VARCHAR(20) NOT NULL,
     reason_code VARCHAR(64) NOT NULL DEFAULT '',
     job_id VARCHAR(128) NOT NULL DEFAULT '',
+    number_key CHAR(64) NOT NULL DEFAULT '',
     INDEX idx_outbound_call_audits_team(team_id, occurred_at),
     INDEX idx_outbound_call_audits_actor(actor_id, occurred_at),
     INDEX idx_outbound_call_audits_target(target_type, target_id)
   )`);
+  await ensureColumn(pool, "outbound_call_audits", "number_key", "CHAR(64) NOT NULL DEFAULT ''");
   await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_ccc_event_audits (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL DEFAULT '',
@@ -12336,6 +12355,10 @@ async function loadAliyunOutboundConfigs(pool: mysql.Pool): Promise<AliyunOutbou
     accessKeyIdEncrypted: row.access_key_id_encrypted || "",
     accessKeySecretEncrypted: row.access_key_secret_encrypted || "",
     callbackPathTokenEncrypted: row.callback_path_token_encrypted || "",
+    callWindowStart: row.call_window_start || "09:00",
+    callWindowEnd: row.call_window_end || "20:00",
+    maxCallsPerNumberPerDay: Number.isInteger(Number(row.max_calls_per_number_per_day)) ? Number(row.max_calls_per_number_per_day) : 3,
+    minIntervalMinutes: Number.isInteger(Number(row.min_interval_minutes)) ? Number(row.min_interval_minutes) : 30,
     updatedBy: row.updated_by || "",
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at || ""
   }));
@@ -12353,7 +12376,8 @@ async function loadOutboundCallAudits(pool: mysql.Pool): Promise<OutboundCallAud
     maskedNumber: row.masked_number || "",
     result: row.result_code === "allowed" ? "allowed" : "rejected",
     reason: row.reason_code || "",
-    jobId: row.job_id || ""
+    jobId: row.job_id || "",
+    numberKey: row.number_key || ""
   }));
 }
 
@@ -12944,9 +12968,9 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "prospect_note_audits", store.prospectNoteAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.note || ""], "(id,actor_id,occurred_at,object_type,object_id,action_code,note)");
 	    await replaceRows(connection, "prospect_priority_audits", store.prospectPriorityAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
 	    await replaceRows(connection, "prospect_industry_audits", store.prospectIndustryAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
-	    await replaceRows(connection, "aliyun_outbound_configs", store.aliyunOutboundConfigs, (item) => [item.teamId, item.aliyunOutboundEnabled, item.instanceId, item.region, item.callerNumber, item.accessKeyIdEncrypted, item.accessKeySecretEncrypted, item.callbackPathTokenEncrypted, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(team_id,enabled,instance_id,region_id,caller_number,access_key_id_encrypted,access_key_secret_encrypted,callback_path_token_encrypted,updated_by,updated_at)");
+	    await replaceRows(connection, "aliyun_outbound_configs", store.aliyunOutboundConfigs, (item) => [item.teamId, item.aliyunOutboundEnabled, item.instanceId, item.region, item.callerNumber, item.accessKeyIdEncrypted, item.accessKeySecretEncrypted, item.callbackPathTokenEncrypted, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null, item.callWindowStart || "09:00", item.callWindowEnd || "20:00", Number.isInteger(item.maxCallsPerNumberPerDay) ? item.maxCallsPerNumberPerDay : 3, Number.isInteger(item.minIntervalMinutes) ? item.minIntervalMinutes : 30], "(team_id,enabled,instance_id,region_id,caller_number,access_key_id_encrypted,access_key_secret_encrypted,callback_path_token_encrypted,updated_by,updated_at,call_window_start,call_window_end,max_calls_per_number_per_day,min_interval_minutes)");
 	    await replaceRows(connection, "aliyun_outbound_config_audits", store.aliyunOutboundConfigAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.summary], "(id,team_id,actor_id,occurred_at,action_code,summary)");
-	    await replaceRows(connection, "outbound_call_audits", store.outboundCallAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.phoneId, item.maskedNumber, item.result, item.reason, item.jobId], "(id,team_id,actor_id,occurred_at,target_type,target_id,phone_id,masked_number,result_code,reason_code,job_id)");
+	    await replaceRows(connection, "outbound_call_audits", store.outboundCallAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.phoneId, item.maskedNumber, item.result, item.reason, item.jobId, item.numberKey || ""], "(id,team_id,actor_id,occurred_at,target_type,target_id,phone_id,masked_number,result_code,reason_code,job_id,number_key)");
 	    await replaceRows(connection, "aliyun_ccc_event_audits", store.aliyunCccEventAudits, (item) => [item.id, item.teamId, mysqlDate(item.at), item.instanceId, item.contactId, item.eventType, item.eventTime, item.decision, item.reason, item.maskedCaller, item.maskedCallee], "(id,team_id,occurred_at,instance_id,contact_id,event_type,event_time,decision_code,reason_code,masked_caller,masked_callee)");
 	    await replaceRows(connection, "outbound_call_records", store.outboundCallRecords, (item) => [item.id, item.teamId, item.instanceId, item.contactId, item.outboundCallAuditId, item.targetType, item.targetId, item.maskedNumber, item.contactType, item.contactDisposition, item.earlyMediaState, item.callDurationRaw, item.establishedTimeRaw, item.releaseTimeRaw, item.startTimeRaw, item.agentIds, item.recordingReady, item.recordingRef, item.recordingFileName, item.recordingUrl, item.recordingDurationRaw, item.followUpActivityId, item.createdAt ? mysqlDate(item.createdAt) : null, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,instance_id,contact_id,outbound_call_audit_id,target_type,target_id,masked_number,contact_type,contact_disposition,early_media_state,call_duration_raw,established_time_raw,release_time_raw,start_time_raw,agent_ids,recording_ready,recording_ref,recording_file_name,recording_url,recording_duration_raw,follow_up_activity_id,created_at,updated_at)");
 	    await replaceRows(connection, "aliyun_agent_mappings", store.aliyunAgentMappings, (item) => [item.id, item.teamId, item.crmUserId, item.cccUserId, item.loginName, item.displayName, item.extension, item.workMode, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,crm_user_id,ccc_user_id,login_name,display_name,extension,work_mode,updated_by,updated_at)");
