@@ -922,6 +922,42 @@ npm run dev
 - `ExpireSeconds` 与 `FileUrl`「有效期 1 天」。
 - 回查结果里 `InstanceId` 缺省时，是否仍算同一个实例。缺省时不因此拒绝。
 
+## 55. 本地演示：坐席映射、工作台、来电弹屏和只读任务名单
+
+管理员在系统设置里维护云联络中心坐席和 CRM 用户的对应关系。同一租户内，一个坐席 UserId 只能对应一个用户，一个用户也只能对应一个坐席。保存和修改时先调用 `ListUsers`，坐席必须出现在返回列表里，不接受手填一个没返回的 ID，也不调用 `CreateUser`。业务员不能改映射。每次增、删、改都校验 `system.settings.manage`，并写入 `agent_mapping_audits`：操作人、时间、租户、动作、两边的 ID、允许或拒绝、原因。没有权限、冲突、坐席不在列表里，也都留下拒绝审计。映射表是 `aliyun_agent_mappings`。两张表都在 `ensureSchema` 里 `CREATE TABLE IF NOT EXISTS`。
+
+`POST /api/outbound-calls` 在原有门禁都通过之后，还要有当前用户的坐席映射。没有映射就拒绝，原因是 `unmapped`，不调用 `MakeCall`。允许时必须带上映射到的 `UserId`，不再省略。这只收紧原来的拨号，不放宽开关、权限、抑制和 `approved_contactable`。
+
+工作台按官方 SDK 3.x 嵌入。查阅当日页面写的软电话版本是 `3.8.1`，不用 IM 插件，所以不加载 `cc-im-sdk`。页面上是一颗可折叠的「软电话」。只有外呼开关开着、当前用户有 `communication.send`、并且已经映射坐席时，才加载 SDK。会话接口 `GET /api/aliyun-outbound/workbench/session` 在可以加载时才返回实例 ID 和地域。它不下发 AccessKeyId 或 AccessKeySecret。官方写服务端用 AK/SK 或 OAuth2 转发；OAuth2 地址和 scope、STS 临时凭证端点都待核实，所以这里不签发临时凭证。
+
+SDK 的请求打到 `POST /api/aliyun-outbound/workbench/api`。查询串按文档用 `action`、`product=CloudCallCenter`、`version=2020-07-01`、`region`。只转发文档「服务端准备工作」里软电话需要的接口。`CreateUser`、监听、拉黑和预测式写入都不转发。`MakeCall` 不直接转发：先在本租户可见范围内按号码找唯一的客户、线索或候选，再走原来的外呼门禁，坐席仍是当前用户映射到的那个。找不到或找到多条都不拨。`onBeforeCallDialing` 在服务端拒绝时不调用 `callback()`。正文参数放在哪一层，文档只说和 `request` 同一层级，待核实。返回给 SDK 的 JSON 去掉 AccessKey 字段。测试不加载 `g.alicdn.com`，也不访问阿里云。
+
+来电弹屏复用上一节的回调。令牌、开关和实例比对保持原样，验签失败不会记弹屏。通过之后，`callType` 为 `INBOUND` 的 `Ringing` 或 `AgentRinging` 按事件里的 `agentId` 找到映射用户，只记一条给这个用户看的弹屏。别的用户看不了。页面再按权限和可见范围只读匹配客户、线索、候选，给出跳转。匹配不到显示「未知来电」。不新建客户、线索或候选，不改原记录。SDK 的 `onCallComing` 走只读的匹配接口，同样不写业务数据。号码只去掉非数字再比较。是否去掉国家码 `86`，待核实。`callType` 为空时不当成来电。
+
+外呼任务名单只读。官方接口是 `ListCampaigns` 和 `ListCases`。默认关闭，管理员打开「允许只读同步外呼任务」之后，点「同步外呼任务名单」才拉取第一页。没有定时器。不提供启动、恢复、提交或上传名单，代码里也不调用这些写入接口。每次同步和开关变更都写入 `aliyun_campaign_sync_audits`。名单里的号码只留脱敏结果。`CompletionRate` 已废弃且公式拼写和返回字段不一致，待核实，页面不计算完成率。`ListCases` 请求枚举有 `Forbidden`，返回枚举没有，未知状态原样显示，待核实。
+
+不发信，不外发消息。不改抑制，不改 `approved_contactable`，不调用 `convert_to_lead`。测试注入 mock，不访问阿里云。
+
+1. 业务员保存坐席映射返回 403，并留下拒绝审计。管理员把一个不在 `ListUsers` 结果里的坐席 ID 提交，返回冲突类拒绝，不写入映射，并留下审计。
+2. 管理员把返回列表里的坐席绑到一个用户。再把同一个坐席绑给另一个用户，返回冲突，原来的映射还在。审计里有允许的新增和拒绝的冲突，没有密钥。
+3. 没有映射时，原来能通过的外呼被拒绝，原因是未映射，mock 的 `MakeCall` 没有被调用。映射之后，同一次外呼的 `UserId` 是这个坐席，不是别的值。
+4. 开关开着且已映射时，会话接口允许加载工作台，并带上实例和地域。未映射时 `load` 为假，不返回实例。两种响应都没有 AccessKey。`CreateUser` 被拒绝，不会转发。`PollUserStatus` 会把坐席改成当前用户映射到的那个，响应里没有密钥。
+5. 工作台拨号前的预检在拒绝时不把电话交给 SDK。唯一可见号码通过预检时还不拨号；随后的 `MakeCall` 才走原来的门禁，并且只拨这一次。
+6. 错误令牌的来电回调不产生弹屏。正确的呼入振铃只给映射到的用户一条弹屏。再送一次还是一条。另一个没有这张映射的用户看不到。号码能对上客户时给出跳转；对不上显示「未知来电」。客户、线索、抑制和可联系决定的数量都不变。
+7. 任务同步开关默认关。关着时点击同步被拒绝，不调用 `ListCampaigns`。打开后再同步，只调用 `ListCampaigns` 和 `ListCases`，名单号码已脱敏，并留下允许审计。再次关掉后再同步，不再请求云联络中心。页面上没有启动或上传按钮。
+8. 测试没有向 `aliyuncs.com` 或 `g.alicdn.com` 发起连接。
+
+待核实，没有写成已经证实：
+
+- 工作台 OAuth2 的授权地址和 scope，以及 STS 临时凭证的签发端点。
+- SDK 请求正文里业务参数的字段名。返回给 SDK 的是 `code/data` 还是 CCC 原始的 `Code/Data`。
+- 软电话版本 `3.8.1` 是否仍是查阅之后的最新版。
+- 用公司 RAM 用户为映射坐席代拨 `MakeCall` 是否被允许。
+- 来电号码要不要去掉国家码 `86`。`callContext` 里除 caller、callee、jobId、callType 以外的字段。
+- `ListCampaigns` 的 `TotalCount` 是否只在第一页有值。`CompletionRate` 公式里的 `CasesUnCompleted` 和返回字段 `CasesUncompleted`。
+- `ListCases` 的 `Forbidden` 是否会出现在返回状态里。
+- 坐席超过 100 页时，`ListUsers` 还要不要继续翻。
+
 ## 不在本次验收里
 
 - 不删除 `backend/src/telephony`。
@@ -970,3 +1006,4 @@ npm run dev
 - 阿里云外呼这一节只保存租户配置，开关默认关闭。不拨号，不请求阿里云，不注册公网回调，不改话机模拟器，不放宽 `convert_to_lead` / `approved_contactable`，不解除抑制。
 - 外呼门禁只接受单次请求。开关关闭、配置不全、没有外呼权限、命中抑制或候选还不可联系时拒绝，并记审计。不接收回调，不批量，不定时，不请求阿里云，不放宽 `convert_to_lead` / `approved_contactable`，不改抑制。
 - 客户、线索、候选的一键外呼只在开关开启且有 `communication.send` 时出现在号码旁。一次确认只拨一个号码。取消不发请求。拒绝原因展示在页面上。请求进行中不能重复提交。可用性查询只读，不放宽门禁。不接收回调，不批量，不定时，不自动，不请求阿里云，不放宽 `convert_to_lead` / `approved_contactable`，不改抑制。
+- 坐席映射、工作台、来电弹屏和外呼任务名单只在开关、权限和映射都满足时出现。外呼必须带映射坐席，未映射不能拨。弹屏只读，不建客户。任务名单只读，不启动、不上传、不定时拉取。不发信，不请求阿里云，不放宽 `convert_to_lead` / `approved_contactable`，不改抑制。

@@ -7,6 +7,7 @@ import {
 import { decryptAliyunOutboundSecret } from "./credential-security.js";
 import { appendFollowUpAudit } from "./follow-up-audit.js";
 import { maskOutboundNumber, outboundDialerFor } from "./outbound-call.js";
+import { noteInboundScreenPop } from "./aliyun-screen-pop.js";
 import { recordProspectFollowUp } from "./prospect-follow-up.js";
 import type { CrmStore } from "./store.js";
 import type {
@@ -46,6 +47,8 @@ export interface ParsedCccEvent {
   callType: string;
   caller: string;
   callee: string;
+  /** 振铃事件上的坐席 ID。官方字段是 agentId。 */
+  agentId: string;
 }
 
 function asRecord(value: unknown) {
@@ -100,7 +103,8 @@ export function parseCccEvent(body: unknown): ParsedCccEvent | null {
     contactIdSource,
     callType: readString(record, "callType"),
     caller: readString(record, "caller"),
-    callee: readString(record, "callee")
+    callee: readString(record, "callee"),
+    agentId: readString(record, "agentId")
   };
 }
 
@@ -426,6 +430,11 @@ export async function receiveAliyunCccEvent(store: CrmStore, pathToken: string, 
   }
   const writing = TERMINAL_EVENTS.has(event.eventType) || RECORDING_EVENTS.has(event.eventType);
   if (!writing) {
+    try {
+      noteInboundScreenPop(store, config.teamId, event);
+    } catch {
+      // 弹屏记不下来也不改变回调结果。
+    }
     return finish(store, { ...base, decision: "accepted", reason: "ignored" }, 200);
   }
   if (!event.contactId) {

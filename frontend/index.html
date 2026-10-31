@@ -34352,6 +34352,15 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <label><span>回调路径令牌</span><input id="aliyunOutboundCallbackPathToken" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundCallbackPathTokenStatus">未配置</b></label>
             </div>
             <p class="system-setting-help">只有管理员可以查看和修改。密钥加密后保存在服务器，页面只显示是否已配置和末 4 位。地域只接受 cn-shanghai 和 cn-hangzhou。这一节不拨号，不注册公网回调，也不改变获客门禁。</p>
+            <div id="aliyunAgentMappingBlock" style="margin-top:18px;">
+              <div class="section-head"><div><h3>坐席映射</h3><p class="section-subtitle">同一租户内，一个云联络中心坐席只能对应一个用户。保存时用 ListUsers 核对坐席，不手填未出现的 ID，也不创建坐席。</p></div><button class="btn" id="aliyunAgentDirectoryButton" type="button">读取坐席</button></div>
+              <div style="overflow-x:auto;"><table class="items-table"><thead><tr><th>坐席</th><th>UserId</th><th>CRM 用户</th><th></th></tr></thead><tbody id="aliyunAgentMappingBody"><tr><td colspan="4">还没有坐席。点「读取坐席」后选择用户。</td></tr></tbody></table></div>
+            </div>
+            <div id="aliyunCampaignBlock" style="margin-top:18px;">
+              <div class="section-head"><div><h3>外呼任务名单</h3><p class="section-subtitle">只读。默认关闭。点一次才向云联络中心拉取，不会定时轮询，也不能启动任务或上传名单。</p></div><button class="btn" id="aliyunCampaignSyncButton" type="button">同步外呼任务名单</button></div>
+              <label style="display:flex;align-items:center;gap:10px;margin:8px 0;"><span class="system-setting-switch"><input id="aliyunCampaignReadEnabled" type="checkbox"><i></i></span><span>允许只读同步外呼任务</span></label>
+              <div id="aliyunCampaignRoster"><p data-campaign-empty="1">还没有同步到外呼任务。</p></div>
+            </div>
           </section>
 
           <section class="panel section" id="trialAccountsPanel" style="margin-top:24px;" hidden>
@@ -35645,11 +35654,60 @@ body.platform-mode .workspace-tabs { display:none !important; }
       font-size: 12px;
       line-height: 1.5;
     }
+    #cccSoftphone {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    #cccSoftphone[hidden] { display: none !important; }
+    #cccSoftphonePanel {
+      width: 320px;
+      max-width: calc(100vw - 32px);
+      background: #fff;
+      border: 1px solid #d7dee8;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(20, 32, 51, 0.16);
+      overflow: auto;
+    }
+    #cccSoftphonePanel.is-collapsed { display: none; }
+    #ccc-workbench-container { min-height: 540px; }
+    #cccScreenPopStack {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      z-index: 30;
+      display: grid;
+      gap: 8px;
+      width: min(360px, calc(100vw - 32px));
+    }
+    #cccScreenPopStack:empty { display: none; }
+    .ccc-screen-pop {
+      background: #fff;
+      border: 1px solid #d7dee8;
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: 0 8px 24px rgba(20, 32, 51, 0.16);
+    }
+    .ccc-screen-pop h3 { margin: 0 0 6px; font-size: 15px; }
+    .ccc-screen-pop p { margin: 0 0 8px; color: #526178; }
+    .ccc-screen-pop a { margin-right: 10px; }
   </style>
   <dialog class="trade-command-dialog" id="tradeCommandDialog" aria-label="快速切换页面">
     <div class="trade-command-head"><input id="tradeCommandInput" type="search" aria-label="搜索业务页面" placeholder="搜索客户、单据、发货或报表" autocomplete="off" /><button type="button" id="tradeCommandClose" aria-label="关闭页面切换">Esc</button></div>
     <div class="trade-command-results" id="tradeCommandResults"></div>
   </dialog>
+  <aside id="cccSoftphone" hidden>
+    <button class="btn" id="cccSoftphoneToggle" type="button" aria-expanded="false" aria-controls="cccSoftphonePanel">软电话</button>
+    <div id="cccSoftphonePanel" class="is-collapsed">
+      <div id="ccc-workbench-container"></div>
+    </div>
+  </aside>
+  <div id="cccScreenPopStack"></div>
   <script type="module" src="/src/trade-workspace.ts"></script>
   <script type="module" src="/src/prototype-api.ts"></script>
 </body>

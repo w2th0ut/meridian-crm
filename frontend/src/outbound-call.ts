@@ -38,6 +38,8 @@ export const OUTBOUND_CALL_REASON_TEXT: Record<string, string> = {
   not_found: "外呼对象或号码不存在",
   suppressed: "号码在抑制或退订名单中",
   not_contactable: "候选还不是已批准可联系",
+  unmapped: "当前用户没有对应的云联络中心坐席",
+  ambiguous: "这个号码对应多条记录，请从对应页面单独发起",
   dial_failed: "外呼没有发出",
   invalid_request: "参数格式错误"
 };
