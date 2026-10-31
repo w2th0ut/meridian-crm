@@ -7279,10 +7279,15 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .prospect-meta-row {
+    .prospect-meta-row,
+    .prospect-tag-line {
       display: flex;
       flex-wrap: wrap;
       gap: 5px;
+    }
+
+    .prospect-tag-line {
+      margin-top: 6px;
     }
 
     /* W2 · 发信资格灯：与状态徽标同排；hover 显示原始原因码与说明 */
@@ -29321,6 +29326,8 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <select id="prospectAssigneeSelect" hidden aria-label="选择业务员"><option value="">选择业务员</option></select>
                 <button class="btn" id="prospectAssignButton" data-permission="prospect.execute" hidden>分配</button>
                 <button class="btn" id="prospectReassignOwnerButton" type="button" hidden>批量改负责人</button>
+                <button class="btn" id="prospectAddTagsButton" type="button" hidden>批量打标签</button>
+                <button class="btn" id="prospectRemoveTagsButton" type="button" hidden>批量移除标签</button>
               </div>
               <div class="prospect-list" id="prospectListRows">
                 <div class="empty-cell">暂无搜客清单</div>

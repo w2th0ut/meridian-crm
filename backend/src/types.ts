@@ -2043,6 +2043,8 @@ export interface WebsiteOpportunity {
   lastTouchpointChannel?: ProspectOutreachChannel;
   lastReplyClassification?: ProspectReplyClassification;
   nextFollowAt?: string;
+  /** 本地标签。没有单独的标签表，写在候选上。 */
+  tags?: string[];
   outreachState?: ProspectOutreachState;
   lastOpenedAt?: string;
   lastClickedAt?: string;
@@ -4775,6 +4777,17 @@ export interface OwnerReassignAuditEvent {
   action: "reassign_owner";
   previousOwnerId: string;
   nextOwnerId: string;
+}
+
+/** 批量打标签或移除标签的最小审计。操作人、时间、对象、动作、这次写下的标签。 */
+export interface ProspectTagAuditEvent {
+  id: string;
+  actorId: string;
+  at: string;
+  objectType: "prospect_candidate";
+  objectId: string;
+  action: "add_tags" | "remove_tags";
+  tags: string[];
 }
 
 export interface CommissionCalculation {
