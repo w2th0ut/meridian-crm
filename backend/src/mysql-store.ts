@@ -126,8 +126,8 @@ import {
   validateProviderCredentialSecurity
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
-import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectTagAudits } from "./data.js";
-import type { FollowUpAuditEvent, NextFollowUpAuditEvent, OwnerReassignAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectNoteAudits, prospectTagAudits } from "./data.js";
+import type { FollowUpAuditEvent, NextFollowUpAuditEvent, OwnerReassignAuditEvent, ProspectNoteAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
 import type { DailyReport, DailyReportComment, InternalMessage } from "./types.js";
@@ -1869,6 +1869,7 @@ export async function createMysqlStore(
 		    ownerReassignAudits: await loadOwnerReassignAudits(pool),
 		    prospectTagAudits: await loadProspectTagAudits(pool),
 		    nextFollowUpAudits: await loadNextFollowUpAudits(pool),
+		    prospectNoteAudits: await loadProspectNoteAudits(pool),
 		    commissionCalculations: await loadCommissionCalculations(pool),
 		    commissionItems: await loadCommissionItems(pool),
 		    commissionExports: await loadCommissionExports(pool),
@@ -2023,6 +2024,7 @@ export async function createMysqlStore(
       store.ownerReassignAudits.push(...ownerReassignAudits);
       store.prospectTagAudits.push(...prospectTagAudits);
       store.nextFollowUpAudits.push(...nextFollowUpAudits);
+      store.prospectNoteAudits.push(...prospectNoteAudits);
       store.commissionCalculations.push(...commissionCalculations);
       store.commissionItems.push(...commissionItems);
       store.commissionExports.push(...commissionExports);
@@ -3201,6 +3203,7 @@ async function ensureSchema(pool: mysql.Pool) {
   await ensureColumn(pool, "website_opportunities", "open_count", "INT DEFAULT 0");
   await ensureColumn(pool, "website_opportunities", "click_count", "INT DEFAULT 0");
   await ensureColumn(pool, "website_opportunities", "tags_json", "JSON");
+  await ensureColumn(pool, "website_opportunities", "notes", "TEXT");
   await pool.query(`CREATE TABLE IF NOT EXISTS prospect_touchpoints (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -6009,6 +6012,17 @@ async function ensureSchema(pool: mysql.Pool) {
     INDEX idx_next_follow_up_audits_object(object_type, object_id),
     INDEX idx_next_follow_up_audits_actor(actor_id, occurred_at)
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS prospect_note_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    object_type VARCHAR(40) NOT NULL,
+    object_id VARCHAR(64) NOT NULL,
+    action_code VARCHAR(40) NOT NULL,
+    note TEXT,
+    INDEX idx_prospect_note_audits_object(object_type, object_id),
+    INDEX idx_prospect_note_audits_actor(actor_id, occurred_at)
+  )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS commission_calculations (
     id VARCHAR(64) PRIMARY KEY,
     month_value VARCHAR(20) NOT NULL,
@@ -7544,6 +7558,7 @@ async function loadWebsiteOpportunities(pool: MysqlQuerySource): Promise<Website
     openCount: Number(row.open_count || 0),
     clickCount: Number(row.click_count || 0),
     tags: parseStoredStringList(row.tags_json),
+    notes: row.notes || "",
     invalidContactChannels: row.invalid_contact_channels_json
       ? (typeof row.invalid_contact_channels_json === "string"
         ? JSON.parse(row.invalid_contact_channels_json)
@@ -12080,6 +12095,18 @@ async function loadMonthlySalesRecords(pool: mysql.Pool): Promise<MonthlySalesRe
   }));
 }
 
+async function loadProspectNoteAudits(pool: mysql.Pool): Promise<ProspectNoteAuditEvent[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM prospect_note_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    actorId: row.actor_id || "",
+    at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at || new Date().toISOString(),
+    objectType: "prospect_candidate",
+    objectId: row.object_id || "",
+    action: "append_note",
+    note: row.note || ""
+  }));
+}
+
 async function loadNextFollowUpAudits(pool: mysql.Pool): Promise<NextFollowUpAuditEvent[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM next_follow_up_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
@@ -12508,6 +12535,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "owner_reassign_audits", store.ownerReassignAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.previousOwnerId, item.nextOwnerId], "(id,actor_id,occurred_at,object_type,object_id,action_code,previous_owner_id,next_owner_id)");
 	    await replaceRows(connection, "prospect_tag_audits", store.prospectTagAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, JSON.stringify(item.tags || [])], "(id,actor_id,occurred_at,object_type,object_id,action_code,tags_json)");
 	    await replaceRows(connection, "next_follow_up_audits", store.nextFollowUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
+	    await replaceRows(connection, "prospect_note_audits", store.prospectNoteAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.note || ""], "(id,actor_id,occurred_at,object_type,object_id,action_code,note)");
 	    await replaceRows(connection, "commission_calculations", store.commissionCalculations, (item) => [item.id, item.month, item.ownerId, item.teamId, item.salesAmount, item.autoCommission, item.manualAdjustment, item.finalCommission, item.status, item.version, item.isCurrent, item.calculatedAt ? mysqlDate(item.calculatedAt) : null, item.reviewedBy, item.reviewedAt ? mysqlDate(item.reviewedAt) : null, item.lockedBy, item.lockedAt ? mysqlDate(item.lockedAt) : null, item.unlockReason], "(id,month_value,owner_id,team_id,sales_amount,auto_commission,manual_adjustment,final_commission,status,version_no,is_current,calculated_at,reviewed_by,reviewed_at,locked_by,locked_at,unlock_reason)");
 	    await replaceRows(connection, "commission_items", store.commissionItems, (item) => [item.id, item.calculationId, item.recordId, item.productId, item.itemType, item.sourceType, item.ruleSnapshotJson, item.salesAmount, item.autoAmount, item.manualAmount, item.finalAmount, item.remark, item.createdBy, mysqlDate(item.createdAt)], "(id,calculation_id,record_id,product_id,item_type,source_type,rule_snapshot_json,sales_amount,auto_amount,manual_amount,final_amount,remark,created_by,created_at)");
 	    await replaceRows(connection, "commission_exports", store.commissionExports, (item) => [item.id, item.month, item.scopeType, item.scopeOwnerId, item.fileType, item.rows, item.exportedBy, mysqlDate(item.createdAt)], "(id,month_value,scope_type,scope_owner_id,file_type,rows_count,exported_by,created_at)");
@@ -12604,9 +12632,10 @@ async function persistWebsiteOpportunityRows(
       item.lastClickedAt ? mysqlDate(item.lastClickedAt) : null,
       item.openCount ?? 0,
       item.clickCount ?? 0,
-      JSON.stringify(item.tags || [])
+      JSON.stringify(item.tags || []),
+      item.notes || ""
     ],
-    "(id,company,business,country,website,contact,contact_info,description,owner_id,team_id,status,customer_id,deal_id,lead_id,parse_mode,source,source_label,source_evidence_json,extracted_contacts_json,contact_enrichment_attempts_json,verification_report_json,search_report_json,scorecard_json,confidence,last_development_email_at,last_development_email_subject,last_development_email_to,verified_at,status_changed_at,excluded_reason,shortlisted_at,shortlisted_by,shortlist_source_run_id,tenant_prospect_id,organization_id,coverage_classification,coverage_queue_state,coverage_reason_code,last_touchpoint_at,last_touchpoint_channel,last_reply_classification,next_follow_at,outreach_state,invalid_contact_channels_json,website_probe_attempts_json,website_discovery_attempts_json,identity_bootstrap_attempts_json,created_at,last_opened_at,last_clicked_at,open_count,click_count,tags_json)"
+    "(id,company,business,country,website,contact,contact_info,description,owner_id,team_id,status,customer_id,deal_id,lead_id,parse_mode,source,source_label,source_evidence_json,extracted_contacts_json,contact_enrichment_attempts_json,verification_report_json,search_report_json,scorecard_json,confidence,last_development_email_at,last_development_email_subject,last_development_email_to,verified_at,status_changed_at,excluded_reason,shortlisted_at,shortlisted_by,shortlist_source_run_id,tenant_prospect_id,organization_id,coverage_classification,coverage_queue_state,coverage_reason_code,last_touchpoint_at,last_touchpoint_channel,last_reply_classification,next_follow_at,outreach_state,invalid_contact_channels_json,website_probe_attempts_json,website_discovery_attempts_json,identity_bootstrap_attempts_json,created_at,last_opened_at,last_clicked_at,open_count,click_count,tags_json,notes)"
   );
 }
 
