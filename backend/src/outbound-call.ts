@@ -38,6 +38,8 @@ export type OutboundCallReason =
   | "not_found"
   | "suppressed"
   | "not_contactable"
+  | "unmapped"
+  | "ambiguous"
   | "dial_failed";
 
 export function customerPhoneId(customerId: string) {
@@ -64,12 +66,14 @@ const MESSAGES: Record<OutboundCallReason, string> = {
   not_found: "外呼对象或号码不存在",
   suppressed: "号码在抑制或退订名单中",
   not_contactable: "候选还不是已批准可联系",
+  unmapped: "当前用户没有对应的云联络中心坐席",
+  ambiguous: "这个号码对应多条记录，请从对应页面单独发起",
   dial_failed: "外呼没有发出"
 };
 
 function statusFor(reason: OutboundCallReason) {
   if (reason === "invalid_request") return 400;
-  if (reason === "forbidden" || reason === "disabled") return 403;
+  if (reason === "forbidden" || reason === "disabled" || reason === "unmapped") return 403;
   if (reason === "not_found") return 404;
   if (reason === "dial_failed") return 502;
   return 409;
@@ -329,6 +333,71 @@ export function readOutboundCallAvailability(store: CrmStore, user: SessionUser 
   };
 }
 
+function mappedCccUserId(store: CrmStore, user: SessionUser) {
+  const mapped = store.aliyunAgentMappings.find((item) => item.teamId === user.teamId && item.crmUserId === user.id);
+  return mapped?.cccUserId.trim() || "";
+}
+
+/** 只去掉空格和常见分隔符后的数字。不去掉国家码 86，这一步待核实。 */
+export function outboundPhoneDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+export interface VisiblePhoneMatch {
+  targetType: OutboundTargetType;
+  targetId: string;
+  phoneId: string;
+  phone: string;
+}
+
+/** 当前用户可见范围内，数字完全相同的电话。多条不自动挑一条。 */
+export function listExactPhoneMatches(store: CrmStore, user: SessionUser, rawPhone: string): VisiblePhoneMatch[] {
+  const digits = outboundPhoneDigits(rawPhone);
+  if (digits.length < 5) return [];
+  const matches: VisiblePhoneMatch[] = [];
+  for (const customer of store.customers) {
+    if (customer.teamId !== user.teamId) continue;
+    if (!canDialOwner(user, customer.ownerId, customer.teamId)) continue;
+    const phone = (customer.phone || "").trim();
+    if (!phone || outboundPhoneDigits(phone) !== digits) continue;
+    matches.push({ targetType: "customer", targetId: customer.id, phoneId: customerPhoneId(customer.id), phone });
+  }
+  for (const lead of store.leads) {
+    if (lead.deletedAt || lead.teamId !== user.teamId) continue;
+    if (!canDialOwner(user, lead.ownerId, lead.teamId)) continue;
+    const phone = (lead.phone || "").trim();
+    if (!phone || outboundPhoneDigits(phone) !== digits) continue;
+    matches.push({ targetType: "lead", targetId: lead.id, phoneId: leadPhoneId(lead.id), phone });
+  }
+  for (const candidate of store.websiteOpportunities) {
+    if (candidate.teamId !== user.teamId || !candidate.tenantProspectId) continue;
+    if (!canDialOwner(user, candidate.ownerId, candidate.teamId)) continue;
+    for (const channel of store.prospectContactChannels) {
+      if (channel.teamId !== candidate.teamId || channel.prospectId !== candidate.tenantProspectId) continue;
+      if (channel.channelType !== "phone") continue;
+      const phone = (channel.value || "").trim();
+      if (!phone || outboundPhoneDigits(phone) !== digits) continue;
+      matches.push({ targetType: "prospect", targetId: candidate.id, phoneId: channel.id, phone });
+    }
+  }
+  return matches;
+}
+
+async function resolveWorkbenchCallee(store: CrmStore, user: SessionUser, callee: string) {
+  const config = readDialConfig(store, user.teamId);
+  const permitted = hasIamPermission(user, OUTBOUND_CALL_PERMISSION);
+  if (permitted) await assignOutboundScope(store, user);
+  let reason: OutboundCallReason | null = null;
+  if (!config.enabled) reason = "disabled";
+  else if (!config.complete) reason = "config_incomplete";
+  else if (!permitted) reason = "forbidden";
+  else if (!mappedCccUserId(store, user)) reason = "unmapped";
+  const matches = reason ? [] : listExactPhoneMatches(store, user, callee);
+  if (!reason && matches.length === 0) reason = "not_found";
+  if (!reason && matches.length > 1) reason = "ambiguous";
+  return { reason, match: matches.length === 1 ? matches[0] : null, masked: maskOutboundNumber(callee) };
+}
+
 export async function requestOutboundCall(store: CrmStore, user: SessionUser | undefined, body: unknown) {
   if (!user?.id || !user.teamId) {
     return { status: 401, body: { result: "rejected" as const, reason: "forbidden", message: "未登录" } };
@@ -371,7 +440,7 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
   })) reason = "suppressed";
   else if (parsed.targetType === "prospect" && (!located.candidate || !prospectPhoneApproved(store, located.candidate, parsed.phoneId))) {
     reason = "not_contactable";
-  }
+  } else if (!mappedCccUserId(store, user)) reason = "unmapped";
 
   if (reason) {
     await writeAudit(store, {
@@ -394,11 +463,13 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
     return outcome;
   }
 
+  const seatUserId = mappedCccUserId(store, user);
   const params: MakeCallParams = {
     InstanceId: config.instanceId,
     DeviceId: CCC_MAKE_CALL_DEVICE_ID,
     Callee: located.phone,
     Caller: config.callerNumber,
+    UserId: seatUserId,
     ...(maskedNumber ? { MaskedCallee: maskedNumber } : {})
   };
   try {
@@ -440,3 +511,84 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
     return rejected("dial_failed");
   }
 }
+
+export async function previewWorkbenchCallee(store: CrmStore, user: SessionUser | undefined, callee: unknown) {
+  if (!user?.id || !user.teamId) {
+    return { status: 401, body: { allowed: false, reason: "forbidden", message: "未登录" } };
+  }
+  const raw = typeof callee === "string" ? callee.trim() : "";
+  if (!raw || raw.length > 32) {
+    await writeAudit(store, {
+      teamId: user.teamId,
+      actorId: user.id,
+      targetType: "",
+      targetId: "",
+      phoneId: "",
+      maskedNumber: "",
+      result: "rejected",
+      reason: "invalid_request",
+      jobId: ""
+    });
+    return rejected("invalid_request");
+  }
+  const resolved = await resolveWorkbenchCallee(store, user, raw);
+  if (resolved.reason) {
+    await writeAudit(store, {
+      teamId: user.teamId,
+      actorId: user.id,
+      targetType: "",
+      targetId: "",
+      phoneId: "",
+      maskedNumber: resolved.masked,
+      result: "rejected",
+      reason: resolved.reason,
+      jobId: ""
+    });
+    const outcome = rejected(resolved.reason);
+    return { status: outcome.status, body: { allowed: false, ...outcome.body } };
+  }
+  return { status: 200, body: { allowed: true, reason: "", message: "" } };
+}
+
+/** 工作台 MakeCall 只在唯一可见号码上走原门禁。不接受调用方指定坐席。 */
+export async function dialWorkbenchCallee(store: CrmStore, user: SessionUser | undefined, callee: unknown) {
+  if (!user?.id || !user.teamId) {
+    return { status: 401, body: { result: "rejected" as const, reason: "forbidden", message: "未登录" } };
+  }
+  const raw = typeof callee === "string" ? callee.trim() : "";
+  if (!raw || raw.length > 32) {
+    await writeAudit(store, {
+      teamId: user.teamId,
+      actorId: user.id,
+      targetType: "",
+      targetId: "",
+      phoneId: "",
+      maskedNumber: "",
+      result: "rejected",
+      reason: "invalid_request",
+      jobId: ""
+    });
+    return rejected("invalid_request");
+  }
+  const resolved = await resolveWorkbenchCallee(store, user, raw);
+  if (resolved.reason || !resolved.match) {
+    await writeAudit(store, {
+      teamId: user.teamId,
+      actorId: user.id,
+      targetType: "",
+      targetId: "",
+      phoneId: "",
+      maskedNumber: resolved.masked,
+      result: "rejected",
+      reason: resolved.reason || "not_found",
+      jobId: ""
+    });
+    return rejected(resolved.reason || "not_found");
+  }
+  return requestOutboundCall(store, user, {
+    targetType: resolved.match.targetType,
+    targetId: resolved.match.targetId,
+    phoneId: resolved.match.phoneId
+  });
+}
+

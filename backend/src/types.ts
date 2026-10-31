@@ -4955,6 +4955,79 @@ export interface OutboundCallRecord {
   updatedAt: string;
 }
 
+/** 同一租户内，CCC 坐席 UserId 与 CRM 用户一一对应。 */
+export interface AliyunAgentMapping {
+  id: string;
+  teamId: string;
+  crmUserId: string;
+  cccUserId: string;
+  loginName: string;
+  displayName: string;
+  extension: string;
+  workMode: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/** 坐席映射的增删改审计。不记密钥。 */
+export interface AgentMappingAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "create" | "update" | "delete";
+  crmUserId: string;
+  cccUserId: string;
+  result: "allowed" | "rejected";
+  reason: string;
+}
+
+/**
+ * 来电弹屏收件。只给映射到的 CRM 用户看。
+ * phoneDigits 只留在服务端用来匹配，接口不回传。不建客户。
+ */
+export interface AliyunScreenPop {
+  id: string;
+  teamId: string;
+  cccUserId: string;
+  crmUserId: string;
+  contactId: string;
+  eventType: string;
+  eventTime: string;
+  callType: string;
+  maskedNumber: string;
+  phoneDigits: string;
+  at: string;
+}
+
+/** 外呼任务只读同步开关。默认关。关掉后同步接口不请求云联络中心。 */
+export interface AliyunCampaignReadSetting {
+  teamId: string;
+  enabled: boolean;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/** 最近一次人工同步的只读快照。号码已脱敏。 */
+export interface AliyunCampaignSnapshot {
+  id: string;
+  teamId: string;
+  syncedAt: string;
+  syncedBy: string;
+  payloadJson: string;
+}
+
+export interface AliyunCampaignSyncAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "sync" | "enable" | "disable";
+  result: "allowed" | "rejected";
+  reason: string;
+  campaignCount: number;
+}
+
 export interface CommissionCalculation {
   id: string;
   month: string;

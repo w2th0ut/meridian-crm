@@ -413,3 +413,83 @@ PR-5 之后才讨论真实接通。真实接通仍是单独的人工配置，不
 | 开关 | 以上齐全后，才在服务器加密配置里把功能开关设为开。仓库默认值保持关 |
 
 不需要提供的内容：OutboundBot 实例、外呼任务组、预测式活动名单、主账号 AccessKey、写在仓库里的密钥。
+
+## 9. 接真实环境前核对清单
+
+下面每一项都还不能当成已经证实。核对完之前，不要改默认开关，也不要按猜测改解析。不一致时只改列出的位置，改完用 mock 再跑相关测试，不要对阿里云拨测。
+
+### 9.1 Webhook 的方法、类型、重试和成功状态码
+
+要核对什么：CCC Webhook 实际使用的 HTTP 方法、Content-Type、失败后的重试次数，以及它把哪一个状态码当成投递成功。
+
+怎么核对：在实例控制台发一条测试推送，抓到打到 `/api/integrations/aliyun-ccc/events/:pathToken` 的原始请求。对照事件格式页和 `UpdateSubscription` 页；这两页现在都没写这些项。看我们返回 200 之后还会不会重推。
+
+不一致时改哪里：方法不是 POST 时，改 `backend/src/server.ts` 里 `app.post("/api/integrations/aliyun-ccc/events/:pathToken")` 这一条路由。成功状态码不是 200 时，改 `backend/src/aliyun-ccc-events.ts` 的 `finish` 调用，现在接受路径传的是 200。正文不是 JSON 时，改同一文件的 `parseCccEvent`，以及服务器上解析这段 body 的 JSON 中间件。
+
+### 9.2 事件外层封装、实例字段大小写、通话 ID
+
+要核对什么：事件是扁平 JSON，还是包在 `data`、`event` 或 `message` 里。实例字段是 `instanceId` 还是 `InstanceId`。`jobId`、`ContactId` 是否就是 `contactId`，以及是不是 `MakeCall` 返回的 `JobId`。
+
+怎么核对：抓一条真实的 `Ringing` 和一条 `CDRReady`，看最外层的键。再拿同一通的 `MakeCall` 响应里的 `JobId` 和回调里的 `contactId` 对照。官方事件格式页写的是扁平的 `instanceId` 和 `contactId`。
+
+不一致时改哪里：`backend/src/aliyun-ccc-events.ts` 的 `parseCccEvent`。它现在会在根上没有 `eventType` 时展开一层 `data`、`event` 或 `message`，实例先读 `instanceId` 再读 `InstanceId`，通话 ID 按 `contactId`、`ContactId`、`jobId` 的顺序取。真实结构和这个顺序不同时，只改这个函数，不要放宽后面的令牌和实例比对。
+
+### 9.3 时长单位、计时口径和 StartTime
+
+要核对什么：`CallDuration` 是秒还是毫秒，呼出从接通算还是从拨号算。`GetCallDetailRecord.StartTime` 和 `CDRReady.startTime` 的起算点是否相同。`GetMonoRecording.Duration` 的毫秒和事件 `duration` 的秒是否冲突。
+
+怎么核对：打一通已知时长的电话，抓 `GetCallDetailRecord`、`ListCallDetailRecordsV2` 和 `RecordingReady`，对照单通详情页、列表页和事件格式页。这三处文案现在不一致。
+
+不一致时改哪里：解析在 `backend/src/aliyun-ccc-make-call.ts` 的 `readCallDetailRecord` 和 `readMonoRecording`。跟进正文在 `backend/src/aliyun-ccc-events.ts` 的 `followUpContent`。现在时长和录音时长都按原文保存，不折算。只有官方页和真实话单都确认了单位之后，才改这两处的展示说明，不要用折算后的数覆盖原文。
+
+### 9.4 dispositionCode 和 ContactDisposition
+
+要核对什么：事件 `CDRReady.dispositionCode` 和话单 `ContactDisposition` 是否一一对应，枚举是否同名。
+
+怎么核对：抓同一通的 `CDRReady` 和 `GetCallDetailRecord`，把两个字段并排列出来。事件格式页和单通详情页都列了 `Success`、`NoAnswer` 一类的值，但没有写映射表。
+
+不一致时改哪里：跟进现在只用话单字段，写在 `followUpContent`。解析话单在 `readCallDetailRecord`。不要在 `parseCccEvent` 里用事件的 `dispositionCode` 覆盖 `contactDisposition`。如果要展示事件原值，另加字段，跟进正文仍以回查为准。
+
+### 9.5 录音链接有效期
+
+要核对什么：`GetMonoRecording` 的 `ExpireSeconds` 和 `FileUrl`「有效期 1 天」哪一个生效。事件里的 `downloadURL` 是不是同样会过期。
+
+怎么核对：用 `ExpireSeconds=300` 取一次链接，看它实际过多久失效；再对照 `GetMonoRecording` 页上同时出现的两句说明。不要把链接当永久地址保存到对象存储。
+
+不一致时改哪里：请求用的秒数是 `backend/src/aliyun-ccc-make-call.ts` 的 `CCC_MONO_RECORDING_EXPIRE_SECONDS`，现在按示例取 300。落库的链接在 `backend/src/aliyun-ccc-events.ts` 的 `applyCall`，字段是 `recordingUrl`，并且只留 `ContactId` 引用。有效期不同时改这个常数和 `applyCall` 旁边的说明，播放仍按 `ContactId` 重新取。
+
+### 9.6 回查话单时 InstanceId 缺省
+
+要核对什么：`GetCallDetailRecord` 的返回里 `InstanceId` 会不会缺。缺了是不是仍算请求的那个实例。
+
+怎么核对：对一通已知通话调用 `GetCallDetailRecord`，看 `Data` 里有没有 `InstanceId`。单通详情页的返回表要和这次真实响应一起看。
+
+不一致时改哪里：`backend/src/aliyun-ccc-make-call.ts` 的 `readCallDetailRecord`。现在字段为空不拒绝，有值但不等于请求实例才拒绝。如果官方或真实响应说明缺省必须拒绝，就改这个判断。不要改回调前面的实例比对。
+
+### 9.7 本轮新增、仍然待核实的项
+
+要核对什么：
+
+- 工作台若改走 OAuth2 或 STS，授权地址、scope 和临时凭证端点是什么。3.x 文档只写了服务端用 AK/SK 或 OAuth2 转发，没有给出浏览器侧的签发接口。
+- SDK 发到 `ajaxPath` 的正文里，业务参数叫什么。文档只说和 `request` 同一层级，默认 `Content-Type` 是 `application/x-www-form-urlencoded`。
+- 交回 SDK 的 JSON 是 `{ code, data, httpStatusCode, requestId }`，还是 CCC 原始的 `Code` / `Data`。文档说不用 axios 时要在返回值上多包一层 `data`。
+- 软电话脚本版本是否仍是查阅当日的 `3.8.1`。IM SDK `1.8.1` 本轮没有加载。
+- 公司 RAM 用户能不能为映射到的坐席 `UserId` 调用 `MakeCall`。授权页没有给出 Action。
+- 来电匹配要不要去掉国家码 `86`。SDK `onCallComing` 的 `callContext` 除 `caller`、`callee`、`jobId`、`callType` 之外还有哪些字段要参与匹配。
+- `ListUsers` 超过 100 页（每页 100 条）时怎么取全。
+- `ListCampaigns.TotalCount` 是否只在第一页有值。`CompletionRate` 已废弃，公式写成 `CasesUnCompleted`，返回字段是 `CasesUncompleted`。
+- `ListCases` 请求状态里的 `Forbidden` 会不会出现在返回的 `State` 里。
+- `GetTurnCredentials` 返回的是短期 TURN 账号，还是会带上长期密钥。本轮会转发它给已映射坐席的工作台，但会从 JSON 里去掉 AccessKey 字段。
+
+怎么核对：OAuth2、STS 和 SDK 正文以重新打开的 3.x 文档为准，地址是 <https://help.aliyun.com/zh/ccs/cccai/use-cases/ccc-sdk-frontend-access-3>。代拨用该 RAM 用户对一个映射坐席试一次 `MakeCall`，不要用主账号。号码和国家码抓一条真实来电，和库里的 `Customer.phone`、`Lead.phone`、电话渠道对照。活动字段重新打开 `ListCampaigns` 和 `ListCases` 的 API 页，并各抓一页真实响应。`GetTurnCredentials` 抓一条工作台签入时的响应，确认里面没有 AccessKey Secret。
+
+不一致时改哪里：
+
+- 临时凭证或 OAuth2 有了官方端点：改 `backend/src/aliyun-workbench.ts` 的 `readWorkbenchSession`。仍然不能把 AK/SK 放进这个响应。
+- 请求正文或返回包裹不同：改同一文件的 `readWorkbenchParams` 和 `toWorkbenchApiBody`。
+- 软电话版本变了：改 `frontend/src/aliyun-workbench.ts` 的 `CCC_WORKBENCH_VERSION`，以及 `backend/src/aliyun-workbench.ts` 里同名常数。两个文件保持一致。不要改成同时加载 `ui.min.js` 和 `core.min.js`。
+- RAM 不能代拨：改 `backend/src/outbound-call.ts` 的 `requestOutboundCall`。现在允许拨号时始终传入映射的 `UserId`。不能代拨时，停止用公司 AK 为这个 `UserId` 拨号，改为官方给出的坐席凭证，并且仍然不把密钥发到浏览器。
+- 号码要去国家码，或 `callContext` 里还有别的匹配字段：改 `backend/src/aliyun-screen-pop.ts` 的 `matchScreenPopTargets`，以及 `backend/src/outbound-call.ts` 的 `outboundPhoneDigits`。只改比较，不新建客户。
+- 坐席翻页规则不同：改 `backend/src/aliyun-ccc-directory.ts` 的 `collectCccSeats`。
+- 活动字段名或 `TotalCount` 口径不同：改 `readCccCampaigns`、`readCccCases`，以及 `backend/src/aliyun-campaign-sync.ts` 的 `syncCampaignRoster`。不要为此加上 `SubmitCampaign`、`ResumeCampaign`、`AddCases` 或 `ImportDoNotCallNumbers`。
+- `GetTurnCredentials` 带有长期密钥：把它从 `WORKBENCH_FORWARD_ACTIONS` 去掉，并在 `stripSecretFields` 里继续丢掉 AccessKey 字段。

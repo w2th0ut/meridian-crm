@@ -127,7 +127,7 @@ import {
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
 import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectIndustryAudits, prospectNoteAudits, prospectPriorityAudits, prospectTagAudits } from "./data.js";
-import type { AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, FollowUpAuditEvent, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunScreenPop, FollowUpAuditEvent, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import { readProspectIndustry } from "./prospect-industry.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
@@ -1878,6 +1878,12 @@ export async function createMysqlStore(
 		    outboundCallAudits: await loadOutboundCallAudits(pool),
 		    aliyunCccEventAudits: await loadAliyunCccEventAudits(pool),
 		    outboundCallRecords: await loadOutboundCallRecords(pool),
+		    aliyunAgentMappings: await loadAliyunAgentMappings(pool),
+		    agentMappingAudits: await loadAgentMappingAudits(pool),
+		    aliyunScreenPops: await loadAliyunScreenPops(pool),
+		    aliyunCampaignReadSettings: await loadAliyunCampaignReadSettings(pool),
+		    aliyunCampaignSnapshots: await loadAliyunCampaignSnapshots(pool),
+		    aliyunCampaignSyncAudits: await loadAliyunCampaignSyncAudits(pool),
 		    commissionCalculations: await loadCommissionCalculations(pool),
 		    commissionItems: await loadCommissionItems(pool),
 		    commissionExports: await loadCommissionExports(pool),
@@ -6140,6 +6146,73 @@ async function ensureSchema(pool: mysql.Pool) {
     UNIQUE KEY uniq_outbound_call_contact(instance_id, contact_id),
     INDEX idx_outbound_call_records_team(team_id, updated_at),
     INDEX idx_outbound_call_records_audit(outbound_call_audit_id)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_agent_mappings (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    crm_user_id VARCHAR(64) NOT NULL,
+    ccc_user_id VARCHAR(128) NOT NULL,
+    login_name VARCHAR(128) NOT NULL DEFAULT '',
+    display_name VARCHAR(128) NOT NULL DEFAULT '',
+    extension VARCHAR(64) NOT NULL DEFAULT '',
+    work_mode VARCHAR(32) NOT NULL DEFAULT '',
+    updated_by VARCHAR(64) NOT NULL DEFAULT '',
+    updated_at DATETIME NULL,
+    UNIQUE KEY uniq_aliyun_agent_ccc(team_id, ccc_user_id),
+    UNIQUE KEY uniq_aliyun_agent_crm(team_id, crm_user_id)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS agent_mapping_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    action_code VARCHAR(20) NOT NULL,
+    crm_user_id VARCHAR(64) NOT NULL DEFAULT '',
+    ccc_user_id VARCHAR(128) NOT NULL DEFAULT '',
+    result_code VARCHAR(20) NOT NULL,
+    reason_code VARCHAR(64) NOT NULL DEFAULT '',
+    INDEX idx_agent_mapping_audits_team(team_id, occurred_at),
+    INDEX idx_agent_mapping_audits_actor(actor_id, occurred_at)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_screen_pops (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    ccc_user_id VARCHAR(128) NOT NULL,
+    crm_user_id VARCHAR(64) NOT NULL,
+    contact_id VARCHAR(128) NOT NULL DEFAULT '',
+    event_type VARCHAR(64) NOT NULL DEFAULT '',
+    event_time VARCHAR(64) NOT NULL DEFAULT '',
+    call_type VARCHAR(32) NOT NULL DEFAULT '',
+    masked_number VARCHAR(64) NOT NULL DEFAULT '',
+    phone_digits VARCHAR(32) NOT NULL DEFAULT '',
+    occurred_at DATETIME NULL,
+    INDEX idx_aliyun_screen_pops_user(team_id, crm_user_id, occurred_at)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_campaign_read_settings (
+    team_id VARCHAR(64) PRIMARY KEY,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_by VARCHAR(64) NOT NULL DEFAULT '',
+    updated_at DATETIME NULL
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_campaign_snapshots (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    synced_at DATETIME NULL,
+    synced_by VARCHAR(64) NOT NULL DEFAULT '',
+    payload_json MEDIUMTEXT,
+    INDEX idx_aliyun_campaign_snapshots_team(team_id, synced_at)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_campaign_sync_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    action_code VARCHAR(20) NOT NULL,
+    result_code VARCHAR(20) NOT NULL,
+    reason_code VARCHAR(64) NOT NULL DEFAULT '',
+    campaign_count INT NOT NULL DEFAULT 0,
+    INDEX idx_aliyun_campaign_sync_audits_team(team_id, occurred_at),
+    INDEX idx_aliyun_campaign_sync_audits_actor(actor_id, occurred_at)
   )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS commission_calculations (
     id VARCHAR(64) PRIMARY KEY,
@@ -12342,6 +12415,93 @@ async function loadOutboundCallRecords(pool: mysql.Pool): Promise<OutboundCallRe
   return loaded;
 }
 
+function mappingAction(value: unknown): AgentMappingAudit["action"] {
+  if (value === "update" || value === "delete") return value;
+  return "create";
+}
+
+function campaignAuditAction(value: unknown): AliyunCampaignSyncAudit["action"] {
+  if (value === "enable" || value === "disable") return value;
+  return "sync";
+}
+
+async function loadAliyunAgentMappings(pool: mysql.Pool): Promise<AliyunAgentMapping[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM aliyun_agent_mappings")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    crmUserId: row.crm_user_id || "",
+    cccUserId: row.ccc_user_id || "",
+    loginName: row.login_name || "",
+    displayName: row.display_name || "",
+    extension: row.extension || "",
+    workMode: row.work_mode || "",
+    updatedBy: row.updated_by || "",
+    updatedAt: storedIso(row.updated_at)
+  }));
+}
+
+async function loadAgentMappingAudits(pool: mysql.Pool): Promise<AgentMappingAudit[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM agent_mapping_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    actorId: row.actor_id || "",
+    at: storedIso(row.occurred_at),
+    action: mappingAction(row.action_code),
+    crmUserId: row.crm_user_id || "",
+    cccUserId: row.ccc_user_id || "",
+    result: row.result_code === "allowed" ? "allowed" : "rejected",
+    reason: row.reason_code || ""
+  }));
+}
+
+async function loadAliyunScreenPops(pool: mysql.Pool): Promise<AliyunScreenPop[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM aliyun_screen_pops ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    cccUserId: row.ccc_user_id || "",
+    crmUserId: row.crm_user_id || "",
+    contactId: row.contact_id || "",
+    eventType: row.event_type || "",
+    eventTime: row.event_time || "",
+    callType: row.call_type || "",
+    maskedNumber: row.masked_number || "",
+    phoneDigits: row.phone_digits || "",
+    at: storedIso(row.occurred_at)
+  }));
+}
+
+async function loadAliyunCampaignReadSettings(pool: mysql.Pool): Promise<AliyunCampaignReadSetting[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM aliyun_campaign_read_settings")).map((row) => ({
+    teamId: row.team_id || "",
+    enabled: Boolean(row.enabled),
+    updatedBy: row.updated_by || "",
+    updatedAt: storedIso(row.updated_at)
+  }));
+}
+
+async function loadAliyunCampaignSnapshots(pool: mysql.Pool): Promise<AliyunCampaignSnapshot[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM aliyun_campaign_snapshots ORDER BY synced_at DESC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    syncedAt: storedIso(row.synced_at),
+    syncedBy: row.synced_by || "",
+    payloadJson: row.payload_json || ""
+  }));
+}
+
+async function loadAliyunCampaignSyncAudits(pool: mysql.Pool): Promise<AliyunCampaignSyncAudit[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM aliyun_campaign_sync_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    actorId: row.actor_id || "",
+    at: storedIso(row.occurred_at),
+    action: campaignAuditAction(row.action_code),
+    result: row.result_code === "allowed" ? "allowed" : "rejected",
+    reason: row.reason_code || "",
+    campaignCount: Number(row.campaign_count) || 0
+  }));
+}
+
 async function loadAliyunOutboundConfigAudits(pool: mysql.Pool): Promise<AliyunOutboundConfigAudit[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM aliyun_outbound_config_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
@@ -12789,6 +12949,12 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "outbound_call_audits", store.outboundCallAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.phoneId, item.maskedNumber, item.result, item.reason, item.jobId], "(id,team_id,actor_id,occurred_at,target_type,target_id,phone_id,masked_number,result_code,reason_code,job_id)");
 	    await replaceRows(connection, "aliyun_ccc_event_audits", store.aliyunCccEventAudits, (item) => [item.id, item.teamId, mysqlDate(item.at), item.instanceId, item.contactId, item.eventType, item.eventTime, item.decision, item.reason, item.maskedCaller, item.maskedCallee], "(id,team_id,occurred_at,instance_id,contact_id,event_type,event_time,decision_code,reason_code,masked_caller,masked_callee)");
 	    await replaceRows(connection, "outbound_call_records", store.outboundCallRecords, (item) => [item.id, item.teamId, item.instanceId, item.contactId, item.outboundCallAuditId, item.targetType, item.targetId, item.maskedNumber, item.contactType, item.contactDisposition, item.earlyMediaState, item.callDurationRaw, item.establishedTimeRaw, item.releaseTimeRaw, item.startTimeRaw, item.agentIds, item.recordingReady, item.recordingRef, item.recordingFileName, item.recordingUrl, item.recordingDurationRaw, item.followUpActivityId, item.createdAt ? mysqlDate(item.createdAt) : null, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,instance_id,contact_id,outbound_call_audit_id,target_type,target_id,masked_number,contact_type,contact_disposition,early_media_state,call_duration_raw,established_time_raw,release_time_raw,start_time_raw,agent_ids,recording_ready,recording_ref,recording_file_name,recording_url,recording_duration_raw,follow_up_activity_id,created_at,updated_at)");
+	    await replaceRows(connection, "aliyun_agent_mappings", store.aliyunAgentMappings, (item) => [item.id, item.teamId, item.crmUserId, item.cccUserId, item.loginName, item.displayName, item.extension, item.workMode, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,crm_user_id,ccc_user_id,login_name,display_name,extension,work_mode,updated_by,updated_at)");
+	    await replaceRows(connection, "agent_mapping_audits", store.agentMappingAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.crmUserId, item.cccUserId, item.result, item.reason], "(id,team_id,actor_id,occurred_at,action_code,crm_user_id,ccc_user_id,result_code,reason_code)");
+	    await replaceRows(connection, "aliyun_screen_pops", store.aliyunScreenPops, (item) => [item.id, item.teamId, item.cccUserId, item.crmUserId, item.contactId, item.eventType, item.eventTime, item.callType, item.maskedNumber, item.phoneDigits, mysqlDate(item.at)], "(id,team_id,ccc_user_id,crm_user_id,contact_id,event_type,event_time,call_type,masked_number,phone_digits,occurred_at)");
+	    await replaceRows(connection, "aliyun_campaign_read_settings", store.aliyunCampaignReadSettings, (item) => [item.teamId, item.enabled, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(team_id,enabled,updated_by,updated_at)");
+	    await replaceRows(connection, "aliyun_campaign_snapshots", store.aliyunCampaignSnapshots, (item) => [item.id, item.teamId, item.syncedAt ? mysqlDate(item.syncedAt) : null, item.syncedBy, item.payloadJson], "(id,team_id,synced_at,synced_by,payload_json)");
+	    await replaceRows(connection, "aliyun_campaign_sync_audits", store.aliyunCampaignSyncAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.result, item.reason, item.campaignCount], "(id,team_id,actor_id,occurred_at,action_code,result_code,reason_code,campaign_count)");
 	    await replaceRows(connection, "commission_calculations", store.commissionCalculations, (item) => [item.id, item.month, item.ownerId, item.teamId, item.salesAmount, item.autoCommission, item.manualAdjustment, item.finalCommission, item.status, item.version, item.isCurrent, item.calculatedAt ? mysqlDate(item.calculatedAt) : null, item.reviewedBy, item.reviewedAt ? mysqlDate(item.reviewedAt) : null, item.lockedBy, item.lockedAt ? mysqlDate(item.lockedAt) : null, item.unlockReason], "(id,month_value,owner_id,team_id,sales_amount,auto_commission,manual_adjustment,final_commission,status,version_no,is_current,calculated_at,reviewed_by,reviewed_at,locked_by,locked_at,unlock_reason)");
 	    await replaceRows(connection, "commission_items", store.commissionItems, (item) => [item.id, item.calculationId, item.recordId, item.productId, item.itemType, item.sourceType, item.ruleSnapshotJson, item.salesAmount, item.autoAmount, item.manualAmount, item.finalAmount, item.remark, item.createdBy, mysqlDate(item.createdAt)], "(id,calculation_id,record_id,product_id,item_type,source_type,rule_snapshot_json,sales_amount,auto_amount,manual_amount,final_amount,remark,created_by,created_at)");
 	    await replaceRows(connection, "commission_exports", store.commissionExports, (item) => [item.id, item.month, item.scopeType, item.scopeOwnerId, item.fileType, item.rows, item.exportedBy, mysqlDate(item.createdAt)], "(id,month_value,scope_type,scope_owner_id,file_type,rows_count,exported_by,created_at)");

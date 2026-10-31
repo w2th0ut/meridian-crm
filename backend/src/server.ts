@@ -290,6 +290,10 @@ import { createCredentialRef, decryptProviderConfiguration, encryptProviderConfi
 import { readAliyunOutboundConfig, updateAliyunOutboundConfig } from "./aliyun-outbound-config.js";
 import { receiveAliyunCccEvent } from "./aliyun-ccc-events.js";
 import { readOutboundCallAvailability, requestOutboundCall } from "./outbound-call.js";
+import { createAgentMapping, deleteAgentMapping, listAgentDirectory, listAgentMappings, updateAgentMapping } from "./aliyun-agent-mapping.js";
+import { handleWorkbenchApi, previewWorkbenchDial, readWorkbenchSession } from "./aliyun-workbench.js";
+import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
+import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -8898,6 +8902,71 @@ app.get("/api/outbound-calls/availability", requireAuth, asyncRoute(async (req, 
 
 app.post("/api/outbound-calls", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await requestOutboundCall(getStore(), req.user, req.body);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/aliyun-outbound/agent-mappings", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = listAgentMappings(getStore(), req.user);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/aliyun-outbound/agent-directory", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listAgentDirectory(getStore(), req.user);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/aliyun-outbound/agent-mappings", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await createAgentMapping(getStore(), req.user, req.body);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.put("/api/aliyun-outbound/agent-mappings/:id", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await updateAgentMapping(getStore(), req.user, String(req.params.id || ""), req.body);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.delete("/api/aliyun-outbound/agent-mappings/:id", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await deleteAgentMapping(getStore(), req.user, String(req.params.id || ""));
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/aliyun-outbound/workbench/session", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = readWorkbenchSession(getStore(), req.user);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/aliyun-outbound/workbench/before-dial", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await previewWorkbenchDial(getStore(), req.user, req.body);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.all("/api/aliyun-outbound/workbench/api", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await handleWorkbenchApi(getStore(), req.user, req.query as Record<string, unknown>, req.body);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/aliyun-outbound/screen-pops", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listScreenPops(getStore(), req.user);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/aliyun-outbound/screen-pops/match", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await matchLiveScreenPop(getStore(), req.user, req.body);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/aliyun-outbound/campaigns", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = readCampaignReadSetting(getStore(), req.user);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.put("/api/aliyun-outbound/campaigns/setting", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await updateCampaignReadSetting(getStore(), req.user, req.body);
+  res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/aliyun-outbound/campaigns/sync", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await syncCampaignRoster(getStore(), req.user);
   res.status(outcome.status).json(outcome.body);
 }));
 

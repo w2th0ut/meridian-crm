@@ -166,6 +166,26 @@ try {
   assert.equal(store.outboundCallAudits[0]?.actorId, "u_sales_mia");
   assert.equal(store.outboundCallAudits[0]?.maskedNumber, "");
 
+  const unmapped = await request("/api/outbound-calls", shirley, "POST", customerBody);
+  assert.equal(unmapped.response.status, 403);
+  assert.equal(unmapped.json.reason, "unmapped");
+  assert.equal(calls.length, 0);
+  assert.equal(store.outboundCallAudits[0]?.reason, "unmapped");
+  assert.equal(store.outboundCallAudits[0]?.result, "rejected");
+
+  store.aliyunAgentMappings.push({
+    id: "aam-test",
+    teamId: "europe",
+    crmUserId: shirleyUser.id,
+    cccUserId: "agent@ccc-demo",
+    loginName: "agent",
+    displayName: "坐席",
+    extension: "8001",
+    workMode: "ON_SITE",
+    updatedBy: "u_admin",
+    updatedAt: "2026-10-31T00:00:00.000Z"
+  });
+
   const allowed = await request("/api/outbound-calls", shirley, "POST", customerBody);
   assert.equal(allowed.response.status, 200);
   assert.equal(allowed.json.result, "allowed");
@@ -177,7 +197,7 @@ try {
   assert.equal(calls[0].Callee, phone);
   assert.equal(calls[0].Caller, "02100001111");
   assert.equal(calls[0].MaskedCallee, "*******2333");
-  assert.equal(calls[0].UserId, undefined);
+  assert.equal(calls[0].UserId, "agent@ccc-demo");
   assert.equal(JSON.stringify(allowed.json).includes(phone), false);
   assert.equal(JSON.stringify(allowed.json).includes(secret), false);
   assert.equal(store.outboundCallAudits[0]?.result, "allowed");
@@ -274,20 +294,21 @@ try {
   assert.equal(calls.length, 1);
   assert.equal(store.outboundCallAudits[0]?.reason, "not_found");
 
-  assert.equal(store.outboundCallAudits.length, auditsBefore + 10);
-  assert.deepEqual(store.outboundCallAudits.slice(0, 10).map((item) => item.reason), [
+  assert.equal(store.outboundCallAudits.length, auditsBefore + 11);
+  assert.deepEqual(store.outboundCallAudits.slice(0, 11).map((item) => item.reason), [
     "not_found",
     "invalid_request",
     "invalid_request",
     "not_contactable",
     "suppressed",
     "",
+    "unmapped",
     "forbidden",
     "forbidden",
     "config_incomplete",
     "disabled"
   ]);
-  assert.equal(store.outboundCallAudits.slice(0, 10).every((item) => item.actorId), true);
+  assert.equal(store.outboundCallAudits.slice(0, 11).every((item) => item.actorId), true);
 
   assert.equal(store.prospectSuppressionEvents.length, suppressionBefore);
   assert.equal(store.prospectContactabilityDecisions.length, decisionsBefore);

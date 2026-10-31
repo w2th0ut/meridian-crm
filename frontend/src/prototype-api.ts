@@ -19,6 +19,16 @@ import {
   type OutboundCallResponse,
   type OutboundCallTarget
 } from "./outbound-call";
+import { renderAgentMappingTable, renderCampaignRoster, type AgentMappingView, type AgentSeatView, type AgentUserView, type CampaignView } from "./aliyun-agent-mapping";
+import { renderScreenPopStack, type ScreenPopCardView } from "./aliyun-screen-pop";
+import {
+  buildCccWorkbenchOptions,
+  cccWorkbenchAssetUrls,
+  gateBeforeCallDialing,
+  shouldLoadCccWorkbench,
+  type CccCallEvent,
+  type CccWorkbenchSession
+} from "./aliyun-workbench";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -11759,6 +11769,7 @@ async function refreshAll(user: User) {
   renderWebsiteOpportunities(state.websiteOpportunities);
   renderLeadFinder(state.websiteOpportunities);
   await loadOutboundCallAvailability();
+  void refreshCccSoftphone();
   renderProspectList();
   renderTopbarStats();
   await Promise.all([
@@ -14184,6 +14195,7 @@ const outboundCallGate = createOutboundCallInFlight();
 function clearOutboundCallAvailability() {
   outboundCallAvailability = { enabled: false, permitted: false };
   outboundCallTargets.clear();
+  hideCccSoftphone();
 }
 
 async function loadOutboundCallAvailability() {
@@ -16396,6 +16408,213 @@ async function saveAliyunOutboundConfig() {
     toast(error instanceof Error ? error.message : "阿里云外呼配置保存失败", "error");
   } finally {
     if (button) { button.disabled = false; button.textContent = "保存阿里云外呼配置"; }
+  }
+}
+
+let agentSeats: AgentSeatView[] = [];
+let agentUsers: AgentUserView[] = [];
+let agentMappings: AgentMappingView[] = [];
+let cccSdkLoading: Promise<void> | null = null;
+let cccWorkbenchReady = false;
+
+function renderAgentMappingBlock() {
+  const body = qs<HTMLElement>("#aliyunAgentMappingBody");
+  if (!body) return;
+  body.innerHTML = renderAgentMappingTable({ seats: agentSeats, users: agentUsers, mappings: agentMappings });
+}
+
+async function loadAgentMappings() {
+  const block = qs<HTMLElement>("#aliyunAgentMappingBlock");
+  if (!block) return;
+  try {
+    const result = await api<{ mappings?: AgentMappingView[]; users?: AgentUserView[] }>("/api/aliyun-outbound/agent-mappings");
+    agentMappings = result.mappings || [];
+    agentUsers = result.users || [];
+    renderAgentMappingBlock();
+  } catch {
+    agentMappings = [];
+    agentUsers = [];
+    renderAgentMappingBlock();
+  }
+}
+
+async function loadAgentDirectory() {
+  const button = qs<HTMLButtonElement>("#aliyunAgentDirectoryButton");
+  try {
+    if (button) { button.disabled = true; button.textContent = "读取中"; }
+    const result = await api<{ seats?: AgentSeatView[] }>("/api/aliyun-outbound/agent-directory", { method: "POST" });
+    agentSeats = result.seats || [];
+    renderAgentMappingBlock();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "读取坐席失败", "error");
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "读取坐席"; }
+  }
+}
+
+async function saveAgentMapping(cccUserId: string) {
+  const select = qs<HTMLSelectElement>(`[data-agent-user="${CSS.escape(cccUserId)}"]`);
+  const crmUserId = select?.value || "";
+  if (!crmUserId) {
+    toast("先选择要对应的用户", "error");
+    return;
+  }
+  const existing = agentMappings.find((item) => item.cccUserId === cccUserId);
+  const path = existing ? `/api/aliyun-outbound/agent-mappings/${existing.id}` : "/api/aliyun-outbound/agent-mappings";
+  try {
+    await api(path, { method: existing ? "PUT" : "POST", body: JSON.stringify({ crmUserId, cccUserId }) });
+    toast("坐席映射已保存");
+    await loadAgentMappings();
+    void refreshCccSoftphone();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "坐席映射保存失败", "error");
+  }
+}
+
+async function deleteAgentMapping(mappingId: string) {
+  try {
+    await api(`/api/aliyun-outbound/agent-mappings/${mappingId}`, { method: "DELETE" });
+    toast("已解除坐席映射");
+    await loadAgentMappings();
+    void refreshCccSoftphone();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "解除坐席映射失败", "error");
+  }
+}
+
+async function loadCampaignRoster() {
+  const root = qs<HTMLElement>("#aliyunCampaignRoster");
+  if (!root) return;
+  try {
+    const result = await api<{ enabled?: boolean; campaigns?: CampaignView[] }>("/api/aliyun-outbound/campaigns");
+    const toggle = qs<HTMLInputElement>("#aliyunCampaignReadEnabled");
+    if (toggle) toggle.checked = result.enabled === true;
+    root.innerHTML = renderCampaignRoster(result.campaigns || []);
+  } catch {
+    root.innerHTML = renderCampaignRoster([]);
+  }
+}
+
+async function saveCampaignReadSetting(enabled: boolean) {
+  try {
+    await api("/api/aliyun-outbound/campaigns/setting", { method: "PUT", body: JSON.stringify({ enabled }) });
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "外呼任务同步开关保存失败", "error");
+    await loadCampaignRoster();
+  }
+}
+
+async function syncCampaignRoster() {
+  const button = qs<HTMLButtonElement>("#aliyunCampaignSyncButton");
+  try {
+    if (button) { button.disabled = true; button.textContent = "同步中"; }
+    const result = await api<{ campaigns?: CampaignView[] }>("/api/aliyun-outbound/campaigns/sync", { method: "POST" });
+    const root = qs<HTMLElement>("#aliyunCampaignRoster");
+    if (root) root.innerHTML = renderCampaignRoster(result.campaigns || []);
+    toast("外呼任务名单已更新");
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "外呼任务名单同步失败", "error");
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "同步外呼任务名单"; }
+  }
+}
+
+function hideCccSoftphone() {
+  const root = qs<HTMLElement>("#cccSoftphone");
+  if (root) root.hidden = true;
+  const stack = qs<HTMLElement>("#cccScreenPopStack");
+  if (stack) stack.innerHTML = "";
+  cccWorkbenchReady = false;
+}
+
+function showScreenPopCards(cards: ScreenPopCardView[]) {
+  const stack = qs<HTMLElement>("#cccScreenPopStack");
+  if (!stack) return;
+  stack.innerHTML = renderScreenPopStack(cards);
+}
+
+async function refreshScreenPops() {
+  try {
+    const result = await api<{ pops?: ScreenPopCardView[] }>("/api/aliyun-outbound/screen-pops");
+    showScreenPopCards(result.pops || []);
+  } catch {
+    showScreenPopCards([]);
+  }
+}
+
+async function showLiveScreenPop(event: CccCallEvent) {
+  try {
+    const result = await api<ScreenPopCardView>("/api/aliyun-outbound/screen-pops/match", {
+      method: "POST",
+      body: JSON.stringify({
+        caller: event.caller || "",
+        callee: event.callee || "",
+        callType: event.callType || "",
+        jobId: event.jobId || ""
+      })
+    });
+    const stack = qs<HTMLElement>("#cccScreenPopStack");
+    const card = renderScreenPopStack([{ ...result, id: event.jobId || "live" }]);
+    if (stack) stack.insertAdjacentHTML("afterbegin", card);
+  } catch {
+    showScreenPopCards([{ unknown: true, label: "未知来电", maskedNumber: "" }]);
+  }
+}
+
+function ensureCccSdk(session: CccWorkbenchSession) {
+  if (!shouldLoadCccWorkbench(session)) return Promise.resolve();
+  if (window.CCCWorkbenchSDK) return Promise.resolve();
+  if (cccSdkLoading) return cccSdkLoading;
+  const assets = cccWorkbenchAssetUrls(session.workbenchVersion);
+  cccSdkLoading = new Promise<void>((resolve, reject) => {
+    const style = document.createElement("link");
+    style.rel = "stylesheet";
+    style.href = assets.styleHref;
+    document.head.appendChild(style);
+    const script = document.createElement("script");
+    script.src = assets.scriptSrc;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("软电话资源没有加载"));
+    document.body.appendChild(script);
+  });
+  return cccSdkLoading;
+}
+
+async function refreshCccSoftphone() {
+  const root = qs<HTMLElement>("#cccSoftphone");
+  if (!root) return;
+  try {
+    const session = await api<CccWorkbenchSession>("/api/aliyun-outbound/workbench/session");
+    if (!shouldLoadCccWorkbench(session)) {
+      hideCccSoftphone();
+      return;
+    }
+    root.hidden = false;
+    await refreshScreenPops();
+    if (cccWorkbenchReady) return;
+    await ensureCccSdk(session);
+    const Sdk = window.CCCWorkbenchSDK;
+    if (!Sdk || window.workbench) {
+      cccWorkbenchReady = Boolean(window.workbench);
+      return;
+    }
+    const options = buildCccWorkbenchOptions({
+      instanceId: session.instanceId || "",
+      regionId: session.regionId || "",
+      ajaxPath: session.ajaxPath || "/api/aliyun-outbound/workbench/api",
+      onCallComing: (event) => { void showLiveScreenPop(event); },
+      onBeforeCallDialing: (payload) => {
+        void gateBeforeCallDialing(payload, async (callee) => api("/api/aliyun-outbound/workbench/before-dial", {
+          method: "POST",
+          body: JSON.stringify({ callee })
+        }));
+      }
+    });
+    window.workbench = new Sdk(options);
+    cccWorkbenchReady = true;
+  } catch {
+    hideCccSoftphone();
   }
 }
 
@@ -53487,6 +53706,37 @@ function installEvents() {
   qs<HTMLButtonElement>("#profileDomainAuthButton")?.addEventListener("click", (event) => void checkProfileEmailDomain(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#companyProfileSaveButton")?.addEventListener("click", () => void saveCompanyProfile());
   qs<HTMLButtonElement>("#aliyunOutboundSaveButton")?.addEventListener("click", () => void saveAliyunOutboundConfig());
+  qs<HTMLButtonElement>("#aliyunAgentDirectoryButton")?.addEventListener("click", () => void loadAgentDirectory());
+  qs<HTMLElement>("#aliyunAgentMappingBody")?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    const saveId = target?.closest<HTMLElement>("[data-agent-save]")?.dataset.agentSave || "";
+    const deleteId = target?.closest<HTMLElement>("[data-agent-delete]")?.dataset.agentDelete || "";
+    if (saveId) void saveAgentMapping(saveId);
+    if (deleteId) void deleteAgentMapping(deleteId);
+  });
+  qs<HTMLInputElement>("#aliyunCampaignReadEnabled")?.addEventListener("change", (event) => {
+    void saveCampaignReadSetting((event.currentTarget as HTMLInputElement).checked);
+  });
+  qs<HTMLButtonElement>("#aliyunCampaignSyncButton")?.addEventListener("click", () => void syncCampaignRoster());
+  qs<HTMLButtonElement>("#cccSoftphoneToggle")?.addEventListener("click", () => {
+    const panel = qs<HTMLElement>("#cccSoftphonePanel");
+    const button = qs<HTMLButtonElement>("#cccSoftphoneToggle");
+    if (!panel || !button) return;
+    const collapsed = panel.classList.toggle("is-collapsed");
+    button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  });
+  qs<HTMLElement>("#cccScreenPopStack")?.addEventListener("click", (event) => {
+    const link = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-screen-pop-view]");
+    if (!link) return;
+    event.preventDefault();
+    const view = link.dataset.screenPopView || "dashboard";
+    const id = link.dataset.screenPopId || "";
+    activateNavView(view, () => {
+      if (!id) return;
+      const row = document.querySelector<HTMLElement>(`[data-customer-id="${CSS.escape(id)}"], [data-lead-id="${CSS.escape(id)}"], [data-opportunity-id="${CSS.escape(id)}"]`);
+      row?.click();
+    });
+  });
   qs<HTMLButtonElement>("#mailboxPoolAddButton")?.addEventListener("click", () => openSenderMailboxModal());
   qs<HTMLButtonElement>("#trackingSaveButton")?.addEventListener("click", (event) => void saveEmailTrackingConfig(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#mysqlImportPicker")?.addEventListener("click", () => qs<HTMLInputElement>("#mysqlImportFile")?.click());
@@ -56714,6 +56964,8 @@ function activateNavView(view: string, after?: () => void) {
     void loadTeamSystemSettings().catch((error) => toast(error instanceof Error ? error.message : "系统设置加载失败", "error"));
     void loadTrialAccounts().catch(() => undefined);
     void loadAliyunOutboundConfig();
+    void loadAgentMappings();
+    void loadCampaignRoster();
   }
   if (view === "inbox") {
     void refreshInternalMessages(false);

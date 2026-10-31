@@ -13,7 +13,7 @@ import type {
   ProspectIcpPolicySnapshot,
   ProspectSuppressionEvent
 } from "./types.js";
-import type { AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunScreenPop, CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 
 export const providerCatalog: ProviderCatalogItem[] = createDefaultProviderCatalog();
 export const providerConnections: ProviderConnection[] = [];
@@ -367,6 +367,12 @@ export const aliyunOutboundConfigAudits: AliyunOutboundConfigAudit[] = [];
 export const outboundCallAudits: OutboundCallAudit[] = [];
 export const aliyunCccEventAudits: AliyunCccEventAudit[] = [];
 export const outboundCallRecords: OutboundCallRecord[] = [];
+export const aliyunAgentMappings: AliyunAgentMapping[] = [];
+export const agentMappingAudits: AgentMappingAudit[] = [];
+export const aliyunScreenPops: AliyunScreenPop[] = [];
+export const aliyunCampaignReadSettings: AliyunCampaignReadSetting[] = [];
+export const aliyunCampaignSnapshots: AliyunCampaignSnapshot[] = [];
+export const aliyunCampaignSyncAudits: AliyunCampaignSyncAudit[] = [];
 export const commissionCalculations: CommissionCalculation[] = [];
 export const commissionItems: CommissionItem[] = [];
 export const commissionExports: CommissionExport[] = [];
