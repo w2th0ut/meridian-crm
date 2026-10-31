@@ -2046,6 +2046,11 @@ export interface WebsiteOpportunity {
   /** 本地标签。没有单独的标签表，写在候选上。 */
   tags?: string[];
   /**
+   * 本地优先级。候选上原来没有优先级、星级或重要度。
+   * 只取 high、normal、low；没有设置时为 null。
+   */
+  priority?: "high" | "normal" | "low" | null;
+  /**
    * 只追加的本地备注。详情里的「候选备注」是核验 description，不写在这里。
    * 已有文字原样保留，新内容接在后面。
    */
@@ -4816,6 +4821,18 @@ export interface ProspectNoteAuditEvent {
   objectId: string;
   action: "append_note";
   note: string;
+}
+
+/** 批量设置或清除优先级的最小审计。操作人、时间、对象、动作、原来的值到新的值。 */
+export interface ProspectPriorityAuditEvent {
+  id: string;
+  actorId: string;
+  at: string;
+  objectType: "prospect_candidate";
+  objectId: string;
+  action: "set_priority" | "clear_priority";
+  oldValue: "high" | "normal" | "low" | null;
+  newValue: "high" | "normal" | "low" | null;
 }
 
 export interface CommissionCalculation {
