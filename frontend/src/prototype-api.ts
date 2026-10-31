@@ -134,6 +134,11 @@ import {
   type WorkbenchFollowUpSubject
 } from "./workbench-record-follow-up";
 import {
+  buildProspectReassignOwnerBody,
+  showProspectReassignOwnerEntry,
+  summarizeProspectOwnerReassign
+} from "./prospect-batch-reassign-owner";
+import {
   CONTACT_GAP_LIMIT,
   contactGapEntryLabel,
   contactGapIsGap,
@@ -38474,6 +38479,8 @@ function renderProspectList() {
     assigneeSelect.innerHTML = `<option value="">选择业务员</option>${state.prospectAssignees.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("")}`;
   }
   if (assignButton) assignButton.hidden = !canAssign;
+  const reassignOwnerButton = qs<HTMLButtonElement>("#prospectReassignOwnerButton");
+  if (reassignOwnerButton) reassignOwnerButton.hidden = !showProspectReassignOwnerEntry(canAssign);
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => button.classList.toggle("active", button.dataset.prospectFilter === state.prospectFilter));
   qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
     const active = button.dataset.prospectStageFilter === state.prospectStageFilter;
@@ -40002,6 +40009,52 @@ function requestProspectExclusion(ids: string[], button?: HTMLButtonElement) {
     closeModal();
     await updateProspectBatch("exclude", ids, button || event.currentTarget as HTMLButtonElement, reason);
   });
+}
+
+function requestProspectOwnerReassign(ids: string[], button?: HTMLButtonElement) {
+  const built = buildProspectReassignOwnerBody(ids, qs<HTMLSelectElement>("#prospectAssigneeSelect")?.value || "");
+  if (!built.ok) {
+    toast(built.message, "error");
+    return;
+  }
+  const ownerName = state.prospectAssignees.find((item) => item.id === built.body.ownerId)?.name || "新负责人";
+  openModal(
+    "批量改负责人",
+    `<p>将把 ${built.body.ids.length} 条候选的负责人改为 ${escapeHtml(ownerName)}。只改本地负责人，不发信，不发消息，不推进序列，不放行批次。</p>`,
+    `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectReassignOwnerButton" type="button">确认修改</button>`
+  );
+  qs<HTMLButtonElement>("#confirmProspectReassignOwnerButton")?.addEventListener("click", () => {
+    closeModal();
+    void submitProspectOwnerReassign(built.body, button);
+  });
+}
+
+async function submitProspectOwnerReassign(
+  body: { ids: string[]; ownerId: string },
+  button?: HTMLButtonElement
+) {
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ results: Array<{ id: string; ok: boolean; ownerId?: string; reason?: string }> }>("/api/prospect-list/reassign-owners", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    const changed = new Set<string>();
+    result.results.forEach((row) => {
+      if (!row.ok || !row.ownerId) return;
+      const existing = state.websiteOpportunities.find((item) => item.id === row.id);
+      if (existing) existing.ownerId = row.ownerId;
+      changed.add(row.id);
+    });
+    state.selectedProspectIds = state.selectedProspectIds.filter((id) => !changed.has(id));
+    renderProspectList();
+    renderLeadFinder(state.websiteOpportunities);
+    toast(summarizeProspectOwnerReassign(result.results));
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "批量改负责人失败", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 async function updateProspectBatch(
@@ -53971,6 +54024,7 @@ function installEvents() {
   qs<HTMLButtonElement>("#prospectBatchCreateButton")?.addEventListener("click", (event) => void createOutreachBatchFromSelection(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectExcludeButton")?.addEventListener("click", (event) => requestProspectExclusion(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectAssignButton")?.addEventListener("click", (event) => void updateProspectBatch("assign", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectReassignOwnerButton")?.addEventListener("click", (event) => requestProspectOwnerReassign(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLInputElement>("#prospectSelectPage")?.addEventListener("change", (event) => {
     const checked = (event.currentTarget as HTMLInputElement).checked;
     const pageRows = prospectFilteredRows().slice((state.prospectPage - 1) * PROSPECT_PAGE_SIZE, state.prospectPage * PROSPECT_PAGE_SIZE);
