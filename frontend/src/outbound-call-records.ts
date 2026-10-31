@@ -1,8 +1,12 @@
 /**
  * 外呼通话记录页。统计只渲染接口返回的数字。
  * 没有记录时是空状态，不补 0。
- * 未接通的记录可以打开详情，生成一条下次跟进。没有拨号，也没有批量入口。
+ * 未接通的记录可以打开详情，生成一条下次跟进。
+ * 列表和详情都可以给单条记录标注通话结果。没有拨号，也没有批量入口。
  */
+
+export const CALL_OUTCOMES = ["有意向", "需回访", "无意向", "号码错误", "其他"] as const;
+export const CALL_OUTCOME_NOTE_MAX = 200;
 
 export interface OutboundCallRecordStats {
   totalCalls: number;
@@ -22,6 +26,8 @@ export interface OutboundCallRecordRow {
   targetType?: string;
   targetId?: string;
   followUpGenerated?: boolean;
+  callOutcome?: string;
+  callOutcomeNote?: string;
 }
 
 export interface OutboundCallRecordDetail {
@@ -42,6 +48,8 @@ export interface OutboundCallRecordListResponse {
   agents?: OutboundCallRecordAgentOption[];
   empty?: boolean;
   stats?: OutboundCallRecordStats | null;
+  outcomeCounts?: Partial<Record<string, number>> | null;
+  filters?: { outcome?: string | null };
   records?: OutboundCallRecordRow[];
 }
 
@@ -53,11 +61,12 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string }) {
+export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string }) {
   const params = new URLSearchParams();
   if (input.agentId) params.set("agentId", input.agentId);
   if (input.from) params.set("from", input.from);
   if (input.to) params.set("to", input.to);
+  if (input.outcome) params.set("outcome", input.outcome);
   const query = params.toString();
   return query ? `?${query}` : "";
 }
@@ -97,7 +106,36 @@ export function renderOutboundCallRecordSummary(input: OutboundCallRecordListRes
     return `<p data-outbound-record-empty="1">这个范围内还没有通话记录。</p>`;
   }
   const stats = input.stats;
-  return `<div class="outbound-record-stats" data-outbound-record-stats="1"><div class="outbound-record-stat"><span>总拨打</span><b data-stat="total">${stats.totalCalls}</b></div><div class="outbound-record-stat"><span>接通</span><b data-stat="connected">${stats.connectedCalls}</b></div><div class="outbound-record-stat"><span>接通率</span><b data-stat="rate">${formatConnectRate(stats.connectRate)}</b></div><div class="outbound-record-stat"><span>平均时长</span><b data-stat="average">${formatAverageSeconds(stats.averageConnectedDurationSeconds)}</b></div></div>`;
+  return `<div class="outbound-record-stats" data-outbound-record-stats="1"><div class="outbound-record-stat"><span>总拨打</span><b data-stat="total">${stats.totalCalls}</b></div><div class="outbound-record-stat"><span>接通</span><b data-stat="connected">${stats.connectedCalls}</b></div><div class="outbound-record-stat"><span>接通率</span><b data-stat="rate">${formatConnectRate(stats.connectRate)}</b></div><div class="outbound-record-stat"><span>平均时长</span><b data-stat="average">${formatAverageSeconds(stats.averageConnectedDurationSeconds)}</b></div></div>${renderOutboundCallOutcomeCounts(input.outcomeCounts)}`;
+}
+
+export function renderOutboundCallOutcomeCounts(counts: Partial<Record<string, number>> | null | undefined) {
+  if (!counts) return "";
+  const rows = CALL_OUTCOMES.flatMap((item) => {
+    const value = counts[item];
+    if (typeof value !== "number" || !Number.isFinite(value)) return [];
+    return [`<div class="outbound-record-stat"><span>${escapeHtml(item)}</span><b data-outcome="${escapeHtml(item)}">${value}</b></div>`];
+  });
+  if (!rows.length) return "";
+  return `<div class="outbound-record-outcome-counts" data-outcome-counts="1">${rows.join("")}</div>`;
+}
+
+export function renderCallOutcomeOptions(selected: string) {
+  const current = selected || "";
+  const blank = `<option value="">请选择</option>`;
+  const options = CALL_OUTCOMES.map((item) => {
+    const picked = item === current ? " selected" : "";
+    return `<option value="${escapeHtml(item)}"${picked}>${escapeHtml(item)}</option>`;
+  });
+  return blank + options.join("");
+}
+
+export function renderCallOutcomeForm(record: { id: string; callOutcome?: string; callOutcomeNote?: string }) {
+  return `<form class="outbound-record-outcome-form" data-call-outcome-form="1" data-record-id="${escapeHtml(record.id)}"><label>通话结果<select data-call-outcome>${renderCallOutcomeOptions(record.callOutcome || "")}</select></label><label>备注<input data-call-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label><button class="btn" type="submit">保存标注</button></form>`;
+}
+
+export function renderOutboundCallOutcomeFilterEmpty() {
+  return `<p data-outcome-filter-empty="1">这个标注结果下还没有通话。</p>`;
 }
 
 export function renderOutboundCallRecordFailure(message: string) {
@@ -124,9 +162,9 @@ export function renderOutboundCallRecordList(records: OutboundCallRecordRow[] | 
   if (!records?.length) return "";
   const rows = records.map((record) => {
     const established = record.established === true ? "是" : "否";
-    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td>${followUpButton(record)}</td></tr>`;
+    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}</td><td>${followUpButton(record)}</td></tr>`;
   }).join("");
-  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>通话结果</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) {
@@ -144,5 +182,6 @@ export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) 
   const form = established
     ? `<p data-follow-up-established="1">这通已经接通，不能从这里生成下次跟进。</p>`
     : `<form data-missed-follow-form="1"><label>下次跟进<input type="datetime-local" data-missed-follow-at value="${escapeHtml(toDateTimeLocal(suggested))}"${saved ? " disabled" : ""}></label><button class="btn" type="submit" data-generate-missed-follow="1">生成下次跟进</button></form>`;
-  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${generated}${form}${notice}</section>`;
+  const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record)}</div>`;
+  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${generated}${form}${notice}</section>`;
 }

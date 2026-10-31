@@ -32,6 +32,7 @@ import {
   type CccWorkbenchSession
 } from "./aliyun-workbench";
 import {
+  CALL_OUTCOMES,
   fromDateTimeLocal,
   outboundCallRecordQuery,
   renderOutboundCallAgentOptions,
@@ -39,6 +40,7 @@ import {
   renderOutboundCallRecordFailure,
   renderOutboundCallRecordList,
   renderOutboundCallRecordSummary,
+  renderOutboundCallOutcomeFilterEmpty,
   type OutboundCallRecordDetail,
   type OutboundCallRecordListResponse
 } from "./outbound-call-records";
@@ -16590,6 +16592,37 @@ async function submitMissedFollowUp(form: HTMLFormElement) {
   }
 }
 
+let callOutcomePending = false;
+
+async function submitCallOutcome(form: HTMLFormElement) {
+  const recordId = form.dataset.recordId || "";
+  if (!recordId || callOutcomePending) return;
+  const outcome = form.querySelector<HTMLSelectElement>("[data-call-outcome]")?.value.trim() || "";
+  const note = form.querySelector<HTMLInputElement>("[data-call-outcome-note]")?.value ?? "";
+  if (!CALL_OUTCOMES.includes(outcome as typeof CALL_OUTCOMES[number])) {
+    toast("请选择通话结果", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  callOutcomePending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/outcome`,
+      { method: "POST", body: JSON.stringify({ outcome, note }) }
+    );
+    toast(result.message || "已保存通话结果");
+    await loadOutboundCallRecords();
+    const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+    if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "通话结果没有保存", "error");
+  } finally {
+    callOutcomePending = false;
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadOutboundCallRecords() {
   const summary = qs<HTMLElement>("#outboundCallRecordSummary");
   const list = qs<HTMLElement>("#outboundCallRecordList");
@@ -16597,8 +16630,9 @@ async function loadOutboundCallRecords() {
   const agent = qs<HTMLSelectElement>("#outboundCallRecordAgent")?.value || "";
   const from = qs<HTMLInputElement>("#outboundCallRecordFrom")?.value || "";
   const to = qs<HTMLInputElement>("#outboundCallRecordTo")?.value || "";
+  const outcome = qs<HTMLSelectElement>("#outboundCallRecordOutcome")?.value || "";
   try {
-    const result = await api<OutboundCallRecordListResponse>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to })}`);
+    const result = await api<OutboundCallRecordListResponse>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome })}`);
     const agentSelect = qs<HTMLSelectElement>("#outboundCallRecordAgent");
     if (agentSelect) {
       const selected = result.scope === "self" ? (result.agents?.[0]?.cccUserId || "") : agent;
@@ -16610,7 +16644,11 @@ async function loadOutboundCallRecords() {
       agentSelect.disabled = result.scope !== "team";
     }
     summary.innerHTML = renderOutboundCallRecordSummary(result);
-    list.innerHTML = renderOutboundCallRecordList(result.records);
+    list.innerHTML = result.records?.length
+      ? renderOutboundCallRecordList(result.records)
+      : outcome && !result.empty
+        ? renderOutboundCallOutcomeFilterEmpty()
+        : "";
   } catch (error) {
     summary.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
     list.innerHTML = "";
@@ -53842,7 +53880,19 @@ function installEvents() {
     if (!recordId) return;
     void openOutboundCallRecord(recordId);
   });
+  qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");
+    if (!form) return;
+    event.preventDefault();
+    void submitCallOutcome(form);
+  });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
+    const outcomeForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");
+    if (outcomeForm) {
+      event.preventDefault();
+      void submitCallOutcome(outcomeForm);
+      return;
+    }
     const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-missed-follow-form]");
     if (!form) return;
     event.preventDefault();

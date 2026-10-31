@@ -61,6 +61,8 @@ function record(partial: Partial<OutboundCallRecord> & Pick<OutboundCallRecord, 
     recordingUrl: "",
     recordingDurationRaw: "",
     followUpActivityId: "",
+    callOutcome: "",
+    callOutcomeNote: "",
     createdAt: "2026-10-30T03:00:00.000Z",
     updatedAt: "2026-10-30T03:00:00.000Z",
     ...partial

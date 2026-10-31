@@ -4975,8 +4975,28 @@ export interface OutboundCallRecord {
   recordingUrl: string;
   recordingDurationRaw: string;
   followUpActivityId: string;
+  /** 人工标注的通话结果。空字符串表示还没有标注。不是话单 ContactDisposition。 */
+  callOutcome: string;
+  /** 标注备注。可空，最长 200 字。 */
+  callOutcomeNote: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * 一次通话结果标注的修改。
+ * 前值和后值都记下结果和备注。不记完整号码，也不记密钥。
+ */
+export interface CallOutcomeAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  callRecordId: string;
+  previousOutcome: string;
+  nextOutcome: string;
+  previousNote: string;
+  nextNote: string;
 }
 
 /**

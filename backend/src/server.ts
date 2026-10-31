@@ -297,6 +297,7 @@ import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outbound-call-records.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
+import { labelCallOutcome } from "./call-outcome.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -8999,6 +9000,14 @@ app.post("/api/outbound-call-records/:id/next-follow-up", requireAuth, asyncRout
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await generateMissedCallFollowUp(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/outcome", requireAuth, asyncRoute(async (req, res) => {
+  let allowed = false;
+  await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
+  if (!allowed || res.headersSent) return;
+  const outcome = await labelCallOutcome(getStore(), req.user, req.params.id, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

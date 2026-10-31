@@ -345,6 +345,8 @@ function applyCall(
     recordingUrl: "",
     recordingDurationRaw: "",
     followUpActivityId: "",
+    callOutcome: "",
+    callOutcomeNote: "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
