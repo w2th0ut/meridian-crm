@@ -44,8 +44,69 @@ export interface MakeCallResult {
   callType: "OUTBOUND";
 }
 
+export const CCC_GET_CALL_DETAIL_RECORD_ACTION = "GetCallDetailRecord" as const;
+export const CCC_GET_MONO_RECORDING_ACTION = "GetMonoRecording" as const;
+/**
+ * GetMonoRecording 的 ExpireSeconds 示例是 300。
+ * 同一页又写 FileUrl 有效期为 1 天。两者关系待核实。这里按示例请求短期签名，不把链接当永久地址。
+ */
+export const CCC_MONO_RECORDING_EXPIRE_SECONDS = 300;
+
+export interface GetCallDetailRecordParams {
+  InstanceId: string;
+  ContactId: string;
+}
+
+/**
+ * 话单里和跟进相关的字段。时长、时间保留原文。
+ * GetCallDetailRecord 把 CallDuration 写成整数秒，列表接口的口径不一致，待核实，这里不折算。
+ * StartTime 该页写「呼出从接通开始计算」，事件 CDRReady 写「呼出从拨号开始」，起算点待核实。
+ */
+export interface CallDetailRecord {
+  contactId: string;
+  instanceId: string;
+  contactType: string;
+  contactDisposition: string;
+  earlyMediaState: string;
+  callDurationRaw: string;
+  establishedTimeRaw: string;
+  releaseTimeRaw: string;
+  startTimeRaw: string;
+  callingNumber: string;
+  calledNumber: string;
+  agentIds: string;
+  skillGroupIds: string;
+  recordingReady: boolean | null;
+  releaseInitiator: string;
+  releaseReason: string;
+}
+
+export interface GetMonoRecordingParams {
+  InstanceId: string;
+  ContactId: string;
+  ExpireSeconds?: number;
+}
+
+/**
+ * Duration 该页写毫秒。事件 RecordingReady.duration 写秒。单位待核实，单独保留原文，不写进 CallDuration。
+ */
+export interface MonoRecording {
+  fileUrl: string;
+  fileName: string;
+  durationRaw: string;
+}
+
+export interface CccRpcRequest {
+  action: string;
+  version: typeof CCC_MAKE_CALL_VERSION;
+  host: string;
+  params: Record<string, string | number>;
+}
+
 export interface OutboundDialer {
   makeCall(params: MakeCallParams): Promise<MakeCallResult>;
+  getCallDetailRecord?(params: GetCallDetailRecordParams): Promise<CallDetailRecord>;
+  getMonoRecording?(params: GetMonoRecordingParams): Promise<MonoRecording>;
 }
 
 export function cccPublicEndpoint(region: string) {
@@ -96,10 +157,76 @@ export function readMakeCallResult(body: unknown): MakeCallResult {
   return { jobId, callType: "OUTBOUND" };
 }
 
+function rpcText(value: unknown, name: string) {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`缺少 ${name}`);
+  return value.trim();
+}
+
+function rawScalar(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string") return value.trim();
+  return "";
+}
+
+function readData(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("云联络中心响应无效");
+  const record = body as Record<string, unknown>;
+  if (typeof record.Code === "string" && record.Code && record.Code !== "OK") {
+    throw new Error("云联络中心响应未成功");
+  }
+  if (typeof record.HttpStatusCode === "number" && record.HttpStatusCode !== 200) {
+    throw new Error("云联络中心响应未成功");
+  }
+  const data = record.Data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("云联络中心响应没有数据");
+  return data as Record<string, unknown>;
+}
+
+/** 按 GetCallDetailRecord 的返回解析。缺 InstanceId 时不拒绝：该字段是否总是出现，待核实。 */
+export function readCallDetailRecord(
+  body: unknown,
+  expected: { instanceId: string; contactId: string }
+): CallDetailRecord {
+  const data = readData(body);
+  const contactId = typeof data.ContactId === "string" ? data.ContactId.trim() : "";
+  if (!contactId || contactId !== expected.contactId) throw new Error("话单和 ContactId 不一致");
+  const instanceId = typeof data.InstanceId === "string" ? data.InstanceId.trim() : "";
+  if (instanceId && instanceId !== expected.instanceId) throw new Error("话单和实例不一致");
+  return {
+    contactId,
+    instanceId,
+    contactType: rawScalar(data.ContactType),
+    contactDisposition: rawScalar(data.ContactDisposition),
+    earlyMediaState: rawScalar(data.EarlyMediaState),
+    callDurationRaw: rawScalar(data.CallDuration),
+    establishedTimeRaw: rawScalar(data.EstablishedTime),
+    releaseTimeRaw: rawScalar(data.ReleaseTime),
+    startTimeRaw: rawScalar(data.StartTime),
+    callingNumber: rawScalar(data.CallingNumber),
+    calledNumber: rawScalar(data.CalledNumber),
+    agentIds: rawScalar(data.AgentIds),
+    skillGroupIds: rawScalar(data.SkillGroupIds),
+    recordingReady: typeof data.RecordingReady === "boolean" ? data.RecordingReady : null,
+    releaseInitiator: rawScalar(data.ReleaseInitiator),
+    releaseReason: rawScalar(data.ReleaseReason)
+  };
+}
+
+export function readMonoRecording(body: unknown): MonoRecording {
+  const data = readData(body);
+  const fileUrl = rawScalar(data.FileUrl);
+  if (!fileUrl) throw new Error("录音响应没有 FileUrl");
+  return {
+    fileUrl,
+    fileName: rawScalar(data.FileName),
+    durationRaw: rawScalar(data.Duration)
+  };
+}
+
 /** 按地域选择官方公网接入点，把参数交给注入的传输。传输未注入时调用方不应创建这个拨号器。 */
 export function createAliyunCccMakeCallDialer(options: {
   region: string;
-  transport: (request: CccMakeCallRequest) => Promise<unknown>;
+  transport: (request: CccMakeCallRequest | CccRpcRequest) => Promise<unknown>;
 }): OutboundDialer {
   const host = cccPublicEndpoint(options.region);
   if (!host) throw new Error("地域不在云联络中心已列出的接入点中");
@@ -113,6 +240,35 @@ export function createAliyunCccMakeCallDialer(options: {
         params
       });
       return readMakeCallResult(body);
+    },
+    async getCallDetailRecord(input) {
+      const instanceId = rpcText(input.InstanceId, "InstanceId");
+      const contactId = rpcText(input.ContactId, "ContactId");
+      const body = await options.transport({
+        action: CCC_GET_CALL_DETAIL_RECORD_ACTION,
+        version: CCC_MAKE_CALL_VERSION,
+        host,
+        params: { InstanceId: instanceId, ContactId: contactId }
+      });
+      return readCallDetailRecord(body, { instanceId, contactId });
+    },
+    async getMonoRecording(input) {
+      const instanceId = rpcText(input.InstanceId, "InstanceId");
+      const contactId = rpcText(input.ContactId, "ContactId");
+      const params: Record<string, string | number> = { InstanceId: instanceId, ContactId: contactId };
+      if (input.ExpireSeconds !== undefined) {
+        if (!Number.isInteger(input.ExpireSeconds) || input.ExpireSeconds < 1 || input.ExpireSeconds > 86400) {
+          throw new Error("GetMonoRecording ExpireSeconds 无效");
+        }
+        params.ExpireSeconds = input.ExpireSeconds;
+      }
+      const body = await options.transport({
+        action: CCC_GET_MONO_RECORDING_ACTION,
+        version: CCC_MAKE_CALL_VERSION,
+        host,
+        params
+      });
+      return readMonoRecording(body);
     }
   };
 }

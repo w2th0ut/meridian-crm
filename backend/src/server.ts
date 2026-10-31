@@ -288,6 +288,7 @@ import {
 } from "./customer-maintenance.js";
 import { createCredentialRef, decryptProviderConfiguration, encryptProviderConfiguration, validateProviderCredentialSecurity } from "./credential-security.js";
 import { readAliyunOutboundConfig, updateAliyunOutboundConfig } from "./aliyun-outbound-config.js";
+import { receiveAliyunCccEvent } from "./aliyun-ccc-events.js";
 import { readOutboundCallAvailability, requestOutboundCall } from "./outbound-call.js";
 import {
   createMarketAnalysisRun,
@@ -851,6 +852,12 @@ const websiteLeadLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "网站询盘请求过于频繁" }
 });
+app.post("/api/integrations/aliyun-ccc/events/:pathToken", asyncRoute(async (req, res) => {
+  const pathToken = typeof req.params.pathToken === "string" ? req.params.pathToken : "";
+  const outcome = await receiveAliyunCccEvent(getStore(), pathToken, req.body);
+  res.status(outcome.status).json(outcome.body);
+}));
+
 app.use("/api/integrations", integrationHttpRouter);
 
 // 话机 CRM：阿里云云呼叫中心 / 语音服务，或本地模拟器（无凭证也能跑通全链路）

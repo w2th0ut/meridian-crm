@@ -876,6 +876,52 @@ npm run dev
 6. `GET /api/outbound-calls/availability` 只返回开关和权限两个布尔值。它不写审计，也不让 mock 拨号器被调用。响应里没有密钥。
 7. 确认外呼之后没有回调入口，没有批量或定时按钮。抑制记录、可联系决定和线索条数都与拨号前一致。测试没有向阿里云发起请求。
 
+## 54. 本地演示：云联络中心事件回调
+
+服务端增加 `POST /api/integrations/aliyun-ccc/events/:pathToken`。这是通话结束后的回调，不是拨号，也不是批量任务。不登录。
+
+官方事件格式页没有给出 Webhook 验签。HTTP 方法、Content-Type、重试次数和成功状态码也没有写明，待核实。本接口按约定接受 POST，正文按官方示例做扁平 JSON 解析。公共字段是 `eventTime`、`eventType`、`instanceId`。话务类还有 `contactId`。
+
+进入后先做三道门。任何一道不过就拒绝，只写 `aliyun_ccc_event_audits`，不写通话记录，不写跟进，也不回查：
+
+1. 路径令牌和该租户加密配置里的回调令牌做常量时间比较。令牌来自已保存的密文，比较前解密。对不上返回 401，原因 `invalid_token`。
+2. `aliyunOutboundEnabled` 必须为开。关着返回 403，原因 `disabled`。
+3. 事件里的 `instanceId` 必须等于该租户配置的实例 ID。对不上返回 403，原因 `instance_mismatch`。
+
+通过之后，`Released` 和 `CDRReady` 生成通话记录，并只生成一条 `type=call` 的跟进。`RecordingReady` 和 `DualTrackRecordingReady` 只更新同一条通话的录音引用和时长。同一 `instanceId + contactId + eventType + eventTime` 再送来，记一条接受审计，原因 `duplicate`，不再写第二条通话记录或跟进，也不再回查。录音事件先到、话单后到，结束后仍然只有一条通话记录和一条跟进。
+
+写业务数据之前，用外呼拨号器上的 `GetCallDetailRecord` 按实例 ID 和 `contactId` 回查。回查失败返回 502，原因 `lookup_failed`，不写通话记录，不写跟进。跟进里的结果、早媒体、时长和坐席以回查为准，不用事件正文覆盖。时长保存 `CallDuration` 原文。该页写的是整数秒，列表接口的口径不一致，待核实，这里不折算。
+
+录音再调 `GetMonoRecording`。只保存 `ContactId` 引用、文件名，以及返回的短期 `FileUrl`。不下载文件。`FileUrl` 有效期该页写 1 天，`ExpireSeconds` 示例是 300，两者关系待核实。录音时长该页写毫秒，和事件里的秒不一致，待核实，单独保存原文，不写进 `CallDuration`。
+
+通话记录表 `outbound_call_records` 以实例 ID 加 `contactId` 唯一。`contactId` 是事件格式页的话务 ID，用来关联允许外呼时记下的 `JobId`。记录挂上那条 `outbound_call_audits`，以及当时的客户、线索或候选。对不上已允许的拨号审计就不写业务数据。
+
+跟进复用现有写入。客户写 `CustomerActivity`，并调用一次 `appendFollowUpAudit`。候选走 `recordProspectFollowUp`，并调用一次 `appendFollowUpAudit`。线索走现有 `LeadActivity` 写入。现有线索跟进不进 `follow_up_audits`，对象类型里没有线索。同一通话后来的事件只更新这一条跟进的正文，不再追加跟进审计。线索上第一次记下这条通话时，和手工记一条电话跟进一样，会把新线索标成跟进中，并刷新最近活动时间。不改下次跟进。
+
+号码只留脱敏。审计、通话记录、跟进正文和响应里不出现完整号码，也不出现令牌或密钥。两张新表都在 `ensureSchema` 里 `CREATE TABLE IF NOT EXISTS`。
+
+不发信，不外发消息，不推进序列。不改抑制，不改 `approved_contactable`，不调用 `convert_to_lead`。测试注入 mock，不访问阿里云。
+
+1. 令牌错误时返回 401。没有回查，没有通话记录，没有跟进。审计是拒绝，原因是令牌不对。审计里没有令牌明文。
+2. 实例 ID 和配置不一致时返回 403。没有回查，没有通话记录，没有跟进。审计记下拒绝和原因。
+3. 开关关闭时返回 403。令牌和实例即使都对，也不回查，不写业务数据。审计是拒绝，原因是功能未开启。
+4. 同一条 `CDRReady` 送两次，只留下一条通话记录、一条跟进和一条跟进审计。第二次审计是接受，原因是重复，不再回查。
+5. `RecordingReady` 先到、`CDRReady` 后到。录音先到时可以先记下通话和录音引用，但不生成跟进。话单到了才生成那一条跟进。录音事件再来一次，跟进条数不变。
+6. 回查抛错时不写通话记录，不写跟进。审计是拒绝，原因是回查失败。
+7. 回查成功时写入通话记录：关联那条允许外呼的审计、客户、脱敏号码、回查得到的结果和时长原文、录音引用。跟进只有一条，类型是 `call`，并有一条跟进审计。正文用的是回查结果，不是事件里的另一套结果。测试没有下载录音，也没有向 `aliyuncs.com` 发起连接。
+
+待核实，没有写成已经证实：
+
+- Webhook 的 HTTP 方法、Content-Type、重试次数和成功状态码。
+- 事件正文只有 `jobId`、没有 `contactId` 时，是否就是 MakeCall 的通话 ID。
+- 事件是否会被包在 `data`、`event` 或 `message` 里。事件上的实例或通话 ID 如果写成 `InstanceId`、`ContactId`，是否仍是同一字段。
+- `CallDuration` 与列表接口谁的计时口径为准。
+- `GetCallDetailRecord.StartTime` 与事件 `CDRReady.startTime` 的起算点。呼出是从接通算还是从拨号算。
+- 事件 `dispositionCode` 和话单 `ContactDisposition` 是否一一对应。跟进只用话单字段。
+- `GetMonoRecording.Duration` 的毫秒和事件 `duration` 的秒。
+- `ExpireSeconds` 与 `FileUrl`「有效期 1 天」。
+- 回查结果里 `InstanceId` 缺省时，是否仍算同一个实例。缺省时不因此拒绝。
+
 ## 不在本次验收里
 
 - 不删除 `backend/src/telephony`。

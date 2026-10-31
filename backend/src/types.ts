@@ -4909,6 +4909,52 @@ export interface OutboundCallAudit {
   jobId: string;
 }
 
+/** 一次 CCC 事件回调的审计。号码只留脱敏结果，不留令牌，也不留密钥。 */
+export interface AliyunCccEventAudit {
+  id: string;
+  teamId: string;
+  at: string;
+  instanceId: string;
+  contactId: string;
+  eventType: string;
+  eventTime: string;
+  decision: "accepted" | "rejected";
+  reason: string;
+  maskedCaller: string;
+  maskedCallee: string;
+}
+
+/**
+ * 一通外呼的通话记录。幂等键是实例 ID 加 contactId。
+ * 录音只存 ContactId 引用和短期签名链接，不存文件。
+ */
+export interface OutboundCallRecord {
+  id: string;
+  teamId: string;
+  instanceId: string;
+  contactId: string;
+  outboundCallAuditId: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  maskedNumber: string;
+  contactType: string;
+  contactDisposition: string;
+  earlyMediaState: string;
+  callDurationRaw: string;
+  establishedTimeRaw: string;
+  releaseTimeRaw: string;
+  startTimeRaw: string;
+  agentIds: string;
+  recordingReady: boolean | null;
+  recordingRef: string;
+  recordingFileName: string;
+  recordingUrl: string;
+  recordingDurationRaw: string;
+  followUpActivityId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CommissionCalculation {
   id: string;
   month: string;
