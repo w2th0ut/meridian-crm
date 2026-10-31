@@ -2169,6 +2169,101 @@ assert.doesNotMatch(scrollOpenClickAge, /\.value\s*=|fetch\(|shortlistLeadFinder
 assert.match(prototype, /\.prospect-open-click-age\b/, "打开或点击日龄必须有可见样式");
 assert.match(prototype, /\.dashboard-open-click-age-note\b/, "打开或点击日龄说明必须有可见样式");
 
+const replyAgeLayer = readFileSync(new URL("./prospect-reply-age.ts", import.meta.url), "utf8");
+assert.match(replyAgeLayer, /export function presentReplyAge/, "开发信回复日龄必须只消费已有回复时间");
+assert.match(replyAgeLayer, /REPLY_AGE_LIMIT = 8/, "开发信回复日龄最多 8 条");
+assert.match(replyAgeLayer, /REPLY_AGE_WINDOW_DAYS = 7/, "开发信回复日龄窗口必须是 7 天");
+assert.match(replyAgeLayer, /replied/, "开发信回复日龄必须先确认当前有回复");
+assert.match(replyAgeLayer, /无回复日龄/, "没有可解析回复时间时文案必须是无回复日龄");
+assert.match(replyAgeLayer, /回复超七日/, "超过 7 天必须标回复超七日");
+assert.match(replyAgeLayer, /回复七日内/, "7 天内必须标回复七日内");
+assert.match(replyAgeLayer, /查看开发信回复/, "必须能跳到现有开发信回复");
+assert.match(replyAgeLayer, /kind !== "none"/, "无回复日龄不得占工作台名额");
+assert.match(replyAgeLayer, /这不是打开或点击日龄，也不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "开发信回复日龄必须和打开或点击日龄、失败退信日龄、抑制名单日龄、待放行批次、回复积压、序列到期、外联空档、静默、跟进空档、加入日龄区分开");
+assert.match(replyAgeLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "开发信回复日龄必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(replyAgeLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "开发信回复日龄必须和获客待办摘要、逾期、卡住区分开");
+assert.match(replyAgeLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列进度/, "开发信回复日龄必须和待记跟进、待发草稿、外联序列进度区分开");
+assert.match(replyAgeLayer, /也不是打开或点击、失败或退信、收信同步/, "开发信回复日龄必须和打开或点击、失败或退信、收信同步区分开");
+assert.match(replyAgeLayer, /不替代开发信回复那一块，也不替代回复待处理积压/, "开发信回复日龄不得替代开发信回复或回复待处理积压");
+assert.match(replyAgeLayer, /不会发信，不会自动回复，不会标成已处理，不会解除抑制，不会推进序列，不会放行批次，不会改名单，也不会改 convert_to_lead 或 approved_contactable/, "开发信回复日龄不得发信、自动回复、标成已处理、解除抑制、推进序列、放行批次、改名单或改门禁");
+assert.match(replyAgeLayer, /刚好 7 天仍算回复七日内/, "刚好 7 天仍算回复七日内");
+assert.match(replyAgeLayer, /只有摘要、没有回复时间时也不编造/, "只有摘要、没有回复时间时不得编造日龄");
+assert.match(replyAgeLayer, /打开或点击的发生时间不算这次回复的时间/, "打开或点击发生时间不得算成这次回复的时间");
+assert.match(replyAgeLayer, /失败或退信的发生时间不算这次回复的时间/, "失败或退信发生时间不得算成这次回复的时间");
+assert.match(replyAgeLayer, /抑制或退订的生效时间不算这次回复的时间/, "抑制或退订生效时间不得算成这次回复的时间");
+assert.match(replyAgeLayer, /待放行批次的更新时间不算这次回复的时间/, "待放行批次更新时间不得算成这次回复的时间");
+assert.match(replyAgeLayer, /跟进记录不算这次回复的时间/, "跟进记录不得算成这次回复的时间");
+assert.match(replyAgeLayer, /最近一封开发信的发出时间不算这次回复的时间/, "开发信发出时间不得算成这次回复的时间");
+assert.match(replyAgeLayer, /序列下一步的计划时间不算这次回复的时间/, "序列下一步不得算成这次回复的时间");
+assert.match(replyAgeLayer, /最近触达（含话机）不算这次回复的时间/, "最近触达和话机不得算成这次回复的时间");
+assert.doesNotMatch(replyAgeLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextExecutionAt|outreachEngagement|outreachFailure|statusChangedAt|unsuppress|effectiveAt|lastOpenedAt|lastClickedAt|updatedAt|repliedAt/i, "开发信回复日龄模块不得发请求、改读别的时间、读 WhatsApp、解除抑制或改门禁");
+assert.doesNotMatch(kbSourceBetween(replyAgeLayer, "function replyAgeLineLabel", "\nexport function replyAgeStatusLabel"), /空档|已到期|静默|跟进空档|逾期|有回复|即将到期|未临近|无序列到期|积压较久|积压较新|无待处理回复|待放已久|待放未久|无待放行|抑制超七日|抑制七日内|无抑制日龄|失败超七日|失败七日内|无失败日龄|打开超七日|打开七日内|无打开日龄|无失败记录|发送失败|开发信退信|无打开或点击/, "行文案必须用回复超七日、回复七日内、无回复日龄");
+assert.match(prospectListRender, /renderReplyAgeLine\(item\)/, "搜客清单每一行必须显示开发信回复日龄");
+assert.match(prospectListRender, /renderOpenClickAgeLine\(item\)[\s\S]{0,160}renderReplyAgeLine\(item\)/, "开发信回复日龄必须和打开或点击日龄分开显示");
+assert.match(prospectListRender, /renderDashboardReplyAge\(\)/, "清单刷新必须同时更新开发信回复日龄入口");
+const replyAgeRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(replyAgeRows, /prospectReplyAgeFilter[\s\S]*prospectReplyAge/, "开发信回复日龄筛选只按已有回复时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectOpenClickAge\(item\)\}\n    \$\{renderProspectReplyAge\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在打开或点击日龄后面单独说明开发信回复日龄"
+);
+assert.match(apiLayer, /没有回复超七日的候选。这里不会编造回复时间，也不会发信，也不会自动回复，也不会标成已处理。/, "筛不到回复超七日时必须写清空态");
+assert.match(prototype, /data-prospect-reply-age-filter="long"[\s\S]*回复超七日/, "清单必须能筛回复超七日");
+assert.match(prototype, /data-prospect-reply-age-filter="all"[\s\S]*全部回复日龄/, "清单必须能回到全部回复日龄");
+assert.match(prototype, /data-prospect-open-click-age-filter="long"[\s\S]*打开超七日/, "原来的打开或点击日龄筛选还在");
+assert.match(prototype, /id="dashboardOpenClickAge"[\s\S]{0,8000}id="dashboardReplyAge"[\s\S]*开发信回复日龄/, "工作台开发信回复日龄必须在打开或点击日龄下面");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是打开或点击日龄/, "工作台说明必须和打开或点击日龄分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是失败退信日龄/, "工作台说明必须和失败退信日龄分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是抑制名单日龄/, "工作台说明必须和抑制名单日龄分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是待放行批次/, "工作台说明必须和待放行批次分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是回复待处理积压/, "工作台说明必须和回复待处理积压分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是序列下一步到期/, "工作台说明必须和序列下一步到期分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是外联最近动作空档/, "工作台说明必须和外联空档分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*不替代开发信回复那一块/, "工作台说明必须和开发信回复那一块分开");
+assert.match(prototype, /id="dashboardReplyAgeNote"[\s\S]*文案不混用/, "工作台说明必须写明文案不混用");
+assert.match(prototype, /id="dashboardOpenClickAge"[\s\S]*打开或点击日龄/, "打开或点击日龄原条还在");
+assert.match(apiLayer, /REPLY_AGE_LIMIT/, "工作台开发信回复日龄必须守住 8 条上限");
+assert.match(apiLayer, /listReplyAgeQueue\(/, "工作台必须复用回复超七日在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看开发信回复日龄。这里不会编造名单，也不会发信，也不会自动回复，也不会标成已处理。/, "没有清单时不得编造开发信回复日龄");
+assert.match(apiLayer, /开发信回复日龄/, "详情标题必须是开发信回复日龄");
+assert.match(apiLayer, /replyAgeEntryLabel\(/, "详情必须复用查看开发信回复入口文案");
+const replyAgeAdapter = kbSourceBetween(apiLayer, "function prospectReplyAge", "\nfunction replyAgeBadgeTone");
+assert.match(replyAgeAdapter, /presentOutreachReply/, "开发信回复日龄必须复用 Day16 开发信回复投影");
+assert.match(replyAgeAdapter, /outreachReply/, "开发信回复日龄必须读候选上已有的回复");
+assert.match(replyAgeAdapter, /status === "hit"/, "只有开发信回复才进入日龄");
+assert.match(replyAgeAdapter, /reply\.at/, "开发信回复日龄必须读投影上已有的回复时间");
+assert.doesNotMatch(replyAgeAdapter, /outreachEngagement|outreachFailure|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextRunAt|nextExecutionAt|whatsapp|createdAt|verifiedAt|updatedAt|statusChangedAt|approvedAt|effectiveAt|complianceNotices|lastOpenedAt|lastClickedAt|repliedAt/i, "开发信回复日龄不得改读打开、失败、跟进、加入时间、下次跟进、触达、开发信发出时间、序列计划、抑制生效时间或状态变更时间");
+const replyAgeQueue = kbSourceBetween(apiLayer, "function renderDashboardReplyAge", "\nfunction openReplyAgeFromDashboard");
+assert.match(replyAgeQueue, /shortlistedAt/, "工作台开发信回复日龄只包含搜客清单里的候选");
+assert.match(replyAgeQueue, /listReplyAgeQueue\(/, "工作台开发信回复日龄只按已有回复时间排序");
+assert.match(replyAgeQueue, /REPLY_AGE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(replyAgeQueue, /回复超七日在前/, "工作台必须回复超七日在前");
+assert.doesNotMatch(replyAgeQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|outreachEngagement|outreachFailure|scheduledAt|nextExecutionAt|approvedAt|statusChangedAt|verifiedAt|effectiveAt|lastOpenedAt|lastClickedAt|repliedAt/i, "工作台开发信回复日龄不得改读跟进、下次跟进、触达、开发信发出时间、打开、失败或抑制生效时间");
+const replyAgeClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardReplyAge")?.addEventListener');
+const replyAgeClick = apiLayer.slice(replyAgeClickStart, replyAgeClickStart + 700);
+assert.match(replyAgeClick, /openReplyAgeFromDashboard/, "点工作台开发信回复日龄必须打开现有候选");
+assert.doesNotMatch(replyAgeClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard|controlOutreachSequence|approveOutreach|\/approve|unsuppress/, "点工作台开发信回复日龄不得改名单、记跟进、发送、转线索、推进序列、放行或解除抑制");
+const openReplyAge = kbSourceBetween(apiLayer, "function openReplyAgeFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openReplyAge, /prospectReplyAgeFilter = replyAgeListFilterForOpen\(view\)/, "打开回复超七日必须落到回复超七日筛选，回复七日内保持全部");
+assert.match(openReplyAge, /replyAgeFocusId = item\.id/, "打开后必须停在现有开发信回复或详情顶部");
+assert.match(openReplyAge, /不会发信，也不会自动回复，也不会标成已处理，也不会解除抑制，也不会推进序列，也不会放行批次，也不会改名单/, "打开时必须说明不会发信、不会自动回复、不会标成已处理、不会解除抑制、不会推进序列、不会放行批次、不会改名单");
+assert.doesNotMatch(openReplyAge, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve|controlOutreachSequence|approveOutreach|unsuppress/, "打开开发信回复日龄不得改名单、记跟进、发送、转线索、批准、放行或解除抑制");
+const scrollReplyAge = kbSourceBetween(apiLayer, "function scrollToReplyAgeTarget", "\nfunction focusReplyAgeTarget");
+assert.match(scrollReplyAge, /#prospectOutreachReply/, "必须滚到现有开发信回复");
+assert.match(scrollReplyAge, /prospect-detail-hero/, "没有开发信回复时必须能停在详情顶部");
+assert.doesNotMatch(scrollReplyAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail|controlOutreachSequence|\/approve|unsuppress/, "跳到开发信回复不得改名单、写入、发信、推进序列、放行或解除抑制");
+assert.match(prototype, /\.prospect-reply-age\b/, "开发信回复日龄必须有可见样式");
+assert.match(prototype, /\.dashboard-reply-age-note\b/, "开发信回复日龄说明必须有可见样式");
+
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
 //
