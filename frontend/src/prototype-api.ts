@@ -2,10 +2,12 @@ import { publishTradeWorkbenchSnapshot } from "./trade-workspace";
 import { initTelephony, isPhoneView, loadPhone, startPhonePolling, stopPhonePolling } from "./telephony";
 import {
   buildAliyunOutboundConfigBody,
+  connectivityResultLines,
   secretStatusText,
   showAliyunOutboundSettings,
   type AliyunOutboundConfigResponse,
-  type AliyunOutboundConfigView
+  type AliyunOutboundConfigView,
+  type AliyunOutboundConnectivityResult
 } from "./aliyun-outbound-config";
 import {
   createOutboundCallInFlight,
@@ -16426,6 +16428,28 @@ async function saveAliyunOutboundConfig() {
     toast(error instanceof Error ? error.message : "阿里云外呼配置保存失败", "error");
   } finally {
     if (button) { button.disabled = false; button.textContent = "保存阿里云外呼配置"; }
+  }
+}
+
+async function runAliyunOutboundConnectivityCheck() {
+  const button = qs<HTMLButtonElement>("#aliyunOutboundConnectivityButton");
+  const box = qs<HTMLElement>("#aliyunOutboundConnectivityResult");
+  try {
+    if (button) { button.disabled = true; button.textContent = "自检中"; }
+    const result = await api<AliyunOutboundConnectivityResult>("/api/aliyun-outbound/connectivity-check", {
+      method: "POST",
+      body: "{}"
+    });
+    if (box) {
+      box.hidden = false;
+      box.textContent = connectivityResultLines(result.items || []).join("\n");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "连通性自检失败";
+    if (box) { box.hidden = false; box.textContent = message; }
+    toast(message, "error");
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "连通性自检"; }
   }
 }
 
@@ -53751,6 +53775,7 @@ function installEvents() {
   qs<HTMLButtonElement>("#profileDomainAuthButton")?.addEventListener("click", (event) => void checkProfileEmailDomain(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#companyProfileSaveButton")?.addEventListener("click", () => void saveCompanyProfile());
   qs<HTMLButtonElement>("#aliyunOutboundSaveButton")?.addEventListener("click", () => void saveAliyunOutboundConfig());
+  qs<HTMLButtonElement>("#aliyunOutboundConnectivityButton")?.addEventListener("click", () => void runAliyunOutboundConnectivityCheck());
   qs<HTMLButtonElement>("#aliyunAgentDirectoryButton")?.addEventListener("click", () => void loadAgentDirectory());
   qs<HTMLElement>("#aliyunAgentMappingBody")?.addEventListener("click", (event) => {
     const target = event.target as HTMLElement | null;

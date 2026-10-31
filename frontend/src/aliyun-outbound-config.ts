@@ -64,6 +64,36 @@ export function showAliyunOutboundSettings(canManage: boolean) {
   return canManage === true;
 }
 
+export type AliyunOutboundConnectivityItemId = "config_complete" | "credentials" | "instance" | "agent_mapping" | "callback";
+
+export interface AliyunOutboundConnectivityItem {
+  id: AliyunOutboundConnectivityItemId;
+  ok: boolean;
+  detail: string;
+}
+
+export interface AliyunOutboundConnectivityResult {
+  aliyunOutboundEnabled: boolean;
+  items: AliyunOutboundConnectivityItem[];
+}
+
+const CONNECTIVITY_LABELS: Record<AliyunOutboundConnectivityItemId, string> = {
+  config_complete: "配置是否完整",
+  credentials: "凭证是否可用",
+  instance: "实例是否可达",
+  agent_mapping: "坐席映射是否存在",
+  callback: "回调地址是否已配置"
+};
+
+export function connectivityResultLines(items: AliyunOutboundConnectivityItem[]) {
+  return items.map((item) => {
+    const label = CONNECTIVITY_LABELS[item.id] || "检查项";
+    const detail = typeof item.detail === "string" ? item.detail : "";
+    const state = item.ok === true ? "通过" : "未通过";
+    return detail ? `${label}：${state}。${detail}` : `${label}：${state}`;
+  });
+}
+
 export function secretStatusText(mask: AliyunOutboundSecretMask) {
   if (!mask?.configured) return "未配置";
   if (!mask.last4) return "已配置";
