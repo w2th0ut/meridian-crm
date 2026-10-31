@@ -2075,6 +2075,100 @@ assert.doesNotMatch(scrollFailureBounceAge, /\.value\s*=|fetch\(|shortlistLeadFi
 assert.match(prototype, /\.prospect-failure-bounce-age\b/, "失败退信日龄必须有可见样式");
 assert.match(prototype, /\.dashboard-failure-bounce-age-note\b/, "失败退信日龄说明必须有可见样式");
 
+const openClickAgeLayer = readFileSync(new URL("./prospect-open-click-age.ts", import.meta.url), "utf8");
+assert.match(openClickAgeLayer, /export function presentOpenClickAge/, "打开或点击日龄必须只消费已有发生时间");
+assert.match(openClickAgeLayer, /OPEN_CLICK_AGE_LIMIT = 8/, "打开或点击日龄最多 8 条");
+assert.match(openClickAgeLayer, /OPEN_CLICK_AGE_WINDOW_DAYS = 7/, "打开或点击日龄窗口必须是 7 天");
+assert.match(openClickAgeLayer, /opened/, "打开或点击日龄必须先确认当前有打开或点击");
+assert.match(openClickAgeLayer, /openClickOccurrenceAt/, "打开和点击都有时必须取较晚的那份发生时间");
+assert.match(openClickAgeLayer, /无打开日龄/, "没有可解析打开或点击时间时文案必须是无打开日龄");
+assert.match(openClickAgeLayer, /打开超七日/, "超过 7 天必须标打开超七日");
+assert.match(openClickAgeLayer, /打开七日内/, "7 天内必须标打开七日内");
+assert.match(openClickAgeLayer, /查看打开或点击/, "必须能跳到现有开发信打开或点击");
+assert.match(openClickAgeLayer, /kind !== "none"/, "无打开日龄不得占工作台名额");
+assert.match(openClickAgeLayer, /这不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "打开或点击日龄必须和失败退信日龄、抑制名单日龄、待放行批次、回复积压、序列到期、外联空档、静默、跟进空档、加入日龄区分开");
+assert.match(openClickAgeLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "打开或点击日龄必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(openClickAgeLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "打开或点击日龄必须和获客待办摘要、逾期、卡住区分开");
+assert.match(openClickAgeLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列进度/, "打开或点击日龄必须和待记跟进、待发草稿、外联序列进度区分开");
+assert.match(openClickAgeLayer, /也不是失败或退信、收信同步/, "打开或点击日龄必须和失败或退信、收信同步区分开");
+assert.match(openClickAgeLayer, /不替代开发信打开或点击那一块/, "打开或点击日龄不得替代开发信打开或点击那一块");
+assert.match(openClickAgeLayer, /不会自动跟进，不会自动发下一封，不会推进序列，不会发信，不会改名单，也不会改 convert_to_lead 或 approved_contactable/, "打开或点击日龄不得自动跟进、发下一封、推进序列、发信、改名单或改门禁");
+assert.match(openClickAgeLayer, /刚好 7 天仍算打开七日内/, "刚好 7 天仍算打开七日内");
+assert.match(openClickAgeLayer, /失败或退信的发生时间不算这次打开的时间/, "失败或退信发生时间不得算成这次打开的时间");
+assert.match(openClickAgeLayer, /抑制或退订的生效时间不算这次打开的时间/, "抑制或退订生效时间不得算成这次打开的时间");
+assert.match(openClickAgeLayer, /待放行批次的更新时间不算这次打开的时间/, "待放行批次更新时间不得算成这次打开的时间");
+assert.match(openClickAgeLayer, /跟进记录不算这次打开的时间/, "跟进记录不得算成这次打开的时间");
+assert.match(openClickAgeLayer, /最近一封开发信的发出时间不算这次打开的时间/, "开发信发出时间不得算成这次打开的时间");
+assert.match(openClickAgeLayer, /序列下一步的计划时间不算这次打开的时间/, "序列下一步不得算成这次打开的时间");
+assert.match(openClickAgeLayer, /最近一次开发信回复的时间不算这次打开的时间/, "最近回复不得算成这次打开的时间");
+assert.match(openClickAgeLayer, /最近触达（含话机）不算这次打开的时间/, "最近触达和话机不得算成这次打开的时间");
+assert.doesNotMatch(openClickAgeLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextExecutionAt|outreachReply|statusChangedAt|unsuppress|effectiveAt|lastOpenedAt|lastClickedAt|outreachFailure/i, "打开或点击日龄模块不得发请求、改读别的时间、读 WhatsApp、解除抑制或改门禁");
+assert.doesNotMatch(kbSourceBetween(openClickAgeLayer, "function openClickAgeLineLabel", "\nexport function openClickAgeStatusLabel"), /空档|已到期|静默|跟进空档|逾期|有回复|即将到期|未临近|无序列到期|积压较久|积压较新|无待处理回复|待放已久|待放未久|无待放行|抑制超七日|抑制七日内|无抑制日龄|失败超七日|失败七日内|无失败日龄|无失败记录|发送失败|开发信退信|无打开或点击/, "行文案必须用打开超七日、打开七日内、无打开日龄");
+assert.match(prospectListRender, /renderOpenClickAgeLine\(item\)/, "搜客清单每一行必须显示打开或点击日龄");
+assert.match(prospectListRender, /renderFailureBounceAgeLine\(item\)[\s\S]{0,160}renderOpenClickAgeLine\(item\)/, "打开或点击日龄必须和失败退信日龄分开显示");
+assert.match(prospectListRender, /renderDashboardOpenClickAge\(\)/, "清单刷新必须同时更新打开或点击日龄入口");
+const openClickAgeRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(openClickAgeRows, /prospectOpenClickAgeFilter[\s\S]*prospectOpenClickAge/, "打开或点击日龄筛选只按已有发生时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectFailureBounceAge\(item\)\}\n    \$\{renderProspectOpenClickAge\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在失败退信日龄后面单独说明打开或点击日龄"
+);
+assert.match(apiLayer, /没有打开超七日的候选。这里不会编造打开时间，也不会自动跟进，也不会发信，也不会推进序列。/, "筛不到打开超七日时必须写清空态");
+assert.match(prototype, /data-prospect-open-click-age-filter="long"[\s\S]*打开超七日/, "清单必须能筛打开超七日");
+assert.match(prototype, /data-prospect-open-click-age-filter="all"[\s\S]*全部打开/, "清单必须能回到全部打开");
+assert.match(prototype, /data-prospect-failure-bounce-age-filter="long"[\s\S]*失败超七日/, "原来的失败退信日龄筛选还在");
+assert.match(prototype, /id="dashboardFailureBounceAge"[\s\S]{0,8000}id="dashboardOpenClickAge"[\s\S]*打开或点击日龄/, "工作台打开或点击日龄必须在失败退信日龄下面");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是失败退信日龄/, "工作台说明必须和失败退信日龄分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是抑制名单日龄/, "工作台说明必须和抑制名单日龄分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是待放行批次/, "工作台说明必须和待放行批次分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是回复待处理积压/, "工作台说明必须和回复待处理积压分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是序列下一步到期/, "工作台说明必须和序列下一步到期分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是外联最近动作空档/, "工作台说明必须和外联空档分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*不替代开发信打开或点击那一块/, "工作台说明必须和开发信打开或点击那一块分开");
+assert.match(prototype, /id="dashboardOpenClickAgeNote"[\s\S]*文案不混用/, "工作台说明必须写明文案不混用");
+assert.match(prototype, /id="dashboardFailureBounceAge"[\s\S]*失败退信日龄/, "失败退信日龄原条还在");
+assert.match(apiLayer, /OPEN_CLICK_AGE_LIMIT/, "工作台打开或点击日龄必须守住 8 条上限");
+assert.match(apiLayer, /listOpenClickAgeQueue\(/, "工作台必须复用打开超七日在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看打开或点击日龄。这里不会编造名单，也不会自动跟进，也不会发信，也不会推进序列。/, "没有清单时不得编造打开或点击日龄");
+assert.match(apiLayer, /打开或点击日龄/, "详情标题必须是打开或点击日龄");
+assert.match(apiLayer, /openClickAgeEntryLabel\(/, "详情必须复用查看打开或点击入口文案");
+const openClickAgeAdapter = kbSourceBetween(apiLayer, "function prospectOpenClickAge", "\nfunction openClickAgeBadgeTone");
+assert.match(openClickAgeAdapter, /presentOutreachEngagement/, "打开或点击日龄必须复用 Day15 打开或点击投影");
+assert.match(openClickAgeAdapter, /outreachEngagement/, "打开或点击日龄必须读候选上已有的打开或点击");
+assert.match(openClickAgeAdapter, /status === "hit"/, "只有打开或点击才进入日龄");
+assert.match(openClickAgeAdapter, /openClickOccurrenceAt\(engagement\.open\.at, engagement\.click\.at\)/, "打开或点击日龄必须读投影上已有的发生时间，两份都有时取较晚的那份");
+assert.doesNotMatch(openClickAgeAdapter, /outreachFailure|outreachReply|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextRunAt|nextExecutionAt|whatsapp|createdAt|verifiedAt|updatedAt|statusChangedAt|approvedAt|effectiveAt|complianceNotices|lastOpenedAt|lastClickedAt/i, "打开或点击日龄不得改读失败、回复、跟进、加入时间、下次跟进、触达、开发信发出时间、序列计划、抑制生效时间或状态变更时间");
+const openClickAgeQueue = kbSourceBetween(apiLayer, "function renderDashboardOpenClickAge", "\nfunction openOpenClickAgeFromDashboard");
+assert.match(openClickAgeQueue, /shortlistedAt/, "工作台打开或点击日龄只包含搜客清单里的候选");
+assert.match(openClickAgeQueue, /listOpenClickAgeQueue\(/, "工作台打开或点击日龄只按已有发生时间排序");
+assert.match(openClickAgeQueue, /OPEN_CLICK_AGE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(openClickAgeQueue, /打开超七日在前/, "工作台必须打开超七日在前");
+assert.doesNotMatch(openClickAgeQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|outreachReply|outreachFailure|scheduledAt|nextExecutionAt|approvedAt|statusChangedAt|verifiedAt|effectiveAt|lastOpenedAt|lastClickedAt/i, "工作台打开或点击日龄不得改读跟进、下次跟进、触达、开发信发出时间、回复、失败或抑制生效时间");
+const openClickAgeClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardOpenClickAge")?.addEventListener');
+const openClickAgeClick = apiLayer.slice(openClickAgeClickStart, openClickAgeClickStart + 700);
+assert.match(openClickAgeClick, /openOpenClickAgeFromDashboard/, "点工作台打开或点击日龄必须打开现有候选");
+assert.doesNotMatch(openClickAgeClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard|controlOutreachSequence|approveOutreach|\/approve|unsuppress/, "点工作台打开或点击日龄不得改名单、记跟进、发送、转线索、推进序列、放行或解除抑制");
+const openOpenClickAge = kbSourceBetween(apiLayer, "function openOpenClickAgeFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openOpenClickAge, /prospectOpenClickAgeFilter = openClickAgeListFilterForOpen\(view\)/, "打开打开超七日必须落到打开超七日筛选，打开七日内保持全部");
+assert.match(openOpenClickAge, /openClickAgeFocusId = item\.id/, "打开后必须停在现有开发信打开或点击或详情顶部");
+assert.match(openOpenClickAge, /不会自动跟进，也不会发信，也不会推进序列，也不会改名单/, "打开时必须说明不会自动跟进、不会发信、不会推进序列、不会改名单");
+assert.doesNotMatch(openOpenClickAge, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve|controlOutreachSequence|approveOutreach|unsuppress/, "打开打开或点击日龄不得改名单、记跟进、发送、转线索、批准、放行或解除抑制");
+const scrollOpenClickAge = kbSourceBetween(apiLayer, "function scrollToOpenClickAgeTarget", "\nfunction focusOpenClickAgeTarget");
+assert.match(scrollOpenClickAge, /#prospectOutreachEngagement/, "必须滚到现有开发信打开或点击");
+assert.match(scrollOpenClickAge, /prospect-detail-hero/, "没有开发信打开或点击时必须能停在详情顶部");
+assert.doesNotMatch(scrollOpenClickAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail|controlOutreachSequence|\/approve|unsuppress/, "跳到开发信打开或点击不得改名单、写入、发信、推进序列、放行或解除抑制");
+assert.match(prototype, /\.prospect-open-click-age\b/, "打开或点击日龄必须有可见样式");
+assert.match(prototype, /\.dashboard-open-click-age-note\b/, "打开或点击日龄说明必须有可见样式");
+
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
 //
