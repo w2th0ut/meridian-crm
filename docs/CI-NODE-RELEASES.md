@@ -88,6 +88,7 @@ Publish then:
 6. Points `current` at the new release.
 7. Restarts systemd unit `keduoduo-crm`.
 8. Requires `curl -fsS http://127.0.0.1:4188/api/health` or `http://127.0.0.1/api/health` to contain `"ok": true`.
+9. After that health check passes, deletes older directories in `releases/`. The three newest release ids stay. The directory `current` points at and the previous directory stay even when their ids are older. `shared/` is not modified. A cleanup error is a warning; the new `current` stays. Rollback uses the same cleanup after its health check passes. A failed activate does not clean up.
 
 If the unit is missing, the script stops with the expected unit name and command. It does not guess another process manager. `SERVICE_NAME` or `RESTART_COMMAND` can override that on the server; CI sets `SERVICE_NAME=keduoduo-crm` and does not set `RESTART_COMMAND`.
 
@@ -111,9 +112,11 @@ sudo systemctl restart keduoduo-crm
 curl -fsS http://127.0.0.1:4188/api/health
 ```
 
-Use the real previous directory. Do not edit `shared/.env`. Do not delete `current` unless you intend to stop serving that tree.
+Use a directory that is still on disk. Do not edit `shared/.env`. Do not delete `current` unless you intend to stop serving that tree.
 
-Old release directories are kept. Remove one only after `readlink -f /opt/keduoduo-crm/current` shows a different directory and you no longer need that id for rollback.
+Successful activate keeps the three newest `releases/<id>` directories, plus the live directory and the one it replaced when those are older. It removes only a real directory whose name is a release id and whose path resolves to exactly `releases/<id>`. Symlinks, `shared/`, and anything that fails those checks stay. Cleanup failure does not roll back the activation. Failed activations leave the directories in place.
+
+激活成功后才清理 `releases/`：保留最近 3 个 release 目录，并始终保留 `current` 和上一个 release。不碰 `shared/`。只删除 `releases/` 下通过路径校验的真实目录。清理失败只告警。激活失败不清理。
 
 ## ACR is optional
 
