@@ -8149,7 +8149,8 @@
     .dashboard-prospect-row.is-sequence-due,
     .dashboard-prospect-row.is-reply-stale,
     .dashboard-prospect-row.is-release-held,
-    .dashboard-prospect-row.is-suppress-long {
+    .dashboard-prospect-row.is-suppress-long,
+    .dashboard-prospect-row.is-failure-long {
       border-color: #fecaca;
     }
 
@@ -8684,6 +8685,81 @@
     }
 
     .prospect-suppress-list-age.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-failure-bounce-age-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-failure-bounce-age-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-failure-bounce-age:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-failure-bounce-age[data-failure-bounce-age="long"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-failure-bounce-age[data-failure-bounce-age="recent"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-failure-bounce-age-head,
+    .prospect-failure-bounce-age.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-failure-bounce-age p,
+    .prospect-failure-bounce-age.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-failure-bounce-age.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-failure-bounce-age.is-compact.is-long {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-failure-bounce-age.is-compact.is-recent {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-failure-bounce-age.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -11630,6 +11706,7 @@
     #dashboardReplyBacklog,
     #dashboardReleaseBatchAge,
     #dashboardSuppressListAge,
+    #dashboardFailureBounceAge,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
@@ -11644,6 +11721,7 @@
     .dashboard-reply-backlog-note,
     .dashboard-release-batch-age-note,
     .dashboard-suppress-list-age-note,
+    .dashboard-failure-bounce-age-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -27765,6 +27843,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardSuppressListAgeList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardFailureBounceAge" aria-label="失败退信日龄">
+            <div class="section-head">
+              <div class="section-title"><div><h2>失败退信日龄</h2><p id="dashboardFailureBounceAgeScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardFailureBounceAgeRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardFailureBounceAgeNote" class="dashboard-failure-bounce-age-note">这是开发信失败或退信相对现在的只读日龄，复用 Day14 已经带出的发生时间。失败或退信且距现在超过 7 天算失败超七日，未超过（含刚好 7 天）算失败七日内。没有可解析的发生时间写无失败日龄。不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列进度、打开或点击、收信同步。不替代开发信失败或退信那一块。文案不混用。点一行只打开现有候选详情并滚到现有开发信失败或退信。不会自动重发，不会解除抑制，不会发信，不会改名单，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardFailureBounceAgeList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -28541,6 +28631,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按抑制名单日龄筛选">
                   <button class="active" type="button" data-prospect-suppress-list-age-filter="all" aria-pressed="true">全部抑制</button>
                   <button type="button" data-prospect-suppress-list-age-filter="long" aria-pressed="false">抑制超七日</button>
+                </div>
+              </div>
+              <div class="prospect-failure-bounce-age-filter">
+                <span>失败日龄</span>
+                <div class="prospect-tabs" role="group" aria-label="按失败退信日龄筛选">
+                  <button class="active" type="button" data-prospect-failure-bounce-age-filter="all" aria-pressed="true">全部失败</button>
+                  <button type="button" data-prospect-failure-bounce-age-filter="long" aria-pressed="false">失败超七日</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
