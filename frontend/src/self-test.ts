@@ -2456,6 +2456,104 @@ assert.doesNotMatch(inboundSyncAnomalyAgeRefresh, /inbound-mail\/sync|profileTes
 assert.match(prototype, /\.inbound-sync-anomaly-age\b/, "收信同步异常日龄必须有可见样式");
 assert.match(prototype, /\.dashboard-inbound-sync-anomaly-age-note\b/, "收信同步异常日龄说明必须有可见样式");
 
+const intakeAgeLayer = readFileSync(new URL("./prospect-intake-age.ts", import.meta.url), "utf8");
+assert.match(intakeAgeLayer, /export function presentIntakeAge/, "候选入库日龄必须只消费已有入库时间");
+assert.match(intakeAgeLayer, /INTAKE_AGE_LIMIT = 8/, "候选入库日龄最多 8 条");
+assert.match(intakeAgeLayer, /INTAKE_AGE_WINDOW_DAYS = 7/, "候选入库日龄窗口必须是 7 天");
+assert.match(intakeAgeLayer, /createdAt/, "候选入库日龄必须指向已有的创建时间");
+assert.match(intakeAgeLayer, /无入库日龄/, "没有可解析入库时间时文案必须是无入库日龄");
+assert.match(intakeAgeLayer, /入库超七日/, "超过 7 天必须标入库超七日");
+assert.match(intakeAgeLayer, /入库七日内/, "7 天内必须标入库七日内");
+assert.match(intakeAgeLayer, /查看候选详情/, "必须能打开现有候选详情");
+assert.match(intakeAgeLayer, /kind !== "none"/, "无入库日龄不得占工作台名额");
+assert.match(intakeAgeLayer, /这不是收信同步异常日龄，也不是序列最近一步日龄，也不是开发信回复日龄，也不是打开或点击日龄，也不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "候选入库日龄必须和收信同步异常日龄、序列最近一步、回复日龄、打开或点击日龄、失败退信日龄、抑制名单日龄、待放行批次、回复积压、序列到期、外联空档、静默、跟进空档、加入日龄区分开");
+assert.match(intakeAgeLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "候选入库日龄必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(intakeAgeLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "候选入库日龄必须和获客待办摘要、逾期、卡住区分开");
+assert.match(intakeAgeLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列进度/, "候选入库日龄必须和待记跟进、待发草稿、外联序列进度区分开");
+assert.match(intakeAgeLayer, /也不是打开或点击、失败或退信、收信同步那一块/, "候选入库日龄必须和打开或点击、失败或退信、收信同步那一块区分开");
+assert.match(intakeAgeLayer, /不替代短名单加入日龄，也不替代加入时间的日期范围/, "候选入库日龄不得替代短名单加入日龄或加入时间的日期范围");
+assert.match(intakeAgeLayer, /不会发信，不会解除抑制，不会推进序列，不会放行批次，不会改名单，不会改邮箱配置，也不会改 convert_to_lead 或 approved_contactable/, "候选入库日龄不得发信、解除抑制、推进序列、放行批次、改名单、改邮箱配置或改门禁");
+assert.match(intakeAgeLayer, /刚好 7 天仍算入库七日内/, "刚好 7 天仍算入库七日内");
+assert.match(intakeAgeLayer, /没有入库时间，或时间解析不了，写无入库日龄，也不编造/, "没有入库时间时不得编造日龄");
+assert.match(intakeAgeLayer, /加入短名单的时间不算入库时间/, "加入时间不得算成入库时间");
+assert.match(intakeAgeLayer, /跟进记录不算入库时间/, "跟进记录不得算成入库时间");
+assert.match(intakeAgeLayer, /候选上没有更新时间字段/, "不得把别的时间写成更新时间");
+assert.match(intakeAgeLayer, /撞库说明上的关键时间不是撞库发生时刻，不算入库时间/, "撞库关键时间不得算成入库时间");
+assert.match(intakeAgeLayer, /只认带 T 的时间/, "候选入库日龄只认带 T 的时间");
+assert.match(intakeAgeLayer, /墙上时钟不算/, "墙上时钟不得算成入库时间");
+assert.doesNotMatch(intakeAgeLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextExecutionAt|updatedAt|lastSentAt|outreachReply|effectiveAt|statusChangedAt|verifiedAt|lastInboundSyncAt|inbound-mail\/sync/i, "候选入库日龄模块不得发请求、改读别的时间、读 WhatsApp、触发同步或改门禁");
+assert.doesNotMatch(kbSourceBetween(intakeAgeLayer, "function intakeAgeLineLabel", "\nexport function intakeAgeStatusLabel"), /空档|已到期|静默|跟进空档|逾期|有回复|即将到期|未临近|无序列到期|积压较久|积压较新|无待处理回复|待放已久|待放未久|无待放行|抑制超七日|抑制七日内|无抑制日龄|失败超七日|失败七日内|无失败日龄|打开超七日|打开七日内|无打开日龄|回复超七日|回复七日内|无回复日龄|最近一步超七日|最近一步七日内|无最近一步|同步异常超七日|同步异常七日内|无同步异常日龄|无失败记录|发送失败|开发信退信|无打开或点击|邮箱异常|邮箱正常|无健康信息|收信同步异常|较久|新近|未加入/, "行文案必须用入库超七日、入库七日内、无入库日龄");
+assert.match(prospectListRender, /renderIntakeAgeLine\(item\)/, "搜客清单每一行必须显示候选入库日龄");
+assert.match(prospectListRender, /renderSequenceLastStepAgeLine\(item\)[\s\S]{0,200}renderIntakeAgeLine\(item\)/, "候选入库日龄必须和序列最近一步日龄分开显示");
+assert.match(prospectListRender, /renderDashboardIntakeAge\(\)/, "清单刷新必须同时更新候选入库日龄入口");
+const intakeAgeRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(intakeAgeRows, /prospectIntakeAgeFilter[\s\S]*prospectIntakeAge/, "候选入库日龄筛选只按已有入库时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectSequenceLastStepAge\(item\)\}\n    \$\{renderProspectIntakeAge\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在序列最近一步日龄后面单独说明候选入库日龄"
+);
+assert.match(apiLayer, /没有入库超七日的候选。这里不会编造入库时间，也不会发信，也不会改名单。/, "筛不到入库超七日时必须写清空态");
+assert.match(prototype, /data-prospect-intake-age-filter="long"[\s\S]*入库超七日/, "清单必须能筛入库超七日");
+assert.match(prototype, /data-prospect-intake-age-filter="all"[\s\S]*全部入库/, "清单必须能回到全部入库");
+assert.match(prototype, /data-prospect-sequence-last-step-age-filter="long"[\s\S]*最近一步超七日/, "原来的序列最近一步日龄筛选还在");
+assert.match(prototype, /id="dashboardInboundSyncAnomalyAgeList"[\s\S]{0,800}id="dashboardIntakeAge"[\s\S]*候选入库日龄/, "工作台候选入库日龄必须在收信同步异常日龄下面");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是收信同步异常日龄/, "工作台说明必须和收信同步异常日龄分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是序列最近一步日龄/, "工作台说明必须和序列最近一步日龄分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是开发信回复日龄/, "工作台说明必须和开发信回复日龄分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是打开或点击日龄/, "工作台说明必须和打开或点击日龄分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是失败退信日龄/, "工作台说明必须和失败退信日龄分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是抑制名单日龄/, "工作台说明必须和抑制名单日龄分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是待放行批次/, "工作台说明必须和待放行批次分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是回复待处理积压/, "工作台说明必须和回复待处理积压分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是序列下一步到期/, "工作台说明必须和序列下一步到期分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是外联最近动作空档/, "工作台说明必须和外联空档分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*不替代短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardIntakeAgeNote"[\s\S]*文案不混用/, "工作台说明必须写明文案不混用");
+assert.match(prototype, /id="dashboardInboundSyncAnomalyAge"[\s\S]*收信同步异常日龄/, "收信同步异常日龄原条还在");
+assert.match(prototype, /id="dashboardSequenceLastStepAge"[\s\S]*序列最近一步日龄/, "序列最近一步日龄原条还在");
+assert.match(apiLayer, /INTAKE_AGE_LIMIT/, "工作台候选入库日龄必须守住 8 条上限");
+assert.match(apiLayer, /listIntakeAgeQueue\(/, "工作台必须复用入库超七日在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看候选入库日龄。这里不会编造名单，也不会发信，也不会改名单。/, "没有清单时不得编造候选入库日龄");
+assert.match(apiLayer, /无入库日龄。当前可见的搜客清单没有可解析的入库时间。这里不会编造入库时间，也不会发信，也不会改名单。/, "没有入库时间时不得编造日龄");
+assert.match(apiLayer, /候选入库日龄暂时读不到（\$\{escapeHtml\(message\)\}）。点刷新重试。这里不会编造入库时间，也不会发信，也不会改名单。/, "刷新失败时不得编造无入库日龄");
+assert.match(apiLayer, /候选入库日龄/, "详情标题必须是候选入库日龄");
+assert.match(apiLayer, /intakeAgeEntryLabel\(/, "详情必须复用查看候选详情入口文案");
+const intakeAgeAdapter = kbSourceBetween(apiLayer, "function prospectIntakeAge", "\nfunction intakeAgeBadgeTone");
+assert.match(intakeAgeAdapter, /createdAt/, "候选入库日龄必须读候选上已有的创建时间");
+assert.match(intakeAgeAdapter, /presentIntakeAge/, "候选入库日龄必须复用入库时间分类");
+assert.doesNotMatch(intakeAgeAdapter, /shortlistedAt|latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextExecutionAt|updatedAt|lastSentAt|outreachReply|effectiveAt|statusChangedAt|verifiedAt|lastInboundSyncAt|lastOpenedAt|lastClickedAt|whatsapp/i, "候选入库日龄不得改读加入时间、跟进、序列、回复、失败、抑制、状态变更或收信同步");
+const intakeAgeQueue = kbSourceBetween(apiLayer, "function renderDashboardIntakeAge", "\nfunction openIntakeAgeFromDashboard");
+assert.match(intakeAgeQueue, /shortlistedAt/, "工作台候选入库日龄只包含搜客清单里的候选");
+assert.match(intakeAgeQueue, /listIntakeAgeQueue\(/, "工作台候选入库日龄只按已有入库时间排序");
+assert.match(intakeAgeQueue, /INTAKE_AGE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(intakeAgeQueue, /入库超七日在前/, "工作台必须入库超七日在前");
+assert.doesNotMatch(intakeAgeQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|scheduledAt|nextExecutionAt|lastSentAt|updatedAt|outreachReply|effectiveAt|lastOpenedAt|lastClickedAt|statusChangedAt|verifiedAt|lastInboundSyncAt|inbound-mail\/sync|send-development-email/i, "工作台候选入库日龄不得改读别的时间或发信");
+const intakeAgeClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardIntakeAge")?.addEventListener');
+const intakeAgeClick = apiLayer.slice(intakeAgeClickStart, intakeAgeClickStart + 700);
+assert.match(intakeAgeClick, /openIntakeAgeFromDashboard/, "点工作台候选入库日龄必须打开现有候选");
+assert.doesNotMatch(intakeAgeClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard|controlOutreachSequence|approveOutreach|\/approve|unsuppress|profileSmtp|sender-mailboxes|inbound-mail\/sync/, "点工作台候选入库日龄不得改名单、记跟进、发送、转线索、推进序列、放行、解除抑制或改邮箱");
+const openIntakeAge = kbSourceBetween(apiLayer, "function openIntakeAgeFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openIntakeAge, /prospectIntakeAgeFilter = intakeAgeListFilterForOpen\(view\)/, "打开入库超七日必须落到入库超七日筛选，入库七日内保持全部");
+assert.match(openIntakeAge, /intakeAgeFocusId = item\.id/, "打开后必须停在现有候选详情顶部");
+assert.match(openIntakeAge, /不会发信，也不会解除抑制，也不会推进序列，也不会放行批次，也不会改名单，也不会改邮箱配置/, "打开时必须说明不会发信、不会解除抑制、不会推进序列、不会放行批次、不会改名单、不会改邮箱配置");
+assert.doesNotMatch(openIntakeAge, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve|controlOutreachSequence|approveOutreach|unsuppress|profileSmtp|sender-mailboxes|inbound-mail\/sync/, "打开候选入库日龄不得改名单、记跟进、发送、转线索、批准、放行、解除抑制或改邮箱");
+const scrollIntakeAge = kbSourceBetween(apiLayer, "function scrollToIntakeAgeTarget", "\nfunction focusIntakeAgeTarget");
+assert.match(scrollIntakeAge, /prospect-detail-hero/, "必须停在现有详情顶部");
+assert.match(scrollIntakeAge, /lead-verification-drawer-head/, "智能获客详情也停在现有顶部");
+assert.doesNotMatch(scrollIntakeAge, /prospect-shortlist-joined|prospect-joined-at/, "不得把加入时间当成入库时间");
+assert.doesNotMatch(scrollIntakeAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail|controlOutreachSequence|\/approve|unsuppress|profileSmtp|inbound-mail\/sync/, "跳到详情顶部不得改名单、写入、发信、推进序列、放行、解除抑制或改邮箱");
+assert.match(prototype, /\.prospect-intake-age\b/, "候选入库日龄必须有可见样式");
+assert.match(prototype, /\.dashboard-intake-age-note\b/, "候选入库日龄说明必须有可见样式");
+
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
 //
