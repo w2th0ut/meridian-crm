@@ -306,6 +306,24 @@ async function writeAudit(store: CrmStore, input: Omit<OutboundCallAudit, "id" |
   return audit;
 }
 
+/**
+ * 只读：当前租户的外呼开关，以及当前用户是否有外呼权限。
+ * 不返回实例、地域、主叫或密钥，不写审计，也不拨号。
+ */
+export function readOutboundCallAvailability(store: CrmStore, user: SessionUser | undefined) {
+  if (!user?.id || !user.teamId) {
+    return { status: 401, body: { enabled: false, permitted: false } };
+  }
+  const current = store.aliyunOutboundConfigs.find((item) => item.teamId === user.teamId);
+  return {
+    status: 200,
+    body: {
+      enabled: current?.aliyunOutboundEnabled === true,
+      permitted: hasIamPermission(user, OUTBOUND_CALL_PERMISSION)
+    }
+  };
+}
+
 export async function requestOutboundCall(store: CrmStore, user: SessionUser | undefined, body: unknown) {
   if (!user?.id || !user.teamId) {
     return { status: 401, body: { result: "rejected" as const, reason: "forbidden", message: "未登录" } };

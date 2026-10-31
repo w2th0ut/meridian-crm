@@ -299,6 +299,36 @@ try {
   assert.equal(JSON.stringify(store.outboundCallAudits).includes(accessKeyId), false);
   assert.equal(JSON.stringify(store.outboundCallAudits).includes(phone), false);
 
+  const auditsAfterDial = store.outboundCallAudits.length;
+  const available = await request("/api/outbound-calls/availability", shirley);
+  assert.equal(available.response.status, 200);
+  assert.equal(available.json.enabled, true);
+  assert.equal(available.json.permitted, true);
+  assert.equal(available.json.instanceId, undefined);
+  assert.equal(available.json.callerNumber, undefined);
+  assert.equal(available.json.region, undefined);
+  assert.equal(JSON.stringify(available.json).includes(secret), false);
+  assert.equal(JSON.stringify(available.json).includes(accessKeyId), false);
+  assert.equal(JSON.stringify(available.json).includes(phone), false);
+  assert.equal(calls.length, 1);
+
+  const noPerm = await request("/api/outbound-calls/availability", noOutbound);
+  assert.equal(noPerm.response.status, 200);
+  assert.equal(noPerm.json.enabled, true);
+  assert.equal(noPerm.json.permitted, false);
+  assert.equal(JSON.stringify(noPerm.json).includes(secret), false);
+
+  putConfig(false, "ccc-demo");
+  const switchedOff = await request("/api/outbound-calls/availability", shirley);
+  assert.equal(switchedOff.response.status, 200);
+  assert.equal(switchedOff.json.enabled, false);
+  assert.equal(switchedOff.json.permitted, true);
+  assert.equal(calls.length, 1);
+  assert.equal(store.outboundCallAudits.length, auditsAfterDial);
+
+  const anonymous = await request("/api/outbound-calls/availability", "");
+  assert.equal(anonymous.response.status, 401);
+
   customer.phone = phoneBefore;
   console.log("outbound call http tests passed");
 } finally {
