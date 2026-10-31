@@ -537,6 +537,12 @@ import {
   setProspectNextFollowAt
 } from "./prospect-follow-up.js";
 import { appendFollowUpAudit } from "./follow-up-audit.js";
+import { appendOwnerReassignAudit } from "./owner-reassign-audit.js";
+import {
+  PROSPECT_OWNER_REASSIGN_DENIED,
+  PROSPECT_OWNER_REASSIGN_LIMIT,
+  prospectOwnerReassignBlock
+} from "./prospect-owner-reassign.js";
 import {
   TRANSPARENT_GIF,
   buildOutboundMessageId,
@@ -19738,6 +19744,58 @@ app.patch("/api/prospect-list/:id/details", requireAuth, asyncRoute(async (req, 
     qualificationInvalidated: changedFields.length > 0,
     changedFields
   });
+}));
+
+app.post("/api/prospect-list/reassign-owners", requireAuth, asyncRoute(async (req, res) => {
+  const schema = z.object({
+    ids: z.array(z.string().trim().min(1).max(80)).min(1).max(PROSPECT_OWNER_REASSIGN_LIMIT),
+    ownerId: z.string().trim().min(1).max(64)
+  });
+  const body = schema.parse(req.body ?? {});
+  const store = getStore();
+  const actor = req.user!;
+  const assignee = store.users.find((item) =>
+    item.id === body.ownerId && item.status === "active" && item.teamId === actor.teamId
+  );
+  if (!assignee) {
+    res.status(400).json({ message: "新负责人不存在、不在当前租户或账号已停用" });
+    return;
+  }
+  const ids = [...new Set(body.ids)];
+  const evaluated = ids.map((id) => {
+    const candidate = store.websiteOpportunities.find((item) => item.id === id);
+    return { id, candidate, block: prospectOwnerReassignBlock(actor, candidate) };
+  });
+  if (evaluated.every((item) => item.block === PROSPECT_OWNER_REASSIGN_DENIED)) {
+    res.status(403).json({
+      message: "没有可改负责人的候选",
+      results: evaluated.map((item) => ({ id: item.id, ok: false, reason: item.block }))
+    });
+    return;
+  }
+  const changed: WebsiteOpportunity[] = [];
+  const results = evaluated.map((item) => {
+    if (item.block || !item.candidate) {
+      return { id: item.id, ok: false, reason: item.block || PROSPECT_OWNER_REASSIGN_DENIED };
+    }
+    const previousOwnerId = item.candidate.ownerId;
+    if (previousOwnerId !== assignee.id) {
+      item.candidate.ownerId = assignee.id;
+      changed.push(item.candidate);
+      appendOwnerReassignAudit(store, {
+        actorId: actor.id,
+        objectId: item.candidate.id,
+        previousOwnerId,
+        nextOwnerId: assignee.id
+      });
+    }
+    return { id: item.id, ok: true, previousOwnerId, ownerId: assignee.id };
+  });
+  if (changed.length) {
+    if (store.persistProspectCandidates) await store.persistProspectCandidates(changed.map((item) => item.id));
+    await store.persist();
+  }
+  res.json({ results });
 }));
 
 app.patch("/api/prospect-list/batch", requireAuth, asyncRoute(async (req, res) => {

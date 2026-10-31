@@ -4765,6 +4765,18 @@ export interface FollowUpAuditEvent {
   activityId: string;
 }
 
+/** 批量改负责人的最小审计。操作人、时间、对象、动作、原负责人到新负责人。 */
+export interface OwnerReassignAuditEvent {
+  id: string;
+  actorId: string;
+  at: string;
+  objectType: "prospect_candidate";
+  objectId: string;
+  action: "reassign_owner";
+  previousOwnerId: string;
+  nextOwnerId: string;
+}
+
 export interface CommissionCalculation {
   id: string;
   month: string;
