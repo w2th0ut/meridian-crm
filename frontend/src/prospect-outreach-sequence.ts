@@ -18,6 +18,8 @@ export interface OutreachSequenceView {
   updatedAt: string;
   /** 下一步上已有的 scheduledAt。没有或解析不了则为空。 */
   scheduledAt: string;
+  /** 已发出步骤里最晚的 sentAt。没有或解析不了则为空。 */
+  lastStepAt: string;
 }
 
 const NAME_LENGTH = 48;
@@ -32,7 +34,8 @@ export function emptyOutreachSequence(): OutreachSequenceView {
     source: "none",
     sourceId: "",
     updatedAt: "",
-    scheduledAt: ""
+    scheduledAt: "",
+    lastStepAt: ""
   };
 }
 
@@ -87,7 +90,8 @@ export function presentOutreachSequence(raw: unknown): OutreachSequenceView {
     source,
     sourceId,
     updatedAt: timeOf(record.updatedAt),
-    scheduledAt: isoTime(record.scheduledAt)
+    scheduledAt: isoTime(record.scheduledAt),
+    lastStepAt: isoTime(record.lastStepAt)
   };
 }
 

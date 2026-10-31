@@ -8152,7 +8152,8 @@
     .dashboard-prospect-row.is-suppress-long,
     .dashboard-prospect-row.is-failure-long,
     .dashboard-prospect-row.is-open-long,
-    .dashboard-prospect-row.is-reply-long {
+    .dashboard-prospect-row.is-reply-long,
+    .dashboard-prospect-row.is-step-long {
       border-color: #fecaca;
     }
 
@@ -8912,6 +8913,81 @@
     }
 
     .prospect-reply-age.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-sequence-last-step-age-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-sequence-last-step-age-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-sequence-last-step-age:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-sequence-last-step-age[data-sequence-last-step-age="long"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-sequence-last-step-age[data-sequence-last-step-age="recent"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-sequence-last-step-age-head,
+    .prospect-sequence-last-step-age.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-sequence-last-step-age p,
+    .prospect-sequence-last-step-age.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-sequence-last-step-age.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-sequence-last-step-age.is-compact.is-long {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-sequence-last-step-age.is-compact.is-recent {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-sequence-last-step-age.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -11861,6 +11937,7 @@
     #dashboardFailureBounceAge,
     #dashboardOpenClickAge,
     #dashboardReplyAge,
+    #dashboardSequenceLastStepAge,
     #dashboardAcquisitionTodoSummary { margin: 0 0 16px; }
     .dashboard-acquisition-todo-note,
     .dashboard-acquisition-todo-gap,
@@ -11878,6 +11955,7 @@
     .dashboard-failure-bounce-age-note,
     .dashboard-open-click-age-note,
     .dashboard-reply-age-note,
+    .dashboard-sequence-last-step-age-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -28035,6 +28113,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardReplyAgeList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardSequenceLastStepAge" aria-label="序列最近一步日龄">
+            <div class="section-head">
+              <div class="section-title"><div><h2>序列最近一步日龄</h2><p id="dashboardSequenceLastStepAgeScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardSequenceLastStepAgeRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardSequenceLastStepAgeNote" class="dashboard-sequence-last-step-age-note">这是序列最近一步相对现在的只读日龄，复用 Day17 同一条外联序列上已发出步骤最晚的发出时间。已发出且距现在超过 7 天算最近一步超七日，未超过（含刚好 7 天）算最近一步七日内。没有可解析的发出时间写无最近一步。发件邮箱没有可只读复用的健康字段，这里不展示邮箱异常，也不展示邮箱正常，也不展示无健康信息。不是开发信回复日龄，也不是打开或点击日龄，也不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列进度、打开或点击、失败或退信、收信同步。不替代外联序列那一块，也不替代序列下一步到期。文案不混用。点一行只打开现有候选详情并滚到现有外联序列。不会发信，不会推进序列，不会放行批次，不会解除抑制，不会改名单，不会改邮箱配置，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardSequenceLastStepAgeList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -28832,6 +28922,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按开发信回复日龄筛选">
                   <button class="active" type="button" data-prospect-reply-age-filter="all" aria-pressed="true">全部回复日龄</button>
                   <button type="button" data-prospect-reply-age-filter="long" aria-pressed="false">回复超七日</button>
+                </div>
+              </div>
+              <div class="prospect-sequence-last-step-age-filter">
+                <span>最近一步</span>
+                <div class="prospect-tabs" role="group" aria-label="按序列最近一步日龄筛选">
+                  <button class="active" type="button" data-prospect-sequence-last-step-age-filter="all" aria-pressed="true">全部最近一步</button>
+                  <button type="button" data-prospect-sequence-last-step-age-filter="long" aria-pressed="false">最近一步超七日</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
