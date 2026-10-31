@@ -32,11 +32,14 @@ import {
   type CccWorkbenchSession
 } from "./aliyun-workbench";
 import {
+  fromDateTimeLocal,
   outboundCallRecordQuery,
   renderOutboundCallAgentOptions,
+  renderOutboundCallRecordDetail,
   renderOutboundCallRecordFailure,
   renderOutboundCallRecordList,
   renderOutboundCallRecordSummary,
+  type OutboundCallRecordDetail,
   type OutboundCallRecordListResponse
 } from "./outbound-call-records";
 
@@ -16543,6 +16546,47 @@ async function saveCampaignReadSetting(enabled: boolean) {
   } catch (error) {
     toast(error instanceof Error ? error.message : "外呼任务同步开关保存失败", "error");
     await loadCampaignRoster();
+  }
+}
+
+let missedFollowUpPending = false;
+
+async function openOutboundCallRecord(recordId: string) {
+  const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+  if (!panel || !recordId) return;
+  panel.hidden = false;
+  panel.dataset.recordId = recordId;
+  try {
+    const result = await api<OutboundCallRecordDetail>(`/api/outbound-call-records/${encodeURIComponent(recordId)}`);
+    panel.innerHTML = renderOutboundCallRecordDetail(result);
+  } catch (error) {
+    panel.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
+  }
+}
+
+async function submitMissedFollowUp(form: HTMLFormElement) {
+  const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+  const recordId = panel?.dataset.recordId || "";
+  if (!panel || !recordId || missedFollowUpPending) return;
+  const raw = form.querySelector<HTMLInputElement>("[data-missed-follow-at]")?.value || "";
+  const nextFollowAt = fromDateTimeLocal(raw);
+  const button = form.querySelector<HTMLButtonElement>("[data-generate-missed-follow]");
+  missedFollowUpPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ result?: string; message?: string; suppressionNotice?: string; replayed?: boolean }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/next-follow-up`,
+      { method: "POST", body: JSON.stringify(nextFollowAt ? { nextFollowAt } : {}) }
+    );
+    if (result.suppressionNotice) toast(result.suppressionNotice, "info");
+    else toast(result.message || (result.replayed ? "这条通话已经生成过下次跟进" : "已生成下次跟进"));
+    await openOutboundCallRecord(recordId);
+    await loadOutboundCallRecords();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "下次跟进没有生成", "error");
+  } finally {
+    missedFollowUpPending = false;
+    if (button) button.disabled = false;
   }
 }
 
@@ -53791,6 +53835,18 @@ function installEvents() {
   qs<HTMLFormElement>("#outboundCallRecordFilters")?.addEventListener("submit", (event) => {
     event.preventDefault();
     void loadOutboundCallRecords();
+  });
+  qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-open-missed-follow]");
+    const recordId = button?.dataset.openMissedFollow || "";
+    if (!recordId) return;
+    void openOutboundCallRecord(recordId);
+  });
+  qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-missed-follow-form]");
+    if (!form) return;
+    event.preventDefault();
+    void submitMissedFollowUp(form);
   });
   qs<HTMLButtonElement>("#cccSoftphoneToggle")?.addEventListener("click", () => {
     const panel = qs<HTMLElement>("#cccSoftphonePanel");

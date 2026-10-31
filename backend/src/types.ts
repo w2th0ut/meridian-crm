@@ -4979,6 +4979,39 @@ export interface OutboundCallRecord {
   updatedAt: string;
 }
 
+/**
+ * 一条未接通通话已经生成过的下次跟进。
+ * 通话记录 ID 唯一，用来保证同一条不重复生成。
+ */
+export interface OutboundMissedFollowUp {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  callRecordId: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  activityId: string;
+  nextFollowAt: string;
+  suppressed: boolean;
+}
+
+/** 生成下次跟进的每次尝试。不记完整号码，也不记密钥。 */
+export interface OutboundMissedFollowUpAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  callRecordId: string;
+  targetType: "customer" | "lead" | "prospect" | "";
+  targetId: string;
+  activityId: string;
+  nextFollowAt: string;
+  result: "created" | "duplicate" | "rejected";
+  reason: string;
+  suppressed: boolean;
+}
+
 /** 同一租户内，CCC 坐席 UserId 与 CRM 用户一一对应。 */
 export interface AliyunAgentMapping {
   id: string;

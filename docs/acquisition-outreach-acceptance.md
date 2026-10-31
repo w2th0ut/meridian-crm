@@ -1038,6 +1038,31 @@ SDK 的请求打到 `POST /api/aliyun-outbound/workbench/api`。查询串按文�
 6. 同一租户在 10 分钟内第 6 次返回 429。这一次不调用传输，并留下限速审计。审计里没有密钥。越过 10 分钟之后可以再查。
 7. 自检之后没有拨号，抑制、可联系决定和线索条数都不变。测试没有向 `aliyuncs.com` 发起连接。
 
+## 59. 本地演示：未接通号码生成下次跟进
+
+外呼记录的列表和详情里，未接通的通话显示「生成下次跟进」。未接通和通话统计用同一个口径：话单 `establishedTimeRaw` 去掉空白后没有内容。单通详情页写未建立时这个字段为空。`ContactDisposition` 写成 `Success`、但没有 EstablishedTime，仍算未接通。字段里有内容就算接通，按钮不出现，接口拒绝，不写跟进。
+
+列表上的按钮只打开这一条的详情。详情里可以改时间，确认后才提交。一次只处理一条。请求是 `POST /api/outbound-call-records/:id/next-follow-up`。正文可以省略，也可以只带 `nextFollowAt`。不接受数组，也不接受 `records`、`ids`、`callRecordIds`、`recordIds` 或 `targets`。没有批量接口，没有定时，回调也不会自动生成。
+
+确认之后，为这条记录关联的客户、线索或候选写一条下次跟进，并记下时间。客户沿用 `CustomerActivity`，时间写在已有的 `nextReminder`，并调用一次 `appendFollowUpAudit`。线索沿用 `LeadActivity` 和 `nextFollowAt`。和手工记一条电话跟进一样，新线索会标成跟进中。现有线索跟进不进 `follow_up_audits`。候选沿用 `recordProspectFollowUp` 和 `nextFollowAt`，并调用一次 `appendFollowUpAudit`。跟进类型都是 `call`。不另建跟进表，也不改通话记录上的接通字段。
+
+默认时间是租户时区的下一工作日，时刻是允许拨打时段的开始。工作日是周一到周五，跳过周六和周日。没有节假日日历。时区与拨号时段相同：用租户记录里的 IANA 时区；没有记录，或不是有效时区时，用 `Asia/Shanghai`。时段沿用已有配置，没有保存过时开始是 09:00。开始这一分钟算在时段内。用户可以改成别的 `YYYY-MM-DD HH:mm`。格式不对返回 400，不写入。改过的时间按填写的值保存，不再套用时段。
+
+同一条通话记录只生成一次。再次提交返回已经生成的那一条，不改时间，不追加跟进。幂等行在 `outbound_missed_follow_ups`，通话记录 ID 唯一。每次进入生成的尝试都写入 `outbound_missed_follow_up_audits`：操作人、时间、租户、通话记录、对象、结果和原因。成功时再记下跟进 ID 和时间。两张表都在 `ensureSchema` 里 `CREATE TABLE IF NOT EXISTS`，重复执行不会再建一次。号码只使用通话记录上已经脱敏的结果。审计、跟进正文和响应里不出现完整号码，也不出现密钥。
+
+谁能看见这条通话，沿用 `communication.read` 和通话记录列表的范围。看不见返回 404。写跟进再沿用原来的权限，不新增权限码。客户要有 `customer.update`，并且在这份权限的归属范围内；公池客户仍是只读。线索要有 `lead.update`，并且在归属范围内。候选要有 `prospect.execute`，并且仍是归属业务员。候选还不可联系时，沿用原来的拒绝，不调用 `convert_to_lead`，不改 `approved_contactable`。没有写权限或对象不在范围内时，不生成。
+
+对象在抑制或退订名单里时仍然可以生成。响应和详情里给出提示：这次只记下下次跟进，不改变抑制状态。不改抑制事件，不改退订，不解除抑制。
+
+只生成跟进。不拨号，不发信，不推进序列。功能开关仍默认关闭，生成跟进不把开关打开。统计用的 GET 仍是只读。测试不访问阿里云。
+
+1. 接通的记录，列表和详情都没有「生成下次跟进」。接口拒绝，不写跟进。只有 Success、EstablishedTime 为空的，按钮在，并且可以生成。只有空白的 EstablishedTime 也算未接通。
+2. 默认时间：租户在上海、现在是周五时，落到下周一 09:00。同一时刻如果纽约还是周四，落到周五 09:00。周六和周日都落到下周一。把允许拨打开始改成 10:30 后，默认时刻是 10:30，开关仍是关。用户改成别的合法时间后，记下的是改过的时间。格式不对返回 400，不写跟进。
+3. 客户生成后，`nextReminder` 和一条类型为 `call` 的跟进是这个时间，并有一条跟进审计。线索生成后，`nextFollowAt` 和一条跟进是这个时间。候选在可联系时生成后，`nextFollowAt` 和一条跟进是这个时间，并有一条跟进审计。同一条再点一次，跟进条数不变，时间也不变。
+4. 没有 `communication.read` 返回 403，不写跟进，也不写这条审计。能看见通话、但客户不在 `customer.update` 范围内时，不改那个客户。没有 `customer.update` 时返回 403。公池客户返回 409，下次提醒不变。候选不是归属人，或还不可联系，不生成，不转线索，可联系决定不变。
+5. 抑制或退订的对象生成时，响应和详情里有提示。抑制记录、退订和可联系决定都不变。开关仍是关。
+6. 数组或批量字段返回 400，不生成。页面上没有批量按钮，也没有拨号按钮。审计记下操作人、时间和结果。测试没有向 `aliyuncs.com` 发起连接，也没有拨号、发信或推进序列。
+
 ## 不在本次验收里
 
 - 不删除 `backend/src/telephony`。
@@ -1090,3 +1115,4 @@ SDK 的请求打到 `POST /api/aliyun-outbound/workbench/api`。查询串按文�
 - 外呼时段和频次只在人工点击的单次外呼上检查。超出时段、超过每日上限或间隔不足时返回 400，并在 `outbound_call_audits` 记下原因。配置改动记入 `aliyun_outbound_config_audits`。不批量，不自动拨，不改抑制，不放宽 `convert_to_lead` / `approved_contactable`。功能开关仍默认关闭。
 - 外呼通话记录只读展示已经写下的 `outbound_call_records`，并按坐席和租户当地日筛选。统计只有总拨打、接通、接通率和接通通话的平均时长。没有记录时是空状态。普通用户只看自己的坐席，团队范围沿用 `communication.read`。不拨号，不改记录，不请求阿里云，不改抑制，不放宽 `convert_to_lead` / `approved_contactable`。功能开关仍默认关闭。
 - 连通性自检只允许管理员手动触发，并且只调用 `ListUsers`。开关关闭时也可以查，但不改变开关。同一租户 10 分钟最多 5 次，每次写入 `aliyun_outbound_connectivity_audits`。不拨号，不批量，不自动，不改抑制，不放宽 `convert_to_lead` / `approved_contactable`。测试不请求阿里云。
+- 未接通号码生成下次跟进只针对一条通话记录，并且只在人工确认后写一条跟进和时间。未接通看话单 EstablishedTime 是否为空，和通话统计同一口径。同一条不重复生成。客户、线索、候选沿用原来的下次跟进字段和写权限。抑制对象只提示，不改抑制。不拨号，不发信，不推进序列，不批量，不放宽 `convert_to_lead` / `approved_contactable`。功能开关仍默认关闭。测试不请求阿里云。

@@ -1,6 +1,7 @@
 /**
- * 外呼通话记录只读页。只渲染接口返回的统计和列表。
- * 没有记录时是空状态，不补 0。没有拨号或修改入口。
+ * 外呼通话记录页。统计只渲染接口返回的数字。
+ * 没有记录时是空状态，不补 0。
+ * 未接通的记录可以打开详情，生成一条下次跟进。没有拨号，也没有批量入口。
  */
 
 export interface OutboundCallRecordStats {
@@ -19,6 +20,15 @@ export interface OutboundCallRecordRow {
   agentLabel?: string;
   localDate?: string | null;
   targetType?: string;
+  targetId?: string;
+  followUpGenerated?: boolean;
+}
+
+export interface OutboundCallRecordDetail {
+  record?: OutboundCallRecordRow;
+  suggestedNextFollowAt?: string;
+  suppressionNotice?: string;
+  followUp?: { activityId?: string; nextFollowAt?: string; suppressed?: boolean } | null;
 }
 
 export interface OutboundCallRecordAgentOption {
@@ -95,11 +105,44 @@ export function renderOutboundCallRecordFailure(message: string) {
   return `<p data-outbound-record-empty="1">${escapeHtml(text)}</p>`;
 }
 
+export function toDateTimeLocal(value: string) {
+  const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+  return match ? `${match[1]}T${match[2]}` : "";
+}
+
+export function fromDateTimeLocal(value: string) {
+  const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  return match ? `${match[1]} ${match[2]}` : "";
+}
+
+function followUpButton(record: OutboundCallRecordRow) {
+  if (record.established === true) return "—";
+  return `<button class="btn" type="button" data-open-missed-follow="${escapeHtml(record.id)}">生成下次跟进</button>`;
+}
+
 export function renderOutboundCallRecordList(records: OutboundCallRecordRow[] | undefined) {
   if (!records?.length) return "";
   const rows = records.map((record) => {
     const established = record.established === true ? "是" : "否";
-    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td></tr>`;
+    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td>${followUpButton(record)}</td></tr>`;
   }).join("");
-  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) {
+  const record = input.record;
+  if (!record?.id) return `<p data-outbound-record-empty="1">通话记录不存在。</p>`;
+  const established = record.established === true;
+  const saved = input.followUp?.nextFollowAt || "";
+  const suggested = saved || input.suggestedNextFollowAt || "";
+  const notice = !established && input.suppressionNotice
+    ? `<p class="outbound-record-follow-notice" data-follow-up-notice="1">${escapeHtml(input.suppressionNotice)}</p>`
+    : "";
+  const generated = saved
+    ? `<p data-follow-up-existing="1">这条通话已经生成过下次跟进，时间是 ${escapeHtml(saved)}。再次确认不会改时间，也不会再写一条。</p>`
+    : "";
+  const form = established
+    ? `<p data-follow-up-established="1">这通已经接通，不能从这里生成下次跟进。</p>`
+    : `<form data-missed-follow-form="1"><label>下次跟进<input type="datetime-local" data-missed-follow-at value="${escapeHtml(toDateTimeLocal(suggested))}"${saved ? " disabled" : ""}></label><button class="btn" type="submit" data-generate-missed-follow="1">生成下次跟进</button></form>`;
+  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${generated}${form}${notice}</section>`;
 }

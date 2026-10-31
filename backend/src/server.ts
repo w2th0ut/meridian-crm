@@ -296,6 +296,7 @@ import { handleWorkbenchApi, previewWorkbenchDial, readWorkbenchSession } from "
 import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outbound-call-records.js";
+import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -8982,6 +8983,22 @@ app.get("/api/outbound-call-records", requireAuth, asyncRoute(async (req, res) =
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await listOutboundCallRecords(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/outbound-call-records/:id", requireAuth, asyncRoute(async (req, res) => {
+  let allowed = false;
+  await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
+  if (!allowed || res.headersSent) return;
+  const outcome = await readMissedCallFollowUpDetail(getStore(), req.user, req.params.id);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/next-follow-up", requireAuth, asyncRoute(async (req, res) => {
+  let allowed = false;
+  await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
+  if (!allowed || res.headersSent) return;
+  const outcome = await generateMissedCallFollowUp(getStore(), req.user, req.params.id, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
