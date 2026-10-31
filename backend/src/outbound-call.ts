@@ -92,6 +92,11 @@ function dialerFor(region: string) {
   });
 }
 
+/** 回调和拨号共用这一只客户端。测试注入的 mock 会同时盖住回查。 */
+export function outboundDialerFor(region: string) {
+  return dialerFor(region);
+}
+
 function phoneDigits(value: string) {
   return value.replace(/\D/g, "");
 }
