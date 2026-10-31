@@ -4906,6 +4906,16 @@ export interface AliyunOutboundConfigAudit {
   summary: string;
 }
 
+/** 连通性自检审计。summary 只记分项是否通过，不记密钥、令牌或号码。 */
+export interface AliyunOutboundConnectivityAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  result: "completed" | "rate_limited";
+  summary: string;
+}
+
 /** 一次外呼尝试的审计。号码只留脱敏结果，不留明文，也不留密钥。 */
 export interface OutboundCallAudit {
   id: string;

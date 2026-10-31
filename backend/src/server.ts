@@ -288,6 +288,7 @@ import {
 } from "./customer-maintenance.js";
 import { createCredentialRef, decryptProviderConfiguration, encryptProviderConfiguration, validateProviderCredentialSecurity } from "./credential-security.js";
 import { readAliyunOutboundConfig, updateAliyunOutboundConfig } from "./aliyun-outbound-config.js";
+import { runAliyunOutboundConnectivityCheck } from "./aliyun-outbound-connectivity.js";
 import { receiveAliyunCccEvent } from "./aliyun-ccc-events.js";
 import { readOutboundCallAvailability, requestOutboundCall } from "./outbound-call.js";
 import { createAgentMapping, deleteAgentMapping, listAgentDirectory, listAgentMappings, updateAgentMapping } from "./aliyun-agent-mapping.js";
@@ -8894,6 +8895,11 @@ app.get("/api/aliyun-outbound/config", requireAuth, asyncRoute(async (req, res) 
 
 app.put("/api/aliyun-outbound/config", requireAuth, asyncRoute(async (req, res) => {
   res.json(await updateAliyunOutboundConfig(getStore(), req.user, req.body));
+}));
+
+app.post("/api/aliyun-outbound/connectivity-check", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await runAliyunOutboundConnectivityCheck(getStore(), req.user, req.body);
+  res.status(outcome.status).json(outcome.body);
 }));
 
 app.get("/api/outbound-calls/availability", requireAuth, asyncRoute(async (req, res) => {

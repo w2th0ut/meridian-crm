@@ -493,3 +493,17 @@ PR-5 之后才讨论真实接通。真实接通仍是单独的人工配置，不
 - 坐席翻页规则不同：改 `backend/src/aliyun-ccc-directory.ts` 的 `collectCccSeats`。
 - 活动字段名或 `TotalCount` 口径不同：改 `readCccCampaigns`、`readCccCases`，以及 `backend/src/aliyun-campaign-sync.ts` 的 `syncCampaignRoster`。不要为此加上 `SubmitCampaign`、`ResumeCampaign`、`AddCases` 或 `ImportDoNotCallNumbers`。
 - `GetTurnCredentials` 带有长期密钥：把它从 `WORKBENCH_FORWARD_ACTIONS` 去掉，并在 `stripSecretFields` 里继续丢掉 AccessKey 字段。
+
+### 9.8 连通性自检
+
+要核对什么：
+
+- `ListUsers` 在凭证错误时返回的 `Code` 是不是 `InvalidAccessKeyId.NotFound`、`InvalidAccessKeyId.Inactive` 或 `SignatureDoesNotMatch`。这三个名字来自公共客户端错误码表，不是 CCC `ListUsers` 页上的列举。该页没有写错误码。
+- 实例不存在、地域不对、没有 `ListUsers` 权限时，`Code` 分别是什么。现在除了上面三个码，其他失败都不区分原因。
+- CCC `2020-07-01` 有没有只读接口能读出当前 Webhook 的 `AccessPoint`。已打开的页面里，`UpdateSubscription` 会改订阅，不能用来自检。`ListNotificationRecords` 要通话 ID，不能用来判断地址有没有配。Voice Navigator 的 `GetSubscription` 是 `2025-11-11`，不是这套 CCC 接口，不调用。
+- 自检沿用仓库里已有的「传输未注入」做法，不在这里新写一套签名。方案第 2.1 节写明不再推荐 RPC V2、推荐 V3，V3 的章节没有逐字核对。所以默认传输不发网络请求。真要接上时，签名以重新打开的 V3 说明为准，并且仍然只能发 `ListUsers`。
+- `ListUsers` 的公共参数要不要再带 `RegionId`。业务参数表只把 `InstanceId`、`PageNumber`、`PageSize` 列为必填。这次只送这三个，不送 `RegionId`。
+
+怎么核对：用测试 RAM 用户对一个已知实例调用一次 `ListUsers`，再故意用错误的 Secret、错误的实例 ID 各调用一次，只记录 `Code`，不要把 `Message` 抄进仓库或页面。订阅地址到实例控制台看事件推送里的接入点，不要调用 `UpdateSubscription`。签名对照 <https://help.aliyun.com/zh/sdk/product-overview/rpc-mechanism> 指向的 V3 说明。
+
+不一致时改哪里：`backend/src/aliyun-outbound-connectivity.ts` 的 `CREDENTIAL_CODES` 和 `classifyProbeBody`。回调项仍然只看本租户是否保存了路径令牌，除非官方只读接口已经核对。白名单 `CONNECTIVITY_READONLY_ACTIONS` 保持只有 `ListUsers`。不要为了自检去调用 `MakeCall`、`CreateUser` 或 `UpdateSubscription`。

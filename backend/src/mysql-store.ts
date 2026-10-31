@@ -127,7 +127,7 @@ import {
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
 import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectIndustryAudits, prospectNoteAudits, prospectPriorityAudits, prospectTagAudits } from "./data.js";
-import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunScreenPop, FollowUpAuditEvent, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, FollowUpAuditEvent, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import { readProspectIndustry } from "./prospect-industry.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
@@ -1884,6 +1884,7 @@ export async function createMysqlStore(
 		    prospectIndustryAudits: await loadProspectIndustryAudits(pool),
 		    aliyunOutboundConfigs: await loadAliyunOutboundConfigs(pool),
 		    aliyunOutboundConfigAudits: await loadAliyunOutboundConfigAudits(pool),
+		    aliyunOutboundConnectivityAudits: await loadAliyunOutboundConnectivityAudits(pool),
 		    outboundCallAudits: await loadOutboundCallAudits(pool),
 		    aliyunCccEventAudits: await loadAliyunCccEventAudits(pool),
 		    outboundCallRecords: await loadOutboundCallRecords(pool),
@@ -6192,6 +6193,16 @@ async function ensureSchema(pool: mysql.Pool) {
     reason_code VARCHAR(64) NOT NULL DEFAULT '',
     INDEX idx_agent_mapping_audits_team(team_id, occurred_at),
     INDEX idx_agent_mapping_audits_actor(actor_id, occurred_at)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_outbound_connectivity_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    result_code VARCHAR(20) NOT NULL,
+    summary TEXT,
+    INDEX idx_aliyun_outbound_connectivity_audits_team(team_id, occurred_at),
+    INDEX idx_aliyun_outbound_connectivity_audits_actor(actor_id, occurred_at)
   )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_screen_pops (
     id VARCHAR(64) PRIMARY KEY,
@@ -12464,6 +12475,17 @@ async function loadAliyunAgentMappings(pool: mysql.Pool): Promise<AliyunAgentMap
   }));
 }
 
+async function loadAliyunOutboundConnectivityAudits(pool: mysql.Pool): Promise<AliyunOutboundConnectivityAudit[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM aliyun_outbound_connectivity_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    actorId: row.actor_id || "",
+    at: storedIso(row.occurred_at),
+    result: row.result_code === "rate_limited" ? "rate_limited" as const : "completed" as const,
+    summary: row.summary || ""
+  }));
+}
+
 async function loadAgentMappingAudits(pool: mysql.Pool): Promise<AgentMappingAudit[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM agent_mapping_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
@@ -12970,6 +12992,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "prospect_industry_audits", store.prospectIndustryAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
 	    await replaceRows(connection, "aliyun_outbound_configs", store.aliyunOutboundConfigs, (item) => [item.teamId, item.aliyunOutboundEnabled, item.instanceId, item.region, item.callerNumber, item.accessKeyIdEncrypted, item.accessKeySecretEncrypted, item.callbackPathTokenEncrypted, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null, item.callWindowStart || "09:00", item.callWindowEnd || "20:00", Number.isInteger(item.maxCallsPerNumberPerDay) ? item.maxCallsPerNumberPerDay : 3, Number.isInteger(item.minIntervalMinutes) ? item.minIntervalMinutes : 30], "(team_id,enabled,instance_id,region_id,caller_number,access_key_id_encrypted,access_key_secret_encrypted,callback_path_token_encrypted,updated_by,updated_at,call_window_start,call_window_end,max_calls_per_number_per_day,min_interval_minutes)");
 	    await replaceRows(connection, "aliyun_outbound_config_audits", store.aliyunOutboundConfigAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.summary], "(id,team_id,actor_id,occurred_at,action_code,summary)");
+	    await replaceRows(connection, "aliyun_outbound_connectivity_audits", store.aliyunOutboundConnectivityAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.result, item.summary], "(id,team_id,actor_id,occurred_at,result_code,summary)");
 	    await replaceRows(connection, "outbound_call_audits", store.outboundCallAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.phoneId, item.maskedNumber, item.result, item.reason, item.jobId, item.numberKey || ""], "(id,team_id,actor_id,occurred_at,target_type,target_id,phone_id,masked_number,result_code,reason_code,job_id,number_key)");
 	    await replaceRows(connection, "aliyun_ccc_event_audits", store.aliyunCccEventAudits, (item) => [item.id, item.teamId, mysqlDate(item.at), item.instanceId, item.contactId, item.eventType, item.eventTime, item.decision, item.reason, item.maskedCaller, item.maskedCallee], "(id,team_id,occurred_at,instance_id,contact_id,event_type,event_time,decision_code,reason_code,masked_caller,masked_callee)");
 	    await replaceRows(connection, "outbound_call_records", store.outboundCallRecords, (item) => [item.id, item.teamId, item.instanceId, item.contactId, item.outboundCallAuditId, item.targetType, item.targetId, item.maskedNumber, item.contactType, item.contactDisposition, item.earlyMediaState, item.callDurationRaw, item.establishedTimeRaw, item.releaseTimeRaw, item.startTimeRaw, item.agentIds, item.recordingReady, item.recordingRef, item.recordingFileName, item.recordingUrl, item.recordingDurationRaw, item.followUpActivityId, item.createdAt ? mysqlDate(item.createdAt) : null, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,instance_id,contact_id,outbound_call_audit_id,target_type,target_id,masked_number,contact_type,contact_disposition,early_media_state,call_duration_raw,established_time_raw,release_time_raw,start_time_raw,agent_ids,recording_ready,recording_ref,recording_file_name,recording_url,recording_duration_raw,follow_up_activity_id,created_at,updated_at)");

@@ -1008,6 +1008,36 @@ SDK 的请求打到 `POST /api/aliyun-outbound/workbench/api`。查询串按文�
 5. 筛选后没有记录时，页面是空状态，不显示总拨打 0 或接通率 0%。有记录但一通都没接通时，接通率是 0%，平均时长为空。
 6. 页面上没有外呼或修改按钮。接口只有 GET。测试没有向 `aliyuncs.com` 发起连接。开关没有被打开。抑制记录数量不变。
 
+## 58. 本地演示：外呼连通性自检
+
+管理员在系统设置的阿里云外呼配置里可以点「连通性自检」。只有 `system.settings.manage` 能点。业务员和主管点接口返回 403，不写审计。请求里带了别的租户也返回 403，不查对方的配置。
+
+开关关闭时也可以自检。自检不改 `aliyunOutboundEnabled`，不改允许拨打时段、每日上限和间隔，不增删坐席映射。不拨号，不批量，不自动。不改抑制，不改 `approved_contactable`，不调用 `convert_to_lead`。
+
+自检用服务器上已经保存的加密配置，不读请求正文里的密钥，也不读页面输入框里还没保存的内容。配置完整指：实例 ID、地域（只接受 `cn-shanghai` 或 `cn-hangzhou`）、主叫号码、AccessKeyId、AccessKeySecret。回调路径令牌不参与这一项。缺任何一项就不调用云联络中心。
+
+配置完整时只调用 CCC `2020-07-01` 的 `ListUsers`。参数是保存的 `InstanceId`，以及 `PageNumber=1`、`PageSize=1`。代码里的白名单只有 `ListUsers`。`MakeCall`、双呼、创建或修改坐席、`UpdateSubscription`、任务写入，以及其他不在白名单里的动作，都在进入传输之前拒绝。请求正文里带上 `MakeCall` 或被叫号码也不会改这条路径。默认传输不访问网络。没有注入传输时，凭证和实例记为「只读查询没有接通」，不发起网络请求。测试注入 mock，不向 `aliyuncs.com` 发起连接。
+
+结果分五项：
+
+1. 配置是否完整。
+2. 凭证是否可用。`Code` 为 `OK` 时通过。`InvalidAccessKeyId.NotFound`、`InvalidAccessKeyId.Inactive`、`SignatureDoesNotMatch` 记为凭证不可用。这三个码会不会原样出现在 `ListUsers` 上，待核实，见方案第 9 节。响应里的 `Message` 不读取、不回显。
+3. 实例是否可达。同一次 `ListUsers` 被接受才通过。凭证失败时不再发第二次请求，实例记为尚未确认。
+4. 坐席映射是否存在。看本租户 `aliyun_agent_mappings` 里有没有一条同时写了 CRM 用户和 CCC `UserId` 的记录。`ListUsers` 返回了坐席，也不算已经映射。响应不带回 `UserId`、登录名、邮箱或手机号。
+5. 回调地址是否已配置。只看回调路径令牌是否已保存。不调用 `UpdateSubscription`。CCC `2020-07-01` 没有已核对的只读接口能确认实例上的 Webhook 地址，待核实，见方案第 9 节。
+
+同一租户 10 分钟内最多 5 次。第 6 次返回 429，不调用传输。限速的这一次也写审计。每一次通过了管理员校验的自检都写入 `aliyun_outbound_connectivity_audits`：操作人、时间、租户、结果是完成还是限速，以及五项是否通过。没有密钥，没有令牌，没有号码。表在 `ensureSchema` 里 `CREATE TABLE IF NOT EXISTS`，重复执行不会再建一次。
+
+页面把五项写成「通过」或「未通过」。自检进行中按钮不可再点。不改开关的勾选。
+
+1. 用业务员或主管请求返回 403。没有审计，mock 没有被调用。响应里没有密钥。
+2. 管理员在没有配齐实例、地域、主叫和密钥时自检。配置项不通过，不调用 `ListUsers`。开关仍是关。留下一条完成审计。
+3. 配齐并且开关保持关闭时，mock 收到的动作是 `ListUsers`，实例是保存的实例，页码和页大小都是 1。五项都可以通过：凭证和实例来自 `Code=OK`，坐席映射来自本租户已有的一条映射，回调来自已保存的路径令牌。开关仍然是关。响应、审计里没有 AccessKey、令牌、坐席手机号或邮箱。
+4. mock 返回 `SignatureDoesNotMatch`，并且 `Message` 里夹了密钥。凭证项不通过，实例项不通过。响应里没有这段 `Message`，也没有密钥。
+5. 请求正文写成 `MakeCall` 并带被叫号码。传输收到的仍然只是 `ListUsers`，没有被叫参数。直接对白名单传入 `MakeCall` 或其他拨号、写入动作时，传输不会被调用。
+6. 同一租户在 10 分钟内第 6 次返回 429。这一次不调用传输，并留下限速审计。审计里没有密钥。越过 10 分钟之后可以再查。
+7. 自检之后没有拨号，抑制、可联系决定和线索条数都不变。测试没有向 `aliyuncs.com` 发起连接。
+
 ## 不在本次验收里
 
 - 不删除 `backend/src/telephony`。
@@ -1059,3 +1089,4 @@ SDK 的请求打到 `POST /api/aliyun-outbound/workbench/api`。查询串按文�
 - 坐席映射、工作台、来电弹屏和外呼任务名单只在开关、权限和映射都满足时出现。外呼必须带映射坐席，未映射不能拨。弹屏只读，不建客户。任务名单只读，不启动、不上传、不定时拉取。不发信，不请求阿里云，不放宽 `convert_to_lead` / `approved_contactable`，不改抑制。
 - 外呼时段和频次只在人工点击的单次外呼上检查。超出时段、超过每日上限或间隔不足时返回 400，并在 `outbound_call_audits` 记下原因。配置改动记入 `aliyun_outbound_config_audits`。不批量，不自动拨，不改抑制，不放宽 `convert_to_lead` / `approved_contactable`。功能开关仍默认关闭。
 - 外呼通话记录只读展示已经写下的 `outbound_call_records`，并按坐席和租户当地日筛选。统计只有总拨打、接通、接通率和接通通话的平均时长。没有记录时是空状态。普通用户只看自己的坐席，团队范围沿用 `communication.read`。不拨号，不改记录，不请求阿里云，不改抑制，不放宽 `convert_to_lead` / `approved_contactable`。功能开关仍默认关闭。
+- 连通性自检只允许管理员手动触发，并且只调用 `ListUsers`。开关关闭时也可以查，但不改变开关。同一租户 10 分钟最多 5 次，每次写入 `aliyun_outbound_connectivity_audits`。不拨号，不批量，不自动，不改抑制，不放宽 `convert_to_lead` / `approved_contactable`。测试不请求阿里云。

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   buildAliyunOutboundConfigBody,
+  connectivityResultLines,
   secretStatusText,
   showAliyunOutboundSettings
 } from "./aliyun-outbound-config.js";
@@ -119,7 +120,22 @@ const endInput = page.indexOf('id="aliyunOutboundCallWindowEnd"');
 assert.match(page.slice(endInput, endInput + 180), /value="20:00"/);
 assert.match(page, /不会自动拨号/);
 assert.match(page, /也不会把功能开关打开/);
+assert.match(page, /id="aliyunOutboundConnectivityButton"/);
+assert.match(page, /连通性自检/);
 assert.doesNotMatch(section, /MakeCall|aliyuncs\.com|批量拨打/);
+const lines = connectivityResultLines([
+  { id: "config_complete", ok: true, detail: "实例、地域、主叫号码和访问密钥都已保存" },
+  { id: "credentials", ok: false, detail: "访问凭证不可用" },
+  { id: "instance", ok: false, detail: "凭证未通过，尚未确认实例" },
+  { id: "agent_mapping", ok: true, detail: "本租户已保存坐席映射" },
+  { id: "callback", ok: true, detail: "回调路径令牌已保存" }
+]);
+assert.match(lines[0], /配置是否完整：通过/);
+assert.match(lines[1], /凭证是否可用：未通过/);
+assert.match(lines[2], /实例是否可达：未通过/);
+assert.match(lines[3], /坐席映射是否存在：通过/);
+assert.match(lines[4], /回调地址是否已配置：通过/);
+assert.equal(lines.join("\n").includes("LTAI"), false);
 
 const api = readFileSync(new URL("./prototype-api.ts", import.meta.url), "utf8");
 assert.match(api, /loadAliyunOutboundConfig/);
@@ -129,5 +145,12 @@ assert.match(api, /aliyunOutboundMinIntervalMinutes/);
 assert.match(api, /secretStatusText/);
 assert.match(api, /aliyunOutboundAccessKeySecret"\)\.value = ""|setFieldValue\("#aliyunOutboundAccessKeySecret", ""\)/);
 assert.doesNotMatch(api, /console\.(log|info|debug|warn|error)\([\s\S]{0,80}accessKeySecret/);
+const checkStart = api.indexOf("async function runAliyunOutboundConnectivityCheck");
+assert.ok(checkStart > 0);
+const checkFn = api.slice(checkStart, checkStart + 900);
+assert.match(checkFn, /\/api\/aliyun-outbound\/connectivity-check/);
+assert.match(checkFn, /method: "POST"/);
+assert.match(checkFn, /body: "\{\}"/);
+assert.doesNotMatch(checkFn, /accessKeySecret|accessKeyId|callbackPathToken|aliyunOutboundEnabled/);
 
 console.log("aliyun outbound config frontend tests passed");

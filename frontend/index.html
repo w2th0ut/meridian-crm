@@ -34439,7 +34439,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           </section>
 
           <section class="panel section" id="aliyunOutboundConfigSection" data-admin-only hidden>
-            <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg></span><div><h2>阿里云外呼</h2><p class="section-subtitle">只保存本租户的云联络中心配置。默认关闭。不会发起呼叫，也不会请求阿里云。</p></div></div><button class="btn primary" id="aliyunOutboundSaveButton" type="button">保存阿里云外呼配置</button></div>
+            <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg></span><div><h2>阿里云外呼</h2><p class="section-subtitle">只保存本租户的云联络中心配置。默认关闭。不会发起呼叫。连通性自检只做只读查询，不改变开关。</p></div></div><button class="btn" id="aliyunOutboundConnectivityButton" type="button">连通性自检</button><button class="btn primary" id="aliyunOutboundSaveButton" type="button">保存阿里云外呼配置</button></div>
             <div class="company-profile-form" style="margin-top:14px;">
               <label style="grid-column:1 / -1;display:flex;align-items:center;gap:10px;"><span class="system-setting-switch"><input id="aliyunOutboundEnabled" type="checkbox"><i></i></span><span>启用阿里云外呼</span></label>
               <label><span>实例 ID</span><input id="aliyunOutboundInstanceId" autocomplete="off"></label>
@@ -34453,7 +34453,8 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <label><span>AccessKeySecret</span><input id="aliyunOutboundAccessKeySecret" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundAccessKeySecretStatus">未配置</b></label>
               <label><span>回调路径令牌</span><input id="aliyunOutboundCallbackPathToken" type="password" autocomplete="off" placeholder="留空表示不修改"><b id="aliyunOutboundCallbackPathTokenStatus">未配置</b></label>
             </div>
-            <p class="system-setting-help">只有管理员可以查看和修改。密钥加密后保存在服务器，页面只显示是否已配置和末 4 位。地域只接受 cn-shanghai 和 cn-hangzhou。允许拨打时段按本租户时区判断，没有单独设置时区时按 Asia/Shanghai。开始和结束都包含在内，默认 09:00–20:00。同一号码每天最多 3 次，两次之间默认至少间隔 30 分钟。这些限制只在有人点击外呼时检查，不会自动拨号，也不会把功能开关打开。这一节不拨号，不注册公网回调，也不改变获客门禁。</p>
+            <p class="system-setting-help">只有管理员可以查看和修改。密钥加密后保存在服务器，页面只显示是否已配置和末 4 位。地域只接受 cn-shanghai 和 cn-hangzhou。允许拨打时段按本租户时区判断，没有单独设置时区时按 Asia/Shanghai。开始和结束都包含在内，默认 09:00–20:00。同一号码每天最多 3 次，两次之间默认至少间隔 30 分钟。这些限制只在有人点击外呼时检查，不会自动拨号，也不会把功能开关打开。连通性自检使用服务器上已经保存的配置，不提交输入框里还没保存的密钥，也不改变开关。这一节不拨号，不注册公网回调，也不改变获客门禁。</p>
+            <div id="aliyunOutboundConnectivityResult" class="system-setting-help" hidden style="white-space:pre-line;"></div>
             <div id="aliyunAgentMappingBlock" style="margin-top:18px;">
               <div class="section-head"><div><h3>坐席映射</h3><p class="section-subtitle">同一租户内，一个云联络中心坐席只能对应一个用户。保存时用 ListUsers 核对坐席，不手填未出现的 ID，也不创建坐席。</p></div><button class="btn" id="aliyunAgentDirectoryButton" type="button">读取坐席</button></div>
               <div style="overflow-x:auto;"><table class="items-table"><thead><tr><th>坐席</th><th>UserId</th><th>CRM 用户</th><th></th></tr></thead><tbody id="aliyunAgentMappingBody"><tr><td colspan="4">还没有坐席。点「读取坐席」后选择用户。</td></tr></tbody></table></div>
