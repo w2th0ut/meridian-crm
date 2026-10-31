@@ -220,6 +220,40 @@ test_pack_rejects_env_file() {
   rm -f "$FIXTURE/agent-skills/.env"
 }
 
+test_pack_drops_sdk_prepare() {
+  # The real manifest's prepare is `npm run build` -> `tsc -p tsconfig.json`.
+  # Activate's npm ci still runs that prepare for the workspace link.
+  # The tarball must keep the prebuilt dist and must not keep prepare.
+  cp "$ROOT/integration-sdk/package.json" "$FIXTURE/integration-sdk/package.json"
+  python3 - "$FIXTURE/integration-sdk/package.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+prepare = (data.get("scripts") or {}).get("prepare")
+if prepare != "npm run build":
+    raise SystemExit(f"integration-sdk prepare changed; pack test needs an update: {prepare!r}")
+PY
+  [[ ! -e "$FIXTURE/integration-sdk/tsconfig.json" ]] || fail "fixture unexpectedly has tsconfig.json"
+  local packed="$CASE/sdk-prepare.tar.gz"
+  local extracted="$CASE/sdk-prepare"
+  GIT_SHA=abc1234 bash "$ROOT/deploy/node-releases/pack-release.sh" "$FIXTURE" "$packed" >/dev/null
+  mkdir -p "$extracted"
+  tar -xzf "$packed" -C "$extracted"
+  [[ -f "$extracted/integration-sdk/dist/index.js" ]] || fail "tarball missing prebuilt integration-sdk dist"
+  [[ ! -e "$extracted/integration-sdk/tsconfig.json" ]] || fail "tarball should not need tsconfig.json"
+  [[ ! -d "$extracted/integration-sdk/src" ]] || fail "tarball should not ship integration-sdk sources"
+  python3 - "$extracted/integration-sdk/package.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+scripts = data.get("scripts") or {}
+if "prepare" in scripts:
+    raise SystemExit(f"packed integration-sdk still has prepare: {scripts!r}")
+if data.get("type") != "module":
+    raise SystemExit("packed integration-sdk lost type module")
+if scripts.get("build") != "tsc -p tsconfig.json":
+    raise SystemExit(f"packed build script drifted: {scripts!r}")
+PY
+}
+
 test_publish_links_env_and_switches_current() {
   activate publish "$PACK" 20261030120000
   [[ "$(readlink -f "$APP/current")" == "$APP/releases/20261030120000" ]] || fail "current was not switched"
@@ -651,6 +685,7 @@ fi
 
 run_case pack test_pack_omits_secrets_and_modules
 run_case pack-env test_pack_rejects_env_file
+run_case pack-sdk-prepare test_pack_drops_sdk_prepare
 run_case publish test_publish_links_env_and_switches_current
 run_case health-fail test_health_failure_restores_previous
 run_case nginx-health test_nginx_health_is_enough

@@ -2,6 +2,9 @@
 # Build a Node release tarball from an already-built checkout.
 # The archive has dist, static assets, and package manifests only.
 # It does not contain node_modules, .env, or deploy.env. The server runs npm ci.
+# Workspace prepare scripts are removed before packing. npm still runs prepare
+# for linked workspaces when --ignore-scripts is set, and integration-sdk's
+# prepare is `tsc -p tsconfig.json`. This archive ships dist only.
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
@@ -39,6 +42,32 @@ copy_tree_if_present() {
   if [[ -d "$ROOT/$rel" ]]; then
     copy_tree "$rel"
   fi
+}
+
+# npm ci --ignore-scripts skips root lifecycle scripts and dependency
+# install scripts. It does not skip prepare on workspace links
+# (@npmcli/arborist rebuilds those even when ignoreScripts is set).
+# Drop prepare so activate does not compile a tree that has no tsconfig,
+# no sources, and no typescript (devDependency, omitted in production).
+strip_workspace_prepare() {
+  local rel="$1"
+  python3 - "$STAGE/$rel" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as fh:
+    data = json.load(fh)
+scripts = data.get("scripts")
+if not isinstance(scripts, dict) or "prepare" not in scripts:
+    sys.exit(0)
+del scripts["prepare"]
+if not scripts:
+    data.pop("scripts", None)
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+PY
 }
 
 copy_file package.json
@@ -85,6 +114,21 @@ if [[ -d "$STAGE/node_modules" || -d "$STAGE/backend/node_modules" ]]; then
   printf 'refusing to pack node_modules\n' >&2
   exit 1
 fi
+
+for manifest in \
+  package.json \
+  backend/package.json \
+  frontend/package.json \
+  integration-sdk/package.json \
+  integration-worker/package.json \
+  keduoduo-runner/package.json
+do
+  strip_workspace_prepare "$manifest"
+  if grep -Eq '"prepare"[[:space:]]*:' "$STAGE/$manifest"; then
+    printf 'packed %s still has a prepare script\n' "$manifest" >&2
+    exit 1
+  fi
+done
 
 cat > "$STAGE/RELEASE.txt" <<EOF
 git_sha=${GIT_SHA:-unknown}
