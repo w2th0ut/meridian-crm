@@ -139,6 +139,11 @@ import {
   summarizeProspectOwnerReassign
 } from "./prospect-batch-reassign-owner";
 import {
+  buildProspectTagBody,
+  showProspectTagEntry,
+  summarizeProspectTagChange
+} from "./prospect-batch-tags";
+import {
   CONTACT_GAP_LIMIT,
   contactGapEntryLabel,
   contactGapIsGap,
@@ -2301,6 +2306,7 @@ interface WebsiteOpportunity {
   lastTouchpointChannel?: ProspectOutreachChannel;
   lastReplyClassification?: ProspectReplyClassification;
   nextFollowAt?: string;
+  tags?: string[];
   outreachState?: "uncontacted" | "awaiting_reply" | "replied" | "suppressed" | "contact_invalid";
   invalidContactChannels?: ProspectOutreachChannel[];
   websiteProbeAttempts?: WebsiteProbeAttempt[];
@@ -36493,6 +36499,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       <div class="form-field"><label>联系人</label><input id="prospectEditContact" value="${escapeHtml(item.contact)}" ${readonly}></div>
       <div class="form-field"><label>联系方式</label><input id="prospectEditContactInfo" value="${escapeHtml(item.contactInfo)}" ${readonly}></div>
       <div class="prospect-field"><span>归属业务员</span><b>${escapeHtml(owner?.name || (item.ownerId === state.user?.id ? state.user?.name || "本人" : item.ownerId || "待分配"))}</b></div>
+      <div class="prospect-field" data-prospect-tags="1"><span>标签</span><b>${escapeHtml(prospectTagText(item))}</b></div>
       <div class="prospect-field"><span>来源</span><b>${escapeHtml(item.sourceLabel || item.source || "自动获客")}</b></div>
       <div class="prospect-field" data-silent-age-outreach="1" data-outreach-action-email="1"><span>最近开发信</span><b>${item.lastDevelopmentEmailAt ? `${formatTime(item.lastDevelopmentEmailAt)} · ${escapeHtml(item.lastDevelopmentEmailSubject || "开发信")}` : "尚未发送"}</b></div>
       <div class="prospect-field"><span>最近触达</span><b>${item.lastTouchpointAt ? `${formatTime(item.lastTouchpointAt)} · ${escapeHtml(PROSPECT_CHANNEL_LABELS[item.lastTouchpointChannel || "email"])}` : "尚未记录"}</b></div>
@@ -38481,6 +38488,11 @@ function renderProspectList() {
   if (assignButton) assignButton.hidden = !canAssign;
   const reassignOwnerButton = qs<HTMLButtonElement>("#prospectReassignOwnerButton");
   if (reassignOwnerButton) reassignOwnerButton.hidden = !showProspectReassignOwnerEntry(canAssign);
+  const canTag = Boolean(state.iamCapabilities) && hasIamCapability("prospect.execute");
+  for (const selector of ["#prospectAddTagsButton", "#prospectRemoveTagsButton"]) {
+    const tagButton = qs<HTMLButtonElement>(selector);
+    if (tagButton) tagButton.hidden = !showProspectTagEntry(canTag);
+  }
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => button.classList.toggle("active", button.dataset.prospectFilter === state.prospectFilter));
   qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
     const active = button.dataset.prospectStageFilter === state.prospectStageFilter;
@@ -38757,6 +38769,7 @@ function renderProspectList() {
             <p>${escapeHtml(item.business || "业务待维护")}</p>
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
             <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
+            ${renderProspectTagLine(item)}
             ${renderProspectComplianceNotices(item)}
             ${renderOutreachFailureLine(item)}
             ${renderOutreachEngagementLine(item)}
@@ -40027,6 +40040,72 @@ function requestProspectOwnerReassign(ids: string[], button?: HTMLButtonElement)
     closeModal();
     void submitProspectOwnerReassign(built.body, button);
   });
+}
+
+function prospectTagText(item: { tags?: string[] }) {
+  const tags = (item.tags || []).map((tag) => tag.trim()).filter(Boolean);
+  return tags.length ? tags.join("、") : "无标签";
+}
+
+function renderProspectTagLine(item: { tags?: string[] }) {
+  const tags = (item.tags || []).map((tag) => tag.trim()).filter(Boolean);
+  if (!tags.length) return "";
+  return `<div class="prospect-tag-line">${tags.map((tag) => badge(escapeHtml(tag), "gray")).join("")}</div>`;
+}
+
+function requestProspectTags(
+  action: "add" | "remove",
+  ids: string[],
+  button?: HTMLButtonElement
+) {
+  const preview = buildProspectTagBody(ids, action, "标签");
+  if (!preview.ok) {
+    toast(preview.message, "error");
+    return;
+  }
+  const title = action === "add" ? "批量打标签" : "批量移除标签";
+  const verb = action === "add" ? "打上标签" : "移除标签";
+  openModal(
+    title,
+    `<p>将为 ${preview.body.ids.length} 条候选${verb}。只改本地标签，不发信，不发消息，不推进序列，不放行批次。</p><div class="form-field"><label>标签</label><input id="prospectTagInput" placeholder="多个标签用逗号分开"></div>`,
+    `<button class="btn" data-modal-close type="button">取消</button><button class="btn primary" id="confirmProspectTagsButton" type="button">确认</button>`
+  );
+  qs<HTMLButtonElement>("#confirmProspectTagsButton")?.addEventListener("click", () => {
+    const built = buildProspectTagBody(ids, action, qs<HTMLInputElement>("#prospectTagInput")?.value || "");
+    if (!built.ok) {
+      toast(built.message, "error");
+      return;
+    }
+    closeModal();
+    void submitProspectTags(built.body, button);
+  });
+}
+
+async function submitProspectTags(
+  body: { ids: string[]; action: "add" | "remove"; tags: string[] },
+  button?: HTMLButtonElement
+) {
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ results: Array<{ id: string; ok: boolean; tags?: string[]; reason?: string }> }>("/api/prospect-list/tags", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    const changed = new Set<string>();
+    result.results.forEach((row) => {
+      if (!row.ok || !Array.isArray(row.tags)) return;
+      const existing = state.websiteOpportunities.find((item) => item.id === row.id);
+      if (existing) existing.tags = row.tags;
+      changed.add(row.id);
+    });
+    state.selectedProspectIds = state.selectedProspectIds.filter((id) => !changed.has(id));
+    renderProspectList();
+    toast(summarizeProspectTagChange(body.action, result.results));
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "批量改标签失败", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 async function submitProspectOwnerReassign(
@@ -54025,6 +54104,8 @@ function installEvents() {
   qs<HTMLButtonElement>("#prospectExcludeButton")?.addEventListener("click", (event) => requestProspectExclusion(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectAssignButton")?.addEventListener("click", (event) => void updateProspectBatch("assign", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectReassignOwnerButton")?.addEventListener("click", (event) => requestProspectOwnerReassign(state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectAddTagsButton")?.addEventListener("click", (event) => requestProspectTags("add", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#prospectRemoveTagsButton")?.addEventListener("click", (event) => requestProspectTags("remove", state.selectedProspectIds, event.currentTarget as HTMLButtonElement));
   qs<HTMLInputElement>("#prospectSelectPage")?.addEventListener("change", (event) => {
     const checked = (event.currentTarget as HTMLInputElement).checked;
     const pageRows = prospectFilteredRows().slice((state.prospectPage - 1) * PROSPECT_PAGE_SIZE, state.prospectPage * PROSPECT_PAGE_SIZE);

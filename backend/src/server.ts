@@ -543,6 +543,14 @@ import {
   PROSPECT_OWNER_REASSIGN_LIMIT,
   prospectOwnerReassignBlock
 } from "./prospect-owner-reassign.js";
+import { appendProspectTagAudit } from "./prospect-tag-audit.js";
+import {
+  PROSPECT_TAG_BATCH_LIMIT,
+  PROSPECT_TAG_DENIED,
+  normalizeProspectTags,
+  applyProspectTags,
+  prospectTagBlock
+} from "./prospect-tags.js";
 import {
   TRANSPARENT_GIF,
   buildOutboundMessageId,
@@ -19790,6 +19798,66 @@ app.post("/api/prospect-list/reassign-owners", requireAuth, asyncRoute(async (re
       });
     }
     return { id: item.id, ok: true, previousOwnerId, ownerId: assignee.id };
+  });
+  if (changed.length) {
+    if (store.persistProspectCandidates) await store.persistProspectCandidates(changed.map((item) => item.id));
+    await store.persist();
+  }
+  res.json({ results });
+}));
+
+app.post("/api/prospect-list/tags", requireAuth, asyncRoute(async (req, res) => {
+  const schema = z.object({
+    ids: z.array(z.string().trim().min(1).max(80)).min(1).max(PROSPECT_TAG_BATCH_LIMIT),
+    action: z.enum(["add", "remove"]),
+    tags: z.array(z.string().max(200)).min(1).max(100)
+  });
+  const body = schema.parse(req.body ?? {});
+  const normalized = normalizeProspectTags(body.tags);
+  if (!normalized.ok) {
+    res.status(400).json({ message: normalized.message });
+    return;
+  }
+  const store = getStore();
+  const actor = req.user!;
+  const ids = [...new Set(body.ids)];
+  const evaluated = ids.map((id) => {
+    const candidate = store.websiteOpportunities.find((item) => item.id === id);
+    return { id, candidate, block: prospectTagBlock(actor, candidate) };
+  });
+  if (evaluated.every((item) => item.block === PROSPECT_TAG_DENIED)) {
+    res.status(403).json({
+      message: "没有可改标签的候选",
+      results: evaluated.map((item) => ({ id: item.id, ok: false, reason: item.block }))
+    });
+    return;
+  }
+  const changed: WebsiteOpportunity[] = [];
+  const results = evaluated.map((item) => {
+    if (item.block || !item.candidate) {
+      return { id: item.id, ok: false, reason: item.block || PROSPECT_TAG_DENIED };
+    }
+    const applied = applyProspectTags(item.candidate.tags, body.action, normalized.tags);
+    if (!applied.ok) {
+      return { id: item.id, ok: false, reason: applied.reason };
+    }
+    if (applied.changed) {
+      item.candidate.tags = applied.tags;
+      changed.push(item.candidate);
+      appendProspectTagAudit(store, {
+        actorId: actor.id,
+        objectId: item.candidate.id,
+        action: body.action === "add" ? "add_tags" : "remove_tags",
+        tags: applied.applied
+      });
+    }
+    return {
+      id: item.id,
+      ok: true,
+      action: body.action,
+      tags: applied.tags,
+      applied: applied.applied
+    };
   });
   if (changed.length) {
     if (store.persistProspectCandidates) await store.persistProspectCandidates(changed.map((item) => item.id));
