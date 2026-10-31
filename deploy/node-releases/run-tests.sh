@@ -384,6 +384,117 @@ EOF
   [[ ! -e "$marker.missing" ]] || fail "migrate ran without a database url"
 }
 
+test_ssh_remote_scripts() {
+  local probe="$ROOT/deploy/node-releases/ssh-probe-release.sh"
+  local activate="$ROOT/deploy/node-releases/ssh-activate-release.sh"
+  bash -n "$probe"
+  bash -n "$activate"
+  expect_fail 'refusing unexpected APP_ROOT' \
+    env APP_ROOT=/opt/keduoduocrm RID=20261031081642 bash "$probe"
+  expect_fail 'invalid release id' \
+    env APP_ROOT=/opt/keduoduo-crm RID='../etc' bash "$probe"
+  expect_fail 'invalid release id' \
+    env APP_ROOT=/opt/keduoduo-crm RID='' bash "$probe"
+  [[ ! -e /opt/keduoduo-crm/releases/20261031081642 ]] || fail "refusing to probe a live release path"
+  local out code
+  set +e
+  out="$(APP_ROOT=/opt/keduoduo-crm RID=20261031081642 bash "$probe" 2>&1)"
+  code=$?
+  set -e
+  [[ "$code" -eq 2 ]] || fail "probe missing release exited ${code}: ${out}"
+
+  expect_fail 'refusing unexpected APP_ROOT' \
+    env APP_ROOT=/opt/keduoduocrm MODE=publish RID=20261031081642 bash "$activate"
+  expect_fail 'refusing unexpected MODE' \
+    env APP_ROOT=/opt/keduoduo-crm MODE=ship RID=20261031081642 bash "$activate"
+
+  local stage="$CASE/stage"
+  mkdir -p "$stage"
+  cat > "$stage/activate-release.sh" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" > "$(dirname "$0")/args.txt"
+EOF
+  chmod 0755 "$stage/activate-release.sh"
+  printf 'not-a-real-tar\n' > "$stage/release.tar.gz"
+  env APP_ROOT=/opt/keduoduo-crm APP_USER=keduoduo-crm SERVICE_NAME=keduoduo-crm \
+    MODE=publish RID=20261031081642 NODE_RELEASE_SSH_TEST=1 STAGING_DIR="$stage" \
+    bash "$activate"
+  [[ "$(cat "$stage/args.txt")" == "publish ./release.tar.gz 20261031081642" ]] \
+    || fail "publish args drifted"
+  [[ ! -e "$stage/release.tar.gz" ]] || fail "publish left the tarball"
+
+  printf 'not-a-real-tar\n' > "$stage/release.tar.gz"
+  env APP_ROOT=/opt/keduoduo-crm MODE=rollback RID=20261029012526 \
+    NODE_RELEASE_SSH_TEST=1 STAGING_DIR="$stage" \
+    bash "$activate"
+  [[ "$(cat "$stage/args.txt")" == "rollback 20261029012526" ]] || fail "rollback args drifted"
+  [[ ! -e "$stage/release.tar.gz" ]] || fail "rollback left the tarball"
+
+  rm -f "$stage/release.tar.gz" "$stage/args.txt"
+  set +e
+  out="$(APP_ROOT=/opt/keduoduo-crm MODE=publish RID=20261031081642 NODE_RELEASE_SSH_TEST=1 STAGING_DIR="$stage" bash "$activate" 2>&1)"
+  code=$?
+  set -e
+  [[ "$code" -ne 0 ]] || fail "publish without a tarball succeeded: ${out}"
+  [[ ! -e "$stage/args.txt" ]] || fail "publish without a tarball invoked activate"
+
+  # Same shape drone-ssh uses when script_stop is off: export lines, then the file as one script.
+  local wrapped
+  wrapped="$(STAGING_DIR="$stage" python3 - "$activate" <<'PY'
+import os, pathlib, shlex, sys
+body = pathlib.Path(sys.argv[1]).read_text()
+stage = shlex.quote(os.environ["STAGING_DIR"])
+prefix = "\n".join([
+    "export APP_ROOT='/opt/keduoduo-crm'",
+    "export APP_USER='keduoduo-crm'",
+    "export SERVICE_NAME='keduoduo-crm'",
+    "export MODE='publish'",
+    "export RID='20261031081642'",
+    "export NODE_RELEASE_SSH_TEST='1'",
+    f"export STAGING_DIR={stage}",
+])
+print(prefix + "\n" + body)
+PY
+)"
+  printf 'not-a-real-tar\n' > "$stage/release.tar.gz"
+  bash -c "$wrapped"
+  [[ "$(cat "$stage/args.txt")" == "publish ./release.tar.gz 20261031081642" ]] \
+    || fail "bash -c publish args drifted"
+
+  # script_stop splits that file and recreates the production syntax error.
+  local broken
+  broken="$(python3 - "$activate" <<'PY'
+import pathlib, sys
+body = pathlib.Path(sys.argv[1]).read_text()
+check = "DRONE_SSH_PREV_COMMAND_EXIT_CODE=$? ; if [ $DRONE_SSH_PREV_COMMAND_EXIT_CODE -ne 0 ]; then exit $DRONE_SSH_PREV_COMMAND_EXIT_CODE; fi;"
+lines = []
+for cmd in body.split("\n"):
+    cmd = cmd.strip()
+    if not cmd:
+        continue
+    lines.append(cmd)
+    if not cmd.endswith("\\"):
+        lines.append(check)
+prefix = [
+    "export APP_ROOT='/opt/keduoduo-crm'",
+    "export APP_USER='keduoduo-crm'",
+    "export SERVICE_NAME='keduoduo-crm'",
+    "export MODE='publish'",
+    "export RID='20261031081642'",
+]
+print("\n".join(prefix + lines))
+PY
+)"
+  set +e
+  out="$(bash -c "$broken" 2>&1)"
+  code=$?
+  set -e
+  [[ "$code" -eq 2 ]] || fail "script_stop rewrite exited ${code}, want syntax status 2: ${out}"
+  grep -q "syntax error near unexpected token \`" <<<"$out" \
+    || fail "script_stop rewrite did not report the production syntax error: ${out}"
+  [[ ! -e /tmp/keduoduo-node-release/args.txt ]] || fail "script_stop rewrite executed activate"
+}
+
 test_require_ecs_secrets() {
   expect_fail 'ECS_HOST' env -u ECS_HOST ECS_USER=user ECS_SSH_KEY=key \
     bash "$ROOT/deploy/node-releases/require-ecs-secrets.sh"
@@ -396,6 +507,7 @@ test_require_ecs_secrets() {
 test_workflow_contract() {
   python3 - "$ROOT/.github/workflows/deploy-node-release.yml" <<'PY'
 import pathlib, re, sys
+import yaml
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
 assert "baota-update" not in text, "workflow still calls baota-update"
@@ -409,7 +521,16 @@ assert "master" in pr, "pull_request must target master"
 for kind in ("opened", "synchronize", "reopened"):
     assert kind in pr, f"pull_request missing type {kind}"
 assert text.count("appleboy/ssh-action@") == 2
-assert text.count("script_stop: true") == 2
+assert "script_stop" not in text, "script_stop rewrites each remote line and breaks case/if"
+assert text.count("script_path:") == 2
+assert "deploy/node-releases/ssh-probe-release.sh" in text
+assert "deploy/node-releases/ssh-activate-release.sh" in text
+assert "\n          script:" not in text, "ssh steps must not use an inline script"
+for rel in (
+    "deploy/node-releases/ssh-probe-release.sh",
+    "deploy/node-releases/ssh-activate-release.sh",
+):
+    assert (path.parents[2] / rel).is_file(), rel
 assert "default: false" in text
 assert "cancel-in-progress: false" in text
 jobs_blob = text.split("jobs:", 1)[1]
@@ -442,7 +563,9 @@ for job in ssh_jobs:
     assert "deploy_ecs" in head, head
     assert "workflow_dispatch" in head, head
     assert "github.event_name != 'pull_request'" in head, head
-    assert "script_stop: true" in job
+    assert "script_path:" in job
+    assert "script_stop" not in job
+    assert "\n          script:" not in job
 
 for name in ("guard-ecs", "probe-ecs", "deploy-ecs", "push-acr"):
     head = job_head(job_named(name))
@@ -461,6 +584,26 @@ assert "needs: [verify-scripts, guard-ecs, probe-ecs, build]" in dhead
 assert "needs.verify-scripts.result == 'success'" in dhead
 assert "needs.build.result == 'success'" in dhead
 assert "appleboy/scp-action@" in deploy
+
+wf = yaml.safe_load(text)
+ssh_steps = []
+for job_name, job in wf["jobs"].items():
+    for step in job.get("steps") or []:
+        uses = str(step.get("uses") or "")
+        if "appleboy/ssh-action@" in uses:
+            ssh_steps.append((job_name, step))
+assert [name for name, _step in ssh_steps] == ["probe-ecs", "deploy-ecs"], ssh_steps
+expected_paths = {
+    "probe-ecs": "deploy/node-releases/ssh-probe-release.sh",
+    "deploy-ecs": "deploy/node-releases/ssh-activate-release.sh",
+}
+for job_name, step in ssh_steps:
+    body = step.get("with") or {}
+    assert "script" not in body, job_name
+    assert "script_stop" not in body, job_name
+    assert body.get("script_path") == expected_paths[job_name], (job_name, body.get("script_path"))
+    assert "NODE_RELEASE_SSH_TEST" not in str(body.get("envs"))
+    assert "STAGING_DIR" not in str(body.get("envs"))
 
 acr = job_named("push-acr")
 ahead = job_head(acr)
@@ -499,6 +642,8 @@ if command -v shellcheck >/dev/null 2>&1; then
     deploy/node-releases/pack-release.sh \
     deploy/node-releases/validate-release-id.sh \
     deploy/node-releases/require-ecs-secrets.sh \
+    deploy/node-releases/ssh-activate-release.sh \
+    deploy/node-releases/ssh-probe-release.sh \
     deploy/node-releases/run-tests.sh
 fi
 
@@ -522,6 +667,7 @@ run_case current-dir test_current_directory_not_symlink
 run_case release-id test_release_id_rules
 run_case migrate-helper test_migrate_helper_does_not_print_secrets
 run_case ecs-secrets test_require_ecs_secrets
+run_case ssh-scripts test_ssh_remote_scripts
 test_workflow_contract
 printf 'ok workflow\n'
 printf 'all node-release tests passed\n'

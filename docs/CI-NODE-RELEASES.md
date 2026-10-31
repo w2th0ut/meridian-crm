@@ -97,7 +97,7 @@ If health fails after the symlink moves, `current` is pointed back at the previo
 
 Uploads stay where the running env says. This job does not copy `uploads/` between releases. To keep files across releases, set `KEDUODUO_UPLOADS_DIR` in `shared/.env` to a directory outside the release.
 
-Deploys use one concurrency group, `ecs-keduoduo-crm-node-release`, and SSH steps set `script_stop: true`. A second deploy waits. Push builds do not take that lock.
+Deploys use one concurrency group, `ecs-keduoduo-crm-node-release`. A second deploy waits. Push builds do not take that lock. The SSH steps pass `script_path` (`deploy/node-releases/ssh-probe-release.sh` and `ssh-activate-release.sh`) so the remote shell receives one script. They do not set `script_stop`. drone-ssh 1.8.0, which `appleboy/ssh-action@v1.2.0` downloads, inserts an exit-check after every line when that flag is on. That check split the activate `case` and failed run 41183804000 with `bash: -c: line 9: syntax error near unexpected token ';'`. Fail-fast is `set -euo pipefail` in the script files.
 
 ## Rollback
 
