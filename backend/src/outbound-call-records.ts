@@ -4,7 +4,8 @@ import type { CrmStore } from "./store.js";
 import type { AliyunAgentMapping, OutboundCallRecord, SessionUser } from "./types.js";
 
 /**
- * 外呼通话记录列表。统计仍只读，不改通话记录，不拨号，不请求阿里云。
+ * 外呼通话记录列表。四项统计仍只读，不因标注结果筛选改掉。
+ * 标注走单独接口，只改本条的通话结果和备注，不改话单，不拨号，不请求阿里云。
  * 未接通记录的「生成下次跟进」走单独接口，不在这里改话单。
  *
  * 接通：establishedTimeRaw 去掉空白后非空。单通详情页写未建立时该字段为空。
@@ -12,8 +13,42 @@ import type { AliyunAgentMapping, OutboundCallRecord, SessionUser } from "./type
  * 时长：接通通话的 callDurationRaw。单通详情页写 CallDuration 是整数秒。
  * 列表接口的口径不一致，见第 9.3 节。原文不是非负整数的不计入平均，也不当成 0。
  * 日期：startTimeRaw 按 Unix 毫秒切成租户当地日。起算点见第 9.3 节，这里不改原文。
+ * 标注结果是人工枚举，不参与接通统计。
  */
 export const OUTBOUND_CALL_RECORD_PERMISSION = "communication.read";
+
+/** 人工标注的通话结果。只接受这五项，不把话单枚举算进来。 */
+export const CALL_OUTCOMES = ["有意向", "需回访", "无意向", "号码错误", "其他"] as const;
+export type CallOutcome = (typeof CALL_OUTCOMES)[number];
+export const CALL_OUTCOME_NOTE_MAX = 200;
+
+export function isCallOutcome(value: string): value is CallOutcome {
+  return (CALL_OUTCOMES as readonly string[]).includes(value);
+}
+
+export function callOutcomeNoteLength(note: string) {
+  return Array.from(note).length;
+}
+
+export function countCallOutcomes(records: Array<{ callOutcome?: string }>): Record<CallOutcome, number> {
+  const counts: Record<CallOutcome, number> = {
+    "有意向": 0,
+    "需回访": 0,
+    "无意向": 0,
+    "号码错误": 0,
+    "其他": 0
+  };
+  for (const record of records) {
+    const value = record.callOutcome || "";
+    if (isCallOutcome(value)) counts[value] += 1;
+  }
+  return counts;
+}
+
+export function recordsMatchingOutcome<T extends { callOutcome?: string }>(records: T[], outcome: string | null) {
+  if (!outcome) return records;
+  return records.filter((record) => (record.callOutcome || "") === outcome);
+}
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const AGENT_PATTERN = /^[A-Za-z0-9_@.:-]{1,128}$/;
@@ -29,6 +64,7 @@ export interface OutboundCallRecordQuery {
   agentId: string | null;
   from: string | null;
   to: string | null;
+  outcome: CallOutcome | null;
 }
 
 export function splitAgentIds(value: string) {
@@ -142,7 +178,8 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
   const agentRaw = oneQuery(query.agentId);
   const fromRaw = oneQuery(query.from);
   const toRaw = oneQuery(query.to);
-  if (agentRaw === null || fromRaw === null || toRaw === null) return null;
+  const outcomeRaw = oneQuery(query.outcome);
+  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null) return null;
   const agentId = agentRaw || null;
   const from = fromRaw || null;
   const to = toRaw || null;
@@ -150,7 +187,12 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
   if (from && !validDate(from)) return null;
   if (to && !validDate(to)) return null;
   if (from && to && from > to) return null;
-  return { agentId, from, to };
+  let outcome: CallOutcome | null = null;
+  if (outcomeRaw) {
+    if (!isCallOutcome(outcomeRaw)) return null;
+    outcome = outcomeRaw;
+  }
+  return { agentId, from, to, outcome };
 }
 
 async function ensureReadScope(store: CrmStore, user: SessionUser) {
@@ -190,7 +232,9 @@ export function presentOutboundCallRecord(record: OutboundCallRecord, timeZone: 
     agentLabel: agentIds.map((id) => labels.get(id) || id).join("、"),
     localDate: callLocalDate(record.startTimeRaw, timeZone),
     targetType: record.targetType,
-    targetId: record.targetId
+    targetId: record.targetId,
+    callOutcome: record.callOutcome || "",
+    callOutcomeNote: record.callOutcomeNote || ""
   };
 }
 
@@ -277,13 +321,14 @@ export async function listOutboundCallRecords(
     to: parsed.to,
     timeZone: access.timeZone
   });
+  const listed = recordsMatchingOutcome(selected, parsed.outcome);
   const summary = summarizeOutboundCallRecords(selected);
   const generated = new Set(
     store.outboundMissedFollowUps
       .filter((item) => item.teamId === user.teamId)
       .map((item) => item.callRecordId)
   );
-  const records = selected
+  const records = listed
     .map((record) => ({
       ...presentOutboundCallRecord(record, access.timeZone, access.labels),
       followUpGenerated: generated.has(record.id)
@@ -314,6 +359,7 @@ export async function listOutboundCallRecords(
         dateField: "startTimeRaw"
       },
       empty: summary.empty,
+      outcomeCounts: summary.empty ? null : countCallOutcomes(selected),
       stats: summary.empty ? null : {
         totalCalls: summary.totalCalls,
         connectedCalls: summary.connectedCalls,

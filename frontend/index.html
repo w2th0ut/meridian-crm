@@ -13468,12 +13468,38 @@
       color: #8a5a00;
     }
 
+    .outbound-record-outcome-counts {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin: 0 0 16px;
+    }
+
+    .outbound-record-outcome-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .outbound-record-outcome-form input {
+      width: 180px;
+    }
+
+    .outbound-record-outcome-cell { white-space: normal; min-width: 280px; }
+
+    .outbound-record-outcome h3 { margin: 12px 0 0; font-size: 14px; }
+
     @media (max-width: 720px) {
-      .outbound-record-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .outbound-record-stats,
+      .outbound-record-outcome-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .outbound-record-filters select,
       .outbound-record-filters input,
-      .outbound-record-detail input { min-width: 0; width: 100%; }
-      .outbound-record-detail form { display: grid; }
+      .outbound-record-detail input,
+      .outbound-record-outcome-form input,
+      .outbound-record-outcome-form select { min-width: 0; width: 100%; }
+      .outbound-record-detail form,
+      .outbound-record-outcome-form { display: grid; }
     }
 
     .customer-contact-actions {
@@ -32115,7 +32141,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>外呼通话记录</h1>
-              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。不能拨号，不能改通话记录，也不能批量生成。</p>
+              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。不能拨号，不能改通话记录上的话单，不能批量生成，也不能批量标注。</p>
             </div>
           </div>
           <p class="outbound-record-note">接通看话单 EstablishedTime 是否有内容。平均时长只统计接通通话里能当成整数秒的 CallDuration，单位是秒。起算点和接通枚举如果和真实话单不一致，以接入方案第 9 节为准，这一页不另算一套。</p>
@@ -32123,6 +32149,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <label>坐席<select id="outboundCallRecordAgent"></select></label>
             <label>从<input id="outboundCallRecordFrom" type="date"></label>
             <label>到<input id="outboundCallRecordTo" type="date"></label>
+            <label>标注结果<select id="outboundCallRecordOutcome"><option value="">全部</option><option value="有意向">有意向</option><option value="需回访">需回访</option><option value="无意向">无意向</option><option value="号码错误">号码错误</option><option value="其他">其他</option></select></label>
             <button class="btn" type="submit">筛选</button>
           </form>
           <div id="outboundCallRecordSummary"><p data-outbound-record-empty="1">这个范围内还没有通话记录。</p></div>

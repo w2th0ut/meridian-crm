@@ -60,6 +60,8 @@ function record(partial: Partial<OutboundCallRecord> & Pick<OutboundCallRecord, 
     recordingUrl: "https://oss.example/do-not-leak-recording",
     recordingDurationRaw: "999",
     followUpActivityId: "",
+    callOutcome: "",
+    callOutcomeNote: "",
     createdAt: "2026-04-04T00:00:00.000Z",
     updatedAt: "2026-04-04T00:00:00.000Z",
     ...partial
