@@ -8156,6 +8156,7 @@
     .dashboard-prospect-row.is-step-long,
     .dashboard-prospect-row.is-intake-long,
     .dashboard-prospect-row.is-status-change-long,
+    .dashboard-prospect-row.is-touchpoint-long,
     .dashboard-prospect-row.is-sync-anomaly-long {
       border-color: #fecaca;
     }
@@ -9141,6 +9142,81 @@
     }
 
     .prospect-status-change-age.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-touchpoint-age-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-touchpoint-age-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-touchpoint-age:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-touchpoint-age[data-touchpoint-age="long"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-touchpoint-age[data-touchpoint-age="recent"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-touchpoint-age-head,
+    .prospect-touchpoint-age.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-touchpoint-age p,
+    .prospect-touchpoint-age.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-touchpoint-age.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-touchpoint-age.is-compact.is-long {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-touchpoint-age.is-compact.is-recent {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-touchpoint-age.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -12149,6 +12225,7 @@
     .dashboard-inbound-sync-anomaly-age-note,
     .dashboard-intake-age-note,
     .dashboard-status-change-age-note,
+    .dashboard-touchpoint-age-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -28359,6 +28436,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardStatusChangeAgeList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardTouchpointAge" aria-label="最近触达日龄">
+            <div class="section-head">
+              <div class="section-title"><div><h2>最近触达日龄</h2><p id="dashboardTouchpointAgeScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardTouchpointAgeRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardTouchpointAgeNote" class="dashboard-touchpoint-age-note">这是最近触达相对现在的只读日龄，复用候选上已有的 lastTouchpointAt（库字段 last_touchpoint_at）。触达且距现在超过 7 天算触达超七日，未超过（含刚好 7 天）算触达七日内。没有可解析的触达时间写无触达日龄。只认带 T 的时间。墙上时钟不算。不从触达列表重算。历史补录的外发触达不写这个字段。不读触达渠道。只有状态变更、没有这份触达时间时，不拿状态变更时间冒充。最近一封开发信的发出时间不是触达时间。工作台原来的最近触达是已发开发信，不是这一节。获客阶段上的进入时间不是这一节。不是状态变更日龄，也不是候选入库日龄，也不是收信同步异常日龄，也不是序列最近一步日龄，也不是开发信回复日龄，也不是打开或点击日龄，也不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列进度、打开或点击、失败或退信、收信同步。不替代状态变更日龄，也不替代工作台原来的最近触达，也不替代获客阶段。文案不混用。点一行只打开现有候选详情，停在详情顶部。不滚到带渠道的最近触达行，也不打开触达记录。不会发信，不会解除抑制，不会推进序列，不会放行批次，不会改名单，不会改邮箱配置，不会改状态，不会改核验状态，不会补录触达，不会记录回复，不会打开话机，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardTouchpointAgeList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -29177,6 +29266,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按状态变更日龄筛选">
                   <button class="active" type="button" data-prospect-status-change-age-filter="all" aria-pressed="true">全部状态变更</button>
                   <button type="button" data-prospect-status-change-age-filter="long" aria-pressed="false">状态变更超七日</button>
+                </div>
+              </div>
+              <div class="prospect-touchpoint-age-filter">
+                <span>触达日龄</span>
+                <div class="prospect-tabs" role="group" aria-label="按最近触达日龄筛选">
+                  <button class="active" type="button" data-prospect-touchpoint-age-filter="all" aria-pressed="true">全部触达</button>
+                  <button type="button" data-prospect-touchpoint-age-filter="long" aria-pressed="false">触达超七日</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">

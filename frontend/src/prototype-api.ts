@@ -325,6 +325,20 @@ import {
   type StatusChangeAgeView
 } from "./prospect-status-change-age";
 import {
+  TOUCHPOINT_AGE_LIMIT,
+  formatTouchpointAgeAt,
+  listTouchpointAgeQueue,
+  presentTouchpointAge,
+  touchpointAgeEntryLabel,
+  touchpointAgeLineLabel,
+  touchpointAgeListFilterForOpen,
+  touchpointAgeMatchesFilter,
+  touchpointAgeStatusLabel,
+  touchpointAgeSummary,
+  type TouchpointAgeListFilter,
+  type TouchpointAgeView
+} from "./prospect-touchpoint-age";
+import {
   INBOUND_SYNC_LIMIT,
   inboundSyncEntryLabel,
   inboundSyncSummary,
@@ -4172,6 +4186,7 @@ interface AppState {
   prospectSequenceLastStepAgeFilter: SequenceLastStepAgeListFilter;
   prospectIntakeAgeFilter: IntakeAgeListFilter;
   prospectStatusChangeAgeFilter: StatusChangeAgeListFilter;
+  prospectTouchpointAgeFilter: TouchpointAgeListFilter;
   prospectJoinedRange: "all" | "today" | "7d" | "30d" | "custom";
   prospectJoinedFrom: string;
   prospectJoinedTo: string;
@@ -4414,6 +4429,7 @@ const state: AppState = {
   prospectSequenceLastStepAgeFilter: "all",
   prospectIntakeAgeFilter: "all",
   prospectStatusChangeAgeFilter: "all",
+  prospectTouchpointAgeFilter: "all",
   prospectJoinedRange: "all",
   prospectJoinedFrom: "",
   prospectJoinedTo: "",
@@ -11925,6 +11941,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardSequenceLastStepAge();
   renderDashboardIntakeAge();
   renderDashboardStatusChangeAge();
+  renderDashboardTouchpointAge();
   renderDashboardInboundSync();
 }
 
@@ -14039,6 +14056,7 @@ function renderLeadDrawer(
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
     const index = prospectFilteredRows().findIndex((item) => item.id === sourceProspect.id);
     state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
     activateNavView("prospect-list", renderProspectList);
@@ -33965,6 +33983,7 @@ function prospectFilteredRows() {
       if (state.prospectSequenceLastStepAgeFilter !== "all" && !sequenceLastStepAgeMatchesFilter(prospectSequenceLastStepAge(item), state.prospectSequenceLastStepAgeFilter)) return false;
       if (state.prospectIntakeAgeFilter !== "all" && !intakeAgeMatchesFilter(prospectIntakeAge(item), state.prospectIntakeAgeFilter)) return false;
       if (state.prospectStatusChangeAgeFilter !== "all" && !statusChangeAgeMatchesFilter(prospectStatusChangeAge(item), state.prospectStatusChangeAgeFilter)) return false;
+      if (state.prospectTouchpointAgeFilter !== "all" && !touchpointAgeMatchesFilter(prospectTouchpointAge(item), state.prospectTouchpointAgeFilter)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -36114,6 +36133,7 @@ function openProspectDraftFromAcquisition(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -36154,6 +36174,7 @@ function openFollowUpFromDashboard(item: WebsiteOpportunity, focus: "note" | "ne
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -36200,6 +36221,7 @@ function openSentProspectFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -36280,6 +36302,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     ${renderProspectSequenceLastStepAge(item)}
     ${renderProspectIntakeAge(item)}
     ${renderProspectStatusChangeAge(item)}
+    ${renderProspectTouchpointAge(item)}
     ${renderExtractedContactsPanel(item)}
     <div class="prospect-field-grid">
       <div class="form-field"><label>公司</label><input id="prospectEditCompany" value="${escapeHtml(item.company)}" ${readonly}></div>
@@ -36358,6 +36381,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   bindSequenceLastStepAgeLinks(box);
   bindIntakeAgeLinks(box);
   bindStatusChangeAgeLinks(box);
+  bindTouchpointAgeLinks(box);
   bindProspectFollowUpEntry(item, box, "prospect");
   qs<HTMLButtonElement>("#prospectDraftEmailButton", box)?.addEventListener("click", () => openProspectOutreachDraft(item));
   qs<HTMLButtonElement>("#prospectViewLeadButton", box)?.addEventListener("click", () => void openProspectLead(item));
@@ -36456,6 +36480,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
   focusSequenceLastStepAgeTarget(item.id, box);
   focusIntakeAgeTarget(item.id, box);
   focusStatusChangeAgeTarget(item.id, box);
+  focusTouchpointAgeTarget(item.id, box);
 }
 
 interface ProspectBackgroundResearchView {
@@ -37034,6 +37059,7 @@ async function openContactableApproval(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
     state.prospectJoinedRange = "all";
     index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   }
@@ -37452,6 +37478,7 @@ function showProspectForCoverage(item: WebsiteOpportunity, target: "coverage" | 
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37808,6 +37835,7 @@ function openCrmCollisionFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -37891,6 +37919,7 @@ function openAcquisitionStageFromDashboard(filter: AcquisitionStageFilter) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.prospectPage = 1;
   closeLeadFinderVerificationDrawer();
@@ -38041,6 +38070,7 @@ function openOutreachFailureFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38204,6 +38234,7 @@ function openOutreachEngagementFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -38393,6 +38424,11 @@ function renderProspectList() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  qsa<HTMLButtonElement>("[data-prospect-touchpoint-age-filter]").forEach((button) => {
+    const active = button.dataset.prospectTouchpointAgeFilter === state.prospectTouchpointAgeFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   qsa<HTMLButtonElement>("[data-prospect-date-filter]").forEach((button) => {
     const active = button.dataset.prospectDateFilter === state.prospectJoinedRange;
     button.classList.toggle("active", active);
@@ -38406,9 +38442,13 @@ function renderProspectList() {
   if (joinedTo) joinedTo.value = state.prospectJoinedTo;
   const sortSelect = qs<HTMLSelectElement>("#prospectSortSelect");
   if (sortSelect) sortSelect.value = state.prospectSort;
-  const statusChangeAgeEmpty = state.prospectStatusChangeAgeFilter === "long"
-    ? "没有状态变更超七日的候选。这里不会编造状态变更时间，也不会发信，也不会改名单，也不会改核验状态。"
+  const touchpointAgeEmpty = state.prospectTouchpointAgeFilter === "long"
+    ? "没有触达超七日的候选。这里不会编造触达时间，也不会发信，也不会改名单，也不会改状态，也不会补录触达。"
     : "";
+  const statusChangeAgeEmpty = touchpointAgeEmpty
+    || (state.prospectStatusChangeAgeFilter === "long"
+    ? "没有状态变更超七日的候选。这里不会编造状态变更时间，也不会发信，也不会改名单，也不会改核验状态。"
+    : "");
   const intakeAgeEmpty = statusChangeAgeEmpty
     || (state.prospectIntakeAgeFilter === "long"
     ? "没有入库超七日的候选。这里不会编造入库时间，也不会发信，也不会改名单。"
@@ -38559,6 +38599,7 @@ function renderProspectList() {
             ${renderSequenceLastStepAgeLine(item)}
             ${renderIntakeAgeLine(item)}
             ${renderStatusChangeAgeLine(item)}
+            ${renderTouchpointAgeLine(item)}
             <div class="prospect-contact-quick-row">
               ${contactDisplay.tone === "ready"
                 ? `<span class="prospect-contact-ready">已找到 · ${escapeHtml(contactDisplay.value)}</span>`
@@ -38664,6 +38705,7 @@ function renderProspectList() {
   renderDashboardSequenceLastStepAge();
   renderDashboardIntakeAge();
   renderDashboardStatusChangeAge();
+  renderDashboardTouchpointAge();
   renderDashboardInboundSync();
 }
 
@@ -38842,6 +38884,7 @@ function openOutreachReplyFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -39119,6 +39162,7 @@ function openOutreachDraftBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -39461,6 +39505,7 @@ function openOutreachSequenceFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
   state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
@@ -40988,6 +41033,12 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     if (!websiteOpportunitiesLoaded && statusChangeAgeList) {
       statusChangeAgeList.innerHTML = `<div class="empty-cell">状态变更日龄暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造状态变更时间，也不会发信，也不会改名单，也不会改核验状态。</div>`;
     }
+    const touchpointAgeScope = qs<HTMLElement>("#dashboardTouchpointAgeScope");
+    const touchpointAgeList = qs<HTMLElement>("#dashboardTouchpointAgeList");
+    if (touchpointAgeScope) touchpointAgeScope.textContent = "最近触达日龄暂时读不到";
+    if (!websiteOpportunitiesLoaded && touchpointAgeList) {
+      touchpointAgeList.innerHTML = `<div class="empty-cell">最近触达日龄暂时读不到（${escapeHtml(message)}）。点刷新重试。这里不会编造触达时间，也不会发信，也不会改名单，也不会改状态，也不会补录触达。</div>`;
+    }
     acquisitionTodoReadError = message;
     renderDashboardAcquisitionTodoSummary();
   } finally {
@@ -41269,6 +41320,7 @@ function openNextFollowDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41416,6 +41468,7 @@ function openStageStuckFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41555,6 +41608,7 @@ function openFollowUpGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41708,6 +41762,7 @@ function openContactGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -41877,6 +41932,7 @@ function openJoinAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42068,6 +42124,7 @@ function openSilentAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42235,6 +42292,7 @@ function openOutreachActionGapFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectOutreachActionGapFilter = outreachActionGapListFilterForOpen(view);
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
@@ -42399,6 +42457,7 @@ function openSequenceNextDueFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42564,6 +42623,7 @@ function openReplyBacklogFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42732,6 +42792,7 @@ function openReleaseBatchAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -42905,6 +42966,7 @@ function openSuppressListAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -43071,6 +43133,7 @@ function openFailureBounceAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectFailureBounceAgeFilter = failureBounceAgeListFilterForOpen(view);
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
@@ -43239,6 +43302,7 @@ function openOpenClickAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -43406,6 +43470,7 @@ function openReplyAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -43573,6 +43638,7 @@ function openSequenceLastStepAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = sequenceLastStepAgeListFilterForOpen(view);
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -43729,6 +43795,7 @@ function openIntakeAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = intakeAgeListFilterForOpen(view);
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -43886,6 +43953,7 @@ function openStatusChangeAgeFromDashboard(item: WebsiteOpportunity) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = statusChangeAgeListFilterForOpen(view);
+  state.prospectTouchpointAgeFilter = "all";
   state.prospectJoinedRange = "all";
   state.selectedProspectId = item.id;
   const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
@@ -43897,6 +43965,163 @@ function openStatusChangeAgeFromDashboard(item: WebsiteOpportunity) {
   const show = () => {
     renderProspectList();
     toast("已打开现有候选。只读，不会发信，也不会解除抑制，也不会推进序列，也不会放行批次，也不会改名单，也不会改邮箱配置，也不会改核验状态。");
+  };
+  if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
+    show();
+    return;
+  }
+  activateNavView("prospect-list", show);
+}
+
+function prospectTouchpointAge(item: WebsiteOpportunity, now = new Date()): TouchpointAgeView {
+  return presentTouchpointAge({ at: item.lastTouchpointAt || "" }, now);
+}
+
+function touchpointAgeBadgeTone(kind: TouchpointAgeView["kind"]) {
+  if (kind === "long") return "amber";
+  if (kind === "recent") return "green";
+  return "gray";
+}
+
+function renderProspectTouchpointAge(item: WebsiteOpportunity) {
+  const view = prospectTouchpointAge(item);
+  return `<section class="prospect-touchpoint-age" id="prospectTouchpointAge" data-touchpoint-age="${view.kind}">
+    <div class="prospect-touchpoint-age-head"><b>最近触达日龄</b>${badge(touchpointAgeStatusLabel(view), touchpointAgeBadgeTone(view.kind))}</div>
+    <p>${escapeHtml(touchpointAgeSummary(view))}</p>
+    <p class="prospect-touchpoint-age-body" data-touchpoint-age-body="${view.kind}">${escapeHtml(touchpointAgeLineLabel(view))}</p>
+    <div class="prospect-action-row"><button class="btn" type="button" data-touchpoint-age-entry="${escapeHtml(item.id)}">${escapeHtml(touchpointAgeEntryLabel())}</button></div>
+  </section>`;
+}
+
+function renderTouchpointAgeLine(item: WebsiteOpportunity) {
+  const view = prospectTouchpointAge(item);
+  const compact = view.kind === "none" ? " is-empty" : ` is-compact is-${view.kind}`;
+  return `<div class="prospect-touchpoint-age${compact}" data-touchpoint-age="${view.kind}">${escapeHtml(touchpointAgeLineLabel(view))}</div>`;
+}
+
+let touchpointAgeFocusId = "";
+
+/** 只停在已有的候选详情顶部。不滚到带渠道的最近触达行，也不打开触达记录。不发信，不改名单，不改状态，不补录触达。 */
+function scrollToTouchpointAgeTarget(root: ParentNode): "top" | false {
+  const mark = (entry: HTMLElement) => {
+    entry.classList.add("is-attention");
+    entry.scrollIntoView({ block: "nearest" });
+    window.setTimeout(() => entry.classList.remove("is-attention"), 1600);
+    return true;
+  };
+  const top = root.querySelector<HTMLElement>(".prospect-detail-hero, .lead-verification-drawer-head");
+  if (top) {
+    mark(top);
+    return "top";
+  }
+  if (root instanceof HTMLElement) {
+    root.scrollIntoView({ block: "start" });
+    return "top";
+  }
+  return false;
+}
+
+function focusTouchpointAgeTarget(itemId: string, root: ParentNode | null) {
+  if (touchpointAgeFocusId !== itemId || !root) return;
+  touchpointAgeFocusId = "";
+  scrollToTouchpointAgeTarget(root);
+}
+
+function bindTouchpointAgeLinks(root: ParentNode) {
+  qsa<HTMLButtonElement>("[data-touchpoint-age-entry]", root).forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const landed = scrollToTouchpointAgeTarget(root);
+      if (landed === "top") {
+        toast("已打开现有候选详情。只读，不会发信，也不会解除抑制，也不会推进序列，也不会放行批次，也不会改名单，也不会改邮箱配置，也不会改状态，也不会改核验状态，也不会补录触达。");
+      }
+    });
+  });
+}
+
+function renderDashboardTouchpointAge(now = new Date()) {
+  const scope = qs<HTMLElement>("#dashboardTouchpointAgeScope");
+  const list = qs<HTMLElement>("#dashboardTouchpointAgeList");
+  if (!scope || !list) return;
+  if (!websiteOpportunitiesLoaded) {
+    scope.textContent = "正在读取候选";
+    list.innerHTML = `<div class="empty-cell">正在读取候选</div>`;
+    return;
+  }
+  const visible = state.websiteOpportunities.filter((item) => Boolean(item.shortlistedAt));
+  if (!visible.length) {
+    scope.textContent = "当前可见范围里还没有搜客清单";
+    list.innerHTML = `<div class="empty-cell">当前可见范围里还没有搜客清单。去智能获客加入候选后再看最近触达日龄。这里不会编造名单，也不会发信，也不会改名单，也不会改状态，也不会补录触达。</div>`;
+    return;
+  }
+  const queue = listTouchpointAgeQueue(visible, (item) => prospectTouchpointAge(item, now), TOUCHPOINT_AGE_LIMIT);
+  if (!queue.total) {
+    scope.textContent = "当前可见的搜客清单没有可解析的触达时间";
+    list.innerHTML = `<div class="empty-cell">无触达日龄。当前可见的搜客清单没有可解析的触达时间。这里不会编造触达时间，也不会发信，也不会改名单，也不会改状态，也不会补录触达。</div>`;
+    return;
+  }
+  const shown = queue.rows;
+  scope.textContent = queue.total > shown.length
+    ? `可见范围 ${queue.total} 条能判断最近触达日龄，这里显示 ${shown.length} 条，触达超七日在前`
+    : `可见范围 ${queue.total} 条能判断最近触达日龄，触达超七日在前`;
+  list.innerHTML = shown.map((item) => {
+    const view = prospectTouchpointAge(item, now);
+    return `<button class="dashboard-prospect-row${view.kind === "long" ? " is-touchpoint-long" : ""}" type="button" data-dashboard-touchpoint-age="${escapeHtml(item.id)}" data-touchpoint-age="${view.kind}" aria-label="最近触达日龄：${escapeHtml(item.company)}">
+      <b>${escapeHtml(item.company)}</b>
+      <span>${escapeHtml(touchpointAgeStatusLabel(view))}</span>
+      <em>${escapeHtml(formatTouchpointAgeAt(view.atMs))}</em>
+    </button>`;
+  }).join("");
+}
+
+function openTouchpointAgeFromDashboard(item: WebsiteOpportunity) {
+  if (!item.shortlistedAt) return;
+  const view = prospectTouchpointAge(item);
+  if (view.kind === "none") return;
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
+  state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
+  state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
+  state.prospectSilentAgeFilter = "all";
+  state.prospectOutreachActionGapFilter = "all";
+  state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
+  state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
+  state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
+  state.prospectReplyAgeFilter = "all";
+  state.prospectSequenceLastStepAgeFilter = "all";
+  state.prospectIntakeAgeFilter = "all";
+  state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = touchpointAgeListFilterForOpen(view);
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  touchpointAgeFocusId = item.id;
+  closeLeadFinderVerificationDrawer();
+  const show = () => {
+    renderProspectList();
+    toast("已打开现有候选。只读，不会发信，也不会解除抑制，也不会推进序列，也不会放行批次，也不会改名单，也不会改邮箱配置，也不会改状态，也不会改核验状态，也不会补录触达。");
   };
   if (qs<HTMLElement>("#prospect-list")?.classList.contains("active")) {
     show();
@@ -45551,6 +45776,7 @@ function renderLeadTaskCandidates(job: LeadFinderJob) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
     state.prospectPage = 1;
     renderProspectList();
   });
@@ -47616,6 +47842,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
     ${renderProspectSequenceLastStepAge(item)}
     ${renderProspectIntakeAge(item)}
     ${renderProspectStatusChangeAge(item)}
+    ${renderProspectTouchpointAge(item)}
     ${renderProspectLookupDiagnosis(item)}
     <section class="lead-report-summary">
       <div class="lead-report-level">
@@ -47737,6 +47964,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   bindSequenceLastStepAgeLinks(box);
   bindIntakeAgeLinks(box);
   bindStatusChangeAgeLinks(box);
+  bindTouchpointAgeLinks(box);
   qs<HTMLButtonElement>("#leadFinderResearchButton", box)?.addEventListener("click", (event) => {
     const source = (qs<HTMLSelectElement>("#leadFinderResearchSourceSelect", box)?.value || effectiveResearchSource()) as ResearchEngineSource;
     void runProspectBackgroundResearch(item, event.currentTarget as HTMLButtonElement, qs<HTMLElement>("#leadFinderResearchResult"), source);
@@ -47778,6 +48006,7 @@ function renderLeadFinderDetail(item?: WebsiteOpportunity) {
   focusSequenceLastStepAgeTarget(item.id, box);
   focusIntakeAgeTarget(item.id, box);
   focusStatusChangeAgeTarget(item.id, box);
+  focusTouchpointAgeTarget(item.id, box);
 }
 
 function leadFinderVerificationPayload() {
@@ -49757,6 +49986,7 @@ async function openWebsiteQualification(button?: HTMLButtonElement) {
   state.prospectSequenceLastStepAgeFilter = "all";
   state.prospectIntakeAgeFilter = "all";
   state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
     activateNavView("prospect-list", () => {
       renderProspectList();
       void loadProspectQualification(first, false, true);
@@ -53196,6 +53426,15 @@ function installEvents() {
     if (!item || !item.shortlistedAt || prospectStatusChangeAge(item).kind === "none") return;
     openStatusChangeAgeFromDashboard(item);
   });
+  qs<HTMLButtonElement>("#dashboardTouchpointAgeRefresh")?.addEventListener("click", (event) => {
+    void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
+  });
+  qs<HTMLElement>("#dashboardTouchpointAge")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-dashboard-touchpoint-age]");
+    const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardTouchpointAge);
+    if (!item || !item.shortlistedAt || prospectTouchpointAge(item).kind === "none") return;
+    openTouchpointAgeFromDashboard(item);
+  });
   qs<HTMLButtonElement>("#dashboardAcquisitionStagesRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
   });
@@ -53770,6 +54009,14 @@ function installEvents() {
     button.addEventListener("click", () => {
       const next = button.dataset.prospectStatusChangeAgeFilter || "all";
       state.prospectStatusChangeAgeFilter = next === "long" || next === "all" ? next : "all";
+      state.prospectPage = 1;
+      renderProspectList();
+    });
+  });
+  qsa<HTMLButtonElement>("[data-prospect-touchpoint-age-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.prospectTouchpointAgeFilter || "all";
+      state.prospectTouchpointAgeFilter = next === "long" || next === "all" ? next : "all";
       state.prospectPage = 1;
       renderProspectList();
     });
