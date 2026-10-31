@@ -166,6 +166,15 @@ async function resolveTenantTimezone(store: CrmStore, teamId: string) {
   return DEFAULT_TENANT_TIMEZONE;
 }
 
+/** 租户当地日，格式 YYYY-MM-DD。和拨号时段用的是同一套时区。 */
+export function zonedDateKey(at: Date, timeZone: string) {
+  return zonedClock(at, timeZone).dateKey;
+}
+
+export async function tenantTimeZoneFor(store: CrmStore, teamId: string) {
+  return resolveTenantTimezone(store, teamId);
+}
+
 /** 只摘要数字。审计里不留号码本身。 */
 export function outboundNumberKey(phone: string) {
   const digits = phone.replace(/\D/g, "");

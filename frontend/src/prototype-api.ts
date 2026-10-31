@@ -29,6 +29,14 @@ import {
   type CccCallEvent,
   type CccWorkbenchSession
 } from "./aliyun-workbench";
+import {
+  outboundCallRecordQuery,
+  renderOutboundCallAgentOptions,
+  renderOutboundCallRecordFailure,
+  renderOutboundCallRecordList,
+  renderOutboundCallRecordSummary,
+  type OutboundCallRecordListResponse
+} from "./outbound-call-records";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -4704,6 +4712,7 @@ const viewLabels: Record<string, string> = {
   reminders: "跟进提醒",
   "phone-workspace": "话机工作台",
   "phone-calls": "通话记录",
+  "outbound-call-records": "外呼记录",
   "phone-strategies": "回访策略",
   "phone-config": "话机配置",
   "plan-growth": "计划任务",
@@ -10338,6 +10347,7 @@ const viewPermissionRequirements: Record<string, string> = {
   customers: "customer.read",
   "customer-pool": "customer.pool.claim",
   whatsapp: "communication.read",
+  "outbound-call-records": "communication.read",
   wecom: "communication.read",
   pipeline: "deal.read",
   documents: "document.read",
@@ -16509,6 +16519,33 @@ async function saveCampaignReadSetting(enabled: boolean) {
   } catch (error) {
     toast(error instanceof Error ? error.message : "外呼任务同步开关保存失败", "error");
     await loadCampaignRoster();
+  }
+}
+
+async function loadOutboundCallRecords() {
+  const summary = qs<HTMLElement>("#outboundCallRecordSummary");
+  const list = qs<HTMLElement>("#outboundCallRecordList");
+  if (!summary || !list) return;
+  const agent = qs<HTMLSelectElement>("#outboundCallRecordAgent")?.value || "";
+  const from = qs<HTMLInputElement>("#outboundCallRecordFrom")?.value || "";
+  const to = qs<HTMLInputElement>("#outboundCallRecordTo")?.value || "";
+  try {
+    const result = await api<OutboundCallRecordListResponse>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to })}`);
+    const agentSelect = qs<HTMLSelectElement>("#outboundCallRecordAgent");
+    if (agentSelect) {
+      const selected = result.scope === "self" ? (result.agents?.[0]?.cccUserId || "") : agent;
+      agentSelect.innerHTML = renderOutboundCallAgentOptions({
+        scope: result.scope,
+        agents: result.agents,
+        selected
+      });
+      agentSelect.disabled = result.scope !== "team";
+    }
+    summary.innerHTML = renderOutboundCallRecordSummary(result);
+    list.innerHTML = renderOutboundCallRecordList(result.records);
+  } catch (error) {
+    summary.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
+    list.innerHTML = "";
   }
 }
 
@@ -53726,6 +53763,10 @@ function installEvents() {
     void saveCampaignReadSetting((event.currentTarget as HTMLInputElement).checked);
   });
   qs<HTMLButtonElement>("#aliyunCampaignSyncButton")?.addEventListener("click", () => void syncCampaignRoster());
+  qs<HTMLFormElement>("#outboundCallRecordFilters")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadOutboundCallRecords();
+  });
   qs<HTMLButtonElement>("#cccSoftphoneToggle")?.addEventListener("click", () => {
     const panel = qs<HTMLElement>("#cccSoftphonePanel");
     const button = qs<HTMLButtonElement>("#cccSoftphoneToggle");
@@ -56967,6 +57008,9 @@ function activateNavView(view: string, after?: () => void) {
   if (view === "daily-reports") {
     void refreshDailyReports(false);
     void loadLogs().then(() => renderDailyAuto()).catch(() => renderDailyAuto());
+  }
+  if (view === "outbound-call-records") {
+    void loadOutboundCallRecords();
   }
   if (view === "settings") {
     void loadTeamSystemSettings().catch((error) => toast(error instanceof Error ? error.message : "系统设置加载失败", "error"));
