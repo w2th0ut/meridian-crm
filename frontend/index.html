@@ -8155,6 +8155,7 @@
     .dashboard-prospect-row.is-reply-long,
     .dashboard-prospect-row.is-step-long,
     .dashboard-prospect-row.is-intake-long,
+    .dashboard-prospect-row.is-status-change-long,
     .dashboard-prospect-row.is-sync-anomaly-long {
       border-color: #fecaca;
     }
@@ -9065,6 +9066,81 @@
     }
 
     .prospect-intake-age.is-empty {
+      display: block;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.08);
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .prospect-status-change-age-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .prospect-status-change-age-filter > span {
+      color: #66758b;
+      font-size: 12px;
+    }
+
+    .prospect-status-change-age:not(.is-empty):not(.is-compact) {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .prospect-status-change-age[data-status-change-age="long"]:not(.is-compact) {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .prospect-status-change-age[data-status-change-age="recent"]:not(.is-compact) {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .prospect-status-change-age-head,
+    .prospect-status-change-age.is-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .prospect-status-change-age p,
+    .prospect-status-change-age.is-compact {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .prospect-status-change-age.is-compact {
+      margin-top: 6px;
+      padding: 4px 6px;
+      border: 0;
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .prospect-status-change-age.is-compact.is-long {
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .prospect-status-change-age.is-compact.is-recent {
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .prospect-status-change-age.is-empty {
       display: block;
       margin-top: 6px;
       padding: 4px 6px;
@@ -12072,6 +12148,7 @@
     .dashboard-sequence-last-step-age-note,
     .dashboard-inbound-sync-anomaly-age-note,
     .dashboard-intake-age-note,
+    .dashboard-status-change-age-note,
     .dashboard-inbound-sync-note {
       margin: 8px 0 0;
       color: #526178;
@@ -28270,6 +28347,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardIntakeAgeList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardStatusChangeAge" aria-label="状态变更日龄">
+            <div class="section-head">
+              <div class="section-title"><div><h2>状态变更日龄</h2><p id="dashboardStatusChangeAgeScope">正在读取候选</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardStatusChangeAgeRefresh" type="button">刷新</button>
+                <button class="btn" type="button" data-trade-navigate="prospect-list">搜客清单</button>
+              </div>
+            </div>
+            <p id="dashboardStatusChangeAgeNote" class="dashboard-status-change-age-note">这是状态变更相对现在的只读日龄，复用候选上已有的 statusChangedAt（库字段 status_changed_at）。状态变更且距现在超过 7 天算状态变更超七日，未超过（含刚好 7 天）算状态变更七日内。没有可解析的状态变更时间写无状态变更日龄。只认带 T 的时间。墙上时钟不算。只有候选状态、没有这份状态变更时间时，不拿状态本身冒充。核验时间不是状态变更时间。入库时间不是状态变更时间。候选上没有更新时间字段，不拿这份时间冒充更新时间。获客阶段上的进入时间不是这一节。不是候选入库日龄，也不是收信同步异常日龄，也不是序列最近一步日龄，也不是开发信回复日龄，也不是打开或点击日龄，也不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄，也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口，也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住，也不是待记跟进或今日到期，也不是待发草稿、外联序列进度、打开或点击、失败或退信、收信同步。不替代候选入库日龄，也不替代获客阶段。文案不混用。点一行只打开现有候选详情，停在详情顶部。不会发信，不会解除抑制，不会推进序列，不会放行批次，不会改名单，不会改邮箱配置，不会改核验状态，也不会改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardStatusChangeAgeList"><div class="empty-cell">正在读取候选</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -29081,6 +29170,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <div class="prospect-tabs" role="group" aria-label="按候选入库日龄筛选">
                   <button class="active" type="button" data-prospect-intake-age-filter="all" aria-pressed="true">全部入库</button>
                   <button type="button" data-prospect-intake-age-filter="long" aria-pressed="false">入库超七日</button>
+                </div>
+              </div>
+              <div class="prospect-status-change-age-filter">
+                <span>状态变更</span>
+                <div class="prospect-tabs" role="group" aria-label="按状态变更日龄筛选">
+                  <button class="active" type="button" data-prospect-status-change-age-filter="all" aria-pressed="true">全部状态变更</button>
+                  <button type="button" data-prospect-status-change-age-filter="long" aria-pressed="false">状态变更超七日</button>
                 </div>
               </div>
               <div class="prospect-bulkbar">
