@@ -21,6 +21,11 @@ export interface ProspectOutreachSequenceView {
    * 没有下一步，或时间不是带 T 的 ISO，留空。不另存到期，也不读方案/批次的下一次运行时间。
    */
   scheduledAt: string;
+  /**
+   * 同一条序列上，已发出步骤里最晚的 sentAt。
+   * 没有已发出步骤，或时间不是带 T 的 ISO，留空。不另存时间，也不拿下一步的 scheduledAt 顶上。
+   */
+  lastStepAt: string;
 }
 
 export interface OutreachSequenceCandidate {
@@ -35,6 +40,8 @@ export interface OutreachSequenceStep {
   status?: string;
   /** 这一步计划发送时间。只读，不在这里改排期。 */
   scheduledAt?: string;
+  /** 已发出步骤上已经记下的发出时间。只读，不在这里改。 */
+  sentAt?: string;
   /** 失败原因留给失败条，序列进度不读、不回传。 */
   error?: string;
 }
@@ -93,6 +100,7 @@ interface SequenceHit {
   sourceId: string;
   updatedAt: string;
   scheduledAt: string;
+  lastStepAt: string;
 }
 
 function text(value: unknown) {
@@ -124,7 +132,8 @@ function emptySequence(): ProspectOutreachSequenceView {
     source: "none",
     sourceId: "",
     updatedAt: "",
-    scheduledAt: ""
+    scheduledAt: "",
+    lastStepAt: ""
   };
 }
 
@@ -142,6 +151,22 @@ function nextOpenStepDue(steps: OutreachSequenceStep[] | undefined) {
     || list.find((step) => text(step.status) === "pending");
   if (!next) return "";
   return isoTime(next.scheduledAt);
+}
+
+/** 已发出步骤里最晚的 sentAt。失败、跳过、正在发和待发都不算。时间一样时取更靠后的一步。 */
+function lastSentStepAt(steps: OutreachSequenceStep[] | undefined) {
+  let best = "";
+  let bestMs = Number.NEGATIVE_INFINITY;
+  for (const step of steps || []) {
+    if (text(step.status) !== "sent") continue;
+    const at = isoTime(step.sentAt);
+    if (!at) continue;
+    const ms = Date.parse(at);
+    if (!Number.isFinite(ms) || ms < bestMs) continue;
+    bestMs = ms;
+    best = at;
+  }
+  return best;
 }
 
 function currentStepName(steps: OutreachSequenceStep[] | undefined) {
@@ -298,7 +323,8 @@ export function describeProspectOutreachSequence(input: {
         source: "plan",
         sourceId: text(plan.id),
         updatedAt: validTime(plan.updatedAt),
-        scheduledAt: nextOpenStepDue(item.steps)
+        scheduledAt: nextOpenStepDue(item.steps),
+        lastStepAt: lastSentStepAt(item.steps)
       });
     }
   }
@@ -317,7 +343,8 @@ export function describeProspectOutreachSequence(input: {
         source: "batch",
         sourceId: text(batch.id),
         updatedAt: validTime(batch.updatedAt),
-        scheduledAt: nextOpenStepDue(item.steps)
+        scheduledAt: nextOpenStepDue(item.steps),
+        lastStepAt: lastSentStepAt(item.steps)
       });
     }
   }
@@ -333,7 +360,8 @@ export function describeProspectOutreachSequence(input: {
       source: "sequence",
       sourceId: text(sequence.id),
       updatedAt: validTime(sequence.updatedAt),
-      scheduledAt: nextOpenStepDue(sequence.steps)
+      scheduledAt: nextOpenStepDue(sequence.steps),
+      lastStepAt: lastSentStepAt(sequence.steps)
     });
   }
 
@@ -347,6 +375,7 @@ export function describeProspectOutreachSequence(input: {
     source: current.source,
     sourceId: current.sourceId,
     updatedAt: current.updatedAt,
-    scheduledAt: current.scheduledAt
+    scheduledAt: current.scheduledAt,
+    lastStepAt: current.lastStepAt
   };
 }

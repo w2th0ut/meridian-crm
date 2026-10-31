@@ -2264,6 +2264,98 @@ assert.doesNotMatch(scrollReplyAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows
 assert.match(prototype, /\.prospect-reply-age\b/, "开发信回复日龄必须有可见样式");
 assert.match(prototype, /\.dashboard-reply-age-note\b/, "开发信回复日龄说明必须有可见样式");
 
+const sequenceLastStepAgeLayer = readFileSync(new URL("./prospect-sequence-last-step-age.ts", import.meta.url), "utf8");
+assert.match(sequenceLastStepAgeLayer, /export function presentSequenceLastStepAge/, "序列最近一步日龄必须只消费已有发出时间");
+assert.match(sequenceLastStepAgeLayer, /SEQUENCE_LAST_STEP_AGE_LIMIT = 8/, "序列最近一步日龄最多 8 条");
+assert.match(sequenceLastStepAgeLayer, /SEQUENCE_LAST_STEP_AGE_WINDOW_DAYS = 7/, "序列最近一步日龄窗口必须是 7 天");
+assert.match(sequenceLastStepAgeLayer, /sent/, "序列最近一步日龄必须先确认当前有已发出步骤");
+assert.match(sequenceLastStepAgeLayer, /无最近一步/, "没有可解析发出时间时文案必须是无最近一步");
+assert.match(sequenceLastStepAgeLayer, /最近一步超七日/, "超过 7 天必须标最近一步超七日");
+assert.match(sequenceLastStepAgeLayer, /最近一步七日内/, "7 天内必须标最近一步七日内");
+assert.match(sequenceLastStepAgeLayer, /查看外联序列/, "必须能跳到现有外联序列");
+assert.match(sequenceLastStepAgeLayer, /kind !== "none"/, "无最近一步不得占工作台名额");
+assert.match(sequenceLastStepAgeLayer, /这不是开发信回复日龄，也不是打开或点击日龄，也不是失败退信日龄，也不是抑制名单日龄，也不是待放行批次，也不是回复待处理积压，也不是序列下一步到期，也不是外联最近动作空档，也不是名单静默无动作日龄，也不是跟进记录空档，也不是短名单加入日龄/, "序列最近一步日龄必须和回复日龄、打开或点击日龄、失败退信日龄、抑制名单日龄、待放行批次、回复积压、序列到期、外联空档、静默、跟进空档、加入日龄区分开");
+assert.match(sequenceLastStepAgeLayer, /也不是加入时间的日期范围，也不是联系方式缺口，也不是覆盖池缺口/, "序列最近一步日龄必须和日期范围、联系方式缺口、覆盖池缺口区分开");
+assert.match(sequenceLastStepAgeLayer, /也不是获客待办摘要，也不是下次跟进逾期，也不是转化阶段卡住/, "序列最近一步日龄必须和获客待办摘要、逾期、卡住区分开");
+assert.match(sequenceLastStepAgeLayer, /也不是待记跟进或今日到期，也不是待发草稿、外联序列进度/, "序列最近一步日龄必须和待记跟进、待发草稿、外联序列进度区分开");
+assert.match(sequenceLastStepAgeLayer, /也不是打开或点击、失败或退信、收信同步/, "序列最近一步日龄必须和打开或点击、失败或退信、收信同步区分开");
+assert.match(sequenceLastStepAgeLayer, /不替代外联序列那一块，也不替代序列下一步到期/, "序列最近一步日龄不得替代外联序列或序列下一步到期");
+assert.match(sequenceLastStepAgeLayer, /不会发信，不会推进序列，不会放行批次，不会解除抑制，不会改名单，不会改邮箱配置，也不会改 convert_to_lead 或 approved_contactable/, "序列最近一步日龄不得发信、推进序列、放行批次、解除抑制、改名单、改邮箱配置或改门禁");
+assert.match(sequenceLastStepAgeLayer, /刚好 7 天仍算最近一步七日内/, "刚好 7 天仍算最近一步七日内");
+assert.match(sequenceLastStepAgeLayer, /没有已发出步骤，或时间解析不了，写无最近一步，也不编造/, "没有已发出步骤时不得编造日龄");
+assert.match(sequenceLastStepAgeLayer, /下一步的计划时间不算这一步的发出时间/, "下一步计划时间不得算成这一步的发出时间");
+assert.match(sequenceLastStepAgeLayer, /失败步骤的时间不算这一步的发出时间/, "失败步骤不得算成这一步的发出时间");
+assert.match(sequenceLastStepAgeLayer, /发件邮箱没有可只读复用的健康、错误、授权到期或发送配额字段/, "发件邮箱没有健康字段时不得编造邮箱健康");
+assert.match(sequenceLastStepAgeLayer, /这里不展示邮箱异常，也不展示邮箱正常，也不展示无健康信息/, "不得把别的字段写成邮箱异常、邮箱正常或无健康信息");
+assert.doesNotMatch(sequenceLastStepAgeLayer, /fetch\(|convert-to-lead|send-development-email|whatsapp|approved_contactable\s*=|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|scheduledAt|nextExecutionAt|updatedAt|lastSentAt|outreachReply|effectiveAt/i, "序列最近一步日龄模块不得发请求、改读别的时间、读 WhatsApp、解除抑制或改门禁");
+assert.doesNotMatch(kbSourceBetween(sequenceLastStepAgeLayer, "function sequenceLastStepAgeLineLabel", "\nexport function sequenceLastStepAgeStatusLabel"), /空档|已到期|静默|跟进空档|逾期|有回复|即将到期|未临近|无序列到期|积压较久|积压较新|无待处理回复|待放已久|待放未久|无待放行|抑制超七日|抑制七日内|无抑制日龄|失败超七日|失败七日内|无失败日龄|打开超七日|打开七日内|无打开日龄|回复超七日|回复七日内|无回复日龄|无失败记录|发送失败|开发信退信|无打开或点击|邮箱异常|邮箱正常|无健康信息/, "行文案必须用最近一步超七日、最近一步七日内、无最近一步");
+assert.match(prospectListRender, /renderSequenceLastStepAgeLine\(item\)/, "搜客清单每一行必须显示序列最近一步日龄");
+assert.match(prospectListRender, /renderReplyAgeLine\(item\)[\s\S]{0,200}renderSequenceLastStepAgeLine\(item\)/, "序列最近一步日龄必须和开发信回复日龄分开显示");
+assert.match(prospectListRender, /renderDashboardSequenceLastStepAge\(\)/, "清单刷新必须同时更新序列最近一步日龄入口");
+const sequenceLastStepAgeRows = kbSourceBetween(apiLayer, "function prospectFilteredRows()", "\nfunction selectedProspect");
+assert.match(sequenceLastStepAgeRows, /prospectSequenceLastStepAgeFilter[\s\S]*prospectSequenceLastStepAge/, "序列最近一步日龄筛选只按已有发出时间过滤");
+assert.equal(
+  [...apiLayer.matchAll(/\$\{renderProspectReplyAge\(item\)\}\n    \$\{renderProspectSequenceLastStepAge\(item\)\}/g)].length,
+  2,
+  "搜客清单详情和候选详情都必须在开发信回复日龄后面单独说明序列最近一步日龄"
+);
+assert.match(apiLayer, /没有最近一步超七日的候选。这里不会编造步骤时间，也不会发信，也不会推进序列。/, "筛不到最近一步超七日时必须写清空态");
+assert.match(prototype, /data-prospect-sequence-last-step-age-filter="long"[\s\S]*最近一步超七日/, "清单必须能筛最近一步超七日");
+assert.match(prototype, /data-prospect-sequence-last-step-age-filter="all"[\s\S]*全部最近一步/, "清单必须能回到全部最近一步");
+assert.match(prototype, /data-prospect-reply-age-filter="long"[\s\S]*回复超七日/, "原来的开发信回复日龄筛选还在");
+assert.match(prototype, /id="dashboardReplyAge"[\s\S]{0,8000}id="dashboardSequenceLastStepAge"[\s\S]*序列最近一步日龄/, "工作台序列最近一步日龄必须在开发信回复日龄下面");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是开发信回复日龄/, "工作台说明必须和开发信回复日龄分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是打开或点击日龄/, "工作台说明必须和打开或点击日龄分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是失败退信日龄/, "工作台说明必须和失败退信日龄分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是抑制名单日龄/, "工作台说明必须和抑制名单日龄分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是待放行批次/, "工作台说明必须和待放行批次分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是回复待处理积压/, "工作台说明必须和回复待处理积压分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是序列下一步到期/, "工作台说明必须和序列下一步到期分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是外联最近动作空档/, "工作台说明必须和外联空档分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是名单静默/, "工作台说明必须和名单静默分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是跟进记录空档/, "工作台说明必须和跟进记录空档分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是短名单加入日龄/, "工作台说明必须和短名单加入日龄分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是联系方式缺口/, "工作台说明必须和联系方式缺口分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是覆盖池缺口/, "工作台说明必须和覆盖池缺口分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是获客待办摘要/, "工作台说明必须和获客待办摘要分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是下次跟进逾期/, "工作台说明必须和逾期分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不是转化阶段卡住/, "工作台说明必须和卡住分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不替代外联序列那一块/, "工作台说明必须和外联序列那一块分开");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*不展示邮箱异常/, "工作台说明不得展示邮箱异常");
+assert.match(prototype, /id="dashboardSequenceLastStepAgeNote"[\s\S]*文案不混用/, "工作台说明必须写明文案不混用");
+assert.match(prototype, /id="dashboardReplyAge"[\s\S]*开发信回复日龄/, "开发信回复日龄原条还在");
+assert.match(apiLayer, /SEQUENCE_LAST_STEP_AGE_LIMIT/, "工作台序列最近一步日龄必须守住 8 条上限");
+assert.match(apiLayer, /listSequenceLastStepAgeQueue\(/, "工作台必须复用最近一步超七日在前的排序");
+assert.match(apiLayer, /当前可见范围里还没有搜客清单。去智能获客加入候选后再看序列最近一步日龄。这里不会编造名单，也不会发信，也不会推进序列。/, "没有清单时不得编造序列最近一步日龄");
+assert.match(apiLayer, /序列最近一步日龄/, "详情标题必须是序列最近一步日龄");
+assert.match(apiLayer, /sequenceLastStepAgeEntryLabel\(/, "详情必须复用查看外联序列入口文案");
+const sequenceLastStepAgeAdapter = kbSourceBetween(apiLayer, "function prospectSequenceLastStepAge", "\nfunction sequenceLastStepAgeBadgeTone");
+assert.match(sequenceLastStepAgeAdapter, /prospectOutreachSequence/, "序列最近一步日龄必须复用 Day17 外联序列投影");
+assert.match(sequenceLastStepAgeAdapter, /lastStepAt/, "序列最近一步日龄必须读投影上已有的发出时间");
+assert.match(sequenceLastStepAgeAdapter, /progress !== "none"/, "只有已有序列才进入日龄");
+assert.doesNotMatch(sequenceLastStepAgeAdapter, /scheduledAt|lastSentAt|updatedAt|nextExecutionAt|nextRunAt|outreachReply|outreachFailure|outreachEngagement|latestFollowUp|shortlistedAt|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|createdAt|verifiedAt|effectiveAt|lastOpenedAt|lastClickedAt/i, "序列最近一步日龄不得改读下一步计划、汇总发送时间、更新时间、回复、失败、跟进、加入时间或收信同步");
+const sequenceLastStepAgeQueue = kbSourceBetween(apiLayer, "function renderDashboardSequenceLastStepAge", "\nfunction openSequenceLastStepAgeFromDashboard");
+assert.match(sequenceLastStepAgeQueue, /shortlistedAt/, "工作台序列最近一步日龄只包含搜客清单里的候选");
+assert.match(sequenceLastStepAgeQueue, /listSequenceLastStepAgeQueue\(/, "工作台序列最近一步日龄只按已有发出时间排序");
+assert.match(sequenceLastStepAgeQueue, /SEQUENCE_LAST_STEP_AGE_LIMIT/, "工作台渲染必须传入 8 条上限");
+assert.match(sequenceLastStepAgeQueue, /最近一步超七日在前/, "工作台必须最近一步超七日在前");
+assert.doesNotMatch(sequenceLastStepAgeQueue, /latestFollowUp|nextFollowAt|lastTouchpointAt|lastDevelopmentEmailAt|whatsapp|scheduledAt|nextExecutionAt|lastSentAt|updatedAt|outreachReply|effectiveAt|lastOpenedAt|lastClickedAt/i, "工作台序列最近一步日龄不得改读跟进、下次跟进、触达、开发信发出时间、下一步计划或回复");
+const sequenceLastStepAgeClickStart = apiLayer.indexOf('qs<HTMLElement>("#dashboardSequenceLastStepAge")?.addEventListener');
+const sequenceLastStepAgeClick = apiLayer.slice(sequenceLastStepAgeClickStart, sequenceLastStepAgeClickStart + 900);
+assert.match(sequenceLastStepAgeClick, /openSequenceLastStepAgeFromDashboard/, "点工作台序列最近一步日龄必须打开现有候选");
+assert.doesNotMatch(sequenceLastStepAgeClick, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|openFollowUpFromDashboard|controlOutreachSequence|approveOutreach|\/approve|unsuppress|profileSmtp|sender-mailboxes/, "点工作台序列最近一步日龄不得改名单、记跟进、发送、转线索、推进序列、放行、解除抑制或改邮箱");
+const openSequenceLastStepAge = kbSourceBetween(apiLayer, "function openSequenceLastStepAgeFromDashboard", "\nfunction currentLeadFinderResultJob");
+assert.match(openSequenceLastStepAge, /prospectSequenceLastStepAgeFilter = sequenceLastStepAgeListFilterForOpen\(view\)/, "打开最近一步超七日必须落到最近一步超七日筛选，最近一步七日内保持全部");
+assert.match(openSequenceLastStepAge, /sequenceLastStepAgeFocusId = item\.id/, "打开后必须停在现有外联序列或详情顶部");
+assert.match(openSequenceLastStepAge, /不会发信，也不会推进序列，也不会放行批次，也不会解除抑制，也不会改名单/, "打开时必须说明不会发信、不会推进序列、不会放行批次、不会解除抑制、不会改名单");
+assert.doesNotMatch(openSequenceLastStepAge, /saveProspectNextFollow|saveProspectFollowUp|sendProspectDevelopmentEmail|convertProspectsToLeads|convert-to-lead|shortlistLeadFinderRows|\/approve|controlOutreachSequence|approveOutreach|unsuppress|profileSmtp|sender-mailboxes/, "打开序列最近一步日龄不得改名单、记跟进、发送、转线索、批准、放行、解除抑制或改邮箱");
+const scrollSequenceLastStepAge = kbSourceBetween(apiLayer, "function scrollToSequenceLastStepAgeTarget", "\nfunction focusSequenceLastStepAgeTarget");
+assert.match(scrollSequenceLastStepAge, /#prospectOutreachSequence/, "必须滚到现有外联序列");
+assert.match(scrollSequenceLastStepAge, /prospect-detail-hero/, "没有外联序列时必须能停在详情顶部");
+assert.doesNotMatch(scrollSequenceLastStepAge, /\.value\s*=|fetch\(|shortlistLeadFinderRows|saveProspect|convert-to-lead|sendProspectDevelopmentEmail|controlOutreachSequence|\/approve|unsuppress|profileSmtp/, "跳到外联序列不得改名单、写入、发信、推进序列、放行、解除抑制或改邮箱");
+assert.match(prototype, /\.prospect-sequence-last-step-age\b/, "序列最近一步日龄必须有可见样式");
+assert.match(prototype, /\.dashboard-sequence-last-step-age-note\b/, "序列最近一步日龄说明必须有可见样式");
+
 // ---------------------------------------------------------------------------
 // 知识库训练工作台（P1）
 //

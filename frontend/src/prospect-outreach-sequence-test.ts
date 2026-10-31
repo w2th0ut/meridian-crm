@@ -82,7 +82,9 @@ assert.equal(outreachSequenceMatchesFilter(active, "stopped"), false);
 assert.equal(outreachSequenceRank(active), 3);
 assert.equal(outreachSequenceUpdatedAt(active), Date.parse("2026-10-04T08:00:00.000Z"));
 assert.equal(active.scheduledAt, "");
+assert.equal(active.lastStepAt, "");
 assert.equal(none.scheduledAt, "");
+assert.equal(none.lastStepAt, "");
 
 const withDue = presentOutreachSequence({
   progress: "active",
@@ -96,7 +98,28 @@ const withDue = presentOutreachSequence({
 });
 assert.equal(withDue.scheduledAt, "2026-10-20T08:30:00.000Z");
 assert.equal(withDue.updatedAt, "2026-10-01T00:00:00.000Z");
+assert.equal(withDue.lastStepAt, "");
 assert.notEqual(withDue.scheduledAt, withDue.updatedAt);
+
+const withSent = presentOutreachSequence({
+  progress: "done",
+  statusLabel: "已完成",
+  source: "sequence",
+  sourceId: "seq_sent",
+  scheduledAt: "2026-11-01T00:00:00.000Z",
+  lastStepAt: "  2026-09-01T00:00:00.000Z  "
+});
+assert.equal(withSent.lastStepAt, "2026-09-01T00:00:00.000Z");
+assert.notEqual(withSent.lastStepAt, withSent.scheduledAt);
+
+const wallSent = presentOutreachSequence({
+  progress: "done",
+  statusLabel: "已完成",
+  source: "batch",
+  sourceId: "batch_wall_sent",
+  lastStepAt: "2026-09-01 00:00"
+});
+assert.equal(wallSent.lastStepAt, "");
 
 const wallDue = presentOutreachSequence({
   progress: "active",

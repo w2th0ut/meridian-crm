@@ -11,6 +11,7 @@ assert.equal(none.stepName, "");
 assert.equal(none.source, "none");
 assert.equal(none.sourceId, "");
 assert.equal(none.scheduledAt, "");
+assert.equal(none.lastStepAt, "");
 
 const running = describeProspectOutreachSequence({
   candidate,
@@ -314,6 +315,7 @@ assert.equal(nextDue.progress, "active");
 assert.equal(nextDue.stepName, "下一封");
 assert.equal(nextDue.scheduledAt, "2026-10-20T08:30:00.000Z");
 assert.notEqual(nextDue.scheduledAt, nextDue.updatedAt);
+assert.equal(nextDue.lastStepAt, "", "已发出步骤只有计划时间时，不把 scheduledAt 当成最近一步");
 
 const sendingWins = describeProspectOutreachSequence({
   candidate,
@@ -384,10 +386,107 @@ const sequenceDue = describeProspectOutreachSequence({
 });
 assert.equal(sequenceDue.scheduledAt, "2026-10-28T01:00:00.000Z");
 assert.equal(sequenceDue.updatedAt, "2026-10-01T00:00:00.000Z");
+assert.equal(sequenceDue.lastStepAt, "");
+
+const latestSent = describeProspectOutreachSequence({
+  candidate,
+  batches: [{
+    id: "batch_sent",
+    teamId: "team",
+    status: "approved",
+    updatedAt: "2026-10-08T00:00:00.000Z",
+    items: [{
+      candidateId: "cand_1",
+      status: "sending",
+      steps: [
+        { status: "sent", subject: "第一封", sentAt: "2026-09-01T00:00:00.000Z", scheduledAt: "2026-08-01T00:00:00.000Z" },
+        { status: "sent", subject: "第二封", sentAt: "2026-10-02T03:00:00.000Z", scheduledAt: "2026-10-01T00:00:00.000Z" },
+        { status: "pending", subject: "下一封", scheduledAt: "2026-10-20T00:00:00.000Z" },
+        { status: "failed", subject: "失败", sentAt: "2026-10-15T00:00:00.000Z", scheduledAt: "2026-10-15T00:00:00.000Z" },
+        { status: "sending", subject: "正在发", sentAt: "2026-10-18T00:00:00.000Z", scheduledAt: "2026-10-18T00:00:00.000Z" }
+      ]
+    }]
+  }]
+});
+assert.equal(latestSent.lastStepAt, "2026-10-02T03:00:00.000Z");
+assert.equal(latestSent.scheduledAt, "2026-10-18T00:00:00.000Z");
+assert.notEqual(latestSent.lastStepAt, latestSent.scheduledAt);
+assert.notEqual(latestSent.lastStepAt, latestSent.updatedAt);
+
+const tiedSent = describeProspectOutreachSequence({
+  candidate,
+  sequences: [{
+    id: "seq_tie",
+    teamId: "team",
+    entityType: "lead",
+    entityId: "lead_1",
+    channel: "email",
+    status: "completed",
+    updatedAt: "2026-10-03T00:00:00.000Z",
+    steps: [
+      { status: "sent", subject: "先写上的", sentAt: "2026-09-02T00:00:00.000Z" },
+      { status: "sent", subject: "同样时间更靠后", sentAt: "2026-09-02T00:00:00.000Z" }
+    ]
+  }]
+});
+assert.equal(tiedSent.lastStepAt, "2026-09-02T00:00:00.000Z");
+
+const wallSent = describeProspectOutreachSequence({
+  candidate,
+  plans: [{
+    id: "plan_wall_sent",
+    teamId: "team",
+    name: "墙上时钟",
+    status: "completed",
+    updatedAt: "2026-10-04T00:00:00.000Z",
+    items: [{
+      candidateId: "cand_1",
+      status: "sent",
+      steps: [{ status: "sent", subject: "已经发了", sentAt: "2026-10-02 03:00", scheduledAt: "2026-10-02T03:00:00.000Z" }]
+    }]
+  }]
+});
+assert.equal(wallSent.progress, "done");
+assert.equal(wallSent.lastStepAt, "");
+
+const activeKeepsOwnStep = describeProspectOutreachSequence({
+  candidate,
+  plans: [{
+    id: "plan_open",
+    teamId: "team",
+    name: "还在发",
+    status: "running",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+    items: [{
+      candidateId: "cand_1",
+      status: "ready",
+      steps: [{ status: "pending", subject: "下一封", scheduledAt: "2026-11-01T00:00:00.000Z" }]
+    }]
+  }],
+  sequences: [{
+    id: "seq_old",
+    teamId: "team",
+    entityType: "lead",
+    entityId: "lead_1",
+    channel: "email",
+    status: "completed",
+    updatedAt: "2026-10-20T00:00:00.000Z",
+    steps: [{ status: "sent", subject: "旧的一封", sentAt: "2026-09-01T00:00:00.000Z" }]
+  }]
+});
+assert.equal(activeKeepsOwnStep.progress, "active");
+assert.equal(activeKeepsOwnStep.sourceId, "plan_open");
+assert.equal(activeKeepsOwnStep.scheduledAt, "2026-11-01T00:00:00.000Z");
+assert.equal(activeKeepsOwnStep.lastStepAt, "");
 
 const source = readFileSync(new URL("./prospect-outreach-sequence.ts", import.meta.url), "utf8");
 assert.match(source, /scheduledAt/);
-assert.doesNotMatch(source, /nextRunAt|nextSendAt|nextExecutionAt/);
+assert.match(source, /lastStepAt/);
+assert.doesNotMatch(source, /nextRunAt|nextSendAt|nextExecutionAt|lastSentAt/);
+const lastSentFn = source.slice(source.indexOf("function lastSentStepAt"), source.indexOf("function currentStepName"));
+assert.match(lastSentFn, /sentAt/);
+assert.match(lastSentFn, /status\) !== "sent"/);
+assert.doesNotMatch(lastSentFn, /scheduledAt|lastSentAt|updatedAt|nextExecutionAt/);
 assert.match(source, /status === "running"/);
 assert.match(source, /channel\) !== "email"/);
 assert.doesNotMatch(source, /convert_to_lead|approved_contactable|controlOutreachSequence|send-development-email|createOutreachSequence/);
