@@ -28,6 +28,10 @@ export interface WebsiteLeadIngressSettings {
 }
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// Node resolves this from the real release directory, not from current/.
+// activate-release.sh links backend/.data/private at shared/private so a new
+// release reads the store the previous release already has. A missing file
+// stays disabled; production validation is not relaxed.
 const PRIVATE_DIRECTORY = join(PROJECT_ROOT, ".data", "private");
 const SETTINGS_PATH = join(PRIVATE_DIRECTORY, "website-lead-ingress.enc.json");
 const KEY_PATH = join(PRIVATE_DIRECTORY, "website-lead-ingress.key");

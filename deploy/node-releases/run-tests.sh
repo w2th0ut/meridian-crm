@@ -254,6 +254,60 @@ if scripts.get("build") != "tsc -p tsconfig.json":
 PY
 }
 
+write_ingress_store() {
+  local dir="$1" settings="$2" key="$3"
+  mkdir -p "$dir"
+  printf '%s\n' "$settings" > "$dir/website-lead-ingress.enc.json"
+  printf '%s\n' "$key" > "$dir/website-lead-ingress.key"
+  chmod 700 "$dir"
+  chmod 600 "$dir/website-lead-ingress.enc.json" "$dir/website-lead-ingress.key"
+}
+
+test_publish_reuses_private_ingress_store() {
+  local previous="$APP/releases/20261029012526/backend/.data/private"
+  local release="$APP/releases/20261030120000"
+  write_ingress_store "$previous" 'enc-from-current' 'key-from-current'
+  activate publish "$PACK" 20261030120000
+  [[ -f "$APP/shared/private/website-lead-ingress.enc.json" ]] || fail "shared private settings were not seeded"
+  [[ "$(cat "$APP/shared/private/website-lead-ingress.enc.json")" == "enc-from-current" ]] || fail "shared settings bytes changed"
+  [[ "$(cat "$APP/shared/private/website-lead-ingress.key")" == "key-from-current" ]] || fail "shared key bytes changed"
+  [[ "$(stat -c %a "$APP/shared/private")" == "700" ]] || fail "shared private dir mode"
+  [[ "$(stat -c %a "$APP/shared/private/website-lead-ingress.enc.json")" == "600" ]] || fail "shared settings mode"
+  [[ "$(stat -c %a "$APP/shared/private/website-lead-ingress.key")" == "600" ]] || fail "shared key mode"
+  [[ -L "$release/backend/.data/private" ]] || fail "new release private dir is not a symlink"
+  [[ "$(readlink -f "$release/backend/.data/private/website-lead-ingress.enc.json")" == "$(readlink -f "$APP/shared/private/website-lead-ingress.enc.json")" ]] || fail "release store does not follow shared/private"
+  [[ ! -L "$previous" && -f "$previous/website-lead-ingress.enc.json" ]] || fail "previous release store was replaced"
+  [[ "$(cat "$previous/website-lead-ingress.enc.json")" == "enc-from-current" ]] || fail "previous release store was modified"
+  [[ "$(readlink -f "$APP/current")" == "$release" ]] || fail "current was not switched"
+  assert_env_unchanged
+}
+
+test_publish_keeps_existing_shared_private() {
+  local previous="$APP/releases/20261029012526/backend/.data/private"
+  local release="$APP/releases/20261030120000"
+  write_ingress_store "$APP/shared/private" 'enc-already-shared' 'key-already-shared'
+  write_ingress_store "$previous" 'enc-from-current' 'key-from-current'
+  activate publish "$PACK" 20261030120000
+  [[ "$(cat "$APP/shared/private/website-lead-ingress.enc.json")" == "enc-already-shared" ]] || fail "existing shared store was overwritten"
+  [[ "$(cat "$APP/shared/private/website-lead-ingress.key")" == "key-already-shared" ]] || fail "existing shared key was overwritten"
+  [[ "$(cat "$release/backend/.data/private/website-lead-ingress.enc.json")" == "enc-already-shared" ]] || fail "new release did not read shared store"
+  [[ "$(cat "$previous/website-lead-ingress.enc.json")" == "enc-from-current" ]] || fail "previous release store was modified"
+  assert_env_unchanged
+}
+
+test_publish_refuses_incomplete_shared_private() {
+  mkdir -p "$APP/shared/private"
+  printf '%s\n' 'enc-only' > "$APP/shared/private/website-lead-ingress.enc.json"
+  chmod 600 "$APP/shared/private/website-lead-ingress.enc.json"
+  write_ingress_store "$APP/releases/20261029012526/backend/.data/private" 'enc-from-current' 'key-from-current'
+  expect_fail 'incomplete' activate publish "$PACK" 20261030120000
+  [[ "$(readlink -f "$APP/current")" == "$APP/releases/20261029012526" ]] || fail "current changed after incomplete store"
+  [[ ! -e "$APP/releases/20261030120000" ]] || fail "incomplete publish left a release"
+  [[ "$(cat "$APP/shared/private/website-lead-ingress.enc.json")" == "enc-only" ]] || fail "incomplete shared store was replaced"
+  [[ ! -e "$APP/shared/private/website-lead-ingress.key" ]] || fail "incomplete shared store gained a key"
+  assert_env_unchanged
+}
+
 test_publish_links_env_and_switches_current() {
   activate publish "$PACK" 20261030120000
   [[ "$(readlink -f "$APP/current")" == "$APP/releases/20261030120000" ]] || fail "current was not switched"
@@ -687,6 +741,9 @@ run_case pack test_pack_omits_secrets_and_modules
 run_case pack-env test_pack_rejects_env_file
 run_case pack-sdk-prepare test_pack_drops_sdk_prepare
 run_case publish test_publish_links_env_and_switches_current
+run_case private-store test_publish_reuses_private_ingress_store
+run_case private-keep test_publish_keeps_existing_shared_private
+run_case private-incomplete test_publish_refuses_incomplete_shared_private
 run_case health-fail test_health_failure_restores_previous
 run_case nginx-health test_nginx_health_is_enough
 run_case npm-fail test_npm_failure_removes_incomplete_release
