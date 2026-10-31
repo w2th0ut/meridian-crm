@@ -1,7 +1,9 @@
 # Path B: Node releases on the live ECS (/opt/keduoduo-crm).
-# Push to master or a version tag builds only. It never SSHes.
+# Order on every trigger: verify-scripts passes, then the Node build may start.
+# pull_request to master runs only those two jobs. It never SSHes or pushes images.
+# Push to master or a version tag also verifies then builds. It never SSHes.
 # ECS changes only when workflow_dispatch sets deploy_ecs=true.
-# ACR image push is a separate job and is skipped when ACR secrets are absent.
+# ACR image push is a separate manual job and is skipped when ACR secrets are absent.
 # Operator notes: docs/CI-NODE-RELEASES.md. Do not commit secret values.
 
 name: node-release
@@ -10,6 +12,9 @@ on:
   push:
     branches: [master]
     tags: ["v*", "*.*.*"]
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       release_id:
@@ -22,7 +27,7 @@ on:
         default: false
         type: boolean
       push_acr:
-        description: "Also push ACR images. Requires ACR secrets. Push events do this only when those secrets exist."
+        description: "Also push ACR images. Requires ACR secrets. Push and pull_request never do this."
         required: true
         default: false
         type: boolean
@@ -61,6 +66,7 @@ jobs:
   guard-ecs:
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      github.event_name != 'pull_request' &&
       (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -77,12 +83,14 @@ jobs:
         run: bash deploy/node-releases/require-ecs-secrets.sh
 
   probe-ecs:
-    needs: [guard-ecs]
+    needs: [verify-scripts, guard-ecs]
     if: >-
       always() &&
       !cancelled() &&
+      needs.verify-scripts.result == 'success' &&
       needs.guard-ecs.result == 'success' &&
       github.event_name == 'workflow_dispatch' &&
+      github.event_name != 'pull_request' &&
       (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true') &&
       inputs.release_id != ''
     runs-on: ubuntu-latest
@@ -150,10 +158,11 @@ jobs:
           echo "probe mode=$( [[ "$SSH_OUTCOME" == success ]] && echo rollback || echo publish )"
 
   build:
-    needs: [guard-ecs, probe-ecs]
+    needs: [verify-scripts, guard-ecs, probe-ecs]
     if: >-
       always() &&
       !cancelled() &&
+      needs.verify-scripts.result == 'success' &&
       (needs.guard-ecs.result == 'skipped' || needs.guard-ecs.result == 'success') &&
       (needs.probe-ecs.result == 'skipped' || needs.probe-ecs.result == 'success') &&
       needs.probe-ecs.outputs.mode != 'rollback'
@@ -214,9 +223,13 @@ jobs:
           echo "ecs_release_id=${RID}" >> "$GITHUB_OUTPUT"
           printf 'ECS release id %s\n' "$RID"
 
+      # Runs only after install+build in this job succeed (no always()/failure()).
+      # verify-scripts must already be success or this job does not start.
+      # Pull requests and plain pushes do not upload. Manual ECS/ACR runs do.
       - name: Upload dist for deploy or ACR
         if: >-
           github.event_name == 'workflow_dispatch' &&
+          github.event_name != 'pull_request' &&
           (
             inputs.deploy_ecs == true || inputs.deploy_ecs == 'true' ||
             inputs.push_acr == true || inputs.push_acr == 'true'
@@ -253,6 +266,7 @@ jobs:
     if: >-
       needs.build.result == 'success' &&
       github.event_name == 'workflow_dispatch' &&
+      github.event_name != 'pull_request' &&
       (inputs.push_acr == true || inputs.push_acr == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -351,12 +365,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-ecs:
-    needs: [guard-ecs, probe-ecs, build]
+    needs: [verify-scripts, guard-ecs, probe-ecs, build]
     if: >-
       always() &&
       !cancelled() &&
       github.event_name == 'workflow_dispatch' &&
+      github.event_name != 'pull_request' &&
       (inputs.deploy_ecs == true || inputs.deploy_ecs == 'true') &&
+      needs.verify-scripts.result == 'success' &&
       needs.guard-ecs.result == 'success' &&
       (needs.probe-ecs.result == 'skipped' || needs.probe-ecs.result == 'success') &&
       (needs.probe-ecs.outputs.mode == 'rollback' || needs.build.result == 'success')
