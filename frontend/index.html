@@ -13386,6 +13386,33 @@
       font-size: 12px;
     }
 
+    .customer-contact-phones { display: flex; flex-direction: column; }
+    .customer-contact-row .contact-phone-editor { grid-column: 1 / -1; }
+    .contact-phone-editor {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .contact-phone-note {
+      margin: 0;
+      color: var(--muted, #667085);
+      font-size: 12px;
+    }
+    .contact-phone-row,
+    .contact-phone-add {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .contact-phone-editor input,
+    .contact-phone-editor select {
+      height: 28px;
+      max-width: 220px;
+      font-size: 12px;
+    }
+
     .phone-validity-button { margin-left: 0; }
     .phone-validity-status {
       flex-basis: 100%;
