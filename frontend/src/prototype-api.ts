@@ -45,6 +45,7 @@ import {
   type OutboundCallRecordListResponse
 } from "./outbound-call-records";
 import {
+  intentFollowupQuery,
   renderIntentFollowupFailure,
   renderIntentFollowupQueue,
   type IntentFollowupQueueResponse
@@ -16635,8 +16636,21 @@ let intentFollowupPending = false;
 async function loadIntentFollowupQueue() {
   const root = qs<HTMLElement>("#intentFollowupQueue");
   if (!root) return;
+  const agent = qs<HTMLSelectElement>("#intentFollowupAgent")?.value || "";
+  const outcome = qs<HTMLSelectElement>("#intentFollowupOutcome")?.value || "";
+  const includeIgnored = qs<HTMLInputElement>("#intentFollowupIncludeIgnored")?.checked === true;
   try {
-    const result = await api<IntentFollowupQueueResponse>("/api/intent-followup-queue");
+    const result = await api<IntentFollowupQueueResponse>(`/api/intent-followup-queue${intentFollowupQuery({ agentId: agent, outcome, includeIgnored })}`);
+    const agentSelect = qs<HTMLSelectElement>("#intentFollowupAgent");
+    if (agentSelect) {
+      const selected = result.scope === "self" ? (result.agents?.[0]?.cccUserId || "") : agent;
+      agentSelect.innerHTML = renderOutboundCallAgentOptions({
+        scope: result.scope,
+        agents: result.agents,
+        selected
+      });
+      agentSelect.disabled = result.scope !== "team";
+    }
     root.innerHTML = renderIntentFollowupQueue(result);
   } catch (error) {
     root.innerHTML = renderIntentFollowupFailure(error instanceof Error ? error.message : "意向回访队列没有加载");
@@ -16665,6 +16679,29 @@ async function submitIntentFollowup(form: HTMLFormElement) {
     await loadIntentFollowupQueue();
   } catch (error) {
     toast(error instanceof Error ? error.message : "下次跟进没有安排", "error");
+  } finally {
+    intentFollowupPending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function submitIntentFollowupIgnore(row: HTMLElement, restore: boolean) {
+  if (intentFollowupPending) return;
+  const targetType = row.dataset.targetType || "";
+  const targetId = row.dataset.targetId || "";
+  if (!targetType || !targetId) return;
+  const button = row.querySelector<HTMLButtonElement>(restore ? "[data-intent-restore]" : "[data-intent-ignore]");
+  intentFollowupPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(
+      restore ? "/api/intent-followup-queue/restore" : "/api/intent-followup-queue/ignore",
+      { method: "POST", body: JSON.stringify({ targetType, targetId }) }
+    );
+    toast(result.message || (restore ? "已撤销忽略" : "已忽略"));
+    await loadIntentFollowupQueue();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : (restore ? "没有撤销忽略" : "没有忽略"), "error");
   } finally {
     intentFollowupPending = false;
     if (button) button.disabled = false;
@@ -53934,11 +53971,22 @@ function installEvents() {
     event.preventDefault();
     void submitCallOutcome(form);
   });
+  qs<HTMLFormElement>("#intentFollowupFilters")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadIntentFollowupQueue();
+  });
   qs<HTMLElement>("#intentFollowupQueue")?.addEventListener("submit", (event) => {
     const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-intent-followup-form]");
     if (!form) return;
     event.preventDefault();
     void submitIntentFollowup(form);
+  });
+  qs<HTMLElement>("#intentFollowupQueue")?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-intent-ignore], [data-intent-restore]");
+    if (!button) return;
+    const row = button.closest<HTMLElement>("[data-target-type]");
+    if (!row) return;
+    void submitIntentFollowupIgnore(row, button.hasAttribute("data-intent-restore"));
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
     const outcomeForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");

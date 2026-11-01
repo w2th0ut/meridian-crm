@@ -1,7 +1,7 @@
 /**
  * 意向回访队列。
  * 只渲染接口返回的对象。空列表是空状态，不补 0。
- * 每一行单独安排跟进或忽略。没有拨号，也没有批量入口。
+ * 每一行单独安排跟进、忽略或撤销忽略。没有拨号，也没有批量入口。
  */
 
 export interface IntentFollowupQueueRow {
@@ -15,6 +15,7 @@ export interface IntentFollowupQueueRow {
   agentLabel?: string;
   maskedNumber?: string;
   suppressionNotice?: string;
+  ignored?: boolean;
 }
 
 export interface IntentFollowupAgentOption {
@@ -37,6 +38,15 @@ function escapeHtml(value: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+export function intentFollowupQuery(input: { agentId?: string; outcome?: string; includeIgnored?: boolean }) {
+  const params = new URLSearchParams();
+  if (input.agentId) params.set("agentId", input.agentId);
+  if (input.outcome) params.set("outcome", input.outcome);
+  if (input.includeIgnored) params.set("includeIgnored", "1");
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
 export function toDateTimeLocal(value: string) {
@@ -68,16 +78,32 @@ function identity(row: IntentFollowupQueueRow) {
   return `data-target-type="${escapeHtml(row.targetType)}" data-target-id="${escapeHtml(row.targetId)}"`;
 }
 
+function rowActions(row: IntentFollowupQueueRow, suggested: string) {
+  if (row.ignored) {
+    return `<button class="btn" type="button" data-intent-restore="1" ${identity(row)}>撤销忽略</button>`;
+  }
+  return `<form class="intent-followup-actions" data-intent-followup-form="1" ${identity(row)}><label>下次跟进<input type="datetime-local" data-intent-follow-at value="${escapeHtml(suggested)}"></label><button class="btn" type="submit">安排跟进</button><button class="btn" type="button" data-intent-ignore="1">忽略</button></form>`;
+}
+
 export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefined, suggestedNextFollowAt: string) {
   if (!rows?.length) return "";
   const suggested = toDateTimeLocal(suggestedNextFollowAt);
   const body = rows.map((row) => {
-    return `<tr data-intent-followup-row="1" ${identity(row)}><td><b>${escapeHtml(row.name || row.targetId)}</b><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td><form class="intent-followup-actions" data-intent-followup-form="1" ${identity(row)}><label>下次跟进<input type="datetime-local" data-intent-follow-at value="${escapeHtml(suggested)}"></label><button class="btn" type="submit">安排跟进</button></form></td></tr>`;
+    const ignored = row.ignored ? ` data-intent-ignored="1"` : "";
+    return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td><b>${escapeHtml(row.name || row.targetId)}</b><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}</td></tr>`;
   }).join("");
   return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>对象</th><th>通话结果</th><th>标注时间</th><th>坐席</th><th>号码</th><th>操作</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse) {
-  const items = renderIntentFollowupRows(input.items, input.suggestedNextFollowAt || "");
-  return items || renderIntentFollowupEmpty();
+  const items = input.items || [];
+  const active = items.filter((item) => !item.ignored);
+  const ignored = items.filter((item) => item.ignored);
+  if (!active.length && !ignored.length) return renderIntentFollowupEmpty();
+  const suggested = input.suggestedNextFollowAt || "";
+  const activeHtml = renderIntentFollowupRows(active, suggested);
+  const ignoredHtml = ignored.length
+    ? `<section data-intent-followup-ignored="1"><h2>已忽略</h2>${renderIntentFollowupRows(ignored, suggested)}</section>`
+    : "";
+  return `${activeHtml}${ignoredHtml}`;
 }

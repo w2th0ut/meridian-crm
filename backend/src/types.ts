@@ -5016,13 +5016,30 @@ export interface IntentFollowupArrangement {
   suppressed: boolean;
 }
 
-/** 安排回访的每次操作。不记完整号码，也不记密钥。 */
+/**
+ * 一条意向回访被忽略的当前状态。
+ * 租户、对象类型和对象 ID 唯一。只对记下的那一通通话生效。
+ * 之后另有一通更新的通话标成有意向或需回访时，对象重新入队。
+ * active 为假表示已经撤销。
+ */
+export interface IntentFollowupIgnore {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  callRecordId: string;
+  active: boolean;
+}
+
+/** 安排、忽略或撤销回访的每次操作。不记完整号码，也不记密钥。 */
 export interface IntentFollowupQueueAudit {
   id: string;
   teamId: string;
   actorId: string;
   at: string;
-  action: "schedule";
+  action: "schedule" | "ignore" | "restore";
   targetType: "customer" | "lead" | "prospect" | "";
   targetId: string;
   callRecordId: string;
