@@ -89,13 +89,16 @@ import {
 import {
   callScriptCreateBody,
   callScriptDisableBody,
+  callScriptRestoreBody,
   callScriptUpdateBody,
   readCallScriptDraft,
   renderCallScriptAside,
   renderCallScriptList,
   renderCallScriptManageList,
+  renderCallScriptVersionPanel,
   type CallScriptListResponse,
-  type CallScriptTemplateView
+  type CallScriptTemplateView,
+  type CallScriptVersionView
 } from "./call-script";
 import {
   callScriptUsageBody,
@@ -12273,6 +12276,10 @@ let callScriptManageTemplates: CallScriptTemplateView[] = [];
 let callScriptCanManage = false;
 let dashboardCallScriptsBound = false;
 let dashboardCallScriptLoad = 0;
+let callScriptVersionTemplateId = "";
+let callScriptVersionRows: CallScriptVersionView[] = [];
+let callScriptVersionOpen: { templateId: string; body: string } | null = null;
+let callScriptVersionPending = false;
 
 function bindDashboardCallScripts() {
   if (dashboardCallScriptsBound) return;
@@ -12300,8 +12307,28 @@ function bindDashboardCallScripts() {
       clearDashboardCallScriptForm();
       return;
     }
+    const viewButton = target?.closest<HTMLElement>("[data-call-script-version-view]");
+    if (viewButton) {
+      void openCallScriptVersionBody(viewButton.dataset.callScriptTemplate || "", viewButton.dataset.callScriptVersionView || "");
+      return;
+    }
+    const restoreButton = target?.closest<HTMLElement>("[data-call-script-version-restore]");
+    if (restoreButton) {
+      void restoreDashboardCallScriptVersion(restoreButton.dataset.callScriptTemplate || "", restoreButton.dataset.callScriptVersionRestore || "");
+      return;
+    }
+    const versionsId = target?.closest<HTMLElement>("[data-call-script-versions]")?.dataset.callScriptVersions || "";
+    if (versionsId) {
+      const item = callScriptManageTemplates.find((row) => row.id === versionsId);
+      if (item && item.enabled !== false) fillDashboardCallScript(versionsId);
+      void loadCallScriptVersions(versionsId);
+      return;
+    }
     const editId = target?.closest<HTMLElement>("[data-call-script-edit]")?.dataset.callScriptEdit || "";
-    if (editId) fillDashboardCallScript(editId);
+    if (editId) {
+      fillDashboardCallScript(editId);
+      void loadCallScriptVersions(editId);
+    }
   });
   qs<HTMLSelectElement>("#dashboardCallScriptScenario")?.addEventListener("change", () => {
     paintDashboardCallScriptList();
@@ -12361,6 +12388,13 @@ async function loadDashboardCallScripts() {
       callScriptManageTemplates = all.templates || callScriptTemplates;
     }
     paintCallScriptSurfaces();
+    if (callScriptCanManage && callScriptVersionTemplateId) void loadCallScriptVersions(callScriptVersionTemplateId);
+    else if (!callScriptCanManage) {
+      callScriptVersionTemplateId = "";
+      callScriptVersionRows = [];
+      callScriptVersionOpen = null;
+      paintCallScriptVersionPanel();
+    }
     if (callScriptCanManage) void loadCallScriptUsage();
     else paintCallScriptUsage([]);
   } catch (error) {
@@ -12401,6 +12435,85 @@ function clearDashboardCallScriptForm() {
   if (language) language.value = "";
   if (body) body.value = "";
   if (message) message.textContent = "";
+  callScriptVersionTemplateId = "";
+  callScriptVersionRows = [];
+  callScriptVersionOpen = null;
+  paintCallScriptVersionPanel();
+}
+
+function paintCallScriptVersionPanel() {
+  const root = qs<HTMLElement>("#dashboardCallScriptVersions");
+  if (!root) return;
+  const template = callScriptManageTemplates.find((item) => item.id === callScriptVersionTemplateId);
+  if (!callScriptCanManage || !template) {
+    root.hidden = true;
+    root.innerHTML = "";
+    return;
+  }
+  root.hidden = false;
+  root.innerHTML = renderCallScriptVersionPanel({
+    templateId: template.id,
+    title: template.title,
+    canRestore: template.enabled !== false,
+    versions: callScriptVersionRows,
+    openedBody: callScriptVersionOpen && callScriptVersionOpen.templateId === template.id ? callScriptVersionOpen.body : null
+  });
+}
+
+async function loadCallScriptVersions(templateId: string) {
+  if (!callScriptCanManage || !templateId) {
+    callScriptVersionTemplateId = "";
+    callScriptVersionRows = [];
+    callScriptVersionOpen = null;
+    paintCallScriptVersionPanel();
+    return;
+  }
+  callScriptVersionTemplateId = templateId;
+  if (callScriptVersionOpen && callScriptVersionOpen.templateId !== templateId) callScriptVersionOpen = null;
+  try {
+    const data = await api<{ versions?: CallScriptVersionView[] }>(`/api/call-script-templates/${encodeURIComponent(templateId)}/versions`);
+    if (callScriptVersionTemplateId !== templateId) return;
+    callScriptVersionRows = data.versions || [];
+    paintCallScriptVersionPanel();
+  } catch (error) {
+    const message = qs<HTMLElement>("#dashboardCallScriptMessage");
+    if (message) message.textContent = error instanceof Error ? error.message : "没有读到历史版本";
+  }
+}
+
+async function openCallScriptVersionBody(templateId: string, versionId: string) {
+  if (!callScriptCanManage || !templateId || !versionId) return;
+  try {
+    const data = await api<{ version?: CallScriptVersionView }>(`/api/call-script-templates/${encodeURIComponent(templateId)}/versions/${encodeURIComponent(versionId)}`);
+    const version = data.version;
+    if (!version || callScriptVersionTemplateId !== templateId) return;
+    callScriptVersionOpen = { templateId, body: version.body || "" };
+    paintCallScriptVersionPanel();
+  } catch (error) {
+    const message = qs<HTMLElement>("#dashboardCallScriptMessage");
+    if (message) message.textContent = error instanceof Error ? error.message : "没有读到这一版";
+  }
+}
+
+async function restoreDashboardCallScriptVersion(templateId: string, versionId: string) {
+  if (!callScriptCanManage || !templateId || !versionId || callScriptVersionPending) return;
+  callScriptVersionPending = true;
+  const message = qs<HTMLElement>("#dashboardCallScriptMessage");
+  try {
+    await api("/api/call-script-templates/restore", {
+      method: "POST",
+      body: JSON.stringify(callScriptRestoreBody(templateId, versionId))
+    });
+    if (message) message.textContent = "已恢复";
+    callScriptVersionOpen = null;
+    await loadDashboardCallScripts();
+    const item = callScriptManageTemplates.find((row) => row.id === templateId && row.enabled !== false);
+    if (item) fillDashboardCallScript(templateId);
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "没有恢复";
+  } finally {
+    callScriptVersionPending = false;
+  }
 }
 
 function fillDashboardCallScript(id: string) {

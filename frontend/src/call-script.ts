@@ -79,7 +79,8 @@ export function renderCallScriptManageList(templates: CallScriptTemplateView[]) 
     const edit = item.enabled === false
       ? ""
       : `<button class="btn" type="button" data-call-script-edit="${escapeCallScriptText(item.id)}">编辑</button>`;
-    return `<p class="call-script-manage-row" data-call-script-manage="${escapeCallScriptText(item.id)}"><span>${escapeCallScriptText(item.title)} · ${escapeCallScriptText(label)} · ${state}</span>${edit}</p>`;
+    const versions = `<button class="btn" type="button" data-call-script-versions="${escapeCallScriptText(item.id)}">版本</button>`;
+    return `<p class="call-script-manage-row" data-call-script-manage="${escapeCallScriptText(item.id)}"><span>${escapeCallScriptText(item.title)} · ${escapeCallScriptText(label)} · ${state}</span>${versions}${edit}</p>`;
   }).join("");
 }
 
@@ -98,6 +99,54 @@ export function callScriptUpdateBody(input: { id: string; title: string; scenari
 
 export function callScriptDisableBody(id: string) {
   return { id };
+}
+
+export interface CallScriptVersionView {
+  id: string;
+  versionNo: number;
+  title: string;
+  scenario: string;
+  scenarioLabel?: string;
+  language?: string;
+  savedAt?: string;
+  source?: string;
+  body?: string;
+}
+
+export function callScriptRestoreBody(templateId: string, versionId: string) {
+  return { templateId, versionId };
+}
+
+function callScriptVersionSourceLabel(source: string | undefined) {
+  if (source === "restore") return "恢复前";
+  if (source === "edit") return "编辑前";
+  return "";
+}
+
+export function renderCallScriptVersionBody(body: string) {
+  return `<pre class="call-script-body" data-call-script-version-body="1">${escapeCallScriptText(body)}</pre>`;
+}
+
+export function renderCallScriptVersionPanel(input: {
+  templateId: string;
+  title: string;
+  canRestore: boolean;
+  versions: CallScriptVersionView[];
+  openedBody?: string | null;
+}) {
+  const rows = input.versions.length
+    ? input.versions.map((item) => {
+      const source = callScriptVersionSourceLabel(item.source);
+      const when = item.savedAt ? ` · ${item.savedAt}` : "";
+      const versionNo = Number.isInteger(item.versionNo) ? String(item.versionNo) : "";
+      const restore = input.canRestore
+        ? `<button class="btn" type="button" data-call-script-version-restore="${escapeCallScriptText(item.id)}" data-call-script-template="${escapeCallScriptText(input.templateId)}">恢复此版</button>`
+        : "";
+      return `<p data-call-script-version="${escapeCallScriptText(item.id)}"><span>第 ${versionNo} 版 · ${escapeCallScriptText(item.title)}${source ? ` · ${escapeCallScriptText(source)}` : ""}${escapeCallScriptText(when)}</span><button class="btn" type="button" data-call-script-version-view="${escapeCallScriptText(item.id)}" data-call-script-template="${escapeCallScriptText(input.templateId)}">查看正文</button>${restore}</p>`;
+    }).join("")
+    : `<div class="empty-cell" data-call-script-versions-empty="1">还没有历史版本。</div>`;
+  const opened = input.openedBody == null ? "" : renderCallScriptVersionBody(input.openedBody);
+  return `<div data-call-script-version-panel="1" data-call-script-template="${escapeCallScriptText(input.templateId)}"><h3>话术详情</h3><p>${escapeCallScriptText(input.title)}</p>${rows}${opened}</div>`;
 }
 
 export function readCallScriptDraft(title: string, scenario: string, body: string, language: string):

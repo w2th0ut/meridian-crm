@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { hasIamPermission, type IamActor } from "./auth.js";
 import { outboundInstant } from "./outbound-call.js";
 import type { CrmStore } from "./store.js";
-import type { CallScriptAudit, CallScriptScenario, CallScriptTemplate, SessionUser } from "./types.js";
+import type { CallScriptAudit, CallScriptScenario, CallScriptTemplate, CallScriptVersion, SessionUser } from "./types.js";
 
 /**
- * 外呼话术模板。只写本地模板和 call_script_audits。
- * 停用保留原行。不拨号，不发信，不调用外部接口。
+ * 外呼话术模板。只写本地模板、旧版本快照和 call_script_audits。
+ * 停用保留原行。编辑和恢复不改模板 id，也不改通话上记下的模板 id。
+ * 不拨号，不发信，不调用外部接口。
  */
 
 export const CALL_SCRIPT_TITLE_MAX = 80;
@@ -24,7 +25,7 @@ export const CALL_SCRIPT_SCENARIOS: Array<{ id: CallScriptScenario; label: strin
 const SCENARIO_IDS = new Set(CALL_SCRIPT_SCENARIOS.map((item) => item.id));
 const LANGUAGE_PATTERN = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8}){0,2}$/;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "items", "outcomes", "templates", "templateIds", "scripts"] as const;
+const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "items", "outcomes", "templates", "templateIds", "scripts", "versions", "versionIds"] as const;
 
 export interface CallScriptSnapshot {
   title: string;
@@ -82,6 +83,8 @@ function validationMessage(reason: string) {
   return "一次只能处理一条话术模板";
 }
 
+function snapshotOf(template: CallScriptTemplate): CallScriptSnapshot;
+function snapshotOf(template: CallScriptTemplate | null): CallScriptSnapshot | null;
 function snapshotOf(template: CallScriptTemplate | null): CallScriptSnapshot | null {
   if (!template) return null;
   return {
@@ -399,10 +402,12 @@ export async function updateCallScript(store: CrmStore, user: SessionUser | unde
     });
   }
   if (!local.enabled) return reject("disabled", validationMessage("disabled"));
-  if (sameCallScript(previous, parsed.snapshot)) {
+  const prior = snapshotOf(local);
+  if (sameCallScript(prior, parsed.snapshot)) {
     return { status: 200, body: { result: "unchanged" as const, template: presentTemplate(local) } };
   }
   const now = outboundInstant().toISOString();
+  archiveCallScriptVersion(store, local, prior, user.id, "edit", now);
   local.title = parsed.snapshot.title;
   local.scenario = parsed.snapshot.scenario;
   local.language = parsed.snapshot.language;
@@ -483,4 +488,250 @@ export async function disableCallScript(store: CrmStore, user: SessionUser | und
     reason: ""
   });
   return { status: 200, body: { result: "disabled" as const, template: presentTemplate(local) } };
+}
+
+function archiveCallScriptVersion(
+  store: CrmStore,
+  template: CallScriptTemplate,
+  snapshot: CallScriptSnapshot,
+  actorId: string,
+  source: CallScriptVersion["source"],
+  savedAt: string
+) {
+  const versionNo = store.callScriptVersions.reduce((max, item) => {
+    return item.templateId === template.id ? Math.max(max, item.versionNo) : max;
+  }, 0) + 1;
+  const saved: CallScriptVersion = {
+    id: `csver_${randomUUID()}`,
+    teamId: template.teamId,
+    templateId: template.id,
+    versionNo,
+    title: snapshot.title,
+    scenario: snapshot.scenario,
+    language: snapshot.language,
+    body: snapshot.body,
+    enabled: snapshot.enabled,
+    savedBy: actorId,
+    savedAt,
+    source
+  };
+  store.callScriptVersions.unshift(saved);
+  return saved;
+}
+
+function versionsOf(store: CrmStore, template: CallScriptTemplate) {
+  return store.callScriptVersions
+    .filter((item) => item.templateId === template.id && item.teamId === template.teamId)
+    .slice()
+    .sort((left, right) => right.versionNo - left.versionNo || right.savedAt.localeCompare(left.savedAt));
+}
+
+function findVersion(store: CrmStore, template: CallScriptTemplate, versionId: string) {
+  return store.callScriptVersions.find((item) => item.id === versionId && item.templateId === template.id && item.teamId === template.teamId) || null;
+}
+
+function presentVersion(version: CallScriptVersion, includeBody: boolean) {
+  return {
+    id: version.id,
+    versionNo: version.versionNo,
+    title: version.title,
+    scenario: version.scenario,
+    scenarioLabel: callScriptScenarioLabel(version.scenario),
+    language: version.language,
+    enabled: version.enabled,
+    savedAt: version.savedAt,
+    source: version.source,
+    ...(includeBody ? { body: version.body } : {})
+  };
+}
+
+function restoredSnapshot(version: CallScriptVersion, enabled: boolean): CallScriptSnapshot {
+  return {
+    title: version.title,
+    scenario: version.scenario,
+    language: version.language,
+    body: version.body,
+    enabled
+  };
+}
+
+export function parseCallScriptVersionQuery(templateId: string, versionId: string | null, query: Record<string, unknown>):
+  | { ok: true; templateId: string; versionId: string | null }
+  | { ok: false; reason: "invalid_request" } {
+  if (Object.keys(query).length > 0) return { ok: false, reason: "invalid_request" };
+  if (Object.values(query).some((value) => Array.isArray(value))) return { ok: false, reason: "invalid_request" };
+  if (!ID_PATTERN.test(templateId)) return { ok: false, reason: "invalid_request" };
+  if (versionId === null) return { ok: true, templateId, versionId: null };
+  if (!ID_PATTERN.test(versionId)) return { ok: false, reason: "invalid_request" };
+  return { ok: true, templateId, versionId };
+}
+
+export function parseCallScriptRestore(body: unknown):
+  | { ok: true; templateId: string; versionId: string }
+  | { ok: false; reason: "invalid_request" } {
+  if (!isPlainObject(body)) return { ok: false, reason: "invalid_request" };
+  if (hasBatchKey(body)) return { ok: false, reason: "invalid_request" };
+  const allowed = new Set(["templateId", "versionId"]);
+  if (Object.keys(body).some((key) => !allowed.has(key))) return { ok: false, reason: "invalid_request" };
+  if (typeof body.templateId !== "string" || !ID_PATTERN.test(body.templateId)) return { ok: false, reason: "invalid_request" };
+  if (typeof body.versionId !== "string" || !ID_PATTERN.test(body.versionId)) return { ok: false, reason: "invalid_request" };
+  return { ok: true, templateId: body.templateId, versionId: body.versionId };
+}
+
+async function guardVersionAccess(
+  store: CrmStore,
+  user: SessionUser,
+  input: { templateId: string; action: "versions" | "version" | "restore"; previous: CallScriptSnapshot | null; next: CallScriptSnapshot | null }
+) {
+  if (!canView(user)) {
+    return rejectWithAudit(store, user, {
+      templateId: input.templateId,
+      action: input.action,
+      previous: null,
+      next: null,
+      reason: "forbidden",
+      message: "当前账号没有执行该业务操作的权限",
+      status: 403,
+      extra: { permissionCode: CALL_SCRIPT_PERMISSION }
+    });
+  }
+  if (!canManageCallScripts(user)) {
+    return rejectWithAudit(store, user, {
+      templateId: input.templateId,
+      action: input.action,
+      previous: null,
+      next: null,
+      reason: "forbidden",
+      message: "只有管理员可以查看或恢复话术版本",
+      status: 403
+    });
+  }
+  return null;
+}
+
+export async function listCallScriptVersions(store: CrmStore, user: SessionUser | undefined, templateId: string, query: Record<string, unknown>) {
+  if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
+  const parsed = parseCallScriptVersionQuery(templateId, null, query);
+  if (!parsed.ok) return reject(parsed.reason, validationMessage(parsed.reason));
+  const denied = await guardVersionAccess(store, user, { templateId: parsed.templateId, action: "versions", previous: null, next: null });
+  if (denied) return denied;
+  const found = findTemplate(store, parsed.templateId);
+  const local = found && found.teamId === user.teamId ? found : null;
+  if (!local) {
+    return rejectWithAudit(store, user, {
+      templateId: parsed.templateId,
+      action: "versions",
+      previous: null,
+      next: null,
+      reason: "not_found",
+      message: "没有这条话术模板",
+      status: 404
+    });
+  }
+  return {
+    status: 200,
+    body: {
+      templateId: local.id,
+      versions: versionsOf(store, local).map((item) => presentVersion(item, false))
+    }
+  };
+}
+
+export async function readCallScriptVersion(store: CrmStore, user: SessionUser | undefined, templateId: string, versionId: string, query: Record<string, unknown>) {
+  if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
+  const parsed = parseCallScriptVersionQuery(templateId, versionId, query);
+  if (!parsed.ok || !parsed.versionId) return reject(parsed.ok ? "invalid_request" : parsed.reason, validationMessage("invalid_request"));
+  const denied = await guardVersionAccess(store, user, { templateId: parsed.templateId, action: "version", previous: null, next: null });
+  if (denied) return denied;
+  const found = findTemplate(store, parsed.templateId);
+  const local = found && found.teamId === user.teamId ? found : null;
+  if (!local) {
+    return rejectWithAudit(store, user, {
+      templateId: parsed.templateId,
+      action: "version",
+      previous: null,
+      next: null,
+      reason: "not_found",
+      message: "没有这条话术模板",
+      status: 404
+    });
+  }
+  const version = findVersion(store, local, parsed.versionId);
+  if (!version) {
+    return rejectWithAudit(store, user, {
+      templateId: local.id,
+      action: "version",
+      previous: null,
+      next: null,
+      reason: "not_found",
+      message: "没有这个历史版本",
+      status: 404
+    });
+  }
+  return { status: 200, body: { version: presentVersion(version, true) } };
+}
+
+export async function restoreCallScriptVersion(store: CrmStore, user: SessionUser | undefined, body: unknown) {
+  if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
+  const parsed = parseCallScriptRestore(body);
+  if (!parsed.ok) return reject(parsed.reason, "一次只能恢复一个历史版本");
+  const denied = await guardVersionAccess(store, user, { templateId: parsed.templateId, action: "restore", previous: null, next: null });
+  if (denied) return denied;
+  const found = findTemplate(store, parsed.templateId);
+  const local = found && found.teamId === user.teamId ? found : null;
+  if (!local) {
+    return rejectWithAudit(store, user, {
+      templateId: parsed.templateId,
+      action: "restore",
+      previous: null,
+      next: null,
+      reason: "not_found",
+      message: "没有这条话术模板",
+      status: 404
+    });
+  }
+  if (!local.enabled) return reject("disabled", "已停用的话术不能再恢复");
+  const version = findVersion(store, local, parsed.versionId);
+  if (!version) {
+    return rejectWithAudit(store, user, {
+      templateId: local.id,
+      action: "restore",
+      previous: null,
+      next: null,
+      reason: "not_found",
+      message: "没有这个历史版本",
+      status: 404
+    });
+  }
+  const prior = snapshotOf(local);
+  const next = restoredSnapshot(version, local.enabled);
+  if (sameCallScript(prior, next)) {
+    return { status: 200, body: { result: "unchanged" as const, template: presentTemplate(local) } };
+  }
+  const now = outboundInstant().toISOString();
+  const archived = archiveCallScriptVersion(store, local, prior, user.id, "restore", now);
+  local.title = next.title;
+  local.scenario = next.scenario;
+  local.language = next.language;
+  local.body = next.body;
+  local.updatedBy = user.id;
+  local.updatedAt = now;
+  await writeAudit(store, {
+    teamId: user.teamId,
+    actorId: user.id,
+    templateId: local.id,
+    action: "restore",
+    previousValue: formatCallScriptValue(prior),
+    nextValue: formatCallScriptValue(next),
+    result: "updated",
+    reason: ""
+  });
+  return {
+    status: 200,
+    body: {
+      result: "restored" as const,
+      template: presentTemplate(local),
+      version: { id: archived.id, versionNo: archived.versionNo, source: archived.source }
+    }
+  };
 }
