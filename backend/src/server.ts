@@ -302,6 +302,7 @@ import { labelCallOutcome } from "./call-outcome.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
 import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
+import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -9088,6 +9089,21 @@ app.post("/api/callback-schedules", requireAuth, asyncRoute(async (req, res) => 
 
 app.post("/api/outbound-call-records/:id/callback-schedule", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await scheduleCallbackOnCall(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/preferred-phones", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await readPreferredPhones(getStore(), req.user, req.query as { targetType?: unknown; targetId?: unknown });
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/preferred-phones/clear", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await clearPreferredPhone(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/preferred-phones", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await setPreferredPhone(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
