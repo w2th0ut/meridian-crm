@@ -296,6 +296,7 @@ import { handleWorkbenchApi, previewWorkbenchDial, readWorkbenchSession } from "
 import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import { exportOutboundCallRecords } from "./call-export.js";
+import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from "./agent-call-target.js";
 import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outbound-call-records.js";
 import { callNotesForTarget, saveCallNote } from "./call-note.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
@@ -8992,6 +8993,21 @@ app.get("/api/outbound-call-records", requireAuth, asyncRoute(async (req, res) =
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await listOutboundCallRecords(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/agent-call-targets", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listAgentCallTargets(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/agent-call-targets/clear", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await clearAgentCallTarget(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/agent-call-targets", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await saveAgentCallTarget(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

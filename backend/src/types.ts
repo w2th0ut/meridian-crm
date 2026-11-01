@@ -5235,6 +5235,39 @@ export interface CallExportAudit {
 }
 
 /**
+ * 一个坐席的每日外呼目标。租户和坐席唯一。
+ * 拨打数和接通数必有。意向数可以没有。只作展示，不触发拨号。
+ */
+export interface AgentCallTarget {
+  id: string;
+  teamId: string;
+  agentId: string;
+  dialTarget: number;
+  connectedTarget: number;
+  intentTarget: number | null;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/**
+ * 一次每日外呼目标的设置、修改、清除，或一次被拒绝的查看、设置。
+ * 旧值和新值是「拨打|接通|意向」。没有目标、或没有意向数时，对应位置是空。
+ * 不记号码，也不记密钥。
+ */
+export interface AgentCallTargetAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  agentId: string;
+  action: "set" | "update" | "clear" | "read";
+  previousValue: string;
+  nextValue: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
