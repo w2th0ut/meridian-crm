@@ -28445,6 +28445,15 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </form>
           </section>
 
+          <section class="panel section" id="dashboardCallWrapupQueue" aria-label="待小结通话">
+            <div class="section-head">
+              <div class="section-title"><div><h2>待小结通话</h2><p id="dashboardCallWrapupScope">正在读取</p></div></div>
+            </div>
+            <p id="dashboardCallWrapupNote" class="dashboard-call-wrapup-note">这里是已经结束、自己看得到、还没有成功的通话小结，也还没有纪要的通话。按结束时间从新到旧。结束时间用话单 ReleaseTime 的正整数毫秒，解析不了的不出现。每一行显示客户、线索或搜客、脱敏号码，以及结束了多久。点名称打开这一通的通话小结。无需小结要先选原因，一次一条，也可以撤销。主管和管理员可以在下面只读看到每位坐席还剩多少通，数字只来自本地通话记录。这里没有外呼按钮，不会自动拨号，也不会推进序列。</p>
+            <div id="dashboardCallWrapupList"><div class="empty-cell">正在读取</div></div>
+            <div id="dashboardCallWrapupCounts" hidden></div>
+          </section>
+
           <section class="panel section" id="dashboardCallScripts" aria-label="外呼话术">
             <div class="section-head">
               <div class="section-title"><div><h2>外呼话术</h2><p id="dashboardCallScriptScope">按场景查看启用的话术</p></div></div>

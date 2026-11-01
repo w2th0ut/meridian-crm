@@ -5565,6 +5565,36 @@ export interface CallWrapupAudit {
 }
 
 /**
+ * 一通电话被标成无需小结的当前状态。
+ * 同一租户同一通话只有一行。active 为假表示已经撤销，行还在。
+ * 原因是固定枚举，不记纪要正文、号码或录音地址。
+ */
+export interface CallWrapupSkip {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  callRecordId: string;
+  reason: "missed" | "wrong_number" | "internal" | "duplicate" | "other";
+  active: boolean;
+}
+
+/**
+ * 一次查看、标记或撤销无需小结，或一次被拒绝的尝试。
+ * 成功的查看不写。越权的原因是 forbidden，不抄纪要、号码或录音地址。
+ */
+export interface CallWrapupSkipAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  callRecordId: string;
+  action: "read" | "skip" | "restore";
+  reason: string;
+  result: "skipped" | "restored" | "rejected";
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
