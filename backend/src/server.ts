@@ -295,6 +295,7 @@ import { createAgentMapping, deleteAgentMapping, listAgentDirectory, listAgentMa
 import { handleWorkbenchApi, previewWorkbenchDial, readWorkbenchSession } from "./aliyun-workbench.js";
 import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
+import { exportOutboundCallRecords } from "./call-export.js";
 import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outbound-call-records.js";
 import { callNotesForTarget, saveCallNote } from "./call-note.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
@@ -8991,6 +8992,19 @@ app.get("/api/outbound-call-records", requireAuth, asyncRoute(async (req, res) =
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await listOutboundCallRecords(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/outbound-call-records/export", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await exportOutboundCallRecords(getStore(), req.user, req.query as Record<string, unknown>);
+  if ("csv" in outcome) {
+    res.status(200);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", `attachment; filename="outbound-call-records.csv"; filename*=UTF-8''${encodeURIComponent(outcome.filename)}`);
+    res.send(outcome.csv);
+    return;
+  }
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
