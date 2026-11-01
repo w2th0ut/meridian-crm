@@ -28494,6 +28494,22 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardCallScriptReportList"><div class="empty-cell">选择条件后查看。</div></div>
           </section>
 
+          <section class="panel section" id="dashboardCallTagReport" aria-label="通话标签使用统计" hidden>
+            <div class="section-head">
+              <div class="section-title"><div><h2>通话标签使用统计</h2><p id="dashboardCallTagReportScope">管理员按日期和坐席查看</p></div></div>
+            </div>
+            <p id="dashboardCallTagReportNote" class="dashboard-call-tag-report-note">这一份只给管理员看。每一行是本租户的一条通话标签，包括已停用和这一筛下次数是 0 的。停用的单列在后面，并置灰。被打上的次数是关联行，关联通话数是不同的通话。同一通话同一标签只有一行，所以这两个数相同。涉及客户数和涉及线索数只数通话记录上已经写下的客户和线索，同一个对象只计一次。搜客不计入，也不另开一列。不另算接通率。要人工点查看或导出，打开工作台本身不拉这一份。导出是浏览器本地下载的 CSV，没有号码列，名称如果像公式会加单引号。这里没有外呼按钮，不会自动拨号，也不会批量拨号。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <form id="dashboardCallTagReportFilters">
+              <label>开始<input id="dashboardCallTagReportFrom" type="date"></label>
+              <label>结束<input id="dashboardCallTagReportTo" type="date"></label>
+              <label>坐席<select id="dashboardCallTagReportAgent"><option value="">全部</option></select></label>
+              <button class="btn" type="submit">查看</button>
+              <button class="btn" type="button" id="dashboardCallTagReportExport">导出 CSV</button>
+              <p id="dashboardCallTagReportMessage"></p>
+            </form>
+            <div id="dashboardCallTagReportList"><div class="empty-cell">选择条件后查看。</div></div>
+          </section>
+
           <section class="panel section" id="dashboardAcquisitionTodoSummary" aria-label="获客待办摘要">
             <div class="section-head">
               <div class="section-title"><div><h2>获客待办摘要</h2><p id="dashboardAcquisitionTodoSummaryScope">正在读取候选</p></div></div>
@@ -36081,6 +36097,10 @@ body.platform-mode .workspace-tabs { display:none !important; }
     .call-script-report-wrap { overflow: auto; }
     .call-script-report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .call-script-report-table th, .call-script-report-table td { border-bottom: 1px solid var(--line-soft, #e6ebf2); padding: 6px 8px; text-align: left; white-space: nowrap; }
+    .call-tag-report-wrap { overflow: auto; }
+    .call-tag-report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .call-tag-report-table th, .call-tag-report-table td { border-bottom: 1px solid var(--line-soft, #e6ebf2); padding: 6px 8px; text-align: left; white-space: nowrap; }
+    .call-tag-report-disabled, .call-tag-report-disabled td { color: #94a3b8; }
     #cccSoftphone {
       position: fixed;
       right: 16px;

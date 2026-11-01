@@ -5532,6 +5532,22 @@ export interface CallTagViewAudit {
 }
 
 /**
+ * 一次通话标签使用统计的查看或导出，或一次被拒绝的尝试。
+ * 筛选只记坐席和日期。不记号码，也不记标签名称或密钥。
+ */
+export interface CallTagReportAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "export";
+  filters: string;
+  rowCount: number;
+  result: "read" | "exported" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
