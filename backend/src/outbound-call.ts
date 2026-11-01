@@ -17,6 +17,7 @@ import {
   currentContactabilityDecision,
   ProspectQualificationError
 } from "./prospect-qualification.js";
+import { isPhoneMarkedInvalid } from "./phone-validity-state.js";
 import type { CrmStore } from "./store.js";
 import type {
   OutboundCallAudit,
@@ -47,6 +48,7 @@ export type OutboundCallReason =
   | "outside_window"
   | "daily_limit"
   | "min_interval"
+  | "invalid_number"
   | "dial_failed";
 
 export function customerPhoneId(customerId: string) {
@@ -78,11 +80,12 @@ const MESSAGES: Record<OutboundCallReason, string> = {
   outside_window: "当前不在允许拨打时段",
   daily_limit: "同一号码今日拨打次数已达上限",
   min_interval: "距上次拨打未满最小间隔",
+  invalid_number: "该号码已标记无效",
   dial_failed: "外呼没有发出"
 };
 
 function statusFor(reason: OutboundCallReason) {
-  if (reason === "invalid_request" || reason === "outside_window" || reason === "daily_limit" || reason === "min_interval") return 400;
+  if (reason === "invalid_request" || reason === "outside_window" || reason === "daily_limit" || reason === "min_interval" || reason === "invalid_number") return 400;
   if (reason === "forbidden" || reason === "disabled" || reason === "unmapped") return 403;
   if (reason === "not_found") return 404;
   if (reason === "dial_failed") return 502;
@@ -582,6 +585,8 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
     const limitReason = await callingLimitReason(store, user.teamId, located.phone, outboundNow());
     if (limitReason) reason = limitReason;
   }
+  // 原有门禁都通过之后才拒绝无效号码。不改前面的原因，也不放宽它们。
+  if (!reason && isPhoneMarkedInvalid(store, user.teamId, parsed.phoneId)) reason = "invalid_number";
 
   if (reason) {
     await writeAudit(store, {

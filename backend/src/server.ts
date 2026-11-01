@@ -299,6 +299,7 @@ import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outb
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
 import { labelCallOutcome } from "./call-outcome.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
+import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -9041,6 +9042,24 @@ app.post("/api/intent-followup-queue/restore", requireAuth, asyncRoute(async (re
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await restoreIntentFollowup(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/phone-validity", requireAuth, asyncRoute(async (req, res) => {
+  let allowed = false;
+  await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
+  if (!allowed || res.headersSent) return;
+  const outcome = await markPhoneInvalidFromCall(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/phone-validity", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await readPhoneValidity(getStore(), req.user, req.query as { targetType?: unknown; targetId?: unknown });
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/phone-validity", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await setPhoneValidity(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

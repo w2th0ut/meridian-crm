@@ -3,6 +3,7 @@ import { hasIamPermission } from "./auth.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
 import { outboundCallingPolicy } from "./aliyun-outbound-config.js";
 import { appendFollowUpAudit } from "./follow-up-audit.js";
+import { callPhoneValidityFields } from "./phone-validity-state.js";
 import {
   isEstablishedCall,
   presentOutboundCallRecord,
@@ -183,7 +184,8 @@ export async function readMissedCallFollowUpDetail(store: CrmStore, user: Sessio
     body: {
       record: {
         ...presentOutboundCallRecord(record, resolved.access.timeZone, resolved.access.labels),
-        followUpGenerated: Boolean(link)
+        followUpGenerated: Boolean(link),
+        ...callPhoneValidityFields(store, record)
       },
       suggestedNextFollowAt,
       suppressionNotice: noticeFor(suppressed),

@@ -5051,6 +5051,37 @@ export interface IntentFollowupQueueAudit {
 }
 
 /**
+ * 一个号码当前被标成无效。没有行就是有效。
+ * 这是联系方式上的本地属性，不是抑制名单。
+ */
+export interface PhoneValidity {
+  id: string;
+  teamId: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  phoneId: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/**
+ * 一次号码有效性的修改。前值和后值是 valid 或 invalid。
+ * 来源通话只在从通话记录标记时有值。不记完整号码。
+ */
+export interface PhoneValidityAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  phoneId: string;
+  previousValue: "valid" | "invalid";
+  nextValue: "valid" | "invalid";
+  sourceCallRecordId: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

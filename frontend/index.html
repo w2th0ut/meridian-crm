@@ -13348,6 +13348,20 @@
       line-height: 26px;
     }
 
+    .outbound-call-button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .phone-validity-button { margin-left: 0; }
+    .phone-validity-status {
+      flex-basis: 100%;
+      margin: 0;
+      color: #9f3a34;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
     .outbound-call-status {
       flex-basis: 100%;
       margin: 0;
@@ -32169,7 +32183,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>外呼通话记录</h1>
-              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。不能拨号，不能改通话记录上的话单，不能批量生成，也不能批量标注。</p>
+              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记。</p>
             </div>
           </div>
           <p class="outbound-record-note">接通看话单 EstablishedTime 是否有内容。平均时长只统计接通通话里能当成整数秒的 CallDuration，单位是秒。起算点和接通枚举如果和真实话单不一致，以接入方案第 9 节为准，这一页不另算一套。</p>

@@ -28,6 +28,8 @@ export interface OutboundCallRecordRow {
   followUpGenerated?: boolean;
   callOutcome?: string;
   callOutcomeNote?: string;
+  phoneId?: string;
+  phoneInvalid?: boolean;
 }
 
 export interface OutboundCallRecordDetail {
@@ -134,6 +136,15 @@ export function renderCallOutcomeForm(record: { id: string; callOutcome?: string
   return `<form class="outbound-record-outcome-form" data-call-outcome-form="1" data-record-id="${escapeHtml(record.id)}"><label>通话结果<select data-call-outcome>${renderCallOutcomeOptions(record.callOutcome || "")}</select></label><label>备注<input data-call-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label><button class="btn" type="submit">保存标注</button></form>`;
 }
 
+/** 只在这一条被标成号码错误、并且对得上现在的号码时出现。已经无效就只提示，不在这里取消。 */
+export function renderMarkPhoneInvalid(record: { id: string; callOutcome?: string; phoneId?: string; phoneInvalid?: boolean }) {
+  if (record.callOutcome !== "号码错误" || !(record.phoneId || "").trim()) return "";
+  if (record.phoneInvalid) {
+    return `<p class="phone-validity-status" data-phone-invalid="1">该号码已标记无效</p>`;
+  }
+  return `<button class="btn" type="button" data-mark-phone-invalid="${escapeHtml(record.id)}">标记该号码无效</button>`;
+}
+
 export function renderOutboundCallOutcomeFilterEmpty() {
   return `<p data-outcome-filter-empty="1">这个标注结果下还没有通话。</p>`;
 }
@@ -162,7 +173,7 @@ export function renderOutboundCallRecordList(records: OutboundCallRecordRow[] | 
   if (!records?.length) return "";
   const rows = records.map((record) => {
     const established = record.established === true ? "是" : "否";
-    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}</td><td>${followUpButton(record)}</td></tr>`;
+    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}</td><td>${followUpButton(record)}</td></tr>`;
   }).join("");
   return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>通话结果</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -182,6 +193,6 @@ export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) 
   const form = established
     ? `<p data-follow-up-established="1">这通已经接通，不能从这里生成下次跟进。</p>`
     : `<form data-missed-follow-form="1"><label>下次跟进<input type="datetime-local" data-missed-follow-at value="${escapeHtml(toDateTimeLocal(suggested))}"${saved ? " disabled" : ""}></label><button class="btn" type="submit" data-generate-missed-follow="1">生成下次跟进</button></form>`;
-  const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record)}</div>`;
+  const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}</div>`;
   return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${generated}${form}${notice}</section>`;
 }
