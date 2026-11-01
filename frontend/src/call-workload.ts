@@ -1,7 +1,10 @@
 /**
  * 今日通话负荷。数字只渲染接口给的字段。
  * 接口没给的次数或时长写成「—」，不画成 0。
+ * 工作状态和今日时长同样只渲染接口给的字段。
  */
+
+import { agentWorkStatusLabel, agentWorkStatusSeconds } from "./agent-work-status.js";
 
 export interface CallWorkloadRow {
   agentId?: string;
@@ -14,6 +17,11 @@ export interface CallWorkloadRow {
   talkTimeSeconds?: number | null;
   callsTarget?: number | null;
   wrapupTarget?: number | null;
+  workStatus?: "available" | "busy" | "break" | null;
+  workStatusReason?: string | null;
+  availableSeconds?: number | null;
+  busySeconds?: number | null;
+  breakSeconds?: number | null;
 }
 
 export interface CallWorkloadMetrics {
@@ -25,6 +33,10 @@ export interface CallWorkloadMetrics {
   talkTimeSeconds?: boolean;
   callsTarget?: boolean;
   wrapupTarget?: boolean;
+  workStatus?: boolean;
+  availableSeconds?: boolean;
+  busySeconds?: boolean;
+  breakSeconds?: boolean;
 }
 
 export interface CallWorkloadResponse {
@@ -33,11 +45,12 @@ export interface CallWorkloadResponse {
   timeZone?: string;
   unmapped?: boolean;
   canEditWrapupTarget?: boolean;
+  canResetWorkStatus?: boolean;
   metrics?: CallWorkloadMetrics;
   rows?: CallWorkloadRow[];
 }
 
-const COLUMNS: Array<{ key: keyof CallWorkloadMetrics; label: string; talk?: boolean; progress?: "callsMade" | "wrapupCompleted" }> = [
+const COLUMNS: Array<{ key: keyof CallWorkloadMetrics; label: string; talk?: boolean; progress?: "callsMade" | "wrapupCompleted"; status?: boolean; duration?: boolean }> = [
   { key: "callsMade", label: "今日拨打" },
   { key: "wrapupCompleted", label: "小结已完成" },
   { key: "wrapupPending", label: "小结待处理" },
@@ -45,7 +58,11 @@ const COLUMNS: Array<{ key: keyof CallWorkloadMetrics; label: string; talk?: boo
   { key: "correctionsMade", label: "改正" },
   { key: "talkTimeSeconds", label: "通话时长", talk: true },
   { key: "callsTarget", label: "人工拨打/拨打目标", progress: "callsMade" },
-  { key: "wrapupTarget", label: "小结完成/小结目标", progress: "wrapupCompleted" }
+  { key: "wrapupTarget", label: "小结完成/小结目标", progress: "wrapupCompleted" },
+  { key: "workStatus", label: "工作状态", status: true },
+  { key: "availableSeconds", label: "今日可接听", duration: true },
+  { key: "busySeconds", label: "今日忙碌", duration: true },
+  { key: "breakSeconds", label: "今日小休", duration: true }
 ];
 
 function escapeHtml(value: string) {
@@ -68,6 +85,8 @@ export function callWorkloadQuery(input: { scope: "self" | "team"; agentId?: str
 }
 
 function cell(row: CallWorkloadRow, column: (typeof COLUMNS)[number]) {
+  if (column.status) return agentWorkStatusLabel(row.workStatus);
+  if (column.duration) return agentWorkStatusSeconds(row[column.key]);
   if (column.progress) {
     const target = row[column.key];
     if (!finite(target)) return "—";
@@ -78,6 +97,10 @@ function cell(row: CallWorkloadRow, column: (typeof COLUMNS)[number]) {
   const value = row[column.key];
   if (!finite(value)) return "—";
   return column.talk ? `${value}秒` : String(value);
+}
+
+function workStatusEditor(agentId: string) {
+  return `<form data-agent-work-status-reset="${escapeHtml(agentId)}"><input data-work-status-agent type="hidden" value="${escapeHtml(agentId)}"><select data-work-status aria-label="改回工作状态"><option value="available">可接听</option><option value="busy">忙碌</option><option value="break">小休</option></select><input data-work-status-reason maxlength="200" aria-label="工作状态原因" autocomplete="off"><button class="btn" type="submit">改回状态</button></form>`;
 }
 
 export function readWrapupTargetCount(value: string):
@@ -111,6 +134,7 @@ export function renderCallWorkload(data: CallWorkloadResponse | undefined) {
   }
   const head = columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("");
   const editable = data?.canEditWrapupTarget === true;
+  const canReset = data?.canResetWorkStatus === true;
   const body = rows.map((row) => {
     const id = row.agentId || "";
     const cells = columns.map((column) => {
@@ -118,7 +142,11 @@ export function renderCallWorkload(data: CallWorkloadResponse | undefined) {
       const editor = editable && column.key === "wrapupTarget" && id && id !== "none"
         ? wrapupEditor(id, finite(row.wrapupTarget) ? Number(row.wrapupTarget) : null)
         : "";
-      return `<td data-workload-${column.key}="${escapeHtml(text)}">${escapeHtml(text)}${editor}</td>`;
+      const reset = canReset && column.status && id && id !== "none" ? workStatusEditor(id) : "";
+      const reason = column.status && row.workStatusReason
+        ? `<span data-work-status-reason="1">${escapeHtml(row.workStatusReason)}</span>`
+        : "";
+      return `<td data-workload-${column.key}="${escapeHtml(text)}">${escapeHtml(text)}${reason}${editor}${reset}</td>`;
     }).join("");
     return `<tr data-call-workload-row="${escapeHtml(id)}"><td>${escapeHtml(row.label || id || "未分配坐席")}</td>${cells}</tr>`;
   }).join("");
