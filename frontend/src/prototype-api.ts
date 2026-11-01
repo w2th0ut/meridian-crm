@@ -109,6 +109,12 @@ import {
   type CallScriptUsageStat
 } from "./call-script-usage";
 import {
+  callScriptReportQuery,
+  renderCallScriptReport,
+  renderCallScriptReportAgentOptions,
+  type CallScriptReportResponse
+} from "./call-script-report";
+import {
   matchesOutboundOwnerList,
   outboundOwnerAssignBody,
   outboundOwnerClearBody,
@@ -12453,10 +12459,77 @@ function paintCallScriptSurfaces() {
   });
 }
 
+function paintCallScriptReportAccess() {
+  const section = qs<HTMLElement>("#dashboardCallScriptReport");
+  if (section) section.hidden = !callScriptCanManage;
+}
+
+function callScriptReportFilterInput() {
+  return {
+    from: qs<HTMLInputElement>("#dashboardCallScriptReportFrom")?.value || "",
+    to: qs<HTMLInputElement>("#dashboardCallScriptReportTo")?.value || "",
+    agentId: qs<HTMLSelectElement>("#dashboardCallScriptReportAgent")?.value || "",
+    scenario: qs<HTMLSelectElement>("#dashboardCallScriptReportScenario")?.value || ""
+  };
+}
+
+async function loadCallScriptReport() {
+  const list = qs<HTMLElement>("#dashboardCallScriptReportList");
+  const message = qs<HTMLElement>("#dashboardCallScriptReportMessage");
+  if (!callScriptCanManage || !list) return;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<CallScriptReportResponse>(`/api/call-script-report${callScriptReportQuery(callScriptReportFilterInput())}`);
+    const select = qs<HTMLSelectElement>("#dashboardCallScriptReportAgent");
+    if (select) select.innerHTML = renderCallScriptReportAgentOptions(data.agents, select.value);
+    list.innerHTML = renderCallScriptReport(data);
+  } catch (error) {
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到话术效果对比")}</div>`;
+  }
+}
+
+async function exportCallScriptReport() {
+  const message = qs<HTMLElement>("#dashboardCallScriptReportMessage");
+  const button = qs<HTMLButtonElement>("#dashboardCallScriptReportExport");
+  if (!callScriptCanManage) return;
+  if (message) message.textContent = "";
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`/api/call-script-report/export${callScriptReportQuery(callScriptReportFilterInput())}`, {
+      credentials: "same-origin"
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: "导出没有完成" })) as { message?: string };
+      const text = body.message || "导出没有完成";
+      if (message) message.textContent = text;
+      toast(text, "error");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "话术效果对比.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "导出没有完成";
+    if (message) message.textContent = text;
+    toast(text, "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadDashboardCallScripts() {
   bindDashboardCallScripts();
   const list = qs<HTMLElement>("#dashboardCallScriptList");
-  if (!state.user) return;
+  if (!state.user) {
+    paintCallScriptReportAccess();
+    return;
+  }
   const ticket = ++dashboardCallScriptLoad;
   try {
     const data = await api<CallScriptListResponse>("/api/call-script-templates");
@@ -12483,8 +12556,10 @@ async function loadDashboardCallScripts() {
     }
     if (callScriptCanManage) void loadCallScriptUsage();
     else paintCallScriptUsage([]);
+    paintCallScriptReportAccess();
   } catch (error) {
     if (ticket !== dashboardCallScriptLoad) return;
+    paintCallScriptReportAccess();
     if (list) list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到话术")}</div>`;
   }
 }
@@ -55465,6 +55540,13 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#outboundCallRecordExport")?.addEventListener("click", () => {
     void exportOutboundCallRecords();
+  });
+  qs<HTMLFormElement>("#dashboardCallScriptReportFilters")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadCallScriptReport();
+  });
+  qs<HTMLButtonElement>("#dashboardCallScriptReportExport")?.addEventListener("click", () => {
+    void exportCallScriptReport();
   });
   qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("click", (event) => {
     const noteClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-note-clear]");

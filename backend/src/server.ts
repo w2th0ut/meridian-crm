@@ -299,6 +299,7 @@ import { exportOutboundCallRecords } from "./call-export.js";
 import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from "./agent-call-target.js";
 import { createCallScript, disableCallScript, listCallScriptVersions, listCallScripts, readCallScriptVersion, restoreCallScriptVersion, updateCallScript } from "./call-script.js";
 import { listCallScriptUsage, saveCallScriptUsage } from "./call-script-usage.js";
+import { exportCallScriptReport, listCallScriptReport } from "./call-script-report.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
   assignOutboundOwner,
@@ -9051,6 +9052,24 @@ app.post("/api/call-script-favorites", requireAuth, asyncRoute(async (req, res) 
 
 app.get("/api/call-script-usage", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallScriptUsage(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-script-report/export", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await exportCallScriptReport(getStore(), req.user, req.query as Record<string, unknown>);
+  if ("csv" in outcome) {
+    res.status(200);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", `attachment; filename="call-script-report.csv"; filename*=UTF-8''${encodeURIComponent(outcome.filename)}`);
+    res.send(outcome.csv);
+    return;
+  }
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-script-report", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallScriptReport(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
