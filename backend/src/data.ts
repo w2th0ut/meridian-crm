@@ -13,7 +13,7 @@ import type {
   ProspectIcpPolicySnapshot,
   ProspectSuppressionEvent
 } from "./types.js";
-import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallOutcomeAudit, CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallOutcomeAudit, CompanyProfile, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 
 export const providerCatalog: ProviderCatalogItem[] = createDefaultProviderCatalog();
 export const providerConnections: ProviderConnection[] = [];
@@ -374,6 +374,8 @@ export const callOutcomeAudits: CallOutcomeAudit[] = [];
 export const intentFollowupArrangements: IntentFollowupArrangement[] = [];
 export const intentFollowupIgnores: IntentFollowupIgnore[] = [];
 export const intentFollowupQueueAudits: IntentFollowupQueueAudit[] = [];
+export const phoneValidities: PhoneValidity[] = [];
+export const phoneValidityAudits: PhoneValidityAudit[] = [];
 export const aliyunAgentMappings: AliyunAgentMapping[] = [];
 export const agentMappingAudits: AgentMappingAudit[] = [];
 export const aliyunScreenPops: AliyunScreenPop[] = [];

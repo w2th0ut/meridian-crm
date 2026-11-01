@@ -15,12 +15,15 @@ import {
   leadOutboundTarget,
   outboundTargetKey,
   prospectOutboundTargets,
+  outboundCallButtonDisabled,
+  outboundCallButtonTitle,
   runConfirmedOutboundCall,
   showOutboundCallButton,
   type OutboundCallAvailability,
   type OutboundCallResponse,
   type OutboundCallTarget
 } from "./outbound-call";
+import { renderPhoneValidityControl, type PhoneValidityTarget } from "./phone-validity";
 import { renderAgentMappingTable, renderCampaignRoster, type AgentMappingView, type AgentSeatView, type AgentUserView, type CampaignView } from "./aliyun-agent-mapping";
 import { renderScreenPopStack, type ScreenPopCardView } from "./aliyun-screen-pop";
 import {
@@ -14220,6 +14223,8 @@ const outboundCallGate = createOutboundCallInFlight();
 function clearOutboundCallAvailability() {
   outboundCallAvailability = { enabled: false, permitted: false };
   outboundCallTargets.clear();
+  phoneValidityCache.clear();
+  phoneValidityLoaded.clear();
   hideCccSoftphone();
 }
 
@@ -14235,16 +14240,141 @@ async function loadOutboundCallAvailability() {
   }
 }
 
+const phoneValidityCache = new Map<string, { invalid: boolean; canWrite: boolean }>();
+const phoneValidityLoaded = new Set<string>();
+
+function phoneValidityCacheKey(target: { targetType: string; targetId: string; phoneId: string }) {
+  return `${target.targetType}:${target.targetId}:${target.phoneId}`;
+}
+
+function cachedPhoneValidity(target: { targetType: string; targetId: string; phoneId: string }) {
+  return phoneValidityCache.get(phoneValidityCacheKey(target));
+}
+
 function outboundCallButtonHtml(target: OutboundCallTarget | null) {
   if (!target || !showOutboundCallButton({ ...outboundCallAvailability, phone: target.phone })) return "";
   outboundCallTargets.set(outboundTargetKey(target), target);
-  return `<button class="btn outbound-call-button" type="button" data-outbound-call="1" data-outbound-type="${escapeHtml(target.targetType)}" data-outbound-id="${escapeHtml(target.targetId)}" data-outbound-phone-id="${escapeHtml(target.phoneId)}" title="只拨这一个号码">外呼</button>`;
+  const invalid = outboundCallButtonDisabled(cachedPhoneValidity(target)?.invalid === true);
+  const disabled = invalid ? " disabled" : "";
+  return `<button class="btn outbound-call-button" type="button" data-outbound-call="1" data-outbound-type="${escapeHtml(target.targetType)}" data-outbound-id="${escapeHtml(target.targetId)}" data-outbound-phone-id="${escapeHtml(target.phoneId)}" title="${escapeHtml(outboundCallButtonTitle(invalid))}"${disabled}>外呼</button>`;
+}
+
+function phoneValidityControlHtml(target: OutboundCallTarget, includeStatus: boolean) {
+  const cached = cachedPhoneValidity(target);
+  return renderPhoneValidityControl({
+    targetType: target.targetType,
+    targetId: target.targetId,
+    phoneId: target.phoneId,
+    invalid: cached?.invalid === true,
+    canWrite: cached?.canWrite === true,
+    includeStatus
+  });
 }
 
 function outboundCallLineHtml(target: OutboundCallTarget, numberText: string) {
+  const invalid = cachedPhoneValidity(target)?.invalid === true;
   const button = outboundCallButtonHtml(target);
-  if (!button) return "";
-  return `<div class="outbound-call-line"><b>${escapeHtml(numberText)}</b>${button}<p class="outbound-call-status" data-outbound-status role="status" hidden></p></div>`;
+  const validity = phoneValidityControlHtml(target, !button);
+  const hint = button && invalid
+    ? `<p class="outbound-call-status" data-outbound-invalid="1" data-phone-invalid="1">该号码已标记无效</p>`
+    : "";
+  if (!button && !validity) return "";
+  return `<div class="outbound-call-line"><b>${escapeHtml(numberText)}</b>${button}${validity}${hint}<p class="outbound-call-status" data-outbound-status role="status" hidden></p></div>`;
+}
+
+function redrawPhoneValidity(targetType: string, targetId: string) {
+  if (targetType === "customer" && state.selectedCustomerId === targetId) renderCustomerDetailPage();
+  if (targetType === "lead" && leadDrawerSnapshot?.lead.id === targetId && qs("#leadDrawer")?.classList.contains("open")) {
+    const snap = leadDrawerSnapshot;
+    renderLeadDrawer(snap.lead, snap.activities, snap.sourceEvents, snap.procurement);
+  }
+  if (targetType === "prospect" && state.selectedProspectId === targetId) {
+    const item = state.websiteOpportunities.find((row) => row.id === targetId);
+    if (item) renderProspectDetail(item);
+  }
+}
+
+async function ensurePhoneValidity(target: PhoneValidityTarget) {
+  const stamp = `${target.targetType}:${target.targetId}`;
+  if (phoneValidityLoaded.has(stamp)) return;
+  phoneValidityLoaded.add(stamp);
+  try {
+    const params = new URLSearchParams({ targetType: target.targetType, targetId: target.targetId });
+    const result = await api<{ canWrite?: boolean; phones?: Array<{ phoneId?: string; invalid?: boolean }> }>(`/api/phone-validity?${params.toString()}`);
+    let changed = false;
+    for (const phone of result.phones || []) {
+      const phoneId = (phone.phoneId || "").trim();
+      if (!phoneId) continue;
+      const key = phoneValidityCacheKey({ targetType: target.targetType, targetId: target.targetId, phoneId });
+      const next = { invalid: phone.invalid === true, canWrite: result.canWrite === true };
+      const prev = phoneValidityCache.get(key);
+      if (!prev || prev.invalid !== next.invalid || prev.canWrite !== next.canWrite) {
+        phoneValidityCache.set(key, next);
+        changed = true;
+      }
+    }
+    if (changed) redrawPhoneValidity(target.targetType, target.targetId);
+  } catch {
+    // 请求失败时保留标记，避免详情重画时反复请求。
+  }
+}
+
+let phoneValidityPending = false;
+
+async function submitPhoneValidity(button: HTMLButtonElement) {
+  if (phoneValidityPending) return;
+  const targetType = button.dataset.phoneValidityType;
+  const targetId = button.dataset.phoneValidityId || "";
+  const phoneId = button.dataset.phoneValidityPhone || "";
+  if ((targetType !== "customer" && targetType !== "lead" && targetType !== "prospect") || !targetId || !phoneId) return;
+  const invalid = button.dataset.phoneValidityInvalid !== "1";
+  phoneValidityPending = true;
+  button.disabled = true;
+  try {
+    const result = await api<{ message?: string; invalid?: boolean }>(`/api/phone-validity`, {
+      method: "POST",
+      body: JSON.stringify({ targetType, targetId, phoneId, invalid })
+    });
+    phoneValidityCache.set(phoneValidityCacheKey({ targetType, targetId, phoneId }), {
+      invalid: result.invalid === true,
+      canWrite: true
+    });
+    toast(result.message || (invalid ? "已标记该号码无效" : "已取消号码无效标记"));
+    redrawPhoneValidity(targetType, targetId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "号码有效性没有改", "error");
+    button.disabled = false;
+  } finally {
+    phoneValidityPending = false;
+  }
+}
+
+async function submitCallPhoneInvalid(recordId: string, button?: HTMLButtonElement) {
+  if (!recordId || phoneValidityPending) return;
+  phoneValidityPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; targetType?: string; targetId?: string; phoneId?: string; invalid?: boolean }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/phone-validity`,
+      { method: "POST", body: JSON.stringify({ invalid: true }) }
+    );
+    if (result.targetType && result.targetId && result.phoneId) {
+      phoneValidityCache.set(phoneValidityCacheKey({
+        targetType: result.targetType,
+        targetId: result.targetId,
+        phoneId: result.phoneId
+      }), { invalid: result.invalid !== false, canWrite: true });
+    }
+    toast(result.message || "已标记该号码无效");
+    await loadOutboundCallRecords();
+    const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+    if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "号码没有标记", "error");
+    if (button) button.disabled = false;
+  } finally {
+    phoneValidityPending = false;
+  }
 }
 
 function showOutboundCallStatus(button: HTMLButtonElement, feedback: { tone: "ok" | "error"; message: string }) {
@@ -14264,6 +14394,7 @@ function bindOutboundCallButtons(root: ParentNode) {
     }));
     if (!target) return;
     button.addEventListener("click", () => {
+      if (button.disabled) return;
       void startOutboundCall(target, button);
     });
   });
@@ -14302,12 +14433,21 @@ async function startOutboundCall(target: OutboundCallTarget, button: HTMLButtonE
 
 function renderProspectOutboundCalls(item: WebsiteOpportunity) {
   const channels = state.prospectQualifications[item.id]?.qualification?.channels || [];
-  const lines = prospectOutboundTargets(item.id, channels)
+  const targets = prospectOutboundTargets(item.id, channels);
+  if (targets.length) void ensurePhoneValidity({ targetType: "prospect", targetId: item.id, phoneId: targets[0].phoneId });
+  const lines = targets
     .map((target) => outboundCallLineHtml(target, target.phone))
     .filter(Boolean);
   if (!lines.length) return "";
   return `<div class="prospect-outbound-calls">${lines.join("")}</div>`;
 }
+
+let leadDrawerSnapshot: {
+  lead: Lead;
+  activities: LeadActivity[];
+  sourceEvents: LeadSourceEvent[];
+  procurement?: ProcurementContext;
+} | null = null;
 
 function renderLeadDrawer(
   lead: Lead,
@@ -14317,6 +14457,10 @@ function renderLeadDrawer(
 ) {
   const drawer = qs<HTMLElement>("#leadDrawer");
   if (!drawer) return;
+  leadDrawerSnapshot = { lead, activities, sourceEvents, procurement };
+  if ((lead.phone || "").trim()) {
+    void ensurePhoneValidity({ targetType: "lead", targetId: lead.id, phoneId: `lead-phone:${lead.id}` });
+  }
   const sourceProspect = state.websiteOpportunities.find((item) => item.leadId === lead.id);
   const inTrash = Boolean(lead.deletedAt);
   const sourceEvent = sourceEvents[0];
@@ -17508,6 +17652,7 @@ function renderCustomerDetailPage(customer?: Customer) {
   const whatsappHref = whatsAppEntryHref(contacts.whatsapp);
   const activeDeals = deals.filter((deal) => !deal.archivedAt && !["成交", "丢单"].includes(deal.stage));
   const customerPhoneTarget = customerOutboundTarget(current.id, current.phone || "");
+  if (customerPhoneTarget) void ensurePhoneValidity(customerPhoneTarget);
   const customerPhoneLine = customerPhoneTarget ? outboundCallLineHtml(customerPhoneTarget, current.phone || "") : "";
   const customerPhoneRow = customerPhoneLine
     ? `<div class="customer-contact-row"><span>电话</span>${customerPhoneLine}<small>可直接拨号</small></div>`
@@ -53960,6 +54105,11 @@ function installEvents() {
     void loadOutboundCallRecords();
   });
   qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("click", (event) => {
+    const mark = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-mark-phone-invalid]");
+    if (mark?.dataset.markPhoneInvalid) {
+      void submitCallPhoneInvalid(mark.dataset.markPhoneInvalid, mark);
+      return;
+    }
     const button = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-open-missed-follow]");
     const recordId = button?.dataset.openMissedFollow || "";
     if (!recordId) return;
@@ -53987,6 +54137,16 @@ function installEvents() {
     const row = button.closest<HTMLElement>("[data-target-type]");
     if (!row) return;
     void submitIntentFollowupIgnore(row, button.hasAttribute("data-intent-restore"));
+  });
+  qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("click", (event) => {
+    const mark = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-mark-phone-invalid]");
+    if (!mark?.dataset.markPhoneInvalid) return;
+    void submitCallPhoneInvalid(mark.dataset.markPhoneInvalid, mark);
+  });
+  document.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-phone-validity]");
+    if (!button || button.disabled) return;
+    void submitPhoneValidity(button);
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
     const outcomeForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");

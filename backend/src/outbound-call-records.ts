@@ -1,4 +1,5 @@
 import { hasIamPermission, hasIamScope, type IamActor } from "./auth.js";
+import { callPhoneValidityFields } from "./phone-validity-state.js";
 import { tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
 import type { CrmStore } from "./store.js";
 import type { AliyunAgentMapping, OutboundCallRecord, SessionUser } from "./types.js";
@@ -331,7 +332,8 @@ export async function listOutboundCallRecords(
   const records = listed
     .map((record) => ({
       ...presentOutboundCallRecord(record, access.timeZone, access.labels),
-      followUpGenerated: generated.has(record.id)
+      followUpGenerated: generated.has(record.id),
+      ...callPhoneValidityFields(store, record)
     }))
     .sort((left, right) => {
       if (left.localDate && right.localDate && left.localDate !== right.localDate) {

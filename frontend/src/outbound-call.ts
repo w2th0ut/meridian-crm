@@ -43,6 +43,7 @@ export const OUTBOUND_CALL_REASON_TEXT: Record<string, string> = {
   outside_window: "当前不在允许拨打时段",
   daily_limit: "同一号码今日拨打次数已达上限",
   min_interval: "距上次拨打未满最小间隔",
+  invalid_number: "该号码已标记无效",
   dial_failed: "外呼没有发出",
   invalid_request: "参数格式错误"
 };
@@ -59,9 +60,18 @@ export function outboundTargetKey(target: { targetType: string; targetId: string
   return `${target.targetType}:${target.targetId}:${target.phoneId}`;
 }
 
-/** 开关开启、有外呼权限、并且号码非空时才显示。缺一不可。 */
+/** 开关开启、有外呼权限、并且号码非空时才显示。缺一不可。无效号码仍显示，但由调用方置灰。 */
 export function showOutboundCallButton(input: OutboundCallAvailability & { phone: string }) {
   return input.enabled === true && input.permitted === true && input.phone.trim().length > 0;
+}
+
+/** 已标记无效时按钮置灰，不因此隐藏。 */
+export function outboundCallButtonDisabled(phoneInvalid: boolean) {
+  return phoneInvalid === true;
+}
+
+export function outboundCallButtonTitle(phoneInvalid: boolean) {
+  return phoneInvalid ? "该号码已标记无效" : "只拨这一个号码";
 }
 
 export function customerOutboundTarget(customerId: string, phone: string): OutboundCallTarget | null {
