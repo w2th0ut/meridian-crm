@@ -80,7 +80,7 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string; note?: string; script?: string; tag?: string; plaintext?: string }) {
+export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string; note?: string; script?: string; tag?: string; plaintext?: string; targetType?: string; targetId?: string }) {
   const params = new URLSearchParams();
   if (input.agentId) params.set("agentId", input.agentId);
   if (input.from) params.set("from", input.from);
@@ -89,6 +89,10 @@ export function outboundCallRecordQuery(input: { agentId?: string; from?: string
   if (input.note) params.set("note", input.note);
   if (input.script) params.set("script", input.script);
   if (input.tag) params.set("tag", input.tag);
+  if (input.targetType && input.targetId) {
+    params.set("targetType", input.targetType);
+    params.set("targetId", input.targetId);
+  }
   if (input.plaintext === "1") params.set("plaintext", "1");
   const query = params.toString();
   return query ? `?${query}` : "";

@@ -13528,6 +13528,25 @@
       background: #f2f4f7;
     }
 
+    button.call-tag-chip {
+      border: 0;
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+    }
+
+    button.call-tag-chip small {
+      display: block;
+      margin-top: 2px;
+      font-size: 12px;
+    }
+
+    .call-tag-summary-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
     .outbound-record-detail {
       margin-top: 16px;
       padding: 16px;
@@ -32348,7 +32367,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>外呼通话记录</h1>
-              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。可以给这一条关联的客户、线索或搜客对象设置、修改或取消回拨预约。可以给单条记录填写、修改或清空通话纪要，并按有无纪要筛选。可以在自己看得到的通话详情里，从启用的话术里单条选择、更换或清除本通所用话术。列表和导出按所用话术只读显示，也可以筛选。管理员可以单条新增、重命名或停用通话标签。坐席可以在自己看得到的通话详情里，单条添加或去掉启用中的标签。已停用但仍打在通话上的标签保留并置灰。列表和导出按标签只读显示，也可以筛选。可以按当前筛选导出 CSV，由浏览器本地下载。号码默认中间脱敏，只有管理员可以勾选明文。不发邮件，也不上传到别的服务。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记、批量写纪要、批量改所用话术或批量打标签。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
+              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。可以给这一条关联的客户、线索或搜客对象设置、修改或取消回拨预约。可以给单条记录填写、修改或清空通话纪要，并按有无纪要筛选。可以在自己看得到的通话详情里，从启用的话术里单条选择、更换或清除本通所用话术。列表和导出按所用话术只读显示，也可以筛选。管理员可以单条新增、重命名或停用通话标签。坐席可以在自己看得到的通话详情里，单条添加或去掉启用中的标签。已停用但仍打在通话上的标签保留并置灰。列表和导出按标签只读显示，也可以筛选。可以按当前筛选导出 CSV，由浏览器本地下载。号码默认中间脱敏，只有管理员可以勾选明文。不发邮件，也不上传到别的服务。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记、批量写纪要、批量改所用话术或批量打标签。回拨到期只作提醒，不会自动拨号，也不会批量拨号。从客户或线索详情点开某个通话标签时，这里只列出这个对象带这个标签、并且你看得到的通话。总拨打、接通、接通率和平均时长仍按坐席和日期，不因为这个对象或标签改掉。</p>
             </div>
           </div>
           <p class="outbound-record-note">接通看话单 EstablishedTime 是否有内容。平均时长只统计接通通话里能当成整数秒的 CallDuration，单位是秒。起算点和接通枚举如果和真实话单不一致，以接入方案第 9 节为准，这一页不另算一套。</p>
@@ -32366,6 +32385,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <p id="outboundCallRecordExportMessage" data-call-export-message hidden></p>
           </form>
           <div id="outboundCallTagAdmin"></div>
+          <p id="outboundCallRecordTargetNote" class="outbound-record-note" hidden></p>
           <div id="outboundCallRecordSummary"><p data-outbound-record-empty="1">这个范围内还没有通话记录。</p></div>
           <div id="outboundCallRecordList"></div>
           <div id="outboundCallRecordDetail" hidden></div>
@@ -32457,6 +32477,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <select id="leadSourceFilter"><option value="all">全部来源</option></select>
                 <select id="leadFollowFilter"><option value="all">全部跟进</option><option value="overdue">已逾期</option><option value="planned">已计划</option><option value="unset">待安排</option></select>
                 <select id="leadOutboundOwnerFilter" aria-label="外呼负责坐席"><option value="">全部负责坐席</option><option value="mine">我负责的</option><option value="unassigned">待指派</option></select>
+                <select id="leadCallTagFilter" aria-label="通话曾打标签" hidden><option value="">全部通话标签</option></select>
                 <button class="btn" id="leadReplyFilterButton" type="button" title="只看有客户回复的线索">✉ 有回复</button>
                 <button class="btn" id="leadFilterReset">重置</button>
                 <button class="btn primary" id="leadCreateOutreachBatchButton" type="button" data-permission="lead.read" title="勾选线索后生成发信批次">✉ 生成发信批次</button>
@@ -32494,6 +32515,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <input id="customerSearchInput" placeholder="搜索客户、联系人、国家、负责人或来源" aria-label="搜索客户">
                 <select id="customerQueueFilter" aria-label="客户工作队列"><option value="all">全部客户</option><option value="overdue">提醒已逾期</option><option value="no-activity">暂无跟进记录</option><option value="no-deal">暂无活跃商机</option></select>
                 <select id="customerOutboundOwnerFilter" aria-label="外呼负责坐席"><option value="">全部负责坐席</option><option value="mine">我负责的</option><option value="unassigned">待指派</option></select>
+                <select id="customerCallTagFilter" aria-label="通话曾打标签" hidden><option value="">全部通话标签</option></select>
                 <button class="btn" id="customerFilterReset">重置</button>
               </div>
               <div class="panel section customer-list-workspace" id="customerListWorkspace">

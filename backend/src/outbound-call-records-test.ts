@@ -31,9 +31,12 @@ assert.equal(recordInDateRange(null, null, null), true);
 assert.equal(recordInDateRange("2026-11-01", "2026-11-01", "2026-11-01"), true);
 assert.equal(recordInDateRange("2026-10-31", "2026-11-01", "2026-11-01"), false);
 
-assert.deepEqual(parseOutboundCallRecordQuery({}), { agentId: null, from: null, to: null, outcome: null, note: null, script: null, tag: null });
+assert.deepEqual(parseOutboundCallRecordQuery({}), { agentId: null, from: null, to: null, outcome: null, note: null, script: null, tag: null, targetType: null, targetId: null });
 const parsed = parseOutboundCallRecordQuery({ agentId: " agent@ccc-a ", from: "2026-11-01", to: "2026-11-02" });
-assert.deepEqual(parsed, { agentId: "agent@ccc-a", from: "2026-11-01", to: "2026-11-02", outcome: null, note: null, script: null, tag: null });
+assert.deepEqual(parsed, { agentId: "agent@ccc-a", from: "2026-11-01", to: "2026-11-02", outcome: null, note: null, script: null, tag: null, targetType: null, targetId: null });
+assert.equal(parseOutboundCallRecordQuery({ targetType: "customer", targetId: "c1" })?.targetId, "c1");
+assert.equal(parseOutboundCallRecordQuery({ targetType: "customer" }), null);
+assert.equal(parseOutboundCallRecordQuery({ targetType: "prospect", targetId: "p1" }), null);
 assert.equal(parseOutboundCallRecordQuery({ tag: "none" })?.tag, "none");
 assert.equal(parseOutboundCallRecordQuery({ tag: " ctag_a " })?.tag, "ctag_a");
 assert.equal(parseOutboundCallRecordQuery({ tag: "价格" }), null);

@@ -88,6 +88,16 @@ import {
   type CallTagChoice
 } from "./call-tag";
 import {
+  callTagFilterEmptyText,
+  renderCallTagFilterOptions,
+  renderCallTagObjectSummary,
+  renderCallTagObjectSummaryFailure,
+  renderCallTagTargetNote,
+  renderOutboundCallTargetFilterEmpty,
+  type CallTagFilterChoice,
+  type CallTagOnObject
+} from "./call-tag-view";
+import {
   agentCallTargetSetBody,
   formatAgentCallProgress,
   readAgentCallTargetCounts,
@@ -905,6 +915,7 @@ interface Customer {
   ownerAgentLabel?: string;
   activities?: CustomerActivity[];
   callNotes?: CallNoteTimelineEntry[];
+  callTagIds?: string[];
   lastActivityAt?: string;
   pendingIntelligence?: CustomerIntelligenceSuggestion[];
   pendingIntelligenceCount?: number;
@@ -3652,6 +3663,7 @@ interface Lead {
   deletedBy?: string;
   purgeAt?: string;
   statusBeforeDelete?: "new" | "following" | "converted" | "invalid";
+  callTagIds?: string[];
 }
 
 interface LeadSourceEvent {
@@ -4179,6 +4191,11 @@ interface AppState {
   leadSourceFilter: string;
   leadFollowFilter: string;
   leadOutboundOwnerFilter: string;
+  leadCallTagFilter: string;
+  leadCallTagFilters: CallTagFilterChoice[] | null;
+  leadTrashCallTagFilters: CallTagFilterChoice[] | null;
+  leadActiveCallTagMatchIds: string[] | null;
+  leadTrashCallTagMatchIds: string[] | null;
   /** 只看有客户回复的线索（绿色邮箱图标来源） */
   leadReplyFilter: "all" | "replied";
   selectedLeadIds: string[];
@@ -4337,6 +4354,9 @@ interface AppState {
   customerSearch: string;
   customerQueueFilter: "all" | "overdue" | "no-activity" | "no-deal";
   customerOutboundOwnerFilter: string;
+  customerCallTagFilter: string;
+  customerCallTagFilters: CallTagFilterChoice[] | null;
+  customerCallTagMatchIds: string[] | null;
   canManageOutboundOwner: boolean;
   myOutboundOwnerAgentIds: string[];
   outboundOwnerAgents: OutboundOwnerListMeta["agents"];
@@ -4429,6 +4449,11 @@ const state: AppState = {
   leadSourceFilter: "all",
   leadFollowFilter: "all",
   leadOutboundOwnerFilter: "",
+  leadCallTagFilter: "",
+  leadCallTagFilters: null,
+  leadTrashCallTagFilters: null,
+  leadActiveCallTagMatchIds: null,
+  leadTrashCallTagMatchIds: null,
   leadReplyFilter: "all",
   selectedLeadIds: [],
   leadSearch: "",
@@ -4586,6 +4611,9 @@ const state: AppState = {
   customerSearch: "",
   customerQueueFilter: "all",
   customerOutboundOwnerFilter: "",
+  customerCallTagFilter: "",
+  customerCallTagFilters: null,
+  customerCallTagMatchIds: null,
   canManageOutboundOwner: false,
   myOutboundOwnerAgentIds: [],
   outboundOwnerAgents: [],
@@ -11780,10 +11808,10 @@ async function refreshAll(user: User) {
   renderDashboardCache(user);
   const [summary, customers, publicCustomers, leadsResp, leadTrashResp, todos, deals, reminders, jobs, tradeDocs, documentDefaults, documentAssets, wecom, knowledge, exams, ocr, websiteOps, prospectAssignees, aiConfig, problems, memos, deletedMemos, planTasks, planTemplates, competitors, peers, caseStudies, commissionProducts, commissionRecords, commissionCalculations] = await Promise.all([
     api<DashboardSummary>("/api/dashboard/summary"),
-    api<{ customers: Customer[]; mineCount: number; publicCount: number }>("/api/customers"),
+    api<{ customers: Customer[]; mineCount: number; publicCount: number; callTagFilters?: CallTagFilterChoice[] }>("/api/customers"),
     api<{ customers: Customer[]; mineCount: number; publicCount: number }>("/api/customers?scope=public"),
-    api<{ leads: Lead[] }>("/api/leads"),
-    api<{ leads: Lead[] }>("/api/leads?trash=true"),
+    api<{ leads: Lead[]; callTagFilters?: CallTagFilterChoice[] }>("/api/leads"),
+    api<{ leads: Lead[]; callTagFilters?: CallTagFilterChoice[] }>("/api/leads?trash=true"),
     api<{ todos: Todo[] }>("/api/todos"),
     api<{ deals: Deal[]; events: DealEvent[] }>("/api/deals"),
     api<{ reminders: Reminder[] }>("/api/reminders"),
@@ -11814,11 +11842,14 @@ async function refreshAll(user: User) {
   state.summary = summary;
   state.customers = customers.customers;
   absorbOutboundOwnerList(customers);
+  absorbCallTagFilters(customers, (filters) => { state.customerCallTagFilters = filters; });
   state.publicCustomers = publicCustomers.customers;
   state.customerPoolCounts = { mineCount: customers.mineCount, publicCount: publicCustomers.publicCount };
   state.leads = leadsResp.leads;
   absorbOutboundOwnerList(leadsResp);
+  absorbCallTagFilters(leadsResp, (filters) => { state.leadCallTagFilters = filters; });
   state.leadTrash = leadTrashResp.leads;
+  absorbCallTagFilters(leadTrashResp, (filters) => { state.leadTrashCallTagFilters = filters; });
   state.todos = todos.todos;
   state.deals = deals.deals;
   state.dealEvents = deals.events;
@@ -14459,6 +14490,9 @@ function resetLeadFilters() {
   state.leadSourceFilter = "all";
   state.leadFollowFilter = "all";
   state.leadOutboundOwnerFilter = "";
+  state.leadCallTagFilter = "";
+  state.leadActiveCallTagMatchIds = null;
+  state.leadTrashCallTagMatchIds = null;
   state.leadSearch = "";
   state.leadPage = 1;
   setFieldValue("#leadSearchInput", "");
@@ -14466,6 +14500,7 @@ function resetLeadFilters() {
   setFieldValue("#leadSourceFilter", "all");
   setFieldValue("#leadFollowFilter", "all");
   setFieldValue("#leadOutboundOwnerFilter", "");
+  setFieldValue("#leadCallTagFilter", "");
   state.leadReplyFilter = "all";
   qs<HTMLButtonElement>("#leadReplyFilterButton")?.classList.remove("primary");
   renderLeads();
@@ -14970,10 +15005,13 @@ function renderLeads() {
     const matchSource = state.leadSourceFilter === "all" || leadSourceLabel(lead) === state.leadSourceFilter;
     const matchFollow = state.leadFollowFilter === "all" || leadFollowState(lead) === state.leadFollowFilter;
     const matchOwner = matchesOutboundOwnerList(lead.ownerAgentId, state.leadOutboundOwnerFilter, state.myOutboundOwnerAgentIds);
+    const leadMatchIds = state.leadView === "trash" ? state.leadTrashCallTagMatchIds : state.leadActiveCallTagMatchIds;
+    const matchCallTag = !state.leadCallTagFilter
+      || (leadMatchIds ? leadMatchIds.includes(lead.id) : (lead.callTagIds || []).includes(state.leadCallTagFilter));
     const matchReply = state.leadReplyFilter === "all" || Boolean(lead.lastEmailReplyAt);
     const haystack = [lead.company, lead.contact, lead.country, lead.email, lead.phone, lead.source, lead.sourceChannel, lead.externalId, lead.inquiryContent]
       .filter(Boolean).join(" ").toLowerCase();
-    return matchStage && matchIntent && matchSource && matchFollow && matchOwner && matchReply && (!q || haystack.includes(q));
+    return matchStage && matchIntent && matchSource && matchFollow && matchOwner && matchCallTag && matchReply && (!q || haystack.includes(q));
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / LEAD_PAGE_SIZE));
   state.leadPage = Math.min(state.leadPage, totalPages);
@@ -14993,8 +15031,10 @@ function renderLeads() {
   }
 
   syncOutboundOwnerFilterSelect("#leadOutboundOwnerFilter", state.leadOutboundOwnerFilter);
-  const leadOwnerEmpty = state.leadOutboundOwnerFilter && !filtered.length;
-  const leadEmptyText = leadOwnerEmpty ? outboundOwnerFilterEmptyText("线索") : (state.leadView === "trash" ? "垃圾箱中没有符合条件的线索" : "暂无符合条件的线索");
+  syncCallTagFilterSelect("#leadCallTagFilter", state.leadView === "trash" ? state.leadTrashCallTagFilters : state.leadCallTagFilters, state.leadCallTagFilter);
+  const leadCallTagEmpty = Boolean(state.leadCallTagFilter) && !filtered.length;
+  const leadOwnerEmpty = Boolean(state.leadOutboundOwnerFilter) && !filtered.length && !leadCallTagEmpty;
+  const leadEmptyText = leadCallTagEmpty ? callTagFilterEmptyText("线索") : leadOwnerEmpty ? outboundOwnerFilterEmptyText("线索") : (state.leadView === "trash" ? "垃圾箱中没有符合条件的线索" : "暂无符合条件的线索");
   const replyFlag = (lead: { lastEmailReplyAt?: string }) => lead.lastEmailReplyAt
     ? `<span class="lead-reply-flag" title="客户已回复：${escapeHtml(new Date(lead.lastEmailReplyAt).toLocaleString("zh-CN"))}">✉</span>`
     : "";
@@ -15009,7 +15049,7 @@ function renderLeads() {
     <td><div class="lead-row-actions">${state.leadView === "trash"
       ? `<button class="btn tiny" type="button" data-lead-row-action="restore" data-lead-row-id="${lead.id}">恢复</button>${lead.convertedCustomerId ? "" : `<button class="btn tiny danger" type="button" data-lead-row-action="permanent" data-lead-row-id="${lead.id}">永久删除</button>`}`
       : `<button class="btn tiny danger subtle" type="button" data-lead-row-action="trash" data-lead-row-id="${lead.id}">删除</button>`}</div></td>
-  </tr>`).join("") : `<tr><td colspan="8" class="empty-cell"${leadOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${leadEmptyText}</td></tr>`;
+  </tr>`).join("") : `<tr><td colspan="8" class="empty-cell"${leadCallTagEmpty ? ` data-call-tag-filter-empty="1"` : leadOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${leadEmptyText}</td></tr>`;
 
   cards.innerHTML = pageRows.length ? pageRows.map((lead) => `
     <article class="lead-mobile-card ${lead.id === state.selectedLeadId ? "selected" : ""}" data-lead-id="${lead.id}">
@@ -15020,7 +15060,7 @@ function renderLeads() {
       <span class="lead-mobile-actions">${state.leadView === "trash"
         ? `<button class="btn tiny" type="button" data-lead-row-action="restore" data-lead-row-id="${lead.id}">恢复</button>${lead.convertedCustomerId ? "" : `<button class="btn tiny danger" type="button" data-lead-row-action="permanent" data-lead-row-id="${lead.id}">永久删除</button>`}`
         : `<button class="btn tiny danger subtle" type="button" data-lead-row-action="trash" data-lead-row-id="${lead.id}">删除</button>`}</span>
-    </article>`).join("") : `<div class="empty-cell"${leadOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${leadEmptyText}</div>`;
+    </article>`).join("") : `<div class="empty-cell"${leadCallTagEmpty ? ` data-call-tag-filter-empty="1"` : leadOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${leadEmptyText}</div>`;
 
   qsa<HTMLButtonElement>("[data-open-lead]", qs("#leads")!).forEach((button) => button.addEventListener("click", () => {
     const id = button.dataset.openLead || "";
@@ -15724,6 +15764,7 @@ function renderLeadDrawer(
       <div class="lead-drawer-head-actions">${inTrash ? "" : `<button class="${whatsAppEntryClass(lead.phone || "")}" id="leadWhatsAppButton" ${whatsAppEntryAttrs(lead.phone || "", "该线索未维护电话 / WhatsApp 号码，补齐后再联系")}>WhatsApp</button><button class="btn" id="leadDevelopmentEmailButton">写开发信</button><button class="btn primary ai-entry-button" id="leadAiResearchButton">${researchButtonIcon()}AI 背调</button>`}${badge(inTrash ? "垃圾箱" : (LEAD_STATUS_LABEL[lead.status] || lead.status), inTrash ? "red" : (LEAD_STATUS_TONE[lead.status] || ""))}<button class="btn icon-only" id="leadDrawerClose" title="关闭">×</button></div>
     </div>
     <div data-outbound-owner-host="1" data-target-type="lead" data-target-id="${escapeHtml(lead.id)}"></div>
+    <section class="lead-detail-section" data-call-tag-summary="1" data-target-type="lead" data-target-id="${escapeHtml(lead.id)}"><h3>通话标签</h3><p>这条线索看得到的历史通话上打过的标签。只读。停用的置灰。点一个标签，打开这条线索带这个标签的通话记录。</p><div data-call-tag-summary-body="1">加载中...</div></section>
     ${lead.remark ? `<p class="lead-remark">${escapeHtml(lead.remark)}</p>` : ""}
     ${inTrash ? `
       <div class="lead-delete-audit">
@@ -15769,6 +15810,7 @@ function renderLeadDrawer(
   qs("#leadDrawerClose", drawer)?.addEventListener("click", closeLeadDrawer);
   bindOutboundCallButtons(drawer);
   void mountOutboundOwner(drawer);
+  void loadObjectCallTags(drawer, "lead", lead.id);
   qs<HTMLButtonElement>("#leadWhatsAppButton", drawer)?.addEventListener("click", () => {
     void openWhatsAppForContact({ phone: lead.phone || "", displayName: lead.contact || lead.company });
   });
@@ -16191,7 +16233,11 @@ function filteredCustomers(customers: Customer[]) {
       || (state.customerQueueFilter === "no-activity" && !customer.lastActivityAt)
       || (state.customerQueueFilter === "no-deal" && !customer.activeDealCount);
     const matchesOwner = matchesOutboundOwnerList(customer.ownerAgentId, state.customerOutboundOwnerFilter, state.myOutboundOwnerAgentIds);
-    return matchesQuery && matchesOutcome && matchesQueue && matchesOwner;
+    const matchesCallTag = !state.customerCallTagFilter
+      || (state.customerCallTagMatchIds
+        ? state.customerCallTagMatchIds.includes(customer.id)
+        : (customer.callTagIds || []).includes(state.customerCallTagFilter));
+    return matchesQuery && matchesOutcome && matchesQueue && matchesOwner && matchesCallTag;
   });
 }
 
@@ -16314,10 +16360,12 @@ function renderCustomers(customers: Customer[]) {
   const { pageCount, start, rows: pageCustomers } = customerPageRows(visibleCustomers);
   renderCustomerPagination(visibleCustomers.length, pageCount, start);
   syncOutboundOwnerFilterSelect("#customerOutboundOwnerFilter", state.customerOutboundOwnerFilter);
-  const customerOwnerEmpty = Boolean(state.customerOutboundOwnerFilter) && !visibleCustomers.length;
-  if (customerOwnerEmpty) {
+  syncCallTagFilterSelect("#customerCallTagFilter", state.customerCallTagFilters, state.customerCallTagFilter);
+  const customerCallTagEmpty = Boolean(state.customerCallTagFilter) && !visibleCustomers.length;
+  const customerOwnerEmpty = Boolean(state.customerOutboundOwnerFilter) && !visibleCustomers.length && !customerCallTagEmpty;
+  if (customerCallTagEmpty || customerOwnerEmpty) {
     const summary = qs<HTMLElement>("#customerPageSummary");
-    if (summary) summary.textContent = outboundOwnerFilterEmptyText("客户");
+    if (summary) summary.textContent = customerCallTagEmpty ? callTagFilterEmptyText("客户") : outboundOwnerFilterEmptyText("客户");
   }
   state.selectedCustomerIds = state.selectedCustomerIds.filter((id) => customers.some((customer) => customer.id === id));
   renderCustomerBulkBar(pageCustomers);
@@ -16338,7 +16386,7 @@ function renderCustomers(customers: Customer[]) {
     ${outboundOwnerListCell("customer", customer)}
     <td><div class="customer-row-actions"><button class="btn" data-open-customer-page>全景</button><button class="btn" data-edit-customer>编辑</button><button class="btn" data-release-customer>放入公池</button></div></td>
   </tr>`;
-  }).join("") : `<tr><td colspan="9" class="empty-cell"${customerOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${customerOwnerEmpty ? outboundOwnerFilterEmptyText("客户") : `当前${customerOutcomeLabel()}筛选下暂无客户。`}</td></tr>`;
+  }).join("") : `<tr><td colspan="9" class="empty-cell"${customerCallTagEmpty ? ` data-call-tag-filter-empty="1"` : customerOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${customerCallTagEmpty ? callTagFilterEmptyText("客户") : customerOwnerEmpty ? outboundOwnerFilterEmptyText("客户") : `当前${customerOutcomeLabel()}筛选下暂无客户。`}</td></tr>`;
   const mobile = qs<HTMLElement>("#customerMobileList");
   if (mobile) mobile.innerHTML = pageCustomers.length ? pageCustomers.map((customer) => `
     <article class="customer-mobile-card" data-customer-mobile-id="${escapeHtml(customer.id)}">
@@ -16347,7 +16395,7 @@ function renderCustomers(customers: Customer[]) {
       <span class="customer-mobile-meta"><i>来源 · ${escapeHtml(customer.source || "未登记")}</i><i>${customerGradeValue(customer)}级 · ${customerGradeLabel(customerGradeValue(customer))}</i><i>${customerWonLabel(customer)}</i><i>${customer.activeDealCount || 0} 个活跃商机</i><i>${escapeHtml(customer.nextReminder || "待安排")}</i><i>${customer.lastActivityAt ? `最近 ${escapeHtml(formatDateTime(customer.lastActivityAt))}` : "暂无跟进"}</i></span>
       ${outboundOwnerListCell("customer", customer, "div")}
       <div class="customer-row-actions"><button class="${whatsAppEntryClass(customerContactDetails(customer).whatsapp)}" type="button" data-customer-mobile-whatsapp ${whatsAppEntryAttrs(customerContactDetails(customer).whatsapp)}>WhatsApp</button><button class="btn" type="button" data-customer-mobile-pool>放入公池</button></div>
-    </article>`).join("") : `<div class="empty-cell"${customerOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${customerOwnerEmpty ? outboundOwnerFilterEmptyText("客户") : `当前${customerOutcomeLabel()}筛选下暂无客户。`}</div>`;
+    </article>`).join("") : `<div class="empty-cell"${customerCallTagEmpty ? ` data-call-tag-filter-empty="1"` : customerOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${customerCallTagEmpty ? callTagFilterEmptyText("客户") : customerOwnerEmpty ? outboundOwnerFilterEmptyText("客户") : `当前${customerOutcomeLabel()}筛选下暂无客户。`}</div>`;
   qsa<HTMLElement>("tr", tbody).forEach((row, index) => {
     const customer = pageCustomers[index];
     if (!customer) return;
@@ -18325,10 +18373,12 @@ async function exportOutboundCallRecords() {
   const note = qs<HTMLSelectElement>("#outboundCallRecordNote")?.value || "";
   const script = qs<HTMLSelectElement>("#outboundCallRecordScript")?.value || "";
   const tag = qs<HTMLSelectElement>("#outboundCallRecordTag")?.value || "";
+  const targetType = outboundCallTarget?.targetType || "";
+  const targetId = outboundCallTarget?.targetId || "";
   const plaintext = isSystemAdministrator() && qs<HTMLInputElement>("#outboundCallRecordPlaintext")?.checked === true;
   if (button) button.disabled = true;
   try {
-    const response = await fetch(`/api/outbound-call-records/export${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script, tag, plaintext: plaintext ? "1" : "" })}`, {
+    const response = await fetch(`/api/outbound-call-records/export${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script, tag, targetType, targetId, plaintext: plaintext ? "1" : "" })}`, {
       credentials: "same-origin"
     });
     if (!response.ok) {
@@ -18374,8 +18424,20 @@ async function loadOutboundCallRecords() {
   const note = qs<HTMLSelectElement>("#outboundCallRecordNote")?.value || "";
   const script = qs<HTMLSelectElement>("#outboundCallRecordScript")?.value || "";
   const tag = qs<HTMLSelectElement>("#outboundCallRecordTag")?.value || "";
+  const targetType = outboundCallTarget?.targetType || "";
+  const targetId = outboundCallTarget?.targetId || "";
+  const targetNote = qs<HTMLElement>("#outboundCallRecordTargetNote");
+  if (targetNote) {
+    const note = renderCallTagTargetNote({ targetType, targetId, tag });
+    targetNote.hidden = !note;
+    targetNote.innerHTML = note;
+    targetNote.querySelector<HTMLButtonElement>("[data-clear-call-target]")?.addEventListener("click", () => {
+      outboundCallTarget = null;
+      void loadOutboundCallRecords();
+    });
+  }
   try {
-    const result = await api<OutboundCallRecordListResponse & { scripts?: Array<{ id: string; title?: string }>; tags?: Array<{ id: string; name?: string; enabled?: boolean }> }>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script, tag })}`);
+    const result = await api<OutboundCallRecordListResponse & { scripts?: Array<{ id: string; title?: string }>; tags?: Array<{ id: string; name?: string; enabled?: boolean }> }>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script, tag, targetType, targetId })}`);
     const scriptSelect = qs<HTMLSelectElement>("#outboundCallRecordScript");
     if (scriptSelect) {
       scriptSelect.innerHTML = renderOutboundCallScriptOptions(result.scripts, script);
@@ -18397,6 +18459,8 @@ async function loadOutboundCallRecords() {
     summary.innerHTML = renderOutboundCallRecordSummary(result);
     list.innerHTML = result.records?.length
       ? renderOutboundCallRecordList(result.records)
+      : targetType && targetId && tag && !result.empty
+        ? renderOutboundCallTargetFilterEmpty()
       : tag && !result.empty
         ? renderOutboundCallTagFilterEmpty()
         : script && !result.empty
@@ -18533,6 +18597,121 @@ function syncOutboundOwnerFilterSelect(selector: string, selected: string) {
   const select = qs<HTMLSelectElement>(selector);
   if (!select) return;
   select.innerHTML = renderOutboundOwnerFilterOptions(state.outboundOwnerAgents || [], selected);
+}
+
+function syncCallTagFilterSelect(selector: string, filters: CallTagFilterChoice[] | null, selected: string) {
+  const select = qs<HTMLSelectElement>(selector);
+  if (!select) return;
+  if (!filters) {
+    select.hidden = true;
+    return;
+  }
+  select.hidden = false;
+  select.innerHTML = renderCallTagFilterOptions(filters, selected);
+}
+
+function absorbCallTagFilters(
+  payload: { callTagFilters?: CallTagFilterChoice[] },
+  assign: (filters: CallTagFilterChoice[]) => void
+) {
+  if (!Array.isArray(payload.callTagFilters)) return;
+  assign(payload.callTagFilters);
+}
+
+let outboundCallTarget: { targetType: "customer" | "lead"; targetId: string } | null = null;
+
+function openCallRecordsForObjectTag(targetType: "customer" | "lead", targetId: string, tagId: string) {
+  if (!targetId || !tagId) return;
+  outboundCallTarget = { targetType, targetId };
+  const tagSelect = qs<HTMLSelectElement>("#outboundCallRecordTag");
+  if (tagSelect) {
+    if (![...tagSelect.options].some((option) => option.value === tagId)) {
+      const option = document.createElement("option");
+      option.value = tagId;
+      option.textContent = tagId;
+      tagSelect.append(option);
+    }
+    tagSelect.value = tagId;
+  }
+  activateNavView("outbound-call-records");
+}
+
+async function loadObjectCallTags(root: ParentNode, targetType: "customer" | "lead", targetId: string) {
+  const body = root.querySelector<HTMLElement>("[data-call-tag-summary-body]");
+  if (!body || !targetId) return;
+  try {
+    const path = targetType === "customer" ? "customers" : "leads";
+    const result = await api<{ tags?: CallTagOnObject[] }>(`/api/${path}/${encodeURIComponent(targetId)}/call-tags`);
+    if (!body.isConnected) return;
+    body.innerHTML = renderCallTagObjectSummary(result.tags);
+    qsa<HTMLButtonElement>("[data-call-tag-open]", body).forEach((button) => {
+      button.addEventListener("click", () => {
+        openCallRecordsForObjectTag(targetType, targetId, button.dataset.callTagOpen || "");
+      });
+    });
+  } catch (error) {
+    if (!body.isConnected) return;
+    body.innerHTML = renderCallTagObjectSummaryFailure(error instanceof Error ? error.message : "通话标签没有加载");
+  }
+}
+
+async function applyCustomerCallTagFilter(tagId: string) {
+  state.customerCallTagFilter = tagId;
+  state.customerPage = 1;
+  state.customerCallTagMatchIds = null;
+  if (!tagId) {
+    renderCustomers(state.customers);
+    return;
+  }
+  try {
+    const result = await api<{ customers: Customer[]; callTagFilters?: CallTagFilterChoice[] }>(`/api/customers?callTag=${encodeURIComponent(tagId)}`);
+    if (state.customerCallTagFilter !== tagId) return;
+    state.customerCallTagMatchIds = result.customers.map((item) => item.id);
+    absorbCallTagFilters(result, (filters) => { state.customerCallTagFilters = filters; });
+    renderCustomers(state.customers);
+  } catch (error) {
+    state.customerCallTagFilter = "";
+    state.customerCallTagMatchIds = null;
+    toast(error instanceof Error ? error.message : "通话标签筛选失败", "error");
+    renderCustomers(state.customers);
+  }
+}
+
+async function refreshLeadCallTagMatches() {
+  const tagId = state.leadCallTagFilter;
+  if (!tagId) return;
+  const trash = state.leadView === "trash";
+  try {
+    const result = await api<{ leads: Lead[]; callTagFilters?: CallTagFilterChoice[] }>(`/api/leads?callTag=${encodeURIComponent(tagId)}${trash ? "&trash=true" : ""}`);
+    if (state.leadCallTagFilter !== tagId || (state.leadView === "trash") !== trash) return;
+    const ids = result.leads.map((item) => item.id);
+    if (trash) {
+      state.leadTrashCallTagMatchIds = ids;
+      absorbCallTagFilters(result, (filters) => { state.leadTrashCallTagFilters = filters; });
+    } else {
+      state.leadActiveCallTagMatchIds = ids;
+      absorbCallTagFilters(result, (filters) => { state.leadCallTagFilters = filters; });
+    }
+    renderLeads();
+  } catch (error) {
+    state.leadCallTagFilter = "";
+    state.leadActiveCallTagMatchIds = null;
+    state.leadTrashCallTagMatchIds = null;
+    toast(error instanceof Error ? error.message : "通话标签筛选失败", "error");
+    renderLeads();
+  }
+}
+
+async function applyLeadCallTagFilter(tagId: string) {
+  state.leadCallTagFilter = tagId;
+  state.leadPage = 1;
+  state.leadActiveCallTagMatchIds = null;
+  state.leadTrashCallTagMatchIds = null;
+  if (!tagId) {
+    renderLeads();
+    return;
+  }
+  await refreshLeadCallTagMatches();
 }
 
 function bindOutboundOwnerListRows(root: ParentNode) {
@@ -19402,6 +19581,10 @@ function renderCustomerDetailPage(customer?: Customer) {
     </section>
 
     <div class="customer-page-grid">
+      <section class="customer-page-section full" data-call-tag-summary="1" data-target-type="customer" data-target-id="${escapeHtml(current.id)}">
+        <div class="customer-page-section-head"><div><h2>通话标签</h2><p>这个客户看得到的历史通话上打过的标签。只读。停用的置灰。点一个标签，打开这个客户带这个标签的通话记录。不会拨号，也不会改标签。</p></div></div>
+        <div data-call-tag-summary-body="1">加载中...</div>
+      </section>
       <section class="customer-page-section">
         <div class="customer-page-section-head"><div><h2>客户信息</h2><p>主档、单据与交易基础资料</p></div><button class="btn" type="button" data-customer-page-edit>维护</button></div>
         <div class="customer-profile-grid">
@@ -19497,6 +19680,7 @@ function renderCustomerDetailPage(customer?: Customer) {
   });
   bindOutboundCallButtons(box);
   void mountOutboundOwner(box);
+  void loadObjectCallTags(box, "customer", current.id);
   void loadCustomerCommunicationInsights(current);
   void loadCustomerDevEmailHistory(current);
   renderCustomerJourney(current, qs<HTMLElement>("#customerPageJourneyTimeline", box));
@@ -20004,7 +20188,7 @@ function renderCustomerDrawer(customer?: Customer) {
   const activeDealCount = customer.activeDealCount || 0;
   drawer.innerHTML = `
     <div class="drawer-head">
-      <div><h2>${escapeHtml(customer.company)}</h2><p>${escapeHtml(customer.country)} · ${escapeHtml(customer.contact)} · ${escapeHtml(customer.ownerName || "未分配")} · ${escapeHtml(pipelineStage)}</p><div data-outbound-owner-host="1" data-target-type="customer" data-target-id="${escapeHtml(customer.id)}"></div></div>
+      <div><h2>${escapeHtml(customer.company)}</h2><p>${escapeHtml(customer.country)} · ${escapeHtml(customer.contact)} · ${escapeHtml(customer.ownerName || "未分配")} · ${escapeHtml(pipelineStage)}</p><div data-outbound-owner-host="1" data-target-type="customer" data-target-id="${escapeHtml(customer.id)}"></div><section data-call-tag-summary="1" data-target-type="customer" data-target-id="${escapeHtml(customer.id)}"><h3>通话标签</h3><div data-call-tag-summary-body="1">加载中...</div></section></div>
       <div class="inline-actions">${customer.nextReminder.includes("逾期") ? badge("报价未回复", "red") : badge("跟进中", "green")}<button class="btn" type="button" data-open-customer-page>客户全景</button><button class="btn icon-only" id="customerDrawerClose" title="关闭" aria-label="关闭客户详情">×</button></div>
     </div>
     <section class="customer-time-card" aria-label="客户世界时间">
@@ -20084,6 +20268,7 @@ function renderCustomerDrawer(customer?: Customer) {
   qs("#customerDrawerClose", drawer)?.addEventListener("click", closeCustomerDrawer);
   bindOutboundCallButtons(drawer);
   void mountOutboundOwner(drawer);
+  void loadObjectCallTags(drawer, "customer", customer.id);
   qs<HTMLButtonElement>("[data-open-customer-page]", drawer)?.addEventListener("click", () => openCustomerDetailPage(customer));
   qs<HTMLButtonElement>("[data-customer-whatsapp-drawer]", drawer)?.addEventListener("click", () => {
     void openWhatsAppForContact({ phone: customerContactDetails(customer).whatsapp, displayName: customer.contact || customer.company });
@@ -56188,17 +56373,24 @@ function installEvents() {
     state.customerPage = 1;
     renderCustomers(state.customers);
   });
+  qs<HTMLSelectElement>("#customerCallTagFilter")?.addEventListener("change", (event) => {
+    void applyCustomerCallTagFilter((event.currentTarget as HTMLSelectElement).value);
+  });
   qs<HTMLButtonElement>("#customerFilterReset")?.addEventListener("click", () => {
     state.customerSearch = "";
     state.customerQueueFilter = "all";
     state.customerOutboundOwnerFilter = "";
+    state.customerCallTagFilter = "";
+    state.customerCallTagMatchIds = null;
     state.customerPage = 1;
     const search = qs<HTMLInputElement>("#customerSearchInput");
     const filter = qs<HTMLSelectElement>("#customerQueueFilter");
     const owner = qs<HTMLSelectElement>("#customerOutboundOwnerFilter");
+    const callTag = qs<HTMLSelectElement>("#customerCallTagFilter");
     if (search) search.value = "";
     if (filter) filter.value = "all";
     if (owner) owner.value = "";
+    if (callTag) callTag.value = "";
     renderCustomers(state.customers);
   });
   qs<HTMLSelectElement>("#customerPageSize")?.addEventListener("change", (event) => {
@@ -56543,6 +56735,7 @@ function installEvents() {
     state.leadStageFilter = "all";
     closeLeadDrawer();
     renderLeads();
+    if (state.leadCallTagFilter) void refreshLeadCallTagMatches();
   });
   qs<HTMLButtonElement>("#leadTrashTab")?.addEventListener("click", () => {
     state.leadView = "trash";
@@ -56550,6 +56743,7 @@ function installEvents() {
     state.leadStageFilter = "all";
     closeLeadDrawer();
     renderLeads();
+    if (state.leadCallTagFilter) void refreshLeadCallTagMatches();
   });
   qs<HTMLSelectElement>("#leadIntentFilter")?.addEventListener("change", (event) => {
     state.leadIntentFilter = (event.target as HTMLSelectElement).value;
@@ -56570,6 +56764,9 @@ function installEvents() {
     state.leadOutboundOwnerFilter = (event.target as HTMLSelectElement).value;
     state.leadPage = 1;
     renderLeads();
+  });
+  qs<HTMLSelectElement>("#leadCallTagFilter")?.addEventListener("change", (event) => {
+    void applyLeadCallTagFilter((event.target as HTMLSelectElement).value);
   });
   qs<HTMLButtonElement>("#leadFilterReset")?.addEventListener("click", resetLeadFilters);
   qs<HTMLButtonElement>("#leadReplyFilterButton")?.addEventListener("click", (event) => {

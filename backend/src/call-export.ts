@@ -12,10 +12,12 @@ import {
   recordsMatchingNote,
   recordsMatchingOutcome,
   recordsMatchingScript,
+  recordsMatchingTarget,
   resolveOutboundCallRecordAccess,
   selectOutboundCallRecords,
   type OutboundCallRecordQuery
 } from "./outbound-call-records.js";
+import { rejectHiddenCallTagTarget } from "./call-tag-view.js";
 import { resolveCallRecordPhone } from "./phone-validity-state.js";
 import type { CrmStore } from "./store.js";
 import type { CallExportAudit, OutboundCallRecord, Role, SessionUser } from "./types.js";
@@ -53,7 +55,9 @@ export function callExportFiltersText(query: OutboundCallRecordQuery) {
     outcome: query.outcome || "",
     note: query.note || "",
     script: query.script || "",
-    tag: query.tag || ""
+    tag: query.tag || "",
+    targetType: query.targetType || "",
+    targetId: query.targetId || ""
   });
 }
 
@@ -258,6 +262,21 @@ export async function exportOutboundCallRecords(
     });
     return { status: 403, body: { result: "rejected", reason: "forbidden", message: "不能查看这个坐席的通话记录" } };
   }
+  if (parsed.targetType && parsed.targetId) {
+    const hidden = await rejectHiddenCallTagTarget(store, user, parsed.targetType, parsed.targetId, parsed.tag && parsed.tag !== "none" ? parsed.tag : "", { audit: false });
+    if (hidden) {
+      await writeAudit(store, {
+        teamId: user.teamId,
+        actorId: user.id,
+        filters,
+        rowCount: 0,
+        plaintext,
+        result: "rejected",
+        reason: "forbidden"
+      });
+      return { status: hidden.status, body: hidden.body };
+    }
+  }
   if (plaintext && !canExportPlaintext(user.role)) {
     await writeAudit(store, {
       teamId: user.teamId,
@@ -280,14 +299,18 @@ export async function exportOutboundCallRecords(
     to: parsed.to,
     timeZone: access.timeZone
   });
-  const listed = recordsMatchingCallTag(
-    recordsMatchingScript(
-      recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
-      parsed.script
+  const listed = recordsMatchingTarget(
+    recordsMatchingCallTag(
+      recordsMatchingScript(
+        recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
+        parsed.script
+      ),
+      parsed.tag,
+      store.callRecordTags,
+      user.teamId
     ),
-    parsed.tag,
-    store.callRecordTags,
-    user.teamId
+    parsed.targetType,
+    parsed.targetId
   )
     .sort((left, right) => compareRecords(left, right, access.timeZone));
   if (listed.length > CALL_EXPORT_ROW_LIMIT) {
