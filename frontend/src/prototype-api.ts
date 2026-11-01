@@ -85,6 +85,17 @@ import {
   type AgentCallTargetRow
 } from "./agent-call-target";
 import {
+  callScriptCreateBody,
+  callScriptDisableBody,
+  callScriptUpdateBody,
+  readCallScriptDraft,
+  renderCallScriptAside,
+  renderCallScriptList,
+  renderCallScriptManageList,
+  type CallScriptListResponse,
+  type CallScriptTemplateView
+} from "./call-script";
+import {
   matchesOutboundOwnerList,
   outboundOwnerAssignBody,
   outboundOwnerClearBody,
@@ -12120,6 +12131,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardTouchpointAge();
   renderDashboardInboundSync();
   void loadDashboardAgentCallTargets();
+  void loadDashboardCallScripts();
 }
 
 let dashboardAgentCallTargetRows: AgentCallTargetRow[] = [];
@@ -12246,6 +12258,188 @@ async function clearDashboardAgentCallTarget() {
     await loadDashboardAgentCallTargets();
   } catch (error) {
     if (message) message.textContent = error instanceof Error ? error.message : "没有清除";
+  }
+}
+
+let callScriptTemplates: CallScriptTemplateView[] = [];
+let callScriptManageTemplates: CallScriptTemplateView[] = [];
+let callScriptCanManage = false;
+let dashboardCallScriptsBound = false;
+let dashboardCallScriptLoad = 0;
+
+function bindDashboardCallScripts() {
+  if (dashboardCallScriptsBound) return;
+  dashboardCallScriptsBound = true;
+  document.addEventListener("change", (event) => {
+    const select = event.target;
+    if (!(select instanceof HTMLSelectElement) || !select.matches("[data-call-script-scenario]")) return;
+    const view = select.closest("[data-call-script-aside]")?.querySelector<HTMLElement>("[data-call-script-view]");
+    if (view) view.innerHTML = renderCallScriptList(callScriptTemplates, select.value);
+  });
+  const root = qs<HTMLElement>("#dashboardCallScripts");
+  root?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveDashboardCallScript();
+  });
+  root?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("#dashboardCallScriptDisable")) {
+      event.preventDefault();
+      void disableDashboardCallScript();
+      return;
+    }
+    if (target?.closest("#dashboardCallScriptNew")) {
+      event.preventDefault();
+      clearDashboardCallScriptForm();
+      return;
+    }
+    const editId = target?.closest<HTMLElement>("[data-call-script-edit]")?.dataset.callScriptEdit || "";
+    if (editId) fillDashboardCallScript(editId);
+  });
+  qs<HTMLSelectElement>("#dashboardCallScriptScenario")?.addEventListener("change", () => {
+    paintDashboardCallScriptList();
+  });
+}
+
+function paintDashboardCallScriptList() {
+  const list = qs<HTMLElement>("#dashboardCallScriptList");
+  const scenario = qs<HTMLSelectElement>("#dashboardCallScriptScenario")?.value || "";
+  if (list) list.innerHTML = renderCallScriptList(callScriptTemplates, scenario);
+}
+
+function paintCallScriptMount(root: HTMLElement | null) {
+  if (!root) return;
+  if (!root.querySelector("[data-call-script-aside]")) {
+    root.innerHTML = renderCallScriptAside(callScriptTemplates, "first_call");
+    return;
+  }
+  const select = root.querySelector<HTMLSelectElement>("[data-call-script-scenario]");
+  const view = root.querySelector<HTMLElement>("[data-call-script-view]");
+  if (view) view.innerHTML = renderCallScriptList(callScriptTemplates, select?.value || "first_call");
+}
+
+function paintCallScriptSurfaces() {
+  paintDashboardCallScriptList();
+  const form = qs<HTMLFormElement>("#dashboardCallScriptForm");
+  const manage = qs<HTMLElement>("#dashboardCallScriptManage");
+  if (form) form.hidden = !callScriptCanManage;
+  if (manage) {
+    manage.hidden = !callScriptCanManage;
+    manage.innerHTML = callScriptCanManage ? renderCallScriptManageList(callScriptManageTemplates) : "";
+  }
+  paintCallScriptMount(qs<HTMLElement>("#cccCallScripts"));
+  paintCallScriptMount(qs<HTMLElement>("#outboundCallRecordScripts"));
+  document.querySelectorAll<HTMLElement>("[data-call-script-aside]").forEach((aside) => {
+    if (aside.parentElement?.id === "cccCallScripts" || aside.parentElement?.id === "outboundCallRecordScripts") return;
+    const select = aside.querySelector<HTMLSelectElement>("[data-call-script-scenario]");
+    const view = aside.querySelector<HTMLElement>("[data-call-script-view]");
+    if (view) view.innerHTML = renderCallScriptList(callScriptTemplates, select?.value || "first_call");
+  });
+}
+
+async function loadDashboardCallScripts() {
+  bindDashboardCallScripts();
+  const list = qs<HTMLElement>("#dashboardCallScriptList");
+  if (!state.user) return;
+  const ticket = ++dashboardCallScriptLoad;
+  try {
+    const data = await api<CallScriptListResponse>("/api/call-script-templates");
+    if (ticket !== dashboardCallScriptLoad) return;
+    callScriptTemplates = data.templates || [];
+    callScriptCanManage = data.canManage === true;
+    callScriptManageTemplates = callScriptTemplates;
+    if (callScriptCanManage) {
+      const all = await api<CallScriptListResponse>("/api/call-script-templates?includeDisabled=1");
+      if (ticket !== dashboardCallScriptLoad) return;
+      callScriptManageTemplates = all.templates || callScriptTemplates;
+    }
+    paintCallScriptSurfaces();
+  } catch (error) {
+    if (ticket !== dashboardCallScriptLoad) return;
+    if (list) list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到话术")}</div>`;
+  }
+}
+
+function clearDashboardCallScriptForm() {
+  const idInput = qs<HTMLInputElement>("#dashboardCallScriptId");
+  const title = qs<HTMLInputElement>("#dashboardCallScriptTitle");
+  const language = qs<HTMLInputElement>("#dashboardCallScriptLanguage");
+  const body = qs<HTMLTextAreaElement>("#dashboardCallScriptBody");
+  const message = qs<HTMLElement>("#dashboardCallScriptMessage");
+  if (idInput) idInput.value = "";
+  if (title) title.value = "";
+  if (language) language.value = "";
+  if (body) body.value = "";
+  if (message) message.textContent = "";
+}
+
+function fillDashboardCallScript(id: string) {
+  const item = callScriptManageTemplates.find((row) => row.id === id && row.enabled !== false);
+  if (!item) return;
+  const idInput = qs<HTMLInputElement>("#dashboardCallScriptId");
+  const title = qs<HTMLInputElement>("#dashboardCallScriptTitle");
+  const scenario = qs<HTMLSelectElement>("#dashboardCallScriptScenarioWrite");
+  const language = qs<HTMLInputElement>("#dashboardCallScriptLanguage");
+  const body = qs<HTMLTextAreaElement>("#dashboardCallScriptBody");
+  if (idInput) idInput.value = item.id;
+  if (title) title.value = item.title;
+  if (scenario) scenario.value = item.scenario;
+  if (language) language.value = item.language || "";
+  if (body) body.value = item.body;
+}
+
+async function saveDashboardCallScript() {
+  const message = qs<HTMLElement>("#dashboardCallScriptMessage");
+  const id = qs<HTMLInputElement>("#dashboardCallScriptId")?.value.trim() || "";
+  const draft = readCallScriptDraft(
+    qs<HTMLInputElement>("#dashboardCallScriptTitle")?.value || "",
+    qs<HTMLSelectElement>("#dashboardCallScriptScenarioWrite")?.value || "",
+    qs<HTMLTextAreaElement>("#dashboardCallScriptBody")?.value || "",
+    qs<HTMLInputElement>("#dashboardCallScriptLanguage")?.value || ""
+  );
+  if (!draft.ok) {
+    if (message) message.textContent = draft.message;
+    return;
+  }
+  try {
+    if (id) {
+      await api("/api/call-script-templates/update", {
+        method: "POST",
+        body: JSON.stringify(callScriptUpdateBody({ id, ...draft }))
+      });
+    } else {
+      await api("/api/call-script-templates", {
+        method: "POST",
+        body: JSON.stringify(callScriptCreateBody(draft))
+      });
+    }
+    if (message) message.textContent = "已保存";
+    clearDashboardCallScriptForm();
+    if (message) message.textContent = "已保存";
+    await loadDashboardCallScripts();
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "没有保存";
+  }
+}
+
+async function disableDashboardCallScript() {
+  const message = qs<HTMLElement>("#dashboardCallScriptMessage");
+  const id = qs<HTMLInputElement>("#dashboardCallScriptId")?.value.trim() || "";
+  if (!id) {
+    if (message) message.textContent = "先选择一条已启用的话术";
+    return;
+  }
+  try {
+    await api("/api/call-script-templates/disable", {
+      method: "POST",
+      body: JSON.stringify(callScriptDisableBody(id))
+    });
+    if (message) message.textContent = "已停用";
+    clearDashboardCallScriptForm();
+    if (message) message.textContent = "已停用";
+    await loadDashboardCallScripts();
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "没有停用";
   }
 }
 
@@ -14680,7 +14874,7 @@ function preferredOutboundHtml(targets: Array<OutboundCallTarget & { choiceLabel
   const selectedInvalid = cachedPhoneValidity(selected)?.invalid === true;
   const invalidHintHtml = `<p class="outbound-call-status" data-outbound-invalid="1" data-phone-invalid="1"${selectedInvalid ? "" : " hidden"}>该号码已标记无效</p>`;
   const canWrite = phones.some((target) => cachedPhoneValidity(target)?.canWrite === true);
-  return renderPreferredPhoneChooser({
+  return `${renderPreferredPhoneChooser({
     targetType: first.targetType,
     targetId: first.targetId,
     phones: phones.map((target) => ({
@@ -14695,7 +14889,7 @@ function preferredOutboundHtml(targets: Array<OutboundCallTarget & { choiceLabel
     dialButtonHtml,
     validityHtml,
     invalidHintHtml
-  });
+  })}${renderCallScriptAside(callScriptTemplates, "first_call")}`;
 }
 
 function redrawPreferredPhone(targetType: string, targetId: string) {
@@ -58381,6 +58575,7 @@ function activateNavView(view: string, after?: () => void) {
   }
   if (view === "outbound-call-records") {
     void loadOutboundCallRecords();
+    void loadDashboardCallScripts();
   }
   if (view === "intent-followup-queue") {
     void loadIntentFollowupQueue();

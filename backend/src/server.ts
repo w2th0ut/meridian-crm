@@ -297,6 +297,7 @@ import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import { exportOutboundCallRecords } from "./call-export.js";
 import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from "./agent-call-target.js";
+import { createCallScript, disableCallScript, listCallScripts, updateCallScript } from "./call-script.js";
 import {
   assignOutboundOwner,
   clearOutboundOwner,
@@ -9028,6 +9029,26 @@ app.post("/api/agent-call-targets/clear", requireAuth, asyncRoute(async (req, re
 
 app.post("/api/agent-call-targets", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await saveAgentCallTarget(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-script-templates", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallScripts(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-templates/update", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await updateCallScript(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-templates/disable", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await disableCallScript(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-templates", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await createCallScript(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

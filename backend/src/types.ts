@@ -5300,6 +5300,46 @@ export interface OutboundOwnerAudit {
   reason: string;
 }
 
+/** 话术适用场景。只此四项。 */
+export type CallScriptScenario = "first_call" | "follow_up" | "missed_callback" | "objection";
+
+/**
+ * 一条外呼话术模板。停用后仍留在表里，enabled 为 false。
+ * 正文是纯文本。语言标签可以是空。
+ */
+export interface CallScriptTemplate {
+  id: string;
+  teamId: string;
+  title: string;
+  scenario: CallScriptScenario;
+  language: string;
+  body: string;
+  enabled: boolean;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  disabledAt: string;
+}
+
+/**
+ * 一次话术模板的新增、修改、停用，或一次被拒绝的查看、修改。
+ * 旧值和新值是启用、场景、语言、标题和正文。没有旧模板时旧值是空。
+ * 不记号码，也不记密钥。
+ */
+export interface CallScriptAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  templateId: string;
+  action: "create" | "update" | "disable" | "read";
+  previousValue: string;
+  nextValue: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
+
 /**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。

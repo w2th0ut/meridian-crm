@@ -28410,6 +28410,27 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </form>
           </section>
 
+          <section class="panel section" id="dashboardCallScripts" aria-label="外呼话术">
+            <div class="section-head">
+              <div class="section-title"><div><h2>外呼话术</h2><p id="dashboardCallScriptScope">按场景查看启用的话术</p></div></div>
+            </div>
+            <p id="dashboardCallScriptNote" class="dashboard-call-script-note">话术是本地纯文本。坐席只能按场景查看启用的模板，不能改。管理员可以单条新增、编辑或停用，停用后仍留在库里。这里没有外呼按钮，不会自动拨号，也不会批量拨号。要拨打仍须人工点击现有的一键外呼，并走原来的门禁。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <label>场景<select id="dashboardCallScriptScenario"><option value="">全部启用</option><option value="first_call">首呼</option><option value="follow_up">回访</option><option value="missed_callback">未接通回拨</option><option value="objection">异议处理</option></select></label>
+            <div id="dashboardCallScriptList"><div class="empty-cell">正在读取</div></div>
+            <div id="dashboardCallScriptManage" hidden></div>
+            <form id="dashboardCallScriptForm" hidden>
+              <input id="dashboardCallScriptId" type="hidden">
+              <label>标题<input id="dashboardCallScriptTitle" maxlength="80" autocomplete="off"></label>
+              <label>场景<select id="dashboardCallScriptScenarioWrite"><option value="first_call">首呼</option><option value="follow_up">回访</option><option value="missed_callback">未接通回拨</option><option value="objection">异议处理</option></select></label>
+              <label>语言<input id="dashboardCallScriptLanguage" maxlength="16" autocomplete="off" placeholder="可不填，如 zh"></label>
+              <label>正文<textarea id="dashboardCallScriptBody" maxlength="2000"></textarea></label>
+              <button class="btn" type="submit">保存话术</button>
+              <button class="btn" type="button" id="dashboardCallScriptDisable">停用</button>
+              <button class="btn" type="button" id="dashboardCallScriptNew">新建一条</button>
+              <p id="dashboardCallScriptMessage"></p>
+            </form>
+          </section>
+
           <section class="panel section" id="dashboardAcquisitionTodoSummary" aria-label="获客待办摘要">
             <div class="section-head">
               <div class="section-title"><div><h2>获客待办摘要</h2><p id="dashboardAcquisitionTodoSummaryScope">正在读取候选</p></div></div>
@@ -32301,6 +32322,8 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div id="outboundCallRecordSummary"><p data-outbound-record-empty="1">这个范围内还没有通话记录。</p></div>
           <div id="outboundCallRecordList"></div>
           <div id="outboundCallRecordDetail" hidden></div>
+          <p class="outbound-record-note">启用的话术按场景放在通话详情旁边，只读。不能在这里编辑，也不会拨号。</p>
+          <div id="outboundCallRecordScripts"></div>
         </div>
         <div class="view" id="intent-followup-queue">
           <div class="page-head">
@@ -36036,6 +36059,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
     <button class="btn" id="cccSoftphoneToggle" type="button" aria-expanded="false" aria-controls="cccSoftphonePanel">软电话</button>
     <div id="cccSoftphonePanel" class="is-collapsed">
       <p id="cccAgentCallProgress" hidden></p>
+      <div id="cccCallScripts"></div>
       <div id="ccc-workbench-container"></div>
     </div>
   </aside>
