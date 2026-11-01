@@ -158,6 +158,12 @@ import {
   type CallTagReportResponse
 } from "./call-tag-report";
 import {
+  callWrapupEditReportQuery,
+  renderCallWrapupEditReport,
+  renderCallWrapupEditReportAgentOptions,
+  type CallWrapupEditReportResponse
+} from "./call-wrapup-edit-report";
+import {
   matchesOutboundOwnerList,
   outboundOwnerAssignBody,
   outboundOwnerClearBody,
@@ -12717,6 +12723,16 @@ function paintCallScriptReportAccess() {
 function paintCallTagReportAccess() {
   const section = qs<HTMLElement>("#dashboardCallTagReport");
   if (section) section.hidden = !callScriptCanManage;
+  paintCallWrapupEditReportAccess();
+}
+
+function canViewCallWrapupEditReport(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintCallWrapupEditReportAccess() {
+  const section = qs<HTMLElement>("#dashboardCallWrapupEditReport");
+  if (section) section.hidden = !canViewCallWrapupEditReport();
 }
 
 function callTagReportFilterInput() {
@@ -12896,6 +12912,65 @@ async function loadDashboardCallScripts() {
     if (ticket !== dashboardCallScriptLoad) return;
     paintCallScriptReportAccess();
     if (list) list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到话术")}</div>`;
+  }
+}
+
+function callWrapupEditReportFilterInput() {
+  return {
+    from: qs<HTMLInputElement>("#dashboardCallWrapupEditReportFrom")?.value || "",
+    to: qs<HTMLInputElement>("#dashboardCallWrapupEditReportTo")?.value || "",
+    agentId: qs<HTMLSelectElement>("#dashboardCallWrapupEditReportAgent")?.value || "",
+    field: qs<HTMLSelectElement>("#dashboardCallWrapupEditReportField")?.value || ""
+  };
+}
+
+async function loadCallWrapupEditReport() {
+  const list = qs<HTMLElement>("#dashboardCallWrapupEditReportList");
+  const message = qs<HTMLElement>("#dashboardCallWrapupEditReportMessage");
+  if (!canViewCallWrapupEditReport() || !list) return;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<CallWrapupEditReportResponse>(`/api/call-wrapup-edit-report${callWrapupEditReportQuery(callWrapupEditReportFilterInput())}`);
+    const select = qs<HTMLSelectElement>("#dashboardCallWrapupEditReportAgent");
+    if (select) select.innerHTML = renderCallWrapupEditReportAgentOptions(data.agents, select.value);
+    list.innerHTML = renderCallWrapupEditReport(data);
+  } catch (error) {
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到通话小结改正")}</div>`;
+  }
+}
+
+async function exportCallWrapupEditReport() {
+  const message = qs<HTMLElement>("#dashboardCallWrapupEditReportMessage");
+  const button = qs<HTMLButtonElement>("#dashboardCallWrapupEditReportExport");
+  if (!canViewCallWrapupEditReport()) return;
+  if (message) message.textContent = "";
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`/api/call-wrapup-edit-report/export${callWrapupEditReportQuery(callWrapupEditReportFilterInput())}`, {
+      credentials: "same-origin"
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: "导出没有完成" })) as { message?: string };
+      const text = body.message || "导出没有完成";
+      if (message) message.textContent = text;
+      toast(text, "error");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "通话小结改正.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "导出没有完成";
+    if (message) message.textContent = text;
+    toast(text, "error");
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -56380,6 +56455,20 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#dashboardCallTagReportExport")?.addEventListener("click", () => {
     void exportCallTagReport();
+  });
+  qs<HTMLFormElement>("#dashboardCallWrapupEditReportFilters")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadCallWrapupEditReport();
+  });
+  qs<HTMLButtonElement>("#dashboardCallWrapupEditReportExport")?.addEventListener("click", () => {
+    void exportCallWrapupEditReport();
+  });
+  qs<HTMLElement>("#dashboardCallWrapupEditReportList")?.addEventListener("click", (event) => {
+    const row = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-wrapup-edit-report-count]");
+    if (!row) return;
+    const select = qs<HTMLSelectElement>("#dashboardCallWrapupEditReportAgent");
+    if (select) select.value = row.getAttribute("data-wrapup-edit-report-count") || "";
+    void loadCallWrapupEditReport();
   });
   qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("click", (event) => {
     const noteClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-note-clear]");
