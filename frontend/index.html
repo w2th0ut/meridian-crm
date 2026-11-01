@@ -28434,6 +28434,23 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </form>
           </section>
 
+          <section class="panel section" id="dashboardCallScriptReport" aria-label="话术效果对比" hidden>
+            <div class="section-head">
+              <div class="section-title"><div><h2>话术效果对比</h2><p id="dashboardCallScriptReportScope">管理员按日期、坐席和场景查看</p></div></div>
+            </div>
+            <p id="dashboardCallScriptReportNote" class="dashboard-call-script-note">这一份只给管理员看。通话按已经记下的所用话术归到模板上，没有选用或对不上本租户模板的通话单列一行。通话数是筛完后的条数。接通看话单 EstablishedTime 去掉空白后还有内容。通话结果只列已有的五项，没有标注的记在未标注。平均时长只平均接通且时长是整数秒的通话，没有可计入的时长时不写成 0。回拨预约数只数当前预约，而且来源通话落在这一行里。不另算接通率。要人工点查看或导出，打开工作台本身不拉这一份。导出是浏览器本地下载的 CSV，没有号码列，标题如果像公式会加单引号。这里没有外呼按钮，不会自动拨号，也不会批量拨号。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <form id="dashboardCallScriptReportFilters">
+              <label>开始<input id="dashboardCallScriptReportFrom" type="date"></label>
+              <label>结束<input id="dashboardCallScriptReportTo" type="date"></label>
+              <label>坐席<select id="dashboardCallScriptReportAgent"><option value="">全部</option></select></label>
+              <label>场景<select id="dashboardCallScriptReportScenario"><option value="">全部</option><option value="first_call">首呼</option><option value="follow_up">回访</option><option value="missed_callback">未接通回拨</option><option value="objection">异议处理</option></select></label>
+              <button class="btn" type="submit">查看</button>
+              <button class="btn" type="button" id="dashboardCallScriptReportExport">导出 CSV</button>
+              <p id="dashboardCallScriptReportMessage"></p>
+            </form>
+            <div id="dashboardCallScriptReportList"><div class="empty-cell">选择条件后查看。</div></div>
+          </section>
+
           <section class="panel section" id="dashboardAcquisitionTodoSummary" aria-label="获客待办摘要">
             <div class="section-head">
               <div class="section-title"><div><h2>获客待办摘要</h2><p id="dashboardAcquisitionTodoSummaryScope">正在读取候选</p></div></div>
@@ -36013,6 +36030,9 @@ body.platform-mode .workspace-tabs { display:none !important; }
       line-height: 1.5;
     }
     .call-script-card[data-call-script-disabled="1"] { opacity: 0.55; }
+    .call-script-report-wrap { overflow: auto; }
+    .call-script-report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .call-script-report-table th, .call-script-report-table td { border-bottom: 1px solid var(--line-soft, #e6ebf2); padding: 6px 8px; text-align: left; white-space: nowrap; }
     #cccSoftphone {
       position: fixed;
       right: 16px;

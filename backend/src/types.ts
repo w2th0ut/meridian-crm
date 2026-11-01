@@ -5392,6 +5392,22 @@ export interface CallScriptFavoriteAudit {
 }
 
 /**
+ * 一次话术效果对比的查看或导出，或一次被拒绝的尝试。
+ * 筛选只记坐席、日期和场景。不记号码，也不记话术正文或密钥。
+ */
+export interface CallScriptReportAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "export";
+  filters: string;
+  rowCount: number;
+  result: "read" | "exported" | "rejected";
+  reason: string;
+}
+
+/**
  * 一次把话术记到某通通话上的选择、更换、清除，或一次被拒绝的尝试。
  * 旧值和新值是模板 ID。没有选用时是空。不记话术正文，也不记号码或密钥。
  * read 只用于越权查看使用次数，不表示改了某一通。
