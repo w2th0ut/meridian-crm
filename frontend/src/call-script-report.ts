@@ -36,6 +36,7 @@ export interface CallScriptReportMetrics {
 export interface CallScriptReportResponse {
   filters?: { from?: string; to?: string; agentId?: string; scenario?: string };
   agents?: Array<{ id?: string; label?: string }>;
+  scenarios?: Array<{ id?: string; label?: string; enabled?: boolean; sortOrder?: number }>;
   metrics?: CallScriptReportMetrics;
   rows?: CallScriptReportRow[];
 }
@@ -73,6 +74,21 @@ export function callScriptReportQuery(input: { from?: string; to?: string; agent
   if (input.scenario) params.set("scenario", input.scenario);
   const query = params.toString();
   return query ? `?${query}` : "";
+}
+
+export function renderCallScriptReportScenarioOptions(scenarios: Array<{ id?: string; label?: string }> | undefined, selected: string) {
+  const rows = (scenarios || []).filter((item) => item.id);
+  const options = rows.length ? rows : [
+    { id: "first_call", label: "首呼" },
+    { id: "follow_up", label: "回访" },
+    { id: "missed_callback", label: "未接通回拨" },
+    { id: "objection", label: "异议处理" }
+  ];
+  return [{ id: "", label: "全部" }, ...options].map((item) => {
+    const id = item.id || "";
+    const current = id === selected ? " selected" : "";
+    return `<option value="${escapeHtml(id)}"${current}>${escapeHtml(item.label || id || "全部")}</option>`;
+  }).join("");
 }
 
 export function renderCallScriptReportAgentOptions(agents: Array<{ id?: string; label?: string }> | undefined, selected: string) {

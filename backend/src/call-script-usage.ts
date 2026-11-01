@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { canManageCallScripts, callScriptScenarioLabel } from "./call-script.js";
+import { canManageCallScripts } from "./call-script.js";
+import { scenarioLabelFor } from "./call-script-scenario.js";
 import { outboundInstant } from "./outbound-call.js";
 import {
   outboundCallRecordVisible,
@@ -102,6 +103,7 @@ export function callScriptUsageCounts(store: CrmStore, teamId: string) {
     .sort((left, right) => left.title.localeCompare(right.title, "zh") || left.id.localeCompare(right.id))
     .map((template) => ({
       ...presentChoice(template),
+      scenarioLabel: scenarioLabelFor(store, teamId, template.scenario),
       enabled: template.enabled,
       usageCount: counts.get(template.id) || 0
     }));
@@ -111,8 +113,7 @@ function presentChoice(template: CallScriptTemplate) {
   return {
     id: template.id,
     title: template.title,
-    scenario: template.scenario,
-    scenarioLabel: callScriptScenarioLabel(template.scenario)
+    scenario: template.scenario
   };
 }
 

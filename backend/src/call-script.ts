@@ -1,8 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { hasIamPermission, type IamActor } from "./auth.js";
+import {
+  CALL_SCRIPT_SCENARIOS,
+  callScriptScenarioLabel,
+  canManageCallScripts,
+  enabledScenarioCodes,
+  knownScenarioCodes,
+  scenarioLabelFor,
+  callScriptScenarioChoices
+} from "./call-script-scenario.js";
 import { outboundInstant } from "./outbound-call.js";
 import type { CrmStore } from "./store.js";
 import type { CallScriptAudit, CallScriptScenario, CallScriptTemplate, CallScriptVersion, SessionUser } from "./types.js";
+
+export { CALL_SCRIPT_SCENARIOS, callScriptScenarioLabel, canManageCallScripts };
 
 /**
  * 外呼话术模板。只写本地模板、旧版本快照和 call_script_audits。
@@ -15,13 +26,6 @@ export const CALL_SCRIPT_BODY_MAX = 2000;
 export const CALL_SCRIPT_LANGUAGE_MAX = 16;
 export const CALL_SCRIPT_PERMISSION = "communication.read";
 
-export const CALL_SCRIPT_SCENARIOS: Array<{ id: CallScriptScenario; label: string }> = [
-  { id: "first_call", label: "首呼" },
-  { id: "follow_up", label: "回访" },
-  { id: "missed_callback", label: "未接通回拨" },
-  { id: "objection", label: "异议处理" }
-];
-
 const SCENARIO_IDS = new Set(CALL_SCRIPT_SCENARIOS.map((item) => item.id));
 const LANGUAGE_PATTERN = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8}){0,2}$/;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -33,15 +37,6 @@ export interface CallScriptSnapshot {
   language: string;
   body: string;
   enabled: boolean;
-}
-
-export function canManageCallScripts(user: { role?: string; teamId?: string } | undefined) {
-  if (!user?.teamId || user.teamId === "all") return false;
-  return user.role === "admin" || user.role === "super_admin";
-}
-
-export function callScriptScenarioLabel(scenario: string) {
-  return CALL_SCRIPT_SCENARIOS.find((item) => item.id === scenario)?.label || scenario;
 }
 
 export function characterCount(value: string) {
@@ -65,8 +60,9 @@ export function sameCallScript(left: CallScriptSnapshot | null, right: CallScrip
   return formatCallScriptValue(left) === formatCallScriptValue(right);
 }
 
-function isScenario(value: string): value is CallScriptScenario {
-  return SCENARIO_IDS.has(value as CallScriptScenario);
+function isScenario(value: string, allowed?: ReadonlySet<string>): value is CallScriptScenario {
+  if (allowed) return allowed.has(value);
+  return SCENARIO_IDS.has(value);
 }
 
 function reject(reason: string, message: string, status = 400, extra: Record<string, unknown> = {}) {
@@ -76,7 +72,8 @@ function reject(reason: string, message: string, status = 400, extra: Record<str
 function validationMessage(reason: string) {
   if (reason === "invalid_title") return `标题必填，最多 ${CALL_SCRIPT_TITLE_MAX} 个字符`;
   if (reason === "invalid_body") return `正文必填，最多 ${CALL_SCRIPT_BODY_MAX} 个字符`;
-  if (reason === "invalid_scenario") return "场景只能是首呼、回访、未接通回拨或异议处理";
+  if (reason === "invalid_scenario") return "没有这个场景";
+  if (reason === "scenario_disabled") return "已停用的场景不能再选用";
   if (reason === "invalid_language") return "语言标签可省略；填写时例如 zh 或 zh-CN，最长 16 个字符";
   if (reason === "invalid_scenario_filter") return "场景筛选不合法";
   if (reason === "disabled") return "已停用的话术不能再编辑";
@@ -125,8 +122,8 @@ function parseLanguage(value: unknown): string | "bad" {
   return language;
 }
 
-function parseScenario(value: unknown): CallScriptScenario | "bad" {
-  if (typeof value !== "string" || !isScenario(value)) return "bad";
+function parseScenario(value: unknown, allowed?: ReadonlySet<string>): CallScriptScenario | "bad" {
+  if (typeof value !== "string" || !isScenario(value, allowed)) return "bad";
   return value;
 }
 
@@ -138,7 +135,7 @@ function isPlainObject(body: unknown): body is Record<string, unknown> {
   return body !== null && typeof body === "object" && !Array.isArray(body);
 }
 
-export function parseCallScriptCreate(body: unknown):
+export function parseCallScriptCreate(body: unknown, scenarios?: ReadonlySet<string>):
   | { ok: true; snapshot: CallScriptSnapshot }
   | { ok: false; reason: "invalid_request" | "invalid_title" | "invalid_body" | "invalid_scenario" | "invalid_language" } {
   if (!isPlainObject(body)) return { ok: false, reason: "invalid_request" };
@@ -146,7 +143,7 @@ export function parseCallScriptCreate(body: unknown):
   const allowed = new Set(["title", "scenario", "body", "language"]);
   if (Object.keys(body).some((key) => !allowed.has(key))) return { ok: false, reason: "invalid_request" };
   const title = parseTitle(body.title);
-  const scenario = parseScenario(body.scenario);
+  const scenario = parseScenario(body.scenario, scenarios);
   const text = parseBody(body.body);
   const language = parseLanguage(body.language);
   if (title === "bad") return { ok: false, reason: "invalid_title" };
@@ -156,7 +153,7 @@ export function parseCallScriptCreate(body: unknown):
   return { ok: true, snapshot: { title, scenario, language, body: text, enabled: true } };
 }
 
-export function parseCallScriptUpdate(body: unknown):
+export function parseCallScriptUpdate(body: unknown, scenarios?: ReadonlySet<string>):
   | { ok: true; id: string; snapshot: CallScriptSnapshot }
   | { ok: false; reason: "invalid_request" | "invalid_title" | "invalid_body" | "invalid_scenario" | "invalid_language" } {
   if (!isPlainObject(body)) return { ok: false, reason: "invalid_request" };
@@ -165,7 +162,7 @@ export function parseCallScriptUpdate(body: unknown):
   if (Object.keys(body).some((key) => !allowed.has(key))) return { ok: false, reason: "invalid_request" };
   if (typeof body.id !== "string" || !ID_PATTERN.test(body.id)) return { ok: false, reason: "invalid_request" };
   const title = parseTitle(body.title);
-  const scenario = parseScenario(body.scenario);
+  const scenario = parseScenario(body.scenario, scenarios);
   const text = parseBody(body.body);
   const language = parseLanguage(body.language);
   if (title === "bad") return { ok: false, reason: "invalid_title" };
@@ -185,7 +182,7 @@ export function parseCallScriptDisable(body: unknown):
   return { ok: true, id: body.id };
 }
 
-export function parseCallScriptQuery(query: Record<string, unknown>):
+export function parseCallScriptQuery(query: Record<string, unknown>, scenarios?: ReadonlySet<string>):
   | { ok: true; scenario: CallScriptScenario | null; includeDisabled: boolean }
   | { ok: false; reason: "invalid_request" | "invalid_scenario_filter" } {
   const scenarioRaw = query.scenario;
@@ -193,7 +190,7 @@ export function parseCallScriptQuery(query: Record<string, unknown>):
   if (Array.isArray(scenarioRaw) || Array.isArray(disabledRaw)) return { ok: false, reason: "invalid_request" };
   let scenario: CallScriptScenario | null = null;
   if (scenarioRaw !== undefined && scenarioRaw !== null && scenarioRaw !== "") {
-    if (typeof scenarioRaw !== "string" || !isScenario(scenarioRaw)) return { ok: false, reason: "invalid_scenario_filter" };
+    if (typeof scenarioRaw !== "string" || !isScenario(scenarioRaw, scenarios)) return { ok: false, reason: "invalid_scenario_filter" };
     scenario = scenarioRaw;
   }
   if (disabledRaw === undefined || disabledRaw === null || disabledRaw === "" || disabledRaw === "0") {
@@ -254,12 +251,12 @@ function findTemplate(store: CrmStore, id: string) {
   return store.callScriptTemplates.find((item) => item.id === id) || null;
 }
 
-function presentTemplate(template: CallScriptTemplate) {
+function presentTemplate(store: CrmStore, template: CallScriptTemplate) {
   return {
     id: template.id,
     title: template.title,
     scenario: template.scenario,
-    scenarioLabel: callScriptScenarioLabel(template.scenario),
+    scenarioLabel: scenarioLabelFor(store, template.teamId, template.scenario),
     language: template.language,
     body: template.body,
     enabled: template.enabled,
@@ -278,7 +275,7 @@ function visibleTemplates(store: CrmStore, teamId: string, scenario: CallScriptS
 
 export async function listCallScripts(store: CrmStore, user: SessionUser | undefined, query: Record<string, unknown>) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
-  const parsed = parseCallScriptQuery(query);
+  const parsed = parseCallScriptQuery(query, knownScenarioCodes(store, user.teamId));
   if (!parsed.ok) return reject(parsed.reason, validationMessage(parsed.reason));
   if (!canView(user)) {
     return rejectWithAudit(store, user, {
@@ -298,16 +295,20 @@ export async function listCallScripts(store: CrmStore, user: SessionUser | undef
     status: 200,
     body: {
       canManage: manage,
-      scenarios: CALL_SCRIPT_SCENARIOS,
-      templates: templates.map(presentTemplate)
+      scenarios: callScriptScenarioChoices(store, user.teamId),
+      templates: templates.map((item) => presentTemplate(store, item))
     }
   };
 }
 
 export async function createCallScript(store: CrmStore, user: SessionUser | undefined, body: unknown) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
-  const parsed = parseCallScriptCreate(body);
+  const known = knownScenarioCodes(store, user.teamId);
+  const parsed = parseCallScriptCreate(body, known);
   if (!parsed.ok) return reject(parsed.reason, validationMessage(parsed.reason));
+  if (!enabledScenarioCodes(store, user.teamId).has(parsed.snapshot.scenario)) {
+    return reject("scenario_disabled", validationMessage("scenario_disabled"));
+  }
   if (!canView(user)) {
     return rejectWithAudit(store, user, {
       templateId: "",
@@ -357,13 +358,17 @@ export async function createCallScript(store: CrmStore, user: SessionUser | unde
     result: "updated",
     reason: ""
   });
-  return { status: 200, body: { result: "created" as const, template: presentTemplate(saved) } };
+  return { status: 200, body: { result: "created" as const, template: presentTemplate(store, saved) } };
 }
 
 export async function updateCallScript(store: CrmStore, user: SessionUser | undefined, body: unknown) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
-  const parsed = parseCallScriptUpdate(body);
+  const known = knownScenarioCodes(store, user.teamId);
+  const parsed = parseCallScriptUpdate(body, known);
   if (!parsed.ok) return reject(parsed.reason, validationMessage(parsed.reason));
+  if (!enabledScenarioCodes(store, user.teamId).has(parsed.snapshot.scenario)) {
+    return reject("scenario_disabled", validationMessage("scenario_disabled"));
+  }
   const found = findTemplate(store, parsed.id);
   const local = found && found.teamId === user.teamId ? found : null;
   const previous = snapshotOf(local);
@@ -404,7 +409,7 @@ export async function updateCallScript(store: CrmStore, user: SessionUser | unde
   if (!local.enabled) return reject("disabled", validationMessage("disabled"));
   const prior = snapshotOf(local);
   if (sameCallScript(prior, parsed.snapshot)) {
-    return { status: 200, body: { result: "unchanged" as const, template: presentTemplate(local) } };
+    return { status: 200, body: { result: "unchanged" as const, template: presentTemplate(store, local) } };
   }
   const now = outboundInstant().toISOString();
   archiveCallScriptVersion(store, local, prior, user.id, "edit", now);
@@ -424,7 +429,7 @@ export async function updateCallScript(store: CrmStore, user: SessionUser | unde
     result: "updated",
     reason: ""
   });
-  return { status: 200, body: { result: "updated" as const, template: presentTemplate(local) } };
+  return { status: 200, body: { result: "updated" as const, template: presentTemplate(store, local) } };
 }
 
 export async function disableCallScript(store: CrmStore, user: SessionUser | undefined, body: unknown) {
@@ -469,7 +474,7 @@ export async function disableCallScript(store: CrmStore, user: SessionUser | und
     });
   }
   if (!local.enabled) {
-    return { status: 200, body: { result: "unchanged" as const, template: presentTemplate(local) } };
+    return { status: 200, body: { result: "unchanged" as const, template: presentTemplate(store, local) } };
   }
   const next: CallScriptSnapshot = { ...previous!, enabled: false };
   const now = outboundInstant().toISOString();
@@ -487,7 +492,7 @@ export async function disableCallScript(store: CrmStore, user: SessionUser | und
     result: "updated",
     reason: ""
   });
-  return { status: 200, body: { result: "disabled" as const, template: presentTemplate(local) } };
+  return { status: 200, body: { result: "disabled" as const, template: presentTemplate(store, local) } };
 }
 
 function archiveCallScriptVersion(
@@ -530,13 +535,13 @@ function findVersion(store: CrmStore, template: CallScriptTemplate, versionId: s
   return store.callScriptVersions.find((item) => item.id === versionId && item.templateId === template.id && item.teamId === template.teamId) || null;
 }
 
-function presentVersion(version: CallScriptVersion, includeBody: boolean) {
+function presentVersion(store: CrmStore, version: CallScriptVersion, includeBody: boolean) {
   return {
     id: version.id,
     versionNo: version.versionNo,
     title: version.title,
     scenario: version.scenario,
-    scenarioLabel: callScriptScenarioLabel(version.scenario),
+    scenarioLabel: scenarioLabelFor(store, version.teamId, version.scenario),
     language: version.language,
     enabled: version.enabled,
     savedAt: version.savedAt,
@@ -632,7 +637,7 @@ export async function listCallScriptVersions(store: CrmStore, user: SessionUser 
     status: 200,
     body: {
       templateId: local.id,
-      versions: versionsOf(store, local).map((item) => presentVersion(item, false))
+      versions: versionsOf(store, local).map((item) => presentVersion(store, item, false))
     }
   };
 }
@@ -668,7 +673,7 @@ export async function readCallScriptVersion(store: CrmStore, user: SessionUser |
       status: 404
     });
   }
-  return { status: 200, body: { version: presentVersion(version, true) } };
+  return { status: 200, body: { version: presentVersion(store, version, true) } };
 }
 
 export async function restoreCallScriptVersion(store: CrmStore, user: SessionUser | undefined, body: unknown) {
@@ -706,7 +711,7 @@ export async function restoreCallScriptVersion(store: CrmStore, user: SessionUse
   const prior = snapshotOf(local);
   const next = restoredSnapshot(version, local.enabled);
   if (sameCallScript(prior, next)) {
-    return { status: 200, body: { result: "unchanged" as const, template: presentTemplate(local) } };
+    return { status: 200, body: { result: "unchanged" as const, template: presentTemplate(store, local) } };
   }
   const now = outboundInstant().toISOString();
   const archived = archiveCallScriptVersion(store, local, prior, user.id, "restore", now);
@@ -730,7 +735,7 @@ export async function restoreCallScriptVersion(store: CrmStore, user: SessionUse
     status: 200,
     body: {
       result: "restored" as const,
-      template: presentTemplate(local),
+      template: presentTemplate(store, local),
       version: { id: archived.id, versionNo: archived.versionNo, source: archived.source }
     }
   };

@@ -87,19 +87,27 @@ import {
   type AgentCallTargetRow
 } from "./agent-call-target";
 import {
+  CALL_SCRIPT_SCENARIOS,
   callScriptCreateBody,
   callScriptDisableBody,
   callScriptFavoriteBody,
   callScriptRestoreBody,
+  callScriptScenarioCreateBody,
+  callScriptScenarioDisableBody,
+  callScriptScenarioRenameBody,
+  callScriptScenarioReorderBody,
   callScriptUpdateBody,
   readCallScriptDraft,
   renderCallScriptAside,
   renderCallScriptList,
   renderCallScriptManageList,
+  renderCallScriptScenarioAdmin,
+  renderCallScriptScenarioOptions,
   renderCallScriptVersionPanel,
   type CallScriptFavoriteView,
   type CallScriptListOptions,
   type CallScriptListResponse,
+  type CallScriptScenarioChoice,
   type CallScriptTemplateView,
   type CallScriptVersionView
 } from "./call-script";
@@ -112,6 +120,7 @@ import {
   callScriptReportQuery,
   renderCallScriptReport,
   renderCallScriptReportAgentOptions,
+  renderCallScriptReportScenarioOptions,
   type CallScriptReportResponse
 } from "./call-script-report";
 import {
@@ -12285,6 +12294,8 @@ let callScriptManageTemplates: CallScriptTemplateView[] = [];
 let callScriptFavoriteRows: CallScriptFavoriteView[] = [];
 let callScriptFavoriteIds: string[] = [];
 let callScriptCanManage = false;
+let callScriptScenarios: CallScriptScenarioChoice[] = [];
+let callScriptScenarioPending = false;
 let callScriptFavoritePending = false;
 let dashboardCallScriptsBound = false;
 let dashboardCallScriptLoad = 0;
@@ -12365,6 +12376,29 @@ function bindDashboardCallScripts() {
     if (editId) {
       fillDashboardCallScript(editId);
       void loadCallScriptVersions(editId);
+      return;
+    }
+    if (target?.closest("#dashboardCallScriptScenarioCreate")) {
+      event.preventDefault();
+      void createDashboardCallScriptScenario();
+      return;
+    }
+    const renameCode = target?.closest<HTMLElement>("[data-call-script-scenario-rename]")?.dataset.callScriptScenarioRename || "";
+    if (renameCode) {
+      event.preventDefault();
+      void renameDashboardCallScriptScenario(renameCode);
+      return;
+    }
+    const reorderCode = target?.closest<HTMLElement>("[data-call-script-scenario-reorder]")?.dataset.callScriptScenarioReorder || "";
+    if (reorderCode) {
+      event.preventDefault();
+      void reorderDashboardCallScriptScenario(reorderCode);
+      return;
+    }
+    const disableCode = target?.closest<HTMLElement>("[data-call-script-scenario-disable]")?.dataset.callScriptScenarioDisable || "";
+    if (disableCode) {
+      event.preventDefault();
+      void disableDashboardCallScriptScenario(disableCode);
     }
   });
   qs<HTMLSelectElement>("#dashboardCallScriptScenario")?.addEventListener("change", () => {
@@ -12404,11 +12438,57 @@ function callScriptPickerTemplates(): CallScriptTemplateView[] {
   return [...rows.values()];
 }
 
+function callScriptScenarioChoicesForUi() {
+  return callScriptScenarios.length ? callScriptScenarios : CALL_SCRIPT_SCENARIOS.map((item, index) => ({
+    id: item.id,
+    label: item.label,
+    code: item.id,
+    name: item.label,
+    sortOrder: (index + 1) * 10,
+    enabled: true
+  }));
+}
+
+function paintCallScriptScenarioSelects() {
+  const choices = callScriptScenarioChoicesForUi();
+  const view = qs<HTMLSelectElement>("#dashboardCallScriptScenario");
+  if (view) {
+    const current = view.value;
+    view.innerHTML = renderCallScriptScenarioOptions(current, true, choices);
+    if ([...view.options].some((option) => option.value === current)) view.value = current;
+  }
+  const write = qs<HTMLSelectElement>("#dashboardCallScriptScenarioWrite");
+  if (write) {
+    const current = write.value;
+    write.innerHTML = renderCallScriptScenarioOptions(current, false, choices, true);
+    if ([...write.options].some((option) => option.value === current)) write.value = current;
+  }
+  const report = qs<HTMLSelectElement>("#dashboardCallScriptReportScenario");
+  if (report) {
+    const current = report.value;
+    report.innerHTML = renderCallScriptReportScenarioOptions(choices, current);
+    if ([...report.options].some((option) => option.value === current)) report.value = current;
+  }
+}
+
+function paintCallScriptScenarioAdmin() {
+  const root = qs<HTMLElement>("#dashboardCallScriptScenarios");
+  const list = qs<HTMLElement>("#dashboardCallScriptScenarioList");
+  if (root) root.hidden = !callScriptCanManage;
+  if (list) list.innerHTML = callScriptCanManage ? renderCallScriptScenarioAdmin(callScriptScenarioChoicesForUi()) : "";
+}
+
 function paintCallScriptAside(aside: HTMLElement) {
   const select = aside.querySelector<HTMLSelectElement>("[data-call-script-scenario]");
   const view = aside.querySelector<HTMLElement>("[data-call-script-view]");
   const only = aside.querySelector<HTMLInputElement>("[data-call-script-favorites-only]")?.checked === true;
-  if (view) view.innerHTML = renderCallScriptList(callScriptPickerTemplates(), select?.value || "first_call", callScriptListOptions(only));
+  const choices = callScriptScenarioChoicesForUi();
+  if (select) {
+    const current = select.value;
+    select.innerHTML = renderCallScriptScenarioOptions(current, false, choices);
+    if ([...select.options].some((option) => option.value === current)) select.value = current;
+  }
+  if (view) view.innerHTML = renderCallScriptList(callScriptPickerTemplates(), select?.value || choices[0]?.id || "first_call", callScriptListOptions(only));
 }
 
 function applyCallScriptUsageFavoritesOnly(form: HTMLElement, only: boolean) {
@@ -12435,7 +12515,7 @@ function paintDashboardCallScriptList() {
 function paintCallScriptMount(root: HTMLElement | null) {
   if (!root) return;
   if (!root.querySelector("[data-call-script-aside]")) {
-    root.innerHTML = renderCallScriptAside(callScriptPickerTemplates(), "first_call", callScriptListOptions(false));
+    root.innerHTML = renderCallScriptAside(callScriptPickerTemplates(), "first_call", callScriptListOptions(false), callScriptScenarioChoicesForUi());
     return;
   }
   const aside = root.querySelector<HTMLElement>("[data-call-script-aside]");
@@ -12451,6 +12531,8 @@ function paintCallScriptSurfaces() {
     manage.hidden = !callScriptCanManage;
     manage.innerHTML = callScriptCanManage ? renderCallScriptManageList(callScriptManageTemplates) : "";
   }
+  paintCallScriptScenarioSelects();
+  paintCallScriptScenarioAdmin();
   paintCallScriptMount(qs<HTMLElement>("#cccCallScripts"));
   paintCallScriptMount(qs<HTMLElement>("#outboundCallRecordScripts"));
   document.querySelectorAll<HTMLElement>("[data-call-script-aside]").forEach((aside) => {
@@ -12482,6 +12564,17 @@ async function loadCallScriptReport() {
     const data = await api<CallScriptReportResponse>(`/api/call-script-report${callScriptReportQuery(callScriptReportFilterInput())}`);
     const select = qs<HTMLSelectElement>("#dashboardCallScriptReportAgent");
     if (select) select.innerHTML = renderCallScriptReportAgentOptions(data.agents, select.value);
+    if (data.scenarios?.length) {
+      callScriptScenarios = data.scenarios.map((item) => ({
+        id: item.id || "",
+        label: item.label || item.id || "",
+        code: item.id || "",
+        name: item.label || item.id || "",
+        sortOrder: item.sortOrder,
+        enabled: item.enabled
+      }));
+      paintCallScriptScenarioSelects();
+    }
     list.innerHTML = renderCallScriptReport(data);
   } catch (error) {
     list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到话术效果对比")}</div>`;
@@ -12536,6 +12629,17 @@ async function loadDashboardCallScripts() {
     if (ticket !== dashboardCallScriptLoad) return;
     callScriptTemplates = data.templates || [];
     callScriptCanManage = data.canManage === true;
+    if (data.scenarios?.length) {
+      callScriptScenarios = data.scenarios.map((item) => ({
+        id: item.id,
+        label: item.label,
+        scenarioId: item.scenarioId,
+        code: item.code || item.id,
+        name: item.name || item.label,
+        sortOrder: item.sortOrder,
+        enabled: item.enabled
+      }));
+    }
     callScriptManageTemplates = callScriptTemplates;
     const favorites = await api<{ favorites?: CallScriptFavoriteView[] }>("/api/call-script-favorites");
     if (ticket !== dashboardCallScriptLoad) return;
@@ -12582,6 +12686,77 @@ async function loadCallScriptUsage() {
     paintCallScriptUsage(data.templates || []);
   } catch (error) {
     if (root) root.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到使用次数")}</div>`;
+  }
+}
+
+function callScriptScenarioMessage(text: string) {
+  const message = qs<HTMLElement>("#dashboardCallScriptScenarioMessage");
+  if (message) message.textContent = text;
+}
+
+async function createDashboardCallScriptScenario() {
+  if (!callScriptCanManage || callScriptScenarioPending) return;
+  const name = qs<HTMLInputElement>("#dashboardCallScriptScenarioName")?.value || "";
+  callScriptScenarioPending = true;
+  try {
+    await api("/api/call-script-scenarios", { method: "POST", body: JSON.stringify(callScriptScenarioCreateBody(name)) });
+    const input = qs<HTMLInputElement>("#dashboardCallScriptScenarioName");
+    if (input) input.value = "";
+    callScriptScenarioMessage("已新增场景");
+    await loadDashboardCallScripts();
+  } catch (error) {
+    callScriptScenarioMessage(error instanceof Error ? error.message : "没有新增场景");
+  } finally {
+    callScriptScenarioPending = false;
+  }
+}
+
+async function renameDashboardCallScriptScenario(code: string) {
+  if (!callScriptCanManage || callScriptScenarioPending) return;
+  const name = qs<HTMLInputElement>(`[data-call-script-scenario-name="${CSS.escape(code)}"]`)?.value || "";
+  callScriptScenarioPending = true;
+  try {
+    await api("/api/call-script-scenarios/rename", { method: "POST", body: JSON.stringify(callScriptScenarioRenameBody(code, name)) });
+    callScriptScenarioMessage("已重命名场景");
+    await loadDashboardCallScripts();
+  } catch (error) {
+    callScriptScenarioMessage(error instanceof Error ? error.message : "没有重命名场景");
+  } finally {
+    callScriptScenarioPending = false;
+  }
+}
+
+async function reorderDashboardCallScriptScenario(code: string) {
+  if (!callScriptCanManage || callScriptScenarioPending) return;
+  const raw = qs<HTMLInputElement>(`[data-call-script-scenario-sort="${CSS.escape(code)}"]`)?.value || "";
+  const sortOrder = Number(raw);
+  if (!Number.isInteger(sortOrder)) {
+    callScriptScenarioMessage("排序必须是整数");
+    return;
+  }
+  callScriptScenarioPending = true;
+  try {
+    await api("/api/call-script-scenarios/reorder", { method: "POST", body: JSON.stringify(callScriptScenarioReorderBody(code, sortOrder)) });
+    callScriptScenarioMessage("已调整排序");
+    await loadDashboardCallScripts();
+  } catch (error) {
+    callScriptScenarioMessage(error instanceof Error ? error.message : "没有调整排序");
+  } finally {
+    callScriptScenarioPending = false;
+  }
+}
+
+async function disableDashboardCallScriptScenario(code: string) {
+  if (!callScriptCanManage || callScriptScenarioPending) return;
+  callScriptScenarioPending = true;
+  try {
+    await api("/api/call-script-scenarios/disable", { method: "POST", body: JSON.stringify(callScriptScenarioDisableBody(code)) });
+    callScriptScenarioMessage("已停用场景");
+    await loadDashboardCallScripts();
+  } catch (error) {
+    callScriptScenarioMessage(error instanceof Error ? error.message : "没有停用场景");
+  } finally {
+    callScriptScenarioPending = false;
   }
 }
 
@@ -12699,7 +12874,8 @@ async function saveDashboardCallScript() {
     qs<HTMLInputElement>("#dashboardCallScriptTitle")?.value || "",
     qs<HTMLSelectElement>("#dashboardCallScriptScenarioWrite")?.value || "",
     qs<HTMLTextAreaElement>("#dashboardCallScriptBody")?.value || "",
-    qs<HTMLInputElement>("#dashboardCallScriptLanguage")?.value || ""
+    qs<HTMLInputElement>("#dashboardCallScriptLanguage")?.value || "",
+    callScriptScenarioChoicesForUi()
   );
   if (!draft.ok) {
     if (message) message.textContent = draft.message;

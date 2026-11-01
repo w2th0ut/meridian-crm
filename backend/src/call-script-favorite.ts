@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { hasIamPermission, type IamActor } from "./auth.js";
-import { CALL_SCRIPT_PERMISSION, callScriptScenarioLabel, canManageCallScripts } from "./call-script.js";
+import { CALL_SCRIPT_PERMISSION, canManageCallScripts } from "./call-script.js";
+import { scenarioLabelFor } from "./call-script-scenario.js";
 import { outboundInstant } from "./outbound-call.js";
 import type { CrmStore } from "./store.js";
 import type { CallScriptFavorite, CallScriptFavoriteAudit, CallScriptTemplate, SessionUser } from "./types.js";
@@ -78,7 +79,7 @@ function presentFavorite(store: Pick<CrmStore, "callScriptTemplates">, row: Call
     createdAt: row.createdAt,
     title: template?.title || "",
     scenario: template?.scenario || "",
-    scenarioLabel: template ? callScriptScenarioLabel(template.scenario) : "",
+    scenarioLabel: template ? scenarioLabelFor(store, row.teamId, template.scenario) : "",
     language: template?.language || "",
     body: template?.body || "",
     enabled,
@@ -143,23 +144,23 @@ export function callScriptPickerChoices(
   const favoriteSet = new Set(favoriteIds);
   const favoriteRows = favoriteIds.map((templateId) => {
     const template = findTemplate(store, teamId, templateId);
-    return presentChoice(template, templateId, true);
+    return presentChoice(store, teamId, template, templateId, true);
   });
   const rest = store.callScriptTemplates
     .filter((item) => item.teamId === teamId && item.enabled && !favoriteSet.has(item.id))
     .slice()
     .sort((left, right) => left.title.localeCompare(right.title, "zh") || left.id.localeCompare(right.id))
-    .map((template) => presentChoice(template, template.id, false));
+    .map((template) => presentChoice(store, teamId, template, template.id, false));
   return [...favoriteRows, ...rest];
 }
 
-function presentChoice(template: CallScriptTemplate | null, templateId: string, favorited: boolean) {
+function presentChoice(store: object, teamId: string, template: CallScriptTemplate | null, templateId: string, favorited: boolean) {
   const enabled = template?.enabled === true;
   return {
     id: template?.id || templateId,
     title: template?.title || "",
     scenario: template?.scenario || "",
-    scenarioLabel: template ? callScriptScenarioLabel(template.scenario) : "",
+    scenarioLabel: template ? scenarioLabelFor(store, teamId, template.scenario) : "",
     enabled,
     favorited,
     selectable: enabled

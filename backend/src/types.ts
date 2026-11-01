@@ -5304,8 +5304,47 @@ export interface OutboundOwnerAudit {
   reason: string;
 }
 
-/** 话术适用场景。只此四项。 */
-export type CallScriptScenario = "first_call" | "follow_up" | "missed_callback" | "objection";
+/**
+ * 话术场景代码，写在模板原来的 scenario 列里。
+ * 四项内置代码仍可用。管理员新增的场景使用另外的短代码。
+ */
+export type CallScriptScenario = string;
+
+/**
+ * 一条话术场景。停用后仍留在表里，enabled 为 false。
+ * code 对应模板上的场景值，重命名不改 code。
+ */
+export interface CallScriptScenarioRow {
+  id: string;
+  teamId: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+  enabled: boolean;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  disabledAt: string;
+}
+
+/**
+ * 一次话术场景的新增、重命名、调整排序、停用，或一次被拒绝的查看和越权操作。
+ * 旧值和新值是启用、代码、排序和名称。不记话术正文，也不记号码或密钥。
+ * 成功的读取不写这一行。
+ */
+export interface CallScriptScenarioAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  scenarioId: string;
+  action: "create" | "rename" | "reorder" | "disable" | "read";
+  previousValue: string;
+  nextValue: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
 
 /**
  * 一条外呼话术模板。停用后仍留在表里，enabled 为 false。

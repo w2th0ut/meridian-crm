@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { escapeCsvCell } from "./call-export.js";
-import { CALL_SCRIPT_SCENARIOS, callScriptScenarioLabel, canManageCallScripts } from "./call-script.js";
+import { CALL_SCRIPT_SCENARIOS, canManageCallScripts } from "./call-script.js";
+import { callScriptScenarioChoices, knownScenarioCodes, scenarioLabelFor } from "./call-script-scenario.js";
 import { outboundInstant, tenantTimeZoneFor } from "./outbound-call.js";
 import {
   CALL_OUTCOMES,
@@ -105,7 +106,7 @@ function validDate(value: string) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
-export function parseCallScriptReportQuery(query: Record<string, unknown>): CallScriptReportQuery | null {
+export function parseCallScriptReportQuery(query: Record<string, unknown>, scenarios?: ReadonlySet<string>): CallScriptReportQuery | null {
   const allowed = new Set(["from", "to", "agentId", "scenario"]);
   if (Object.keys(query).some((key) => !allowed.has(key))) return null;
   if (Object.values(query).some((value) => Array.isArray(value))) return null;
@@ -123,7 +124,8 @@ export function parseCallScriptReportQuery(query: Record<string, unknown>): Call
   if (agentId && !AGENT_PATTERN.test(agentId)) return null;
   let scenario: CallScriptScenario | null = null;
   if (scenarioRaw) {
-    if (!isScenario(scenarioRaw)) return null;
+    const known = scenarios ? scenarios.has(scenarioRaw) : isScenario(scenarioRaw);
+    if (!known) return null;
     scenario = scenarioRaw;
   }
   return { from, to, agentId, scenario };
@@ -219,7 +221,7 @@ export function callScriptReportAgents(store: Pick<CrmStore, "aliyunAgentMapping
 }
 
 export function buildCallScriptReport(input: {
-  store: Pick<CrmStore, "callScriptTemplates" | "outboundCallRecords" | "callbackSchedules">;
+  store: Pick<CrmStore, "callScriptTemplates" | "outboundCallRecords" | "callbackSchedules"> & { callScriptScenarios?: CrmStore["callScriptScenarios"] };
   teamId: string;
   query: CallScriptReportQuery;
   timeZone: string;
@@ -249,7 +251,7 @@ export function buildCallScriptReport(input: {
     templateId: template.id,
     title: template.title,
     scenario: template.scenario,
-    scenarioLabel: callScriptScenarioLabel(template.scenario),
+    scenarioLabel: scenarioLabelFor(input.store, input.teamId, template.scenario),
     enabled: template.enabled,
     linked: true,
     ...summarizeGroup(buckets.get(template.id) || [], schedules, input.teamId)
@@ -337,6 +339,7 @@ function reportBody(store: CrmStore, teamId: string, query: CallScriptReportQuer
       scenario: query.scenario || ""
     },
     agents: callScriptReportAgents(store, teamId),
+    scenarios: callScriptScenarioChoices(store, teamId),
     metrics: CALL_SCRIPT_REPORT_METRICS,
     rows
   };
@@ -344,7 +347,7 @@ function reportBody(store: CrmStore, teamId: string, query: CallScriptReportQuer
 
 export async function listCallScriptReport(store: CrmStore, user: SessionUser | undefined, query: Record<string, unknown>) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
-  const parsed = parseCallScriptReportQuery(query);
+  const parsed = parseCallScriptReportQuery(query, knownScenarioCodes(store, user.teamId));
   if (!parsed) return reject("invalid_request", "参数格式错误");
   const filters = callScriptReportFiltersText(parsed);
   if (!canManageCallScripts(user)) {
@@ -374,7 +377,7 @@ export async function exportCallScriptReport(
   query: Record<string, unknown>
 ): Promise<CallScriptReportExportResponse> {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
-  const parsed = parseCallScriptReportQuery(query);
+  const parsed = parseCallScriptReportQuery(query, knownScenarioCodes(store, user.teamId));
   if (!parsed) return reject("invalid_request", "参数格式错误");
   const filters = callScriptReportFiltersText(parsed);
   if (!canManageCallScripts(user)) {
