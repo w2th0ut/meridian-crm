@@ -20,7 +20,27 @@ export interface CallScriptTemplateView {
   language?: string;
   body: string;
   enabled?: boolean;
+  favorited?: boolean;
   updatedAt?: string;
+}
+
+export interface CallScriptListOptions {
+  favoriteIds?: string[];
+  favoritesOnly?: boolean;
+  showFavorite?: boolean;
+}
+
+export interface CallScriptFavoriteView {
+  id: string;
+  templateId: string;
+  createdAt?: string;
+  title: string;
+  scenario: string;
+  scenarioLabel?: string;
+  language?: string;
+  body: string;
+  enabled: boolean;
+  selectable: boolean;
 }
 
 export interface CallScriptListResponse {
@@ -54,21 +74,57 @@ export function renderCallScriptScenarioOptions(selected = "", includeAll = fals
   }).join("");
 }
 
-export function renderCallScriptList(templates: CallScriptTemplateView[], scenario = "") {
-  const rows = filterEnabledCallScripts(templates, scenario);
+export function orderCallScripts(templates: CallScriptTemplateView[], favoriteIds: string[] = []) {
+  const rank = new Map(favoriteIds.map((id, index) => [id, index]));
+  return templates.slice().sort((left, right) => {
+    const leftRank = rank.has(left.id) ? rank.get(left.id)! : Number.MAX_SAFE_INTEGER;
+    const rightRank = rank.has(right.id) ? rank.get(right.id)! : Number.MAX_SAFE_INTEGER;
+    return leftRank - rightRank;
+  });
+}
+
+export function renderCallScriptList(templates: CallScriptTemplateView[], scenario = "", options: CallScriptListOptions = {}) {
+  const favoriteIds = options.favoriteIds?.length
+    ? options.favoriteIds
+    : templates.filter((item) => item.favorited).map((item) => item.id);
+  const favoriteSet = new Set(favoriteIds);
+  let rows = templates.filter((item) => !scenario || item.scenario === scenario);
+  rows = options.favoritesOnly
+    ? rows.filter((item) => favoriteSet.has(item.id))
+    : rows.filter((item) => item.enabled !== false || favoriteSet.has(item.id));
+  rows = orderCallScripts(rows, favoriteIds);
   if (!rows.length) {
+    if (options.favoritesOnly) {
+      return `<div class="empty-cell" data-call-script-empty="1" data-call-script-favorites-empty="1">还没有收藏的话术。</div>`;
+    }
     return `<div class="empty-cell" data-call-script-empty="1">这个场景还没有启用的话术。</div>`;
   }
   return rows.map((item) => {
     const language = item.language?.trim() ? ` · ${item.language.trim()}` : "";
     const label = item.scenarioLabel || callScriptScenarioLabel(item.scenario);
-    return `<article class="call-script-card" data-call-script="${escapeCallScriptText(item.id)}" data-call-script-scenario="${escapeCallScriptText(item.scenario)}"><h3>${escapeCallScriptText(item.title)}</h3><p>${escapeCallScriptText(label)}${escapeCallScriptText(language)}</p><pre class="call-script-body">${escapeCallScriptText(item.body)}</pre></article>`;
+    const disabled = item.enabled === false;
+    const favorited = favoriteSet.has(item.id);
+    const flag = favorited ? ` data-call-script-favorited="1"` : "";
+    const muted = disabled ? ` data-call-script-disabled="1" aria-disabled="true"` : "";
+    const action = !options.showFavorite
+      ? ""
+      : disabled
+        ? `<span data-call-script-disabled="1">已停用</span>`
+        : favorited
+          ? `<button class="btn" type="button" data-call-script-unfavorite="${escapeCallScriptText(item.id)}">取消收藏</button>`
+          : `<button class="btn" type="button" data-call-script-favorite="${escapeCallScriptText(item.id)}">收藏</button>`;
+    return `<article class="call-script-card"${muted}${flag} data-call-script="${escapeCallScriptText(item.id)}" data-call-script-scenario="${escapeCallScriptText(item.scenario)}"><h3>${escapeCallScriptText(item.title)}</h3><p>${escapeCallScriptText(label)}${escapeCallScriptText(language)}</p>${action}<pre class="call-script-body">${escapeCallScriptText(item.body)}</pre></article>`;
   }).join("");
 }
 
-export function renderCallScriptAside(templates: CallScriptTemplateView[], scenario = "first_call") {
+export function renderCallScriptAside(templates: CallScriptTemplateView[], scenario = "first_call", options: CallScriptListOptions = {}) {
   const selected = CALL_SCRIPT_SCENARIOS.some((item) => item.id === scenario) ? scenario : "first_call";
-  return `<div class="call-script-aside" data-call-script-aside="1"><label>话术<select data-call-script-scenario>${renderCallScriptScenarioOptions(selected)}</select></label><div data-call-script-view>${renderCallScriptList(templates, selected)}</div></div>`;
+  const checked = options.favoritesOnly ? " checked" : "";
+  return `<div class="call-script-aside" data-call-script-aside="1"><label>话术<select data-call-script-scenario>${renderCallScriptScenarioOptions(selected)}</select></label><label><input type="checkbox" data-call-script-favorites-only${checked}>只看收藏</label><div data-call-script-view>${renderCallScriptList(templates, selected, options)}</div></div>`;
+}
+
+export function callScriptFavoriteBody(templateId: string) {
+  return { templateId };
 }
 
 export function renderCallScriptManageList(templates: CallScriptTemplateView[]) {

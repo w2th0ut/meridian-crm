@@ -89,6 +89,7 @@ import {
 import {
   callScriptCreateBody,
   callScriptDisableBody,
+  callScriptFavoriteBody,
   callScriptRestoreBody,
   callScriptUpdateBody,
   readCallScriptDraft,
@@ -96,6 +97,8 @@ import {
   renderCallScriptList,
   renderCallScriptManageList,
   renderCallScriptVersionPanel,
+  type CallScriptFavoriteView,
+  type CallScriptListOptions,
   type CallScriptListResponse,
   type CallScriptTemplateView,
   type CallScriptVersionView
@@ -12273,7 +12276,10 @@ async function clearDashboardAgentCallTarget() {
 
 let callScriptTemplates: CallScriptTemplateView[] = [];
 let callScriptManageTemplates: CallScriptTemplateView[] = [];
+let callScriptFavoriteRows: CallScriptFavoriteView[] = [];
+let callScriptFavoriteIds: string[] = [];
 let callScriptCanManage = false;
+let callScriptFavoritePending = false;
 let dashboardCallScriptsBound = false;
 let dashboardCallScriptLoad = 0;
 let callScriptVersionTemplateId = "";
@@ -12285,10 +12291,35 @@ function bindDashboardCallScripts() {
   if (dashboardCallScriptsBound) return;
   dashboardCallScriptsBound = true;
   document.addEventListener("change", (event) => {
-    const select = event.target;
-    if (!(select instanceof HTMLSelectElement) || !select.matches("[data-call-script-scenario]")) return;
-    const view = select.closest("[data-call-script-aside]")?.querySelector<HTMLElement>("[data-call-script-view]");
-    if (view) view.innerHTML = renderCallScriptList(callScriptTemplates, select.value);
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.matches("[data-call-script-favorites-only]")) {
+      const aside = target.closest<HTMLElement>("[data-call-script-aside]");
+      if (aside) {
+        paintCallScriptAside(aside);
+        return;
+      }
+      const form = target.closest<HTMLElement>("[data-call-script-usage-form]");
+      if (form) applyCallScriptUsageFavoritesOnly(form, target.checked);
+      return;
+    }
+    if (!(target instanceof HTMLSelectElement) || !target.matches("[data-call-script-scenario]")) return;
+    const aside = target.closest<HTMLElement>("[data-call-script-aside]");
+    if (aside) paintCallScriptAside(aside);
+  });
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const add = target.closest<HTMLElement>("[data-call-script-favorite]");
+    if (add?.dataset.callScriptFavorite) {
+      event.preventDefault();
+      void toggleCallScriptFavorite(add.dataset.callScriptFavorite, false);
+      return;
+    }
+    const remove = target.closest<HTMLElement>("[data-call-script-unfavorite]");
+    if (remove?.dataset.callScriptUnfavorite) {
+      event.preventDefault();
+      void toggleCallScriptFavorite(remove.dataset.callScriptUnfavorite, true);
+    }
   });
   const root = qs<HTMLElement>("#dashboardCallScripts");
   root?.addEventListener("submit", (event) => {
@@ -12333,23 +12364,76 @@ function bindDashboardCallScripts() {
   qs<HTMLSelectElement>("#dashboardCallScriptScenario")?.addEventListener("change", () => {
     paintDashboardCallScriptList();
   });
+  qs<HTMLInputElement>("#dashboardCallScriptFavoritesOnly")?.addEventListener("change", () => {
+    paintDashboardCallScriptList();
+  });
+}
+
+function callScriptListOptions(favoritesOnly: boolean): CallScriptListOptions {
+  return { favoriteIds: callScriptFavoriteIds, favoritesOnly, showFavorite: true };
+}
+
+function callScriptPickerTemplates(): CallScriptTemplateView[] {
+  const rows = new Map<string, CallScriptTemplateView>();
+  for (const item of callScriptTemplates) {
+    rows.set(item.id, { ...item, favorited: callScriptFavoriteIds.includes(item.id) });
+  }
+  for (const fav of callScriptFavoriteRows) {
+    const existing = rows.get(fav.templateId);
+    if (existing) {
+      existing.favorited = true;
+      continue;
+    }
+    rows.set(fav.templateId, {
+      id: fav.templateId,
+      title: fav.title,
+      scenario: fav.scenario,
+      scenarioLabel: fav.scenarioLabel,
+      language: fav.language,
+      body: fav.body,
+      enabled: fav.enabled,
+      favorited: true
+    });
+  }
+  return [...rows.values()];
+}
+
+function paintCallScriptAside(aside: HTMLElement) {
+  const select = aside.querySelector<HTMLSelectElement>("[data-call-script-scenario]");
+  const view = aside.querySelector<HTMLElement>("[data-call-script-view]");
+  const only = aside.querySelector<HTMLInputElement>("[data-call-script-favorites-only]")?.checked === true;
+  if (view) view.innerHTML = renderCallScriptList(callScriptPickerTemplates(), select?.value || "first_call", callScriptListOptions(only));
+}
+
+function applyCallScriptUsageFavoritesOnly(form: HTMLElement, only: boolean) {
+  const select = form.querySelector<HTMLSelectElement>("[data-call-script-usage]");
+  if (!select) return;
+  for (const option of Array.from(select.options)) {
+    if (!option.value) {
+      option.hidden = false;
+      continue;
+    }
+    const favorited = option.dataset.favorited === "1";
+    const selected = option.value === select.value;
+    option.hidden = only && !favorited && !selected;
+  }
 }
 
 function paintDashboardCallScriptList() {
   const list = qs<HTMLElement>("#dashboardCallScriptList");
   const scenario = qs<HTMLSelectElement>("#dashboardCallScriptScenario")?.value || "";
-  if (list) list.innerHTML = renderCallScriptList(callScriptTemplates, scenario);
+  const only = qs<HTMLInputElement>("#dashboardCallScriptFavoritesOnly")?.checked === true;
+  if (list) list.innerHTML = renderCallScriptList(callScriptPickerTemplates(), scenario, callScriptListOptions(only));
 }
 
 function paintCallScriptMount(root: HTMLElement | null) {
   if (!root) return;
   if (!root.querySelector("[data-call-script-aside]")) {
-    root.innerHTML = renderCallScriptAside(callScriptTemplates, "first_call");
+    root.innerHTML = renderCallScriptAside(callScriptPickerTemplates(), "first_call", callScriptListOptions(false));
     return;
   }
-  const select = root.querySelector<HTMLSelectElement>("[data-call-script-scenario]");
-  const view = root.querySelector<HTMLElement>("[data-call-script-view]");
-  if (view) view.innerHTML = renderCallScriptList(callScriptTemplates, select?.value || "first_call");
+  const aside = root.querySelector<HTMLElement>("[data-call-script-aside]");
+  if (aside) paintCallScriptAside(aside);
 }
 
 function paintCallScriptSurfaces() {
@@ -12365,9 +12449,7 @@ function paintCallScriptSurfaces() {
   paintCallScriptMount(qs<HTMLElement>("#outboundCallRecordScripts"));
   document.querySelectorAll<HTMLElement>("[data-call-script-aside]").forEach((aside) => {
     if (aside.parentElement?.id === "cccCallScripts" || aside.parentElement?.id === "outboundCallRecordScripts") return;
-    const select = aside.querySelector<HTMLSelectElement>("[data-call-script-scenario]");
-    const view = aside.querySelector<HTMLElement>("[data-call-script-view]");
-    if (view) view.innerHTML = renderCallScriptList(callScriptTemplates, select?.value || "first_call");
+    paintCallScriptAside(aside);
   });
 }
 
@@ -12382,6 +12464,10 @@ async function loadDashboardCallScripts() {
     callScriptTemplates = data.templates || [];
     callScriptCanManage = data.canManage === true;
     callScriptManageTemplates = callScriptTemplates;
+    const favorites = await api<{ favorites?: CallScriptFavoriteView[] }>("/api/call-script-favorites");
+    if (ticket !== dashboardCallScriptLoad) return;
+    callScriptFavoriteRows = favorites.favorites || [];
+    callScriptFavoriteIds = callScriptFavoriteRows.map((item) => item.templateId);
     if (callScriptCanManage) {
       const all = await api<CallScriptListResponse>("/api/call-script-templates?includeDisabled=1");
       if (ticket !== dashboardCallScriptLoad) return;
@@ -12562,6 +12648,25 @@ async function saveDashboardCallScript() {
     await loadDashboardCallScripts();
   } catch (error) {
     if (message) message.textContent = error instanceof Error ? error.message : "没有保存";
+  }
+}
+
+async function toggleCallScriptFavorite(templateId: string, remove: boolean) {
+  if (!templateId || callScriptFavoritePending) return;
+  callScriptFavoritePending = true;
+  try {
+    const result = await api<{ result?: string }>(remove ? "/api/call-script-favorites/remove" : "/api/call-script-favorites", {
+      method: "POST",
+      body: JSON.stringify(callScriptFavoriteBody(templateId))
+    });
+    toast(result.result === "unchanged" ? "收藏没有变化" : remove ? "已取消收藏" : "已收藏");
+    await loadDashboardCallScripts();
+    const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+    if (panel && !panel.hidden && panel.dataset.recordId) await openOutboundCallRecord(panel.dataset.recordId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "收藏没有改", "error");
+  } finally {
+    callScriptFavoritePending = false;
   }
 }
 
@@ -15032,7 +15137,7 @@ function preferredOutboundHtml(targets: Array<OutboundCallTarget & { choiceLabel
     dialButtonHtml,
     validityHtml,
     invalidHintHtml
-  })}${renderCallScriptAside(callScriptTemplates, "first_call")}`;
+  })}${renderCallScriptAside(callScriptPickerTemplates(), "first_call", callScriptListOptions(false))}`;
 }
 
 function redrawPreferredPhone(targetType: string, targetId: string) {
