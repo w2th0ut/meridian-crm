@@ -4985,6 +4985,10 @@ export interface OutboundCallRecord {
   callNoteTags: string;
   /** 最近一次真正写下或清空纪要的时间。不改记录本身的 updatedAt。 */
   callNoteUpdatedAt: string;
+  /** 本通选用的话术模板 ID。空字符串表示没有选用。 */
+  callScriptTemplateId: string;
+  /** 最近一次真正选择、更换或清除所用话术的时间。不改记录本身的 updatedAt。 */
+  callScriptUpdatedAt: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -5336,6 +5340,24 @@ export interface CallScriptAudit {
   action: "create" | "update" | "disable" | "read";
   previousValue: string;
   nextValue: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
+
+/**
+ * 一次把话术记到某通通话上的选择、更换、清除，或一次被拒绝的尝试。
+ * 旧值和新值是模板 ID。没有选用时是空。不记话术正文，也不记号码或密钥。
+ * read 只用于越权查看使用次数，不表示改了某一通。
+ */
+export interface CallScriptUsageAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  callRecordId: string;
+  action: "set" | "update" | "clear" | "read";
+  previousTemplateId: string;
+  nextTemplateId: string;
   result: "updated" | "rejected";
   reason: string;
 }
