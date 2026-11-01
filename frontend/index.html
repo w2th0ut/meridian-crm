@@ -28393,6 +28393,23 @@ body.platform-mode .workspace-tabs { display:none !important; }
             </div>
           </div>
 
+          <section class="panel section" id="dashboardAgentCallTargets" aria-label="今日外呼进度">
+            <div class="section-head">
+              <div class="section-title"><div><h2>今日外呼进度</h2><p id="dashboardAgentCallTargetScope">正在读取</p></div></div>
+            </div>
+            <p id="dashboardAgentCallTargetNote" class="dashboard-agent-call-target-note">这是坐席本人今日的外呼进度，对照管理员设的每日目标。已拨、接通沿用通话记录统计：接通看话单 EstablishedTime 去掉空白后还有内容。意向只数人工标注「有意向」。今日按 Asia/Shanghai。没有目标时写未设目标。这里只展示，没有外呼按钮，不会自动拨号，也不会批量拨号。要拨打仍须人工点击现有的一键外呼，并走原来的门禁。不发信，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <div id="dashboardAgentCallTargetList"><div class="empty-cell">正在读取</div></div>
+            <form id="dashboardAgentCallTargetForm" hidden>
+              <label>坐席<select id="dashboardAgentCallTargetAgent"></select></label>
+              <label>拨打数<input id="dashboardAgentCallTargetDial" inputmode="numeric" autocomplete="off"></label>
+              <label>接通数<input id="dashboardAgentCallTargetConnected" inputmode="numeric" autocomplete="off"></label>
+              <label>意向数<input id="dashboardAgentCallTargetIntent" inputmode="numeric" autocomplete="off" placeholder="可不填"></label>
+              <button class="btn" type="submit">保存目标</button>
+              <button class="btn" type="button" id="dashboardAgentCallTargetClear">清除目标</button>
+              <p id="dashboardAgentCallTargetMessage"></p>
+            </form>
+          </section>
+
           <section class="panel section" id="dashboardAcquisitionTodoSummary" aria-label="获客待办摘要">
             <div class="section-head">
               <div class="section-title"><div><h2>获客待办摘要</h2><p id="dashboardAcquisitionTodoSummaryScope">正在读取候选</p></div></div>
@@ -36010,6 +36027,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
   <aside id="cccSoftphone" hidden>
     <button class="btn" id="cccSoftphoneToggle" type="button" aria-expanded="false" aria-controls="cccSoftphonePanel">软电话</button>
     <div id="cccSoftphonePanel" class="is-collapsed">
+      <p id="cccAgentCallProgress" hidden></p>
       <div id="ccc-workbench-container"></div>
     </div>
   </aside>

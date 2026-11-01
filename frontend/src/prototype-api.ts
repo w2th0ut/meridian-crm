@@ -75,6 +75,15 @@ import {
   type CallbackReminderResponse
 } from "./callback-schedule";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
+import {
+  agentCallTargetSetBody,
+  formatAgentCallProgress,
+  readAgentCallTargetCounts,
+  renderAgentCallTargetList,
+  renderAgentCallTargetOptions,
+  type AgentCallTargetResponse,
+  type AgentCallTargetRow
+} from "./agent-call-target";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -12077,6 +12086,134 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardStatusChangeAge();
   renderDashboardTouchpointAge();
   renderDashboardInboundSync();
+  void loadDashboardAgentCallTargets();
+}
+
+let dashboardAgentCallTargetRows: AgentCallTargetRow[] = [];
+let dashboardAgentCallTargetLoad = 0;
+let dashboardAgentCallTargetsBound = false;
+
+function bindDashboardAgentCallTargets() {
+  const root = qs<HTMLElement>("#dashboardAgentCallTargets");
+  if (!root || dashboardAgentCallTargetsBound) return;
+  dashboardAgentCallTargetsBound = true;
+  root.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveDashboardAgentCallTarget();
+  });
+  root.addEventListener("click", (event) => {
+    const clear = (event.target as HTMLElement | null)?.closest("#dashboardAgentCallTargetClear");
+    if (!clear) return;
+    event.preventDefault();
+    void clearDashboardAgentCallTarget();
+  });
+  root.addEventListener("change", (event) => {
+    const select = event.target as HTMLElement | null;
+    if (select?.id !== "dashboardAgentCallTargetAgent") return;
+    fillDashboardAgentCallTargetInputs();
+  });
+}
+
+function fillDashboardAgentCallTargetInputs() {
+  const select = qs<HTMLSelectElement>("#dashboardAgentCallTargetAgent");
+  const dial = qs<HTMLInputElement>("#dashboardAgentCallTargetDial");
+  const connected = qs<HTMLInputElement>("#dashboardAgentCallTargetConnected");
+  const intent = qs<HTMLInputElement>("#dashboardAgentCallTargetIntent");
+  if (!select || !dial || !connected || !intent) return;
+  const row = dashboardAgentCallTargetRows.find((item) => item.agentId === select.value);
+  dial.value = row?.dialTarget === null || row?.dialTarget === undefined ? "" : String(row.dialTarget);
+  connected.value = row?.connectedTarget === null || row?.connectedTarget === undefined ? "" : String(row.connectedTarget);
+  intent.value = row?.intentTarget === null || row?.intentTarget === undefined ? "" : String(row.intentTarget);
+}
+
+function paintDashboardAgentCallTargets(data: AgentCallTargetResponse) {
+  const list = qs<HTMLElement>("#dashboardAgentCallTargetList");
+  const scope = qs<HTMLElement>("#dashboardAgentCallTargetScope");
+  const form = qs<HTMLFormElement>("#dashboardAgentCallTargetForm");
+  const select = qs<HTMLSelectElement>("#dashboardAgentCallTargetAgent");
+  const message = qs<HTMLElement>("#dashboardAgentCallTargetMessage");
+  const softphone = qs<HTMLElement>("#cccAgentCallProgress");
+  const rows = data.rows || [];
+  dashboardAgentCallTargetRows = rows;
+  if (scope) {
+    const who = data.canManage ? "管理员可看全部坐席" : "只看本人坐席";
+    scope.textContent = rows.length ? `${data.today || ""} · ${data.timeZone || "Asia/Shanghai"} · ${who}` : "没有可显示的坐席";
+  }
+  if (list) list.innerHTML = renderAgentCallTargetList(rows);
+  if (form) form.hidden = !data.canManage;
+  if (select && data.canManage && document.activeElement?.id !== "dashboardAgentCallTargetDial" && document.activeElement?.id !== "dashboardAgentCallTargetConnected" && document.activeElement?.id !== "dashboardAgentCallTargetIntent") {
+    const current = select.value;
+    select.innerHTML = renderAgentCallTargetOptions(rows, current && rows.some((item) => item.agentId === current) ? current : rows[0]?.agentId || "");
+    if (document.activeElement !== select) fillDashboardAgentCallTargetInputs();
+  }
+  if (message && document.activeElement?.closest("#dashboardAgentCallTargetForm") === null) message.textContent = "";
+  if (softphone) {
+    softphone.hidden = rows.length === 0;
+    softphone.textContent = rows.map((row) => formatAgentCallProgress(row)).join("\n");
+  }
+}
+
+async function loadDashboardAgentCallTargets() {
+  bindDashboardAgentCallTargets();
+  const list = qs<HTMLElement>("#dashboardAgentCallTargetList");
+  if (!list || !state.user) return;
+  const ticket = ++dashboardAgentCallTargetLoad;
+  try {
+    const data = await api<AgentCallTargetResponse>("/api/agent-call-targets");
+    if (ticket !== dashboardAgentCallTargetLoad) return;
+    paintDashboardAgentCallTargets(data);
+  } catch (error) {
+    if (ticket !== dashboardAgentCallTargetLoad) return;
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到今日外呼进度")}</div>`;
+  }
+}
+
+async function saveDashboardAgentCallTarget() {
+  const select = qs<HTMLSelectElement>("#dashboardAgentCallTargetAgent");
+  const message = qs<HTMLElement>("#dashboardAgentCallTargetMessage");
+  const counts = readAgentCallTargetCounts(
+    qs<HTMLInputElement>("#dashboardAgentCallTargetDial")?.value || "",
+    qs<HTMLInputElement>("#dashboardAgentCallTargetConnected")?.value || "",
+    qs<HTMLInputElement>("#dashboardAgentCallTargetIntent")?.value || ""
+  );
+  if (!select?.value || !counts.ok) {
+    if (message) message.textContent = counts.ok ? "请选择坐席" : counts.message;
+    return;
+  }
+  try {
+    await api("/api/agent-call-targets", {
+      method: "POST",
+      body: JSON.stringify(agentCallTargetSetBody({
+        agentId: select.value,
+        dialTarget: counts.dialTarget,
+        connectedTarget: counts.connectedTarget,
+        intentTarget: counts.intentTarget
+      }))
+    });
+    if (message) message.textContent = "已保存";
+    await loadDashboardAgentCallTargets();
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "没有保存";
+  }
+}
+
+async function clearDashboardAgentCallTarget() {
+  const select = qs<HTMLSelectElement>("#dashboardAgentCallTargetAgent");
+  const message = qs<HTMLElement>("#dashboardAgentCallTargetMessage");
+  if (!select?.value) {
+    if (message) message.textContent = "请选择坐席";
+    return;
+  }
+  try {
+    await api("/api/agent-call-targets/clear", {
+      method: "POST",
+      body: JSON.stringify({ agentId: select.value })
+    });
+    if (message) message.textContent = "已清除";
+    await loadDashboardAgentCallTargets();
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "没有清除";
+  }
 }
 
 async function loadBadges(containerId = "leaderboardBadges", tagId?: string) {

@@ -134,6 +134,8 @@ import {
   contactPhones,
   contactPhoneAudits,
   callExportAudits,
+  agentCallTargets,
+  agentCallTargetAudits,
   aliyunAgentMappings,
   agentMappingAudits,
   aliyunScreenPops,
@@ -202,7 +204,7 @@ import {
   type ProspectRunFeedReadInput,
   type ProspectRunFeedReadResult
 } from "./prospect-live-events.js";
-import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallNoteAudit, CallOutcomeAudit, CallbackSchedule, CallbackScheduleAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, CallExportAudit, ContactPhone, ContactPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallNoteAudit, CallOutcomeAudit, CallbackSchedule, CallbackScheduleAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, CallExportAudit, ContactPhone, ContactPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import type { AcquisitionOutcomeFeedback, AgentJob, AgentJobIdempotencyAlias, AgentMemoryRecord, AgentMissionCheckpointRecord, AgentRunEventRecord, AgentRunRecord, AgentRunStepRecord, AiModelConfig, CaseStudy, CommissionCalculation, CommissionExport, CommissionItem, CommissionProduct, CommissionRule, Competitor, Customer, CustomerAcquisitionSourceEvent, CustomerActivity, CustomerIntelligenceSuggestion, CustomerMaintenanceWatch, CustomerOwnershipEvent, CustomerOwnershipMutationInput, CustomerOwnershipMutationResult, DailyReport, DailyReportComment, Deal, DealEvent, DealRecommendation, Exam, ExamAssignment, ExamAttempt, ExamQuestion, ExamQuestionLink, ExamSnapshot, ImportExportJob, InternalMessage, KnowledgeAsset, Lead, LeadActivity, LeadSourceConfig, LeadSourceEvent, MarketOpportunityBatch, MarketOpportunityCalculationEvent, MarketOpportunitySnapshot, MarketTradeObservation, Memo, MonthlySalesRecord, OcrJob, Organization, OutboundEmailLog, OrganizationAcceptedIdentifier, OrganizationAliasFact, OrganizationCanonicalMapping, OrganizationIdentityClaim, OrganizationIdentityConflict, OrganizationIdentityConflictReview, OrganizationIdentityEvent, OrganizationIdentityResolution, OrganizationRelationFact, OrganizationSourceBinding, OutreachSequence, PlanTask, PlanTemplate, ProblemItem, ProcurementSignal, ProspectCampaign, ProspectCampaignEvent, ProspectCampaignVersion, ProspectCandidateProcessingState, ProspectCoverageEvent, ProspectExecutionAttempt, ProspectExecutionCheckpoint, ProspectExecutionEvent, ProspectExecutionKernelState, ProspectExecutionLease, ProspectExecutionPage, ProspectExecutionThrottleBucket, ProspectProviderRequestAccountingEvidence, ProspectProviderRequestAttemptBinding, ProspectProviderRequestDispatch, ProspectProviderRequestEvent, ProspectProviderRequestLedger, ProspectRunEvent, ProspectRunQueueChildBinding, ProspectRunQueueParentBinding, ProspectRunShard, ProspectSchedule, ProspectSearchRun, ProspectSourceRawBatch, ProspectSourceRawHit, ProspectSourceRawRecord, ProspectStrategy, ProspectStrategyEvent, ProspectStrategySourcePosition, ProspectStrategySuggestion, ProspectSuperSearchEvent, ProspectSuperSearchMission, ProspectSuperSearchRound, ProspectTouchpoint, Peer, ProviderCatalogItem, ProviderConnection, ProviderRequestLog, ProviderResponseCache, QuoteHistoryRecord, Reminder, SalesRecordAudit, SalesTrainingRun, SessionUser, SkillResource, TenantProspect, Todo, TradeDocument, TradeDocumentImportAnalysis, User, WecomCommandEndpoint, WecomCommandReceipt, WecomMemberBinding, WecomMessage, WebsiteOpportunity, WhatsAppMessage, WhatsAppBinding } from "./types.js";
 import { mutateCustomerOwnershipMemory } from "./customer-public-pool.js";
 import type { SalesDistillation, SalesPlaybookActivation } from "./types.js";
@@ -418,6 +420,8 @@ export interface CrmStore {
   contactPhones: ContactPhone[];
   contactPhoneAudits: ContactPhoneAudit[];
   callExportAudits: CallExportAudit[];
+  agentCallTargets: AgentCallTarget[];
+  agentCallTargetAudits: AgentCallTargetAudit[];
   aliyunAgentMappings: AliyunAgentMapping[];
   agentMappingAudits: AgentMappingAudit[];
   aliyunScreenPops: AliyunScreenPop[];
@@ -681,6 +685,8 @@ export const memoryStore: CrmStore = {
   contactPhones,
   contactPhoneAudits,
   callExportAudits,
+  agentCallTargets,
+  agentCallTargetAudits,
   aliyunAgentMappings,
   agentMappingAudits,
   aliyunScreenPops,
