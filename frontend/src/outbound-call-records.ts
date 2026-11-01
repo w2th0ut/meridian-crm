@@ -1,5 +1,6 @@
 import { renderCallbackScheduleForm } from "./callback-schedule";
 import { renderCallNoteForm } from "./call-note";
+import { renderCallTagChips, renderCallTagPanel, type CallTagChoice } from "./call-tag";
 import { renderCallScriptUsageForm, type CallScriptChoice } from "./call-script-usage";
 
 /**
@@ -43,6 +44,7 @@ export interface OutboundCallRecordRow {
   callScriptTemplateId?: string;
   callScriptTitle?: string;
   callScriptEnabled?: boolean;
+  callTags?: CallTagChoice[];
 }
 
 export interface OutboundCallRecordDetail {
@@ -50,6 +52,7 @@ export interface OutboundCallRecordDetail {
   suggestedNextFollowAt?: string;
   suppressionNotice?: string;
   scriptChoices?: CallScriptChoice[];
+  tagChoices?: CallTagChoice[];
   followUp?: { activityId?: string; nextFollowAt?: string; suppressed?: boolean } | null;
 }
 
@@ -77,7 +80,7 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string; note?: string; script?: string; plaintext?: string }) {
+export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string; note?: string; script?: string; tag?: string; plaintext?: string }) {
   const params = new URLSearchParams();
   if (input.agentId) params.set("agentId", input.agentId);
   if (input.from) params.set("from", input.from);
@@ -85,6 +88,7 @@ export function outboundCallRecordQuery(input: { agentId?: string; from?: string
   if (input.outcome) params.set("outcome", input.outcome);
   if (input.note) params.set("note", input.note);
   if (input.script) params.set("script", input.script);
+  if (input.tag) params.set("tag", input.tag);
   if (input.plaintext === "1") params.set("plaintext", "1");
   const query = params.toString();
   return query ? `?${query}` : "";
@@ -170,6 +174,29 @@ export function renderOutboundCallScriptFilterEmpty() {
   return `<p data-script-filter-empty="1">这个话术下还没有通话。</p>`;
 }
 
+export function renderOutboundCallTagFilterEmpty() {
+  return `<p data-tag-filter-empty="1">这个标签下还没有通话。</p>`;
+}
+
+export function renderOutboundCallTagOptions(
+  tags: Array<{ id: string; name?: string; enabled?: boolean }> | undefined,
+  selected: string
+) {
+  const rows: Array<{ id: string; title: string }> = [{ id: "", title: "全部" }, { id: "none", title: "无标签" }];
+  for (const item of tags || []) {
+    if (!item.id || item.id === "none" || rows.some((row) => row.id === item.id)) continue;
+    const name = item.name?.trim() || "（找不到标签）";
+    rows.push({ id: item.id, title: item.enabled === false ? `${name}（已停用）` : name });
+  }
+  if (selected && !rows.some((row) => row.id === selected)) {
+    rows.push({ id: selected, title: "（找不到标签）" });
+  }
+  return rows.map((item) => {
+    const current = item.id === selected ? " selected" : "";
+    return `<option value="${escapeHtml(item.id)}"${current}>${escapeHtml(item.title)}</option>`;
+  }).join("");
+}
+
 export function renderOutboundCallScriptOptions(
   scripts: Array<{ id: string; title?: string }> | undefined,
   selected: string
@@ -230,9 +257,9 @@ export function renderOutboundCallRecordList(records: OutboundCallRecordRow[] | 
   if (!records?.length) return "";
   const rows = records.map((record) => {
     const established = record.established === true ? "是" : "否";
-    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}${callbackForm(record)}</td><td class="outbound-record-note-cell">${renderCallNoteForm(record)}</td><td data-call-script-usage-label="${escapeHtml(record.id)}">${escapeHtml(scriptListLabel(record))}</td><td>${followUpButton(record)}</td></tr>`;
+    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}${callbackForm(record)}</td><td class="outbound-record-note-cell">${renderCallNoteForm(record)}</td><td data-call-script-usage-label="${escapeHtml(record.id)}">${escapeHtml(scriptListLabel(record))}</td><td class="outbound-record-tags" data-call-tag-cell="${escapeHtml(record.id)}">${renderCallTagChips(record.callTags)}</td><td>${followUpButton(record)}</td></tr>`;
   }).join("");
-  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>通话结果</th><th>通话纪要</th><th>所用话术</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>通话结果</th><th>通话纪要</th><th>所用话术</th><th>通话标签</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) {
@@ -253,6 +280,7 @@ export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) 
   const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}</div>`;
   const note = `<div class="outbound-record-outcome" data-call-note-panel="1"><h3>通话纪要</h3>${renderCallNoteForm(record)}</div>`;
   const script = `<div class="outbound-record-outcome" data-call-script-usage-panel="1"><h3>所用话术</h3>${renderCallScriptUsageForm(record, input.scriptChoices || [])}</div>`;
+  const tags = renderCallTagPanel(record, input.tagChoices || []);
   const callback = `<div class="outbound-record-outcome" data-callback-schedule-panel="1"><h3>回拨预约</h3>${callbackForm(record) || `<p data-callback-schedule-missing="1">这条通话没有关联对象，不能设置回拨预约。</p>`}</div>`;
-  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${note}${script}${callback}${generated}${form}${notice}</section>`;
+  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${note}${script}${tags}${callback}${generated}${form}${notice}</section>`;
 }

@@ -5465,6 +5465,54 @@ export interface CallScriptUsageAudit {
 }
 
 /**
+ * 一条通话标签。停用后仍留在表里，enabled 为 false。
+ * 名称在同一租户内不重复，包括已停用的。
+ */
+export interface CallTag {
+  id: string;
+  teamId: string;
+  name: string;
+  enabled: boolean;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  disabledAt: string;
+}
+
+/**
+ * 一通电话上的一个标签。停用标签不删这一行。
+ * 同一通话同一标签只有一行。
+ */
+export interface CallRecordTag {
+  id: string;
+  teamId: string;
+  callRecordId: string;
+  tagId: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+/**
+ * 一次通话标签的新增、重命名、停用、添加或去掉，或一次被拒绝的查看和越权操作。
+ * 旧值和新值是启用和名称。没有旧值时旧值是空。不记号码，也不记密钥。
+ * 成功的读取不写这一行。加标签或去标签才填写通话记录。
+ */
+export interface CallTagAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  tagId: string;
+  callRecordId: string;
+  action: "create" | "rename" | "disable" | "add" | "remove" | "read";
+  previousValue: string;
+  nextValue: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

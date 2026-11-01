@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { findCallbackSchedule } from "./callback-schedule-state.js";
+import { callTagCsvCell, callTagsOnRecord, recordsMatchingCallTag } from "./call-tag.js";
 import { callScriptUsageView } from "./call-script-usage.js";
 import { outboundInstant } from "./outbound-call.js";
 import {
@@ -26,7 +27,7 @@ import type { CallExportAudit, OutboundCallRecord, Role, SessionUser } from "./t
  */
 
 export const CALL_EXPORT_ROW_LIMIT = 10000;
-export const CALL_EXPORT_HEADERS = ["时间", "坐席", "对象名", "号码", "接通与否", "时长秒", "人工结果标注", "纪要", "回拨预约", "所用话术"] as const;
+export const CALL_EXPORT_HEADERS = ["时间", "坐席", "对象名", "号码", "接通与否", "时长秒", "人工结果标注", "纪要", "回拨预约", "所用话术", "通话标签"] as const;
 const FORMULA_PREFIX = new Set(["=", "+", "-", "@"]);
 
 export function canExportPlaintext(role: Role | string | undefined) {
@@ -51,7 +52,8 @@ export function callExportFiltersText(query: OutboundCallRecordQuery) {
     to: query.to || "",
     outcome: query.outcome || "",
     note: query.note || "",
-    script: query.script || ""
+    script: query.script || "",
+    tag: query.tag || ""
   });
 }
 
@@ -165,6 +167,10 @@ function scriptCell(store: CrmStore, record: OutboundCallRecord) {
   return callScriptUsageView(store, record).callScriptTitle;
 }
 
+function tagCell(store: CrmStore, record: OutboundCallRecord) {
+  return callTagCsvCell(callTagsOnRecord(store, record.teamId, record.id));
+}
+
 function durationCell(record: OutboundCallRecord) {
   if (!isEstablishedCall(record.establishedTimeRaw)) return "";
   const seconds = parseCallDurationSeconds(record.callDurationRaw);
@@ -192,7 +198,8 @@ function exportRow(store: CrmStore, record: OutboundCallRecord, timeZone: string
     outcomeCell(record),
     noteCell(record),
     callbackCell(store, record),
-    scriptCell(store, record)
+    scriptCell(store, record),
+    tagCell(store, record)
   ];
 }
 
@@ -273,9 +280,14 @@ export async function exportOutboundCallRecords(
     to: parsed.to,
     timeZone: access.timeZone
   });
-  const listed = recordsMatchingScript(
-    recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
-    parsed.script
+  const listed = recordsMatchingCallTag(
+    recordsMatchingScript(
+      recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
+      parsed.script
+    ),
+    parsed.tag,
+    store.callRecordTags,
+    user.teamId
   )
     .sort((left, right) => compareRecords(left, right, access.timeZone));
   if (listed.length > CALL_EXPORT_ROW_LIMIT) {
