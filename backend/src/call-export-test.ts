@@ -19,7 +19,7 @@ import type { CrmStore } from "./store.js";
 assert.equal(CALL_EXPORT_ROW_LIMIT, 10000);
 assert.equal(10000 > CALL_EXPORT_ROW_LIMIT, false);
 assert.equal(10001 > CALL_EXPORT_ROW_LIMIT, true);
-assert.deepEqual([...CALL_EXPORT_HEADERS], ["时间", "坐席", "对象名", "号码", "接通与否", "时长秒", "人工结果标注", "纪要", "回拨预约", "所用话术"]);
+assert.deepEqual([...CALL_EXPORT_HEADERS], ["时间", "坐席", "对象名", "号码", "接通与否", "时长秒", "人工结果标注", "纪要", "回拨预约", "所用话术", "通话标签"]);
 
 assert.equal(canExportPlaintext("admin"), true);
 assert.equal(canExportPlaintext("super_admin"), true);

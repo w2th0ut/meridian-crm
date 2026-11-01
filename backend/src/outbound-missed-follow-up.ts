@@ -3,6 +3,7 @@ import { hasIamPermission } from "./auth.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
 import { outboundCallingPolicy } from "./aliyun-outbound-config.js";
 import { appendFollowUpAudit } from "./follow-up-audit.js";
+import { callTagsOnRecord, enabledCallTagChoices } from "./call-tag.js";
 import { callbackScheduleView } from "./callback-schedule-state.js";
 import { callScriptPickerChoices } from "./call-script-favorite.js";
 import { callScriptUsageView } from "./call-script-usage.js";
@@ -188,6 +189,7 @@ export async function readMissedCallFollowUpDetail(store: CrmStore, user: Sessio
       record: {
         ...presentOutboundCallRecord(record, resolved.access.timeZone, resolved.access.labels),
         ...callScriptUsageView(store, record),
+        callTags: callTagsOnRecord(store, record.teamId, record.id),
         followUpGenerated: Boolean(link),
         ...callPhoneValidityFields(store, record),
         ...callbackScheduleView(store, record.teamId, record.targetType, record.targetId, zonedDateKey(outboundInstant(), resolved.access.timeZone))
@@ -195,6 +197,7 @@ export async function readMissedCallFollowUpDetail(store: CrmStore, user: Sessio
       suggestedNextFollowAt,
       suppressionNotice: noticeFor(suppressed),
       scriptChoices: callScriptPickerChoices(store, record.teamId, user.id),
+      tagChoices: enabledCallTagChoices(store, record.teamId),
       followUp: link ? {
         activityId: link.activityId,
         nextFollowAt: link.nextFollowAt,

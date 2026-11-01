@@ -1,5 +1,6 @@
 import { hasIamPermission, hasIamScope, type IamActor } from "./auth.js";
 import { callbackScheduleView } from "./callback-schedule-state.js";
+import { callTagsOnRecord, recordsMatchingCallTag, tagFilterChoices } from "./call-tag.js";
 import { callScriptUsageView, scriptFilterChoices } from "./call-script-usage.js";
 import { callPhoneValidityFields } from "./phone-validity-state.js";
 import { outboundInstant, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
@@ -66,6 +67,7 @@ export function recordsMatchingNote<T extends { callNote?: string; callNoteTags?
 }
 
 const SCRIPT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const TAG_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** none 表示没有选用。其他值必须是模板 ID。 */
 export function recordsMatchingScript<T extends { callScriptTemplateId?: string }>(
@@ -97,6 +99,8 @@ export interface OutboundCallRecordQuery {
   note: CallNotePresence | null;
   /** null 不筛选。none 是没有选用。其他值是模板 ID。 */
   script: string | null;
+  /** null 不筛选。none 是没有标签。其他值是标签 ID。 */
+  tag: string | null;
 }
 
 export function splitAgentIds(value: string) {
@@ -213,7 +217,8 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
   const outcomeRaw = oneQuery(query.outcome);
   const noteRaw = oneQuery(query.note);
   const scriptRaw = oneQuery(query.script);
-  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null || noteRaw === null || scriptRaw === null) return null;
+  const tagRaw = oneQuery(query.tag);
+  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null || noteRaw === null || scriptRaw === null || tagRaw === null) return null;
   const agentId = agentRaw || null;
   const from = fromRaw || null;
   const to = toRaw || null;
@@ -237,7 +242,13 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
     else if (SCRIPT_ID.test(scriptRaw)) script = scriptRaw;
     else return null;
   }
-  return { agentId, from, to, outcome, note, script };
+  let tag: string | null = null;
+  if (tagRaw) {
+    if (tagRaw === "none") tag = "none";
+    else if (TAG_ID.test(tagRaw)) tag = tagRaw;
+    else return null;
+  }
+  return { agentId, from, to, outcome, note, script, tag };
 }
 
 async function ensureReadScope(store: CrmStore, user: SessionUser) {
@@ -371,9 +382,14 @@ export async function listOutboundCallRecords(
     to: parsed.to,
     timeZone: access.timeZone
   });
-  const listed = recordsMatchingScript(
-    recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
-    parsed.script
+  const listed = recordsMatchingCallTag(
+    recordsMatchingScript(
+      recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
+      parsed.script
+    ),
+    parsed.tag,
+    store.callRecordTags,
+    user.teamId
   );
   const summary = summarizeOutboundCallRecords(selected);
   const generated = new Set(
@@ -386,6 +402,7 @@ export async function listOutboundCallRecords(
     .map((record) => ({
       ...presentOutboundCallRecord(record, access.timeZone, access.labels),
       ...callScriptUsageView(store, record),
+      callTags: callTagsOnRecord(store, record.teamId, record.id),
       followUpGenerated: generated.has(record.id),
       ...callPhoneValidityFields(store, record),
       ...callbackScheduleView(store, record.teamId, record.targetType, record.targetId, today)
@@ -409,6 +426,7 @@ export async function listOutboundCallRecords(
       timeZone: access.timeZone,
       filters: parsed,
       scripts: scriptFilterChoices(store, user.teamId, selected),
+      tags: tagFilterChoices(store, user.teamId, selected.map((record) => record.id)),
       agents,
       criteria: {
         connectedBy: "establishedTimeRaw",

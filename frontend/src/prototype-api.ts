@@ -61,6 +61,8 @@ import {
   renderOutboundCallOutcomeFilterEmpty,
   renderOutboundCallScriptFilterEmpty,
   renderOutboundCallScriptOptions,
+  renderOutboundCallTagFilterEmpty,
+  renderOutboundCallTagOptions,
   type OutboundCallRecordDetail,
   type OutboundCallRecordListResponse,
   type OutboundCallRecordRow
@@ -77,6 +79,14 @@ import {
   type CallbackReminderResponse
 } from "./callback-schedule";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
+import {
+  callTagAssignBody,
+  callTagCreateBody,
+  callTagDisableBody,
+  callTagRenameBody,
+  renderCallTagAdmin,
+  type CallTagChoice
+} from "./call-tag";
 import {
   agentCallTargetSetBody,
   formatAgentCallProgress,
@@ -18038,6 +18048,121 @@ async function submitCallScriptUsage(form: HTMLFormElement, clear = false) {
   }
 }
 
+let callTagPending = false;
+let callTagCanManage = false;
+
+async function loadCallTagAdmin() {
+  const root = qs<HTMLElement>("#outboundCallTagAdmin");
+  if (!root) return;
+  try {
+    const result = await api<{ canManage?: boolean; tags?: CallTagChoice[] }>("/api/call-tags");
+    callTagCanManage = result.canManage === true;
+    root.innerHTML = renderCallTagAdmin(result.tags, callTagCanManage);
+  } catch {
+    callTagCanManage = false;
+    root.innerHTML = "";
+  }
+}
+
+async function refreshCallTags(recordId = "") {
+  await loadCallTagAdmin();
+  await loadOutboundCallRecords();
+  const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+  if (recordId && panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+}
+
+async function createCallTagFromAdmin(form: HTMLFormElement) {
+  if (!callTagCanManage || callTagPending) return;
+  const name = form.querySelector<HTMLInputElement>("[data-call-tag-name]")?.value || "";
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  callTagPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/call-tags", { method: "POST", body: JSON.stringify(callTagCreateBody(name)) });
+    toast(result.message || "已新增通话标签");
+    await refreshCallTags();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有新增通话标签", "error");
+  } finally {
+    callTagPending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function renameCallTagFromAdmin(id: string) {
+  if (!callTagCanManage || callTagPending || !id) return;
+  const name = qs<HTMLInputElement>(`[data-call-tag-rename-name="${CSS.escape(id)}"]`)?.value || "";
+  callTagPending = true;
+  try {
+    const result = await api<{ message?: string }>("/api/call-tags/rename", { method: "POST", body: JSON.stringify(callTagRenameBody(id, name)) });
+    toast(result.message || "已重命名通话标签");
+    await refreshCallTags();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有重命名通话标签", "error");
+  } finally {
+    callTagPending = false;
+  }
+}
+
+async function disableCallTagFromAdmin(id: string) {
+  if (!callTagCanManage || callTagPending || !id) return;
+  callTagPending = true;
+  try {
+    const result = await api<{ message?: string }>("/api/call-tags/disable", { method: "POST", body: JSON.stringify(callTagDisableBody(id)) });
+    toast(result.message || "已停用通话标签");
+    await refreshCallTags();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有停用通话标签", "error");
+  } finally {
+    callTagPending = false;
+  }
+}
+
+async function addCallTagToRecord(form: HTMLFormElement) {
+  const recordId = form.dataset.recordId || "";
+  const tagId = form.querySelector<HTMLSelectElement>("[data-call-tag-add]")?.value || "";
+  if (!recordId || callTagPending) return;
+  if (!tagId) {
+    toast("请选择标签", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  callTagPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/tags`,
+      { method: "POST", body: JSON.stringify(callTagAssignBody(tagId)) }
+    );
+    toast(result.message || "已添加通话标签");
+    await refreshCallTags(recordId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有添加通话标签", "error");
+  } finally {
+    callTagPending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function removeCallTagFromRecord(recordId: string, tagId: string, button: HTMLButtonElement) {
+  if (!recordId || !tagId || callTagPending) return;
+  callTagPending = true;
+  button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/tags/remove`,
+      { method: "POST", body: JSON.stringify(callTagAssignBody(tagId)) }
+    );
+    toast(result.message || "已去掉通话标签");
+    await refreshCallTags(recordId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有去掉通话标签", "error");
+  } finally {
+    callTagPending = false;
+    button.disabled = false;
+  }
+}
+
 function rememberCallNote(record: OutboundCallRecordRow | undefined) {
   if (!record?.id || (record.targetType !== "customer" && record.targetType !== "lead") || !record.targetId) return;
   const entry: CallNoteTimelineEntry = {
@@ -18199,10 +18324,11 @@ async function exportOutboundCallRecords() {
   const outcome = qs<HTMLSelectElement>("#outboundCallRecordOutcome")?.value || "";
   const note = qs<HTMLSelectElement>("#outboundCallRecordNote")?.value || "";
   const script = qs<HTMLSelectElement>("#outboundCallRecordScript")?.value || "";
+  const tag = qs<HTMLSelectElement>("#outboundCallRecordTag")?.value || "";
   const plaintext = isSystemAdministrator() && qs<HTMLInputElement>("#outboundCallRecordPlaintext")?.checked === true;
   if (button) button.disabled = true;
   try {
-    const response = await fetch(`/api/outbound-call-records/export${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script, plaintext: plaintext ? "1" : "" })}`, {
+    const response = await fetch(`/api/outbound-call-records/export${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script, tag, plaintext: plaintext ? "1" : "" })}`, {
       credentials: "same-origin"
     });
     if (!response.ok) {
@@ -18247,11 +18373,16 @@ async function loadOutboundCallRecords() {
   const outcome = qs<HTMLSelectElement>("#outboundCallRecordOutcome")?.value || "";
   const note = qs<HTMLSelectElement>("#outboundCallRecordNote")?.value || "";
   const script = qs<HTMLSelectElement>("#outboundCallRecordScript")?.value || "";
+  const tag = qs<HTMLSelectElement>("#outboundCallRecordTag")?.value || "";
   try {
-    const result = await api<OutboundCallRecordListResponse & { scripts?: Array<{ id: string; title?: string }> }>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script })}`);
+    const result = await api<OutboundCallRecordListResponse & { scripts?: Array<{ id: string; title?: string }>; tags?: Array<{ id: string; name?: string; enabled?: boolean }> }>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script, tag })}`);
     const scriptSelect = qs<HTMLSelectElement>("#outboundCallRecordScript");
     if (scriptSelect) {
       scriptSelect.innerHTML = renderOutboundCallScriptOptions(result.scripts, script);
+    }
+    const tagSelect = qs<HTMLSelectElement>("#outboundCallRecordTag");
+    if (tagSelect) {
+      tagSelect.innerHTML = renderOutboundCallTagOptions(result.tags, tag);
     }
     const agentSelect = qs<HTMLSelectElement>("#outboundCallRecordAgent");
     if (agentSelect) {
@@ -18266,13 +18397,15 @@ async function loadOutboundCallRecords() {
     summary.innerHTML = renderOutboundCallRecordSummary(result);
     list.innerHTML = result.records?.length
       ? renderOutboundCallRecordList(result.records)
-      : script && !result.empty
-        ? renderOutboundCallScriptFilterEmpty()
-        : note && !result.empty
-          ? renderOutboundCallNoteFilterEmpty()
-          : outcome && !result.empty
-            ? renderOutboundCallOutcomeFilterEmpty()
-            : "";
+      : tag && !result.empty
+        ? renderOutboundCallTagFilterEmpty()
+        : script && !result.empty
+          ? renderOutboundCallScriptFilterEmpty()
+          : note && !result.empty
+            ? renderOutboundCallNoteFilterEmpty()
+            : outcome && !result.empty
+              ? renderOutboundCallOutcomeFilterEmpty()
+              : "";
   } catch (error) {
     summary.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
     list.innerHTML = "";
@@ -55794,7 +55927,28 @@ function installEvents() {
     if (!row) return;
     void submitIntentFollowupIgnore(row, button.hasAttribute("data-intent-restore"));
   });
+  qs<HTMLElement>("#outboundCallTagAdmin")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-tag-create]");
+    if (!form) return;
+    event.preventDefault();
+    void createCallTagFromAdmin(form);
+  });
+  qs<HTMLElement>("#outboundCallTagAdmin")?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    const renameId = target?.closest<HTMLElement>("[data-call-tag-rename]")?.dataset.callTagRename || "";
+    const disableId = target?.closest<HTMLElement>("[data-call-tag-disable]")?.dataset.callTagDisable || "";
+    if (renameId) void renameCallTagFromAdmin(renameId);
+    if (disableId) void disableCallTagFromAdmin(disableId);
+  });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("click", (event) => {
+    const tagRemove = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-tag-remove]");
+    if (tagRemove?.dataset.callTagRemove) {
+      const recordId = tagRemove.closest<HTMLElement>("[data-call-detail]")?.dataset.callDetail
+        || qs<HTMLElement>("#outboundCallRecordDetail")?.dataset.recordId
+        || "";
+      void removeCallTagFromRecord(recordId, tagRemove.dataset.callTagRemove, tagRemove);
+      return;
+    }
     const scriptClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-script-usage-clear]");
     const scriptClearForm = scriptClear?.closest<HTMLFormElement>("[data-call-script-usage-form]");
     if (scriptClear && scriptClearForm) {
@@ -55823,6 +55977,12 @@ function installEvents() {
     void submitPhoneValidity(button);
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
+    const tagForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-tag-add-form]");
+    if (tagForm) {
+      event.preventDefault();
+      void addCallTagToRecord(tagForm);
+      return;
+    }
     const scriptForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-script-usage-form]");
     if (scriptForm) {
       event.preventDefault();
@@ -59128,6 +59288,7 @@ function activateNavView(view: string, after?: () => void) {
   }
   if (view === "outbound-call-records") {
     void loadOutboundCallRecords();
+    void loadCallTagAdmin();
     void loadDashboardCallScripts();
   }
   if (view === "intent-followup-queue") {

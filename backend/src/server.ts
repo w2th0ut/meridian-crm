@@ -301,6 +301,7 @@ import { createCallScript, disableCallScript, listCallScriptVersions, listCallSc
 import { listCallScriptUsage, saveCallScriptUsage } from "./call-script-usage.js";
 import { exportCallScriptReport, listCallScriptReport } from "./call-script-report.js";
 import { createCallScriptScenario, disableCallScriptScenario, listCallScriptScenarios, renameCallScriptScenario, reorderCallScriptScenario } from "./call-script-scenario.js";
+import { addCallRecordTag, createCallTag, disableCallTag, listCallTags, removeCallRecordTag, renameCallTag } from "./call-tag.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
   assignOutboundOwner,
@@ -9081,6 +9082,26 @@ app.post("/api/call-script-scenarios", requireAuth, asyncRoute(async (req, res) 
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
+app.get("/api/call-tags", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallTags(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-tags/rename", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await renameCallTag(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-tags/disable", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await disableCallTag(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-tags", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await createCallTag(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
 app.get("/api/call-script-report/export", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await exportCallScriptReport(getStore(), req.user, req.query as Record<string, unknown>);
   if ("csv" in outcome) {
@@ -9193,6 +9214,16 @@ app.post("/api/outbound-call-records/:id/note", requireAuth, asyncRoute(async (r
 
 app.post("/api/outbound-call-records/:id/script", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await saveCallScriptUsage(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/tags/remove", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await removeCallRecordTag(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/tags", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await addCallRecordTag(getStore(), req.user, req.params.id, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
