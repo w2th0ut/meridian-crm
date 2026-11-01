@@ -303,6 +303,7 @@ import { exportCallScriptReport, listCallScriptReport } from "./call-script-repo
 import { createCallScriptScenario, disableCallScriptScenario, listCallScriptScenarios, renameCallScriptScenario, reorderCallScriptScenario } from "./call-script-scenario.js";
 import { addCallRecordTag, createCallTag, disableCallTag, listCallTags, removeCallRecordTag, renameCallTag } from "./call-tag.js";
 import { exportCallTagReport, listCallTagReport } from "./call-tag-report.js";
+import { exportCallWrapupEditReport, listCallWrapupEditReport } from "./call-wrapup-edit-report.js";
 import { applyCallTagObjectList, readObjectCallTags } from "./call-tag-view.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
@@ -9133,6 +9134,24 @@ app.get("/api/call-tag-report/export", requireAuth, asyncRoute(async (req, res) 
 
 app.get("/api/call-tag-report", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallTagReport(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-wrapup-edit-report/export", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await exportCallWrapupEditReport(getStore(), req.user, req.query as Record<string, unknown>);
+  if ("csv" in outcome) {
+    res.status(200);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", `attachment; filename="call-wrapup-edit-report.csv"; filename*=UTF-8''${encodeURIComponent(outcome.filename)}`);
+    res.send(outcome.csv);
+    return;
+  }
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-wrapup-edit-report", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallWrapupEditReport(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

@@ -5632,6 +5632,22 @@ export interface CallWrapupEditWindow {
 }
 
 /**
+ * 一次通话小结改正报表的查看或导出，或一次被拒绝的尝试。
+ * 筛选只记坐席、日期和变更字段。不记前值、后值、号码或密钥。
+ */
+export interface CallWrapupEditReportAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "export";
+  filters: string;
+  rowCount: number;
+  result: "read" | "exported" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
