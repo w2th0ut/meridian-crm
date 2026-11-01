@@ -1,5 +1,6 @@
 import { hasIamPermission, hasIamScope, type IamActor } from "./auth.js";
 import { callbackScheduleView } from "./callback-schedule-state.js";
+import { callScriptUsageView, scriptFilterChoices } from "./call-script-usage.js";
 import { callPhoneValidityFields } from "./phone-validity-state.js";
 import { outboundInstant, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
 import type { CrmStore } from "./store.js";
@@ -64,6 +65,18 @@ export function recordsMatchingNote<T extends { callNote?: string; callNoteTags?
   return records.filter((record) => recordHasCallNote(record) === (note === "has"));
 }
 
+const SCRIPT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** none 表示没有选用。其他值必须是模板 ID。 */
+export function recordsMatchingScript<T extends { callScriptTemplateId?: string }>(
+  records: T[],
+  script: string | null
+) {
+  if (!script) return records;
+  if (script === "none") return records.filter((record) => !(record.callScriptTemplateId || "").trim());
+  return records.filter((record) => (record.callScriptTemplateId || "") === script);
+}
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const AGENT_PATTERN = /^[A-Za-z0-9_@.:-]{1,128}$/;
 
@@ -82,6 +95,8 @@ export interface OutboundCallRecordQuery {
   to: string | null;
   outcome: CallOutcome | null;
   note: CallNotePresence | null;
+  /** null 不筛选。none 是没有选用。其他值是模板 ID。 */
+  script: string | null;
 }
 
 export function splitAgentIds(value: string) {
@@ -197,7 +212,8 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
   const toRaw = oneQuery(query.to);
   const outcomeRaw = oneQuery(query.outcome);
   const noteRaw = oneQuery(query.note);
-  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null || noteRaw === null) return null;
+  const scriptRaw = oneQuery(query.script);
+  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null || noteRaw === null || scriptRaw === null) return null;
   const agentId = agentRaw || null;
   const from = fromRaw || null;
   const to = toRaw || null;
@@ -215,7 +231,13 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
     if (noteRaw !== "has" && noteRaw !== "none") return null;
     note = noteRaw;
   }
-  return { agentId, from, to, outcome, note };
+  let script: string | null = null;
+  if (scriptRaw) {
+    if (scriptRaw === "none") script = "none";
+    else if (SCRIPT_ID.test(scriptRaw)) script = scriptRaw;
+    else return null;
+  }
+  return { agentId, from, to, outcome, note, script };
 }
 
 async function ensureReadScope(store: CrmStore, user: SessionUser) {
@@ -260,7 +282,9 @@ export function presentOutboundCallRecord(record: OutboundCallRecord, timeZone: 
     callOutcomeNote: record.callOutcomeNote || "",
     callNote: record.callNote || "",
     callNoteTags: (record.callNoteTags || "").split(",").map((item) => item.trim()).filter(Boolean),
-    callNoteUpdatedAt: record.callNoteUpdatedAt || ""
+    callNoteUpdatedAt: record.callNoteUpdatedAt || "",
+    callScriptTemplateId: record.callScriptTemplateId || "",
+    callScriptUpdatedAt: record.callScriptUpdatedAt || ""
   };
 }
 
@@ -347,7 +371,10 @@ export async function listOutboundCallRecords(
     to: parsed.to,
     timeZone: access.timeZone
   });
-  const listed = recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note);
+  const listed = recordsMatchingScript(
+    recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
+    parsed.script
+  );
   const summary = summarizeOutboundCallRecords(selected);
   const generated = new Set(
     store.outboundMissedFollowUps
@@ -358,6 +385,7 @@ export async function listOutboundCallRecords(
   const records = listed
     .map((record) => ({
       ...presentOutboundCallRecord(record, access.timeZone, access.labels),
+      ...callScriptUsageView(store, record),
       followUpGenerated: generated.has(record.id),
       ...callPhoneValidityFields(store, record),
       ...callbackScheduleView(store, record.teamId, record.targetType, record.targetId, today)
@@ -380,6 +408,7 @@ export async function listOutboundCallRecords(
       scope: access.teamScope ? "team" as const : "self" as const,
       timeZone: access.timeZone,
       filters: parsed,
+      scripts: scriptFilterChoices(store, user.teamId, selected),
       agents,
       criteria: {
         connectedBy: "establishedTimeRaw",

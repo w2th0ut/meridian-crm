@@ -28414,10 +28414,11 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div class="section-head">
               <div class="section-title"><div><h2>外呼话术</h2><p id="dashboardCallScriptScope">按场景查看启用的话术</p></div></div>
             </div>
-            <p id="dashboardCallScriptNote" class="dashboard-call-script-note">话术是本地纯文本。坐席只能按场景查看启用的模板，不能改。管理员可以单条新增、编辑或停用，停用后仍留在库里。这里没有外呼按钮，不会自动拨号，也不会批量拨号。要拨打仍须人工点击现有的一键外呼，并走原来的门禁。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <p id="dashboardCallScriptNote" class="dashboard-call-script-note">话术是本地纯文本。坐席只能按场景查看启用的模板，不能改。管理员可以单条新增、编辑或停用，停用后仍留在库里。管理员还可以看到每条话术的使用次数，也就是当前被多少通本租户通话选用。这个次数只读，页面不另算比率。这里没有外呼按钮，不会自动拨号，也不会批量拨号。要拨打仍须人工点击现有的一键外呼，并走原来的门禁。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
             <label>场景<select id="dashboardCallScriptScenario"><option value="">全部启用</option><option value="first_call">首呼</option><option value="follow_up">回访</option><option value="missed_callback">未接通回拨</option><option value="objection">异议处理</option></select></label>
             <div id="dashboardCallScriptList"><div class="empty-cell">正在读取</div></div>
             <div id="dashboardCallScriptManage" hidden></div>
+            <div id="dashboardCallScriptUsage" hidden></div>
             <form id="dashboardCallScriptForm" hidden>
               <input id="dashboardCallScriptId" type="hidden">
               <label>标题<input id="dashboardCallScriptTitle" maxlength="80" autocomplete="off"></label>
@@ -32304,7 +32305,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>外呼通话记录</h1>
-              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。可以给这一条关联的客户、线索或搜客对象设置、修改或取消回拨预约。可以给单条记录填写、修改或清空通话纪要，并按有无纪要筛选。可以按当前筛选导出 CSV，由浏览器本地下载。号码默认中间脱敏，只有管理员可以勾选明文。不发邮件，也不上传到别的服务。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记或批量写纪要。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
+              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。可以给这一条关联的客户、线索或搜客对象设置、修改或取消回拨预约。可以给单条记录填写、修改或清空通话纪要，并按有无纪要筛选。可以在自己看得到的通话详情里，从启用的话术里单条选择、更换或清除本通所用话术。列表和导出按所用话术只读显示，也可以筛选。可以按当前筛选导出 CSV，由浏览器本地下载。号码默认中间脱敏，只有管理员可以勾选明文。不发邮件，也不上传到别的服务。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记、批量写纪要或批量改所用话术。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
             </div>
           </div>
           <p class="outbound-record-note">接通看话单 EstablishedTime 是否有内容。平均时长只统计接通通话里能当成整数秒的 CallDuration，单位是秒。起算点和接通枚举如果和真实话单不一致，以接入方案第 9 节为准，这一页不另算一套。</p>
@@ -32314,6 +32315,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <label>到<input id="outboundCallRecordTo" type="date"></label>
             <label>标注结果<select id="outboundCallRecordOutcome"><option value="">全部</option><option value="有意向">有意向</option><option value="需回访">需回访</option><option value="无意向">无意向</option><option value="号码错误">号码错误</option><option value="其他">其他</option></select></label>
             <label>纪要<select id="outboundCallRecordNote"><option value="">全部</option><option value="has">有纪要</option><option value="none">无纪要</option></select></label>
+            <label>所用话术<select id="outboundCallRecordScript"><option value="">全部</option><option value="none">未选用</option></select></label>
             <button class="btn" type="submit">筛选</button>
             <button class="btn" type="button" id="outboundCallRecordExport">导出 CSV</button>
             <label id="outboundCallRecordPlaintextLabel" hidden><input id="outboundCallRecordPlaintext" type="checkbox">导出明文号码</label>

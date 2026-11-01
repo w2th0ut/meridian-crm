@@ -350,6 +350,8 @@ function applyCall(
     callNote: "",
     callNoteTags: "",
     callNoteUpdatedAt: "",
+    callScriptTemplateId: "",
+    callScriptUpdatedAt: "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };

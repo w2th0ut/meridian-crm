@@ -4,6 +4,7 @@ import { isPublicCustomer } from "./customer-public-pool.js";
 import { outboundCallingPolicy } from "./aliyun-outbound-config.js";
 import { appendFollowUpAudit } from "./follow-up-audit.js";
 import { callbackScheduleView } from "./callback-schedule-state.js";
+import { callScriptUsageView, enabledCallScriptChoices } from "./call-script-usage.js";
 import { callPhoneValidityFields } from "./phone-validity-state.js";
 import {
   isEstablishedCall,
@@ -185,12 +186,14 @@ export async function readMissedCallFollowUpDetail(store: CrmStore, user: Sessio
     body: {
       record: {
         ...presentOutboundCallRecord(record, resolved.access.timeZone, resolved.access.labels),
+        ...callScriptUsageView(store, record),
         followUpGenerated: Boolean(link),
         ...callPhoneValidityFields(store, record),
         ...callbackScheduleView(store, record.teamId, record.targetType, record.targetId, zonedDateKey(outboundInstant(), resolved.access.timeZone))
       },
       suggestedNextFollowAt,
       suppressionNotice: noticeFor(suppressed),
+      scriptChoices: enabledCallScriptChoices(store, record.teamId),
       followUp: link ? {
         activityId: link.activityId,
         nextFollowAt: link.nextFollowAt,

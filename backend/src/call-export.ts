@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { findCallbackSchedule } from "./callback-schedule-state.js";
+import { callScriptUsageView } from "./call-script-usage.js";
 import { outboundInstant } from "./outbound-call.js";
 import {
   callLocalDate,
@@ -9,6 +10,7 @@ import {
   presentOutboundCallRecord,
   recordsMatchingNote,
   recordsMatchingOutcome,
+  recordsMatchingScript,
   resolveOutboundCallRecordAccess,
   selectOutboundCallRecords,
   type OutboundCallRecordQuery
@@ -24,7 +26,7 @@ import type { CallExportAudit, OutboundCallRecord, Role, SessionUser } from "./t
  */
 
 export const CALL_EXPORT_ROW_LIMIT = 10000;
-export const CALL_EXPORT_HEADERS = ["时间", "坐席", "对象名", "号码", "接通与否", "时长秒", "人工结果标注", "纪要", "回拨预约"] as const;
+export const CALL_EXPORT_HEADERS = ["时间", "坐席", "对象名", "号码", "接通与否", "时长秒", "人工结果标注", "纪要", "回拨预约", "所用话术"] as const;
 const FORMULA_PREFIX = new Set(["=", "+", "-", "@"]);
 
 export function canExportPlaintext(role: Role | string | undefined) {
@@ -48,7 +50,8 @@ export function callExportFiltersText(query: OutboundCallRecordQuery) {
     from: query.from || "",
     to: query.to || "",
     outcome: query.outcome || "",
-    note: query.note || ""
+    note: query.note || "",
+    script: query.script || ""
   });
 }
 
@@ -158,6 +161,10 @@ function callbackCell(store: CrmStore, record: OutboundCallRecord) {
   return note ? `${row.scheduledAt} ${note}` : row.scheduledAt;
 }
 
+function scriptCell(store: CrmStore, record: OutboundCallRecord) {
+  return callScriptUsageView(store, record).callScriptTitle;
+}
+
 function durationCell(record: OutboundCallRecord) {
   if (!isEstablishedCall(record.establishedTimeRaw)) return "";
   const seconds = parseCallDurationSeconds(record.callDurationRaw);
@@ -184,7 +191,8 @@ function exportRow(store: CrmStore, record: OutboundCallRecord, timeZone: string
     durationCell(record),
     outcomeCell(record),
     noteCell(record),
-    callbackCell(store, record)
+    callbackCell(store, record),
+    scriptCell(store, record)
   ];
 }
 
@@ -265,7 +273,10 @@ export async function exportOutboundCallRecords(
     to: parsed.to,
     timeZone: access.timeZone
   });
-  const listed = recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note)
+  const listed = recordsMatchingScript(
+    recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
+    parsed.script
+  )
     .sort((left, right) => compareRecords(left, right, access.timeZone));
   if (listed.length > CALL_EXPORT_ROW_LIMIT) {
     await writeAudit(store, {

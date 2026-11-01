@@ -59,6 +59,8 @@ import {
   renderOutboundCallRecordList,
   renderOutboundCallRecordSummary,
   renderOutboundCallOutcomeFilterEmpty,
+  renderOutboundCallScriptFilterEmpty,
+  renderOutboundCallScriptOptions,
   type OutboundCallRecordDetail,
   type OutboundCallRecordListResponse,
   type OutboundCallRecordRow
@@ -95,6 +97,11 @@ import {
   type CallScriptListResponse,
   type CallScriptTemplateView
 } from "./call-script";
+import {
+  callScriptUsageBody,
+  renderCallScriptUsageStats,
+  type CallScriptUsageStat
+} from "./call-script-usage";
 import {
   matchesOutboundOwnerList,
   outboundOwnerAssignBody,
@@ -12354,9 +12361,32 @@ async function loadDashboardCallScripts() {
       callScriptManageTemplates = all.templates || callScriptTemplates;
     }
     paintCallScriptSurfaces();
+    if (callScriptCanManage) void loadCallScriptUsage();
+    else paintCallScriptUsage([]);
   } catch (error) {
     if (ticket !== dashboardCallScriptLoad) return;
     if (list) list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到话术")}</div>`;
+  }
+}
+
+function paintCallScriptUsage(rows: CallScriptUsageStat[]) {
+  const root = qs<HTMLElement>("#dashboardCallScriptUsage");
+  if (!root) return;
+  root.hidden = !callScriptCanManage;
+  root.innerHTML = callScriptCanManage ? renderCallScriptUsageStats(rows) : "";
+}
+
+async function loadCallScriptUsage() {
+  const root = qs<HTMLElement>("#dashboardCallScriptUsage");
+  if (!root || !callScriptCanManage) {
+    paintCallScriptUsage([]);
+    return;
+  }
+  try {
+    const data = await api<{ templates?: CallScriptUsageStat[] }>("/api/call-script-usage");
+    paintCallScriptUsage(data.templates || []);
+  } catch (error) {
+    if (root) root.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到使用次数")}</div>`;
   }
 }
 
@@ -17512,6 +17542,33 @@ async function submitCallNote(form: HTMLFormElement, clear = false) {
   }
 }
 
+let callScriptUsagePending = false;
+
+async function submitCallScriptUsage(form: HTMLFormElement, clear = false) {
+  const recordId = form.dataset.recordId || "";
+  if (!recordId || callScriptUsagePending) return;
+  const selected = clear ? null : (form.querySelector<HTMLSelectElement>("[data-call-script-usage]")?.value || "");
+  const button = form.querySelector<HTMLButtonElement>(clear ? "[data-call-script-usage-clear]" : "button[type='submit']");
+  callScriptUsagePending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/script`,
+      { method: "POST", body: JSON.stringify(callScriptUsageBody(selected)) }
+    );
+    toast(result.message || (clear ? "已清除所用话术" : "已记下所用话术"));
+    await loadOutboundCallRecords();
+    const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+    if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+    if (callScriptCanManage) void loadCallScriptUsage();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "所用话术没有保存", "error");
+  } finally {
+    callScriptUsagePending = false;
+    if (button) button.disabled = false;
+  }
+}
+
 function rememberCallNote(record: OutboundCallRecordRow | undefined) {
   if (!record?.id || (record.targetType !== "customer" && record.targetType !== "lead") || !record.targetId) return;
   const entry: CallNoteTimelineEntry = {
@@ -17672,10 +17729,11 @@ async function exportOutboundCallRecords() {
   const to = qs<HTMLInputElement>("#outboundCallRecordTo")?.value || "";
   const outcome = qs<HTMLSelectElement>("#outboundCallRecordOutcome")?.value || "";
   const note = qs<HTMLSelectElement>("#outboundCallRecordNote")?.value || "";
+  const script = qs<HTMLSelectElement>("#outboundCallRecordScript")?.value || "";
   const plaintext = isSystemAdministrator() && qs<HTMLInputElement>("#outboundCallRecordPlaintext")?.checked === true;
   if (button) button.disabled = true;
   try {
-    const response = await fetch(`/api/outbound-call-records/export${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, plaintext: plaintext ? "1" : "" })}`, {
+    const response = await fetch(`/api/outbound-call-records/export${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script, plaintext: plaintext ? "1" : "" })}`, {
       credentials: "same-origin"
     });
     if (!response.ok) {
@@ -17719,8 +17777,13 @@ async function loadOutboundCallRecords() {
   const to = qs<HTMLInputElement>("#outboundCallRecordTo")?.value || "";
   const outcome = qs<HTMLSelectElement>("#outboundCallRecordOutcome")?.value || "";
   const note = qs<HTMLSelectElement>("#outboundCallRecordNote")?.value || "";
+  const script = qs<HTMLSelectElement>("#outboundCallRecordScript")?.value || "";
   try {
-    const result = await api<OutboundCallRecordListResponse>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note })}`);
+    const result = await api<OutboundCallRecordListResponse & { scripts?: Array<{ id: string; title?: string }> }>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, script })}`);
+    const scriptSelect = qs<HTMLSelectElement>("#outboundCallRecordScript");
+    if (scriptSelect) {
+      scriptSelect.innerHTML = renderOutboundCallScriptOptions(result.scripts, script);
+    }
     const agentSelect = qs<HTMLSelectElement>("#outboundCallRecordAgent");
     if (agentSelect) {
       const selected = result.scope === "self" ? (result.agents?.[0]?.cccUserId || "") : agent;
@@ -17734,11 +17797,13 @@ async function loadOutboundCallRecords() {
     summary.innerHTML = renderOutboundCallRecordSummary(result);
     list.innerHTML = result.records?.length
       ? renderOutboundCallRecordList(result.records)
-      : note && !result.empty
-        ? renderOutboundCallNoteFilterEmpty()
-        : outcome && !result.empty
-          ? renderOutboundCallOutcomeFilterEmpty()
-          : "";
+      : script && !result.empty
+        ? renderOutboundCallScriptFilterEmpty()
+        : note && !result.empty
+          ? renderOutboundCallNoteFilterEmpty()
+          : outcome && !result.empty
+            ? renderOutboundCallOutcomeFilterEmpty()
+            : "";
   } catch (error) {
     summary.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
     list.innerHTML = "";
@@ -55254,6 +55319,12 @@ function installEvents() {
     void submitIntentFollowupIgnore(row, button.hasAttribute("data-intent-restore"));
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("click", (event) => {
+    const scriptClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-script-usage-clear]");
+    const scriptClearForm = scriptClear?.closest<HTMLFormElement>("[data-call-script-usage-form]");
+    if (scriptClear && scriptClearForm) {
+      void submitCallScriptUsage(scriptClearForm, true);
+      return;
+    }
     const noteClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-note-clear]");
     const noteClearForm = noteClear?.closest<HTMLFormElement>("[data-call-note-form]");
     if (noteClear && noteClearForm) {
@@ -55276,6 +55347,12 @@ function installEvents() {
     void submitPhoneValidity(button);
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
+    const scriptForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-script-usage-form]");
+    if (scriptForm) {
+      event.preventDefault();
+      void submitCallScriptUsage(scriptForm, false);
+      return;
+    }
     const callbackForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-callback-schedule-form]");
     if (callbackForm) {
       event.preventDefault();

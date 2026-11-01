@@ -298,6 +298,7 @@ import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting 
 import { exportOutboundCallRecords } from "./call-export.js";
 import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from "./agent-call-target.js";
 import { createCallScript, disableCallScript, listCallScripts, updateCallScript } from "./call-script.js";
+import { listCallScriptUsage, saveCallScriptUsage } from "./call-script-usage.js";
 import {
   assignOutboundOwner,
   clearOutboundOwner,
@@ -9032,6 +9033,11 @@ app.post("/api/agent-call-targets", requireAuth, asyncRoute(async (req, res) => 
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
+app.get("/api/call-script-usage", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallScriptUsage(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
 app.get("/api/call-script-templates", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallScripts(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
@@ -9106,6 +9112,11 @@ app.post("/api/outbound-call-records/:id/outcome", requireAuth, asyncRoute(async
 
 app.post("/api/outbound-call-records/:id/note", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await saveCallNote(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/script", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await saveCallScriptUsage(getStore(), req.user, req.params.id, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
