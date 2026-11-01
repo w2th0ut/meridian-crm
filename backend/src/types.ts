@@ -5327,9 +5327,9 @@ export interface CallScriptTemplate {
 }
 
 /**
- * 一次话术模板的新增、修改、停用，或一次被拒绝的查看、修改。
+ * 一次话术模板的新增、修改、停用、恢复，或一次被拒绝的查看、修改、看版本。
  * 旧值和新值是启用、场景、语言、标题和正文。没有旧模板时旧值是空。
- * 不记号码，也不记密钥。
+ * 越权看版本时旧值和新值是空。不记号码，也不记密钥。
  */
 export interface CallScriptAudit {
   id: string;
@@ -5337,11 +5337,30 @@ export interface CallScriptAudit {
   actorId: string;
   at: string;
   templateId: string;
-  action: "create" | "update" | "disable" | "read";
+  action: "create" | "update" | "disable" | "read" | "restore" | "versions" | "version";
   previousValue: string;
   nextValue: string;
   result: "updated" | "rejected";
   reason: string;
+}
+
+/**
+ * 一条话术在被改掉之前的快照。当前内容仍在 call_script_templates。
+ * 编辑留下的来源是 edit，恢复前留下的来源是 restore。不替代模板 id。
+ */
+export interface CallScriptVersion {
+  id: string;
+  teamId: string;
+  templateId: string;
+  versionNo: number;
+  title: string;
+  scenario: CallScriptScenario;
+  language: string;
+  body: string;
+  enabled: boolean;
+  savedBy: string;
+  savedAt: string;
+  source: "edit" | "restore";
 }
 
 /**

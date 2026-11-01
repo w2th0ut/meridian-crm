@@ -13,7 +13,7 @@ import type {
   ProspectIcpPolicySnapshot,
   ProspectSuppressionEvent
 } from "./types.js";
-import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallExportAudit, CallNoteAudit, CallOutcomeAudit, CallScriptAudit, CallScriptTemplate, CallScriptUsageAudit, CallbackSchedule, CallbackScheduleAudit, CompanyProfile, ContactPhone, ContactPhoneAudit, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OutboundOwner, OutboundOwnerAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallExportAudit, CallNoteAudit, CallOutcomeAudit, CallScriptAudit, CallScriptTemplate, CallScriptUsageAudit, CallScriptVersion, CallbackSchedule, CallbackScheduleAudit, CompanyProfile, ContactPhone, ContactPhoneAudit, DocumentLetterhead, DocumentStamp, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OutboundOwner, OutboundOwnerAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 
 export const providerCatalog: ProviderCatalogItem[] = createDefaultProviderCatalog();
 export const providerConnections: ProviderConnection[] = [];
@@ -391,6 +391,7 @@ export const outboundOwnerAudits: OutboundOwnerAudit[] = [];
 export const callScriptTemplates: CallScriptTemplate[] = [];
 export const callScriptAudits: CallScriptAudit[] = [];
 export const callScriptUsageAudits: CallScriptUsageAudit[] = [];
+export const callScriptVersions: CallScriptVersion[] = [];
 export const aliyunAgentMappings: AliyunAgentMapping[] = [];
 export const agentMappingAudits: AgentMappingAudit[] = [];
 export const aliyunScreenPops: AliyunScreenPop[] = [];

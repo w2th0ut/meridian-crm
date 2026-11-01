@@ -297,7 +297,7 @@ import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import { exportOutboundCallRecords } from "./call-export.js";
 import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from "./agent-call-target.js";
-import { createCallScript, disableCallScript, listCallScripts, updateCallScript } from "./call-script.js";
+import { createCallScript, disableCallScript, listCallScriptVersions, listCallScripts, readCallScriptVersion, restoreCallScriptVersion, updateCallScript } from "./call-script.js";
 import { listCallScriptUsage, saveCallScriptUsage } from "./call-script-usage.js";
 import {
   assignOutboundOwner,
@@ -9035,6 +9035,21 @@ app.post("/api/agent-call-targets", requireAuth, asyncRoute(async (req, res) => 
 
 app.get("/api/call-script-usage", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallScriptUsage(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-script-templates/:id/versions/:versionId", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await readCallScriptVersion(getStore(), req.user, String(req.params.id || ""), String(req.params.versionId || ""), req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-script-templates/:id/versions", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallScriptVersions(getStore(), req.user, String(req.params.id || ""), req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-templates/restore", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await restoreCallScriptVersion(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
