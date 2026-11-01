@@ -164,6 +164,11 @@ import {
   type CallWrapupEditReportResponse
 } from "./call-wrapup-edit-report";
 import {
+  callWorkloadQuery,
+  renderCallWorkload,
+  type CallWorkloadResponse
+} from "./call-workload";
+import {
   matchesOutboundOwnerList,
   outboundOwnerAssignBody,
   outboundOwnerClearBody,
@@ -12733,6 +12738,18 @@ function canViewCallWrapupEditReport(user = state.user) {
 function paintCallWrapupEditReportAccess() {
   const section = qs<HTMLElement>("#dashboardCallWrapupEditReport");
   if (section) section.hidden = !canViewCallWrapupEditReport();
+  paintCallWorkloadAccess();
+}
+
+function canViewCallWorkloadTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintCallWorkloadAccess() {
+  const section = qs<HTMLElement>("#dashboardCallWorkload");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardCallWorkloadTeam");
+  if (team) team.hidden = !canViewCallWorkloadTeam();
 }
 
 function callTagReportFilterInput() {
@@ -12936,6 +12953,20 @@ async function loadCallWrapupEditReport() {
     list.innerHTML = renderCallWrapupEditReport(data);
   } catch (error) {
     list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到通话小结改正")}</div>`;
+  }
+}
+
+async function loadCallWorkload(scope: "self" | "team") {
+  const list = qs<HTMLElement>("#dashboardCallWorkloadList");
+  const message = qs<HTMLElement>("#dashboardCallWorkloadMessage");
+  if (!list || !state.user) return;
+  if (scope === "team" && !canViewCallWorkloadTeam()) return;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<CallWorkloadResponse>(`/api/call-workload${callWorkloadQuery({ scope })}`);
+    list.innerHTML = renderCallWorkload(data);
+  } catch (error) {
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到今日通话负荷")}</div>`;
   }
 }
 
@@ -56455,6 +56486,12 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#dashboardCallTagReportExport")?.addEventListener("click", () => {
     void exportCallTagReport();
+  });
+  qs<HTMLButtonElement>("#dashboardCallWorkloadSelf")?.addEventListener("click", () => {
+    void loadCallWorkload("self");
+  });
+  qs<HTMLButtonElement>("#dashboardCallWorkloadTeam")?.addEventListener("click", () => {
+    void loadCallWorkload("team");
   });
   qs<HTMLFormElement>("#dashboardCallWrapupEditReportFilters")?.addEventListener("submit", (event) => {
     event.preventDefault();

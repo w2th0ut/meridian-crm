@@ -28519,6 +28519,19 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardCallTagReportList"><div class="empty-cell">选择条件后查看。</div></div>
           </section>
 
+          <section class="panel section" id="dashboardCallWorkload" aria-label="今日通话负荷" hidden>
+            <div class="section-head">
+              <div class="section-title"><div><h2>今日通话负荷</h2><p id="dashboardCallWorkloadScope">坐席看我的今日，主管看团队</p></div></div>
+            </div>
+            <p id="dashboardCallWorkloadNote" class="dashboard-call-workload-note">今日拨打只数人工点击后已经写下的通话记录。没有对应外呼审计，或点击被拒绝的，不算。小结已完成、待处理和无需小结只对照 call_wrapup 相关表。改正只数今天已经记下的成功改正。通话时长只加接通且时长是整数秒的记录，没有可加的时长时写 —，不写成 0。不另算接通率。要人工点查看，打开工作台本身不拉这一份。业务员只能看自己的坐席。主管查看团队会留下一条查看记录。这里没有外呼按钮，不会自动拨号，也不会批量拨号。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <div class="head-actions">
+              <button class="btn" type="button" id="dashboardCallWorkloadSelf">查看我的今日</button>
+              <button class="btn" type="button" id="dashboardCallWorkloadTeam" hidden>查看团队今日</button>
+            </div>
+            <p id="dashboardCallWorkloadMessage"></p>
+            <div id="dashboardCallWorkloadList"><div class="empty-cell">点查看后才读取今日通话负荷。</div></div>
+          </section>
+
           <section class="panel section" id="dashboardCallWrapupEditReport" aria-label="通话小结改正" hidden>
             <div class="section-head">
               <div class="section-title"><div><h2>通话小结改正</h2><p id="dashboardCallWrapupEditReportScope">主管按坐席、日期和变更字段查看</p></div></div>
@@ -36131,6 +36144,9 @@ body.platform-mode .workspace-tabs { display:none !important; }
     .call-wrapup-edit-report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .call-wrapup-edit-report-table th, .call-wrapup-edit-report-table td { border-bottom: 1px solid var(--line-soft, #e6ebf2); padding: 6px 8px; text-align: left; vertical-align: top; }
     .call-wrapup-edit-report-table tr[data-wrapup-edit-report-count] { cursor: pointer; }
+    .call-workload-wrap { overflow: auto; }
+    .call-workload-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .call-workload-table th, .call-workload-table td { border-bottom: 1px solid var(--line-soft, #e6ebf2); padding: 6px 8px; text-align: left; vertical-align: top; }
     #cccSoftphone {
       position: fixed;
       right: 16px;
