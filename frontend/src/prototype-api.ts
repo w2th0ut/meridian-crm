@@ -24,6 +24,14 @@ import {
   type OutboundCallTarget
 } from "./outbound-call";
 import { renderPhoneValidityControl, type PhoneValidityTarget } from "./phone-validity";
+import {
+  preferredChooserActions,
+  preferredPhoneClearBody,
+  preferredPhoneListMark,
+  preferredPhoneSetBody,
+  renderPreferredPhoneChooser,
+  selectPreferredPhoneId
+} from "./preferred-phone";
 import { renderAgentMappingTable, renderCampaignRoster, type AgentMappingView, type AgentSeatView, type AgentUserView, type CampaignView } from "./aliyun-agent-mapping";
 import { renderScreenPopStack, type ScreenPopCardView } from "./aliyun-screen-pop";
 import {
@@ -14105,7 +14113,7 @@ function renderLeads() {
     ? `<span class="lead-reply-flag" title="客户已回复：${escapeHtml(new Date(lead.lastEmailReplyAt).toLocaleString("zh-CN"))}">✉</span>`
     : "";
   tbody.innerHTML = pageRows.length ? pageRows.map((lead) => `<tr data-lead-id="${lead.id}" class="${lead.id === state.selectedLeadId ? "selected" : ""}">
-    <td><div class="company"><input type="checkbox" class="lead-row-check" data-lead-check="${lead.id}" ${state.selectedLeadIds.includes(lead.id) ? "checked" : ""} title="勾选加入发信批次">${countryFlag(lead.country)}<div><button class="lead-name" data-open-lead="${lead.id}">${escapeHtml(lead.company)}</button>${replyFlag(lead)}<span>${escapeHtml(lead.contact || "联系人待补充")} · ${escapeHtml(lead.country || "国家待补充")}${lead.email ? ` · ${escapeHtml(lead.email)}` : ""}</span></div></div></td>
+    <td><div class="company"><input type="checkbox" class="lead-row-check" data-lead-check="${lead.id}" ${state.selectedLeadIds.includes(lead.id) ? "checked" : ""} title="勾选加入发信批次">${countryFlag(lead.country)}<div><button class="lead-name" data-open-lead="${lead.id}">${escapeHtml(lead.company)}</button>${preferredPhoneListMark(Boolean(preferredPhoneIdFor("lead", lead.id)))}${replyFlag(lead)}<span>${escapeHtml(lead.contact || "联系人待补充")} · ${escapeHtml(lead.country || "国家待补充")}${lead.email ? ` · ${escapeHtml(lead.email)}` : ""}</span></div></div></td>
     <td><div class="lead-decision-cell">${badge("意向" + lead.intent, lead.intent === "高" ? "red" : lead.intent === "中" ? "amber" : "gray")}${badge(lead.stage, leadStageTone(lead.stage))}</div></td>
     <td><div class="lead-follow-cell"><b>${escapeHtml(lead.nextFollowAt || "未安排")}</b><span>${leadFollowState(lead) === "overdue" ? "已逾期" : leadFollowState(lead) === "unset" ? "待安排" : "已计划"}</span></div></td>
     <td><div class="lead-source-cell"><b>${escapeHtml(leadSourceLabel(lead))}</b><span>${escapeHtml(lead.sourceCampaign || lead.externalId || "无活动编号")}</span></div></td>
@@ -14118,7 +14126,7 @@ function renderLeads() {
 
   cards.innerHTML = pageRows.length ? pageRows.map((lead) => `
     <article class="lead-mobile-card ${lead.id === state.selectedLeadId ? "selected" : ""}" data-lead-id="${lead.id}">
-      <span class="lead-mobile-top"><button class="lead-name" data-open-lead="${lead.id}">${escapeHtml(lead.company)}</button>${replyFlag(lead)}${badge("意向" + lead.intent, lead.intent === "高" ? "red" : lead.intent === "中" ? "amber" : "gray")}</span>
+      <span class="lead-mobile-top"><button class="lead-name" data-open-lead="${lead.id}">${escapeHtml(lead.company)}</button>${preferredPhoneListMark(Boolean(preferredPhoneIdFor("lead", lead.id)))}${replyFlag(lead)}${badge("意向" + lead.intent, lead.intent === "高" ? "red" : lead.intent === "中" ? "amber" : "gray")}</span>
       <span>${escapeHtml(lead.contact || "联系人待补充")} · ${escapeHtml(lead.country || "国家待补充")}${lead.email ? ` · ${escapeHtml(lead.email)}` : ""}</span>
       <span class="lead-mobile-meta"><i>${escapeHtml(lead.stage)}</i><i>${escapeHtml(leadSourceLabel(lead))}</i><i>${escapeHtml(lead.nextFollowAt || "待安排跟进")}</i><i>${escapeHtml(formatLeadDate(lead.createdAt))}</i></span>
       <span class="lead-mobile-actions">${state.leadView === "trash"
@@ -14236,6 +14244,7 @@ function clearOutboundCallAvailability() {
   outboundCallTargets.clear();
   phoneValidityCache.clear();
   phoneValidityLoaded.clear();
+  preferredPhoneByTarget.clear();
   hideCccSoftphone();
 }
 
@@ -14249,10 +14258,38 @@ async function loadOutboundCallAvailability() {
   } catch {
     outboundCallAvailability = { enabled: false, permitted: false };
   }
+  await loadPreferredPhoneIndex();
+  if (qs("#customers tbody")) renderCustomers(state.customers);
+  if (qs("#leadsTableBody")) renderLeads();
 }
 
 const phoneValidityCache = new Map<string, { invalid: boolean; canWrite: boolean }>();
 const phoneValidityLoaded = new Set<string>();
+const preferredPhoneByTarget = new Map<string, string>();
+
+function preferredPhoneKey(targetType: string, targetId: string) {
+  return `${targetType}:${targetId}`;
+}
+
+function preferredPhoneIdFor(targetType: string, targetId: string) {
+  return preferredPhoneByTarget.get(preferredPhoneKey(targetType, targetId)) || "";
+}
+
+async function loadPreferredPhoneIndex() {
+  try {
+    const result = await api<{ items?: Array<{ targetType?: string; targetId?: string; phoneId?: string }> }>("/api/preferred-phones");
+    preferredPhoneByTarget.clear();
+    for (const item of result.items || []) {
+      const targetType = (item.targetType || "").trim();
+      const targetId = (item.targetId || "").trim();
+      const phoneId = (item.phoneId || "").trim();
+      if (!targetType || !targetId || !phoneId) continue;
+      preferredPhoneByTarget.set(preferredPhoneKey(targetType, targetId), phoneId);
+    }
+  } catch {
+    // 列表标识缺失时，详情仍可按对象上的号码设置。
+  }
+}
 
 function phoneValidityCacheKey(target: { targetType: string; targetId: string; phoneId: string }) {
   return `${target.targetType}:${target.targetId}:${target.phoneId}`;
@@ -14283,14 +14320,115 @@ function phoneValidityControlHtml(target: OutboundCallTarget, includeStatus: boo
 }
 
 function outboundCallLineHtml(target: OutboundCallTarget, numberText: string) {
-  const invalid = cachedPhoneValidity(target)?.invalid === true;
-  const button = outboundCallButtonHtml(target);
-  const validity = phoneValidityControlHtml(target, !button);
-  const hint = button && invalid
-    ? `<p class="outbound-call-status" data-outbound-invalid="1" data-phone-invalid="1">该号码已标记无效</p>`
-    : "";
-  if (!button && !validity) return "";
-  return `<div class="outbound-call-line"><b>${escapeHtml(numberText)}</b>${button}${validity}${hint}<p class="outbound-call-status" data-outbound-status role="status" hidden></p></div>`;
+  return preferredOutboundHtml([target], numberText);
+}
+
+function preferredOutboundHtml(targets: OutboundCallTarget[], singleLabel = "") {
+  const phones = targets.filter((target) => target.phone.trim() && target.phoneId.trim() && target.targetId.trim());
+  if (!phones.length) return "";
+  for (const target of phones) outboundCallTargets.set(outboundTargetKey(target), target);
+  const first = phones[0];
+  const preferredPhoneId = preferredPhoneIdFor(first.targetType, first.targetId);
+  const invalidIds = phones.filter((target) => cachedPhoneValidity(target)?.invalid === true).map((target) => target.phoneId);
+  const selectedId = selectPreferredPhoneId(phones.map((target) => target.phoneId), preferredPhoneId, invalidIds);
+  const selected = phones.find((target) => target.phoneId === selectedId) || first;
+  const dialButtonHtml = outboundCallButtonHtml(selected);
+  const validityHtml = phoneValidityControlHtml(selected, false);
+  const selectedInvalid = cachedPhoneValidity(selected)?.invalid === true;
+  const invalidHintHtml = `<p class="outbound-call-status" data-outbound-invalid="1" data-phone-invalid="1"${selectedInvalid ? "" : " hidden"}>该号码已标记无效</p>`;
+  const canWrite = phones.some((target) => cachedPhoneValidity(target)?.canWrite === true);
+  return renderPreferredPhoneChooser({
+    targetType: first.targetType,
+    targetId: first.targetId,
+    phones: phones.map((target) => ({
+      phoneId: target.phoneId,
+      label: phones.length === 1 && singleLabel.trim() ? singleLabel.trim() : target.phone,
+      invalid: cachedPhoneValidity(target)?.invalid === true
+    })),
+    preferredPhoneId,
+    canWrite,
+    dialButtonHtml,
+    validityHtml,
+    invalidHintHtml
+  });
+}
+
+function redrawPreferredPhone(targetType: string, targetId: string) {
+  redrawPhoneValidity(targetType, targetId);
+  if (targetType === "customer" && qs("#customers tbody")) renderCustomers(state.customers);
+  if (targetType === "lead" && qs("#leadsTableBody")) renderLeads();
+  if (targetType === "prospect" && qs("#prospectListRows")) renderProspectList();
+}
+
+function syncPreferredPhoneChooser(chooser: HTMLElement) {
+  const select = chooser.querySelector<HTMLSelectElement>("[data-preferred-phone-select]");
+  const targetType = chooser.dataset.preferredType || "";
+  const targetId = chooser.dataset.preferredId || "";
+  const preferredPhoneId = chooser.dataset.preferredCurrent || preferredPhoneIdFor(targetType, targetId);
+  const phoneId = select?.value || chooser.querySelector<HTMLButtonElement>("[data-outbound-call]")?.dataset.outboundPhoneId || "";
+  const target = outboundCallTargets.get(outboundTargetKey({ targetType, targetId, phoneId }));
+  const selectedInvalid = target ? cachedPhoneValidity(target)?.invalid === true : false;
+  const button = chooser.querySelector<HTMLButtonElement>("[data-outbound-call]");
+  if (button && target) {
+    button.dataset.outboundPhoneId = target.phoneId;
+    button.disabled = outboundCallButtonDisabled(selectedInvalid);
+    button.title = outboundCallButtonTitle(selectedInvalid);
+  }
+  const mark = chooser.querySelector<HTMLElement>("[data-preferred-phone]");
+  if (mark) mark.hidden = !(preferredPhoneId && phoneId === preferredPhoneId);
+  const actions = preferredChooserActions({
+    selectedPhoneId: phoneId,
+    preferredPhoneId,
+    selectedInvalid,
+    canWrite: Boolean(chooser.querySelector("[data-preferred-phone-save], [data-preferred-phone-clear]"))
+  });
+  const save = chooser.querySelector<HTMLButtonElement>("[data-preferred-phone-save]");
+  if (save) {
+    save.hidden = !actions.showSave;
+    save.textContent = actions.saveLabel;
+  }
+  const clear = chooser.querySelector<HTMLButtonElement>("[data-preferred-phone-clear]");
+  if (clear) clear.hidden = !actions.showClear;
+  const hint = chooser.querySelector<HTMLElement>("[data-outbound-invalid]");
+  if (hint) hint.hidden = !selectedInvalid;
+  const validity = chooser.querySelector<HTMLElement>("[data-preferred-validity]");
+  if (validity && target) validity.innerHTML = phoneValidityControlHtml(target, !button);
+}
+
+let preferredPhonePending = false;
+
+async function submitPreferredPhone(chooser: HTMLElement, clear: boolean) {
+  if (preferredPhonePending) return;
+  const targetType = chooser.dataset.preferredType || "";
+  const targetId = chooser.dataset.preferredId || "";
+  if (targetType !== "customer" && targetType !== "lead" && targetType !== "prospect") return;
+  if (!targetId) return;
+  const select = chooser.querySelector<HTMLSelectElement>("[data-preferred-phone-select]");
+  const phoneId = select?.value || chooser.querySelector<HTMLButtonElement>("[data-outbound-call]")?.dataset.outboundPhoneId || "";
+  if (!clear && !phoneId) return;
+  const target = outboundCallTargets.get(outboundTargetKey({ targetType, targetId, phoneId }));
+  if (!clear && target && cachedPhoneValidity(target)?.invalid === true) return;
+  preferredPhonePending = true;
+  try {
+    const result = await api<{ result?: string; message?: string; phoneId?: string }>(
+      clear ? "/api/preferred-phones/clear" : "/api/preferred-phones",
+      {
+        method: "POST",
+        body: JSON.stringify(clear
+          ? preferredPhoneClearBody({ targetType, targetId })
+          : preferredPhoneSetBody({ targetType, targetId, phoneId }))
+      }
+    );
+    const key = preferredPhoneKey(targetType, targetId);
+    if (clear || !(result.phoneId || "").trim()) preferredPhoneByTarget.delete(key);
+    else preferredPhoneByTarget.set(key, (result.phoneId || "").trim());
+    toast(result.message || (clear ? "已清除首选拨打号码" : "已设置首选拨打号码"));
+    redrawPreferredPhone(targetType, targetId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "首选号码没有改", "error");
+  } finally {
+    preferredPhonePending = false;
+  }
 }
 
 function redrawPhoneValidity(targetType: string, targetId: string) {
@@ -14350,8 +14488,11 @@ async function submitPhoneValidity(button: HTMLButtonElement) {
       invalid: result.invalid === true,
       canWrite: true
     });
+    if (invalid && preferredPhoneIdFor(targetType, targetId) === phoneId) {
+      preferredPhoneByTarget.delete(preferredPhoneKey(targetType, targetId));
+    }
     toast(result.message || (invalid ? "已标记该号码无效" : "已取消号码无效标记"));
-    redrawPhoneValidity(targetType, targetId);
+    redrawPreferredPhone(targetType, targetId);
   } catch (error) {
     toast(error instanceof Error ? error.message : "号码有效性没有改", "error");
     button.disabled = false;
@@ -14375,8 +14516,12 @@ async function submitCallPhoneInvalid(recordId: string, button?: HTMLButtonEleme
         targetId: result.targetId,
         phoneId: result.phoneId
       }), { invalid: result.invalid !== false, canWrite: true });
+      if (preferredPhoneIdFor(result.targetType, result.targetId) === result.phoneId) {
+        preferredPhoneByTarget.delete(preferredPhoneKey(result.targetType, result.targetId));
+      }
     }
     toast(result.message || "已标记该号码无效");
+    if (result.targetType && result.targetId) redrawPreferredPhone(result.targetType, result.targetId);
     await loadOutboundCallRecords();
     const panel = qs<HTMLElement>("#outboundCallRecordDetail");
     if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
@@ -14398,15 +14543,26 @@ function showOutboundCallStatus(button: HTMLButtonElement, feedback: { tone: "ok
 
 function bindOutboundCallButtons(root: ParentNode) {
   qsa<HTMLButtonElement>("[data-outbound-call]", root).forEach((button) => {
-    const target = outboundCallTargets.get(outboundTargetKey({
-      targetType: button.dataset.outboundType || "",
-      targetId: button.dataset.outboundId || "",
-      phoneId: button.dataset.outboundPhoneId || ""
-    }));
-    if (!target) return;
     button.addEventListener("click", () => {
       if (button.disabled) return;
+      const target = outboundCallTargets.get(outboundTargetKey({
+        targetType: button.dataset.outboundType || "",
+        targetId: button.dataset.outboundId || "",
+        phoneId: button.dataset.outboundPhoneId || ""
+      }));
+      if (!target) return;
       void startOutboundCall(target, button);
+    });
+  });
+  qsa<HTMLElement>("[data-preferred-phone-chooser]", root).forEach((chooser) => {
+    chooser.querySelector<HTMLSelectElement>("[data-preferred-phone-select]")?.addEventListener("change", () => {
+      syncPreferredPhoneChooser(chooser);
+    });
+    chooser.querySelector<HTMLButtonElement>("[data-preferred-phone-save]")?.addEventListener("click", () => {
+      void submitPreferredPhone(chooser, false);
+    });
+    chooser.querySelector<HTMLButtonElement>("[data-preferred-phone-clear]")?.addEventListener("click", () => {
+      void submitPreferredPhone(chooser, true);
     });
   });
 }
@@ -14446,11 +14602,9 @@ function renderProspectOutboundCalls(item: WebsiteOpportunity) {
   const channels = state.prospectQualifications[item.id]?.qualification?.channels || [];
   const targets = prospectOutboundTargets(item.id, channels);
   if (targets.length) void ensurePhoneValidity({ targetType: "prospect", targetId: item.id, phoneId: targets[0].phoneId });
-  const lines = targets
-    .map((target) => outboundCallLineHtml(target, target.phone))
-    .filter(Boolean);
-  if (!lines.length) return "";
-  return `<div class="prospect-outbound-calls">${lines.join("")}</div>`;
+  const chooser = preferredOutboundHtml(targets);
+  if (!chooser) return "";
+  return `<div class="prospect-outbound-calls">${chooser}</div>`;
 }
 
 let leadDrawerSnapshot: {
@@ -15100,7 +15254,7 @@ function renderCustomers(customers: Customer[]) {
     const customerWhatsapp = customerContactDetails(customer).whatsapp;
     return `<tr class="${customer.id === state.selectedCustomerId ? "selected" : ""} ${checked ? "checked" : ""}">
     <td><input type="checkbox" data-select-customer ${checked ? "checked" : ""}></td>
-    <td><div class="company">${countryFlag(customer.country)}<div><button type="button" class="customer-name ${activeDealCount > 0 ? "has-active-deal" : ""}" data-open-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.company)}</button><span>${escapeHtml(customer.country)} · ${escapeHtml(customer.contact)} · ${escapeHtml(customer.ownerName || "未分配")}</span></div></div></td>
+    <td><div class="company">${countryFlag(customer.country)}<div><button type="button" class="customer-name ${activeDealCount > 0 ? "has-active-deal" : ""}" data-open-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.company)}</button>${preferredPhoneListMark(Boolean(preferredPhoneIdFor("customer", customer.id)))}<span>${escapeHtml(customer.country)} · ${escapeHtml(customer.contact)} · ${escapeHtml(customer.ownerName || "未分配")}</span></div></div></td>
     <td><div class="customer-follow-cell">${badge(pipelineStage, pipelineStage === "成交" || pipelineStage === "谈判" ? "green" : pipelineStage === "已报价" ? "amber" : "")}<span>${activeDealCount} 个活跃商机</span></div></td>
     <td><div class="customer-follow-cell"><b>${escapeHtml(customer.source || "未登记")}</b><span>获客渠道</span></div></td>
     <td><div class="customer-value-cell">${customerGradeHtml(customer)}${badge(customerWonLabel(customer), customer.hasWonDeal ? "green" : "gray")}</div></td>
@@ -15112,7 +15266,7 @@ function renderCustomers(customers: Customer[]) {
   const mobile = qs<HTMLElement>("#customerMobileList");
   if (mobile) mobile.innerHTML = pageCustomers.length ? pageCustomers.map((customer) => `
     <article class="customer-mobile-card" data-customer-mobile-id="${escapeHtml(customer.id)}">
-      <span class="customer-mobile-top"><span class="customer-mobile-company">${countryFlag(customer.country)}<button type="button" class="customer-name ${(customer.activeDealCount || 0) > 0 ? "has-active-deal" : ""}" data-open-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.company)}</button></span>${badge(customer.pipelineStage || "暂无商机", customer.pipelineStage === "谈判" || customer.pipelineStage === "成交" ? "green" : customer.pipelineStage === "已报价" ? "amber" : "gray")}</span>
+      <span class="customer-mobile-top"><span class="customer-mobile-company">${countryFlag(customer.country)}<button type="button" class="customer-name ${(customer.activeDealCount || 0) > 0 ? "has-active-deal" : ""}" data-open-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.company)}</button>${preferredPhoneListMark(Boolean(preferredPhoneIdFor("customer", customer.id)))}</span>${badge(customer.pipelineStage || "暂无商机", customer.pipelineStage === "谈判" || customer.pipelineStage === "成交" ? "green" : customer.pipelineStage === "已报价" ? "amber" : "gray")}</span>
       <span>${escapeHtml(customer.country)} · ${escapeHtml(customer.contact)} · ${escapeHtml(customer.ownerName || "未分配")}</span>
       <span class="customer-mobile-meta"><i>来源 · ${escapeHtml(customer.source || "未登记")}</i><i>${customerGradeValue(customer)}级 · ${customerGradeLabel(customerGradeValue(customer))}</i><i>${customerWonLabel(customer)}</i><i>${customer.activeDealCount || 0} 个活跃商机</i><i>${escapeHtml(customer.nextReminder || "待安排")}</i><i>${customer.lastActivityAt ? `最近 ${escapeHtml(formatDateTime(customer.lastActivityAt))}` : "暂无跟进"}</i></span>
       <div class="customer-row-actions"><button class="${whatsAppEntryClass(customerContactDetails(customer).whatsapp)}" type="button" data-customer-mobile-whatsapp ${whatsAppEntryAttrs(customerContactDetails(customer).whatsapp)}>WhatsApp</button><button class="btn" type="button" data-customer-mobile-pool>放入公池</button></div>
@@ -18392,6 +18546,7 @@ function renderCustomerDrawer(customer?: Customer) {
   if (!drawer || !customer) return;
   const contacts = customerContactDetails(customer);
   const drawerPhoneTarget = customerOutboundTarget(customer.id, customer.phone || "");
+  if (drawerPhoneTarget) void ensurePhoneValidity(drawerPhoneTarget);
   const drawerPhoneLine = drawerPhoneTarget ? outboundCallLineHtml(drawerPhoneTarget, customer.phone || "") : "";
   const drawerPhoneHtml = drawerPhoneLine
     ? `<div class="info"><span>电话</span>${drawerPhoneLine}</div>`
@@ -39767,7 +39922,7 @@ function renderProspectList() {
             <div class="prospect-item-top"><h3>${escapeHtml(item.company)}</h3><span class="prospect-score">${score}</span></div>
             <p>${escapeHtml(item.business || "业务待维护")}</p>
             <small>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(websiteDomain(item.website || ""))}</small>
-            <div class="prospect-meta-row">${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
+            <div class="prospect-meta-row">${preferredPhoneListMark(Boolean(preferredPhoneIdFor("prospect", item.id)))}${renderAcquisitionStageBadge(item)}${renderCoveragePoolBadge(item)}${renderCrmCollisionBadge(item)}${badge(status.label, status.tone)}${prospectEmailEligibilityBadge(item)}${prospectNeedsDevelopmentEmail(item) ? badge("可写开发信", "green") : ""}${item.lastDevelopmentEmailAt ? badge("已发开发信", "green") : ""}${prospectResearchRunning(item) ? researchRunningBadgeHtml() : ""}</div>
             ${renderProspectTagLine(item)}
             ${renderProspectPriorityLine(item)}
             ${renderProspectIndustryLine(item)}

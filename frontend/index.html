@@ -13353,6 +13353,39 @@
       cursor: not-allowed;
     }
 
+    .preferred-phone-chooser select {
+      max-width: 240px;
+      height: 28px;
+      font-size: 12px;
+    }
+
+    .preferred-phone-mark {
+      display: inline-flex;
+      align-items: center;
+      height: 20px;
+      margin-left: 6px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: #e7f6ee;
+      color: #0f7a45;
+      font-size: 11px;
+      line-height: 20px;
+    }
+
+    .preferred-phone-button {
+      height: 28px;
+      margin: 0;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+
+    .preferred-phone-chooser small[data-preferred-manual] {
+      flex-basis: 100%;
+      margin: 0;
+      color: var(--muted, #667085);
+      font-size: 12px;
+    }
+
     .phone-validity-button { margin-left: 0; }
     .phone-validity-status {
       flex-basis: 100%;
@@ -22654,6 +22687,8 @@
       .customer-contact-row small { grid-column: 2; }
       .outbound-call-line { max-width: 100%; }
       .outbound-call-button { height: auto; min-height: 36px; }
+      .preferred-phone-chooser select,
+      .preferred-phone-button { height: auto; min-height: 36px; max-width: 100%; }
       .customer-page-deal { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
       .cust-email-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
       .cust-email-row time { order: 2; }

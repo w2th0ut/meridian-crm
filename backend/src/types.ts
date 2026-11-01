@@ -5146,6 +5146,40 @@ export interface CallbackScheduleAudit {
 }
 
 /**
+ * 一个客户、线索或搜客对象当前的首选拨打号码。
+ * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
+ * 没有行就是没有首选。设置本身不拨号。
+ */
+export interface PreferredPhone {
+  id: string;
+  teamId: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  phoneId: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/**
+ * 一次首选号码的设置、更换、清除，或一次被拒绝的尝试。
+ * 旧值和新值是号码 ID。号码被标成无效而自动失去首选时，原因是 marked_invalid。
+ * 不记完整号码，也不记密钥。
+ */
+export interface PreferredPhoneAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "set" | "update" | "clear";
+  targetType: "customer" | "lead" | "prospect" | "";
+  targetId: string;
+  previousPhoneId: string;
+  nextPhoneId: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

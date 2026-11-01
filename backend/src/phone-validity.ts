@@ -11,6 +11,7 @@ import {
   outboundCallRecordVisible,
   resolveOutboundCallRecordAccess
 } from "./outbound-call-records.js";
+import { releasePreferredPhonesMarkedInvalid } from "./preferred-phone.js";
 import type { CrmStore } from "./store.js";
 import type { PhoneValidity, PhoneValidityAudit, SessionUser } from "./types.js";
 
@@ -191,6 +192,7 @@ async function applyValidity(
     sourceCallRecordId: input.sourceCallRecordId
   };
   store.phoneValidityAudits.unshift(audit);
+  if (next === "invalid") releasePreferredPhonesMarkedInvalid(store, user, input.phoneId);
   await store.persist();
   return {
     status: 200,
