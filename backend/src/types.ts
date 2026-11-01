@@ -5268,6 +5268,39 @@ export interface AgentCallTargetAudit {
 }
 
 /**
+ * 一个客户、线索或搜客对象当前的外呼负责坐席。
+ * 租户、对象类型和对象 ID 唯一。坐席 ID 是映射上的 cccUserId。
+ * 没有行就是没有负责坐席。指派本身不拨号。
+ */
+export interface OutboundOwner {
+  id: string;
+  teamId: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  agentId: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/**
+ * 一次外呼负责坐席的指派、改派或清除，或一次被拒绝的尝试。
+ * 记下操作人、对象、旧坐席、新坐席和时间。不记号码，也不记密钥。
+ */
+export interface OutboundOwnerAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "assign" | "reassign" | "clear";
+  targetType: "customer" | "lead" | "prospect" | "";
+  targetId: string;
+  previousAgentId: string;
+  nextAgentId: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

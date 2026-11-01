@@ -11,6 +11,7 @@ import {
 } from "./callback-schedule-state.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
 import { outboundInstant, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
+import { outboundOwnerView, parseOwnerMineFilter, userOwnsOutboundTarget } from "./outbound-owner.js";
 import {
   outboundCallRecordVisible,
   resolveOutboundCallRecordAccess
@@ -528,11 +529,13 @@ export async function scheduleCallbackOnCall(
 export async function listCallbackSchedules(
   store: CrmStore,
   user: SessionUser | undefined,
-  query: { due?: unknown }
+  query: { due?: unknown; owner?: unknown }
 ) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
   const due = parseCallbackDueFilter(query.due);
   if (!due) return reject("invalid_request", "回拨筛选只接受今日到期或已逾期");
+  const owner = parseOwnerMineFilter(query.owner);
+  if (owner === null) return reject("invalid_request", "负责坐席筛选只接受我负责的");
   const timeZone = await tenantTimeZoneFor(store, user.teamId);
   const today = zonedDateKey(outboundInstant(), timeZone);
   const items: Array<{
@@ -543,6 +546,8 @@ export async function listCallbackSchedules(
     scheduledAt: string;
     note: string;
     due: "today" | "overdue";
+    ownerAgentId: string;
+    ownerAgentLabel: string;
   }> = [];
   for (const row of store.callbackSchedules) {
     if (row.teamId !== user.teamId) continue;
@@ -553,6 +558,8 @@ export async function listCallbackSchedules(
     const located = locate(store, user.teamId, row.targetType, row.targetId);
     if (!located.ok) continue;
     if (!await canReadTarget(store, user, located.targetType, located.ownerId)) continue;
+    if (owner === "mine" && !userOwnsOutboundTarget(store, user, located.targetType, located.targetId)) continue;
+    const ownerView = outboundOwnerView(store, user.teamId, located.targetType, located.targetId);
     items.push({
       targetType: located.targetType,
       targetId: located.targetId,
@@ -560,7 +567,9 @@ export async function listCallbackSchedules(
       name: located.name,
       scheduledAt: row.scheduledAt,
       note: row.note,
-      due: kind
+      due: kind,
+      ownerAgentId: ownerView.ownerAgentId,
+      ownerAgentLabel: ownerView.ownerAgentLabel
     });
   }
   items.sort((left, right) => {
@@ -574,6 +583,7 @@ export async function listCallbackSchedules(
       timeZone,
       today,
       due,
+      owner,
       empty: items.length === 0,
       items
     }

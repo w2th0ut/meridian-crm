@@ -28822,9 +28822,10 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <button class="btn" id="dashboardCallbackScheduleRefresh" type="button">刷新</button>
               </div>
             </div>
-            <p id="dashboardCallbackScheduleNote" class="dashboard-callback-schedule-note">这是回拨预约的提醒。今日到期是预约日期等于租户当地的今天，已逾期是预约日期早于今天。不是下次跟进，也不是今日到期里的候选跟进。点一行只打开意向回访。不会自动拨号，不会批量拨号，不会发信，也不会改抑制、convert_to_lead 或 approved_contactable。要拨打仍需人工点击现有的一键外呼。</p>
+            <p id="dashboardCallbackScheduleNote" class="dashboard-callback-schedule-note">这是回拨预约的提醒。今日到期是预约日期等于租户当地的今天，已逾期是预约日期早于今天。不是下次跟进，也不是今日到期里的候选跟进。可以按「我负责的」筛选，每一行显示外呼负责坐席。点一行只打开意向回访。不会自动拨号，不会批量拨号，不会发信，也不会改抑制、convert_to_lead 或 approved_contactable。要拨打仍需人工点击现有的一键外呼。</p>
             <form id="dashboardCallbackScheduleFilters" class="outbound-record-filters">
               <label>到期<select id="dashboardCallbackScheduleDue"><option value="due">今日到期和已逾期</option><option value="today">今日到期</option><option value="overdue">已逾期</option></select></label>
+              <label>负责坐席<select id="dashboardCallbackScheduleOwner"><option value="">全部</option><option value="mine">我负责的</option></select></label>
               <button class="btn" type="submit">筛选</button>
             </form>
             <div id="dashboardCallbackScheduleList"><p data-callback-reminder-empty="1">这个范围内没有今日到期或已逾期的回拨预约。</p></div>
@@ -32304,13 +32305,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>意向回访队列</h1>
-              <p>列出最近一次通话标注为有意向或需回访、且还没有未完成下次跟进的客户、线索和搜客对象。可以单条安排跟进，也可以单条忽略或撤销忽略。忽略后如果又有新的通话标成有意向或需回访，对象会重新出现。可以给单条对象设置、修改或取消回拨预约，并按今日到期或已逾期回拨筛选。不能拨号，不能发信，不能批量操作。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
+              <p>列出最近一次通话标注为有意向或需回访、且还没有未完成下次跟进的客户、线索和搜客对象。可以单条安排跟进，也可以单条忽略或撤销忽略。忽略后如果又有新的通话标成有意向或需回访，对象会重新出现。可以给单条对象设置、修改或取消回拨预约，并按今日到期或已逾期回拨筛选。可以按「我负责的」筛选，列表显示外呼负责坐席。不能拨号，不能发信，不能批量操作。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
             </div>
           </div>
           <form id="intentFollowupFilters" class="outbound-record-filters">
             <label>坐席<select id="intentFollowupAgent"></select></label>
             <label>结果<select id="intentFollowupOutcome"><option value="">全部</option><option value="有意向">有意向</option><option value="需回访">需回访</option></select></label>
             <label>回拨<select id="intentFollowupCallbackDue"><option value="">全部</option><option value="today">今日到期回拨</option><option value="overdue">已逾期回拨</option></select></label>
+            <label>负责坐席<select id="intentFollowupOwner"><option value="">全部</option><option value="mine">我负责的</option></select></label>
             <label class="intent-followup-show-ignored"><input id="intentFollowupIncludeIgnored" type="checkbox">显示已忽略</label>
             <button class="btn" type="submit">筛选</button>
           </form>

@@ -21,6 +21,8 @@ export interface CallbackReminder {
   scheduledAt: string;
   note?: string;
   due: "today" | "overdue" | string;
+  ownerAgentId?: string;
+  ownerAgentLabel?: string;
 }
 
 export interface CallbackReminderResponse {
@@ -91,7 +93,8 @@ export function renderCallbackReminderList(items: CallbackReminder[] | undefined
   const body = shown.map((item) => {
     const due = item.due === "overdue" ? "已逾期" : "今日到期";
     const note = item.note ? `<small>${escapeHtml(item.note)}</small>` : "";
-    return `<div data-callback-reminder="1" data-callback-due="${escapeHtml(item.due)}"><b>${escapeHtml(item.name || item.targetId)}</b><span>${escapeHtml(item.targetLabel || item.targetType)}</span><time>${escapeHtml(item.scheduledAt)}</time><em>${due}</em>${note}<button class="btn" type="button" data-callback-open="intent-followup-queue">查看意向回访</button></div>`;
+    const ownerLabel = item.ownerAgentId ? (item.ownerAgentLabel || item.ownerAgentId) : "未指派";
+    return `<div data-callback-reminder="1" data-callback-due="${escapeHtml(item.due)}"><b>${escapeHtml(item.name || item.targetId)}</b><span>${escapeHtml(item.targetLabel || item.targetType)}</span><time>${escapeHtml(item.scheduledAt)}</time><em>${due}</em><span data-owner-agent="${escapeHtml(item.ownerAgentId || "")}">负责坐席 ${escapeHtml(ownerLabel)}</span>${note}<button class="btn" type="button" data-callback-open="intent-followup-queue">查看意向回访</button></div>`;
   }).join("");
   return `<div data-callback-reminders="1">${body}</div>${more}`;
 }

@@ -297,6 +297,7 @@ import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import { exportOutboundCallRecords } from "./call-export.js";
 import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from "./agent-call-target.js";
+import { assignOutboundOwner, clearOutboundOwner, readOutboundOwner } from "./outbound-owner.js";
 import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outbound-call-records.js";
 import { callNotesForTarget, saveCallNote } from "./call-note.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
@@ -9008,6 +9009,21 @@ app.post("/api/agent-call-targets/clear", requireAuth, asyncRoute(async (req, re
 
 app.post("/api/agent-call-targets", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await saveAgentCallTarget(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/outbound-owners", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await readOutboundOwner(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-owners/clear", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await clearOutboundOwner(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-owners", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await assignOutboundOwner(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

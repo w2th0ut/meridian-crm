@@ -84,6 +84,12 @@ import {
   type AgentCallTargetResponse,
   type AgentCallTargetRow
 } from "./agent-call-target";
+import {
+  outboundOwnerAssignBody,
+  outboundOwnerClearBody,
+  renderOutboundOwnerPanel,
+  type OutboundOwnerPanel
+} from "./outbound-owner";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -14977,6 +14983,7 @@ function renderLeadDrawer(
       <div><h2>${escapeHtml(lead.company)}</h2><p>${escapeHtml(lead.country || "—")} · ${escapeHtml(lead.contact || "—")}</p></div>
       <div class="lead-drawer-head-actions">${inTrash ? "" : `<button class="${whatsAppEntryClass(lead.phone || "")}" id="leadWhatsAppButton" ${whatsAppEntryAttrs(lead.phone || "", "该线索未维护电话 / WhatsApp 号码，补齐后再联系")}>WhatsApp</button><button class="btn" id="leadDevelopmentEmailButton">写开发信</button><button class="btn primary ai-entry-button" id="leadAiResearchButton">${researchButtonIcon()}AI 背调</button>`}${badge(inTrash ? "垃圾箱" : (LEAD_STATUS_LABEL[lead.status] || lead.status), inTrash ? "red" : (LEAD_STATUS_TONE[lead.status] || ""))}<button class="btn icon-only" id="leadDrawerClose" title="关闭">×</button></div>
     </div>
+    <div data-outbound-owner-host="1" data-target-type="lead" data-target-id="${escapeHtml(lead.id)}"></div>
     ${lead.remark ? `<p class="lead-remark">${escapeHtml(lead.remark)}</p>` : ""}
     ${inTrash ? `
       <div class="lead-delete-audit">
@@ -15021,6 +15028,7 @@ function renderLeadDrawer(
 
   qs("#leadDrawerClose", drawer)?.addEventListener("click", closeLeadDrawer);
   bindOutboundCallButtons(drawer);
+  void mountOutboundOwner(drawer);
   qs<HTMLButtonElement>("#leadWhatsAppButton", drawer)?.addEventListener("click", () => {
     void openWhatsAppForContact({ phone: lead.phone || "", displayName: lead.contact || lead.company });
   });
@@ -17328,7 +17336,8 @@ async function loadIntentFollowupQueue() {
   const includeIgnored = qs<HTMLInputElement>("#intentFollowupIncludeIgnored")?.checked === true;
   try {
     const callbackDue = qs<HTMLSelectElement>("#intentFollowupCallbackDue")?.value || "";
-    const result = await api<IntentFollowupQueueResponse>(`/api/intent-followup-queue${intentFollowupQuery({ agentId: agent, outcome, includeIgnored, callbackDue })}`);
+    const owner = qs<HTMLSelectElement>("#intentFollowupOwner")?.value || "";
+    const result = await api<IntentFollowupQueueResponse>(`/api/intent-followup-queue${intentFollowupQuery({ agentId: agent, outcome, includeIgnored, callbackDue, owner })}`);
     const agentSelect = qs<HTMLSelectElement>("#intentFollowupAgent");
     if (agentSelect) {
       const selected = result.scope === "self" ? (result.agents?.[0]?.cccUserId || "") : agent;
@@ -17534,12 +17543,61 @@ async function submitCallbackSchedule(form: HTMLFormElement, cancel = false) {
   }
 }
 
+let outboundOwnerPending = false;
+
+async function mountOutboundOwner(root: ParentNode) {
+  const host = root.querySelector<HTMLElement>("[data-outbound-owner-host]");
+  if (!host) return;
+  const targetType = host.dataset.targetType || "";
+  const targetId = host.dataset.targetId || "";
+  if (!targetType || !targetId) return;
+  try {
+    const result = await api<OutboundOwnerPanel>(`/api/outbound-owners?targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`);
+    host.innerHTML = renderOutboundOwnerPanel({ ...result, targetType, targetId });
+    host.querySelector<HTMLFormElement>("[data-outbound-owner-form]")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void saveOutboundOwner(host);
+    });
+  } catch (error) {
+    host.innerHTML = `<p data-outbound-owner="1">${escapeHtml(error instanceof Error ? error.message : "外呼负责坐席没有加载")}</p>`;
+  }
+}
+
+async function saveOutboundOwner(host: HTMLElement) {
+  if (outboundOwnerPending) return;
+  const form = host.querySelector<HTMLFormElement>("[data-outbound-owner-form]");
+  if (!form) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  const agentId = form.querySelector<HTMLSelectElement>("[data-outbound-owner-agent]")?.value || "";
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  outboundOwnerPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(agentId ? "/api/outbound-owners" : "/api/outbound-owners/clear", {
+      method: "POST",
+      body: JSON.stringify(agentId ? outboundOwnerAssignBody({ targetType, targetId, agentId }) : outboundOwnerClearBody({ targetType, targetId }))
+    });
+    toast(result.message || (agentId ? "已保存外呼负责坐席" : "已清除外呼负责坐席"));
+    await mountOutboundOwner(host.parentElement || host);
+    void loadIntentFollowupQueue();
+    void loadCallbackReminders();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "外呼负责坐席没有保存", "error");
+  } finally {
+    outboundOwnerPending = false;
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadCallbackReminders() {
   const list = qs<HTMLElement>("#dashboardCallbackScheduleList");
   if (!list) return;
   const due = qs<HTMLSelectElement>("#dashboardCallbackScheduleDue")?.value || "due";
+  const owner = qs<HTMLSelectElement>("#dashboardCallbackScheduleOwner")?.value === "mine" ? "mine" : "";
   try {
-    const result = await api<CallbackReminderResponse>(`/api/callback-schedules?due=${encodeURIComponent(due)}`);
+    const ownerQuery = owner ? `&owner=${encodeURIComponent(owner)}` : "";
+    const result = await api<CallbackReminderResponse>(`/api/callback-schedules?due=${encodeURIComponent(due)}${ownerQuery}`);
     list.innerHTML = renderCallbackReminderList(result.items);
   } catch (error) {
     list.innerHTML = renderCallbackReminderFailure(error instanceof Error ? error.message : "回拨预约没有加载");
@@ -18328,6 +18386,7 @@ function renderCustomerDetailPage(customer?: Customer) {
         <div class="customer-page-copy">
           <div class="customer-page-title"><h1>${escapeHtml(current.company)}</h1>${customerGradeHtml(current)}${badge(current.hasWonDeal ? "成交客户" : "未成交", current.hasWonDeal ? "green" : "gray")}</div>
           <p>${escapeHtml(current.country)} · ${escapeHtml(current.contact)} · 负责人 ${escapeHtml(current.ownerName || "未分配")}</p>
+          <div data-outbound-owner-host="1" data-target-type="customer" data-target-id="${escapeHtml(current.id)}"></div>
         </div>
       </div>
       <div class="customer-page-actions"><button class="${whatsAppEntryClass(contacts.whatsapp)}" type="button" data-customer-page-whatsapp ${whatsAppEntryAttrs(contacts.whatsapp)}>WhatsApp</button><button class="btn primary ai-entry-button" type="button" data-customer-page-research>${researchButtonIcon()}AI 背调</button><button class="btn" type="button" data-customer-page-email>写开发信</button><button class="btn" type="button" data-customer-page-journey>开发信过程</button><button class="btn" type="button" data-customer-page-edit>编辑客户</button><button class="btn" type="button" data-customer-page-follow>新增跟进</button><button class="btn" type="button" data-customer-page-release>放入公池</button></div>
@@ -18436,6 +18495,7 @@ function renderCustomerDetailPage(customer?: Customer) {
     button.addEventListener("click", () => launchCustomerContact(current, button.dataset.customerContact as "email" | "phone" | "whatsapp" | "wechat"));
   });
   bindOutboundCallButtons(box);
+  void mountOutboundOwner(box);
   void loadCustomerCommunicationInsights(current);
   void loadCustomerDevEmailHistory(current);
   renderCustomerJourney(current, qs<HTMLElement>("#customerPageJourneyTimeline", box));
@@ -18943,7 +19003,7 @@ function renderCustomerDrawer(customer?: Customer) {
   const activeDealCount = customer.activeDealCount || 0;
   drawer.innerHTML = `
     <div class="drawer-head">
-      <div><h2>${escapeHtml(customer.company)}</h2><p>${escapeHtml(customer.country)} · ${escapeHtml(customer.contact)} · ${escapeHtml(customer.ownerName || "未分配")} · ${escapeHtml(pipelineStage)}</p></div>
+      <div><h2>${escapeHtml(customer.company)}</h2><p>${escapeHtml(customer.country)} · ${escapeHtml(customer.contact)} · ${escapeHtml(customer.ownerName || "未分配")} · ${escapeHtml(pipelineStage)}</p><div data-outbound-owner-host="1" data-target-type="customer" data-target-id="${escapeHtml(customer.id)}"></div></div>
       <div class="inline-actions">${customer.nextReminder.includes("逾期") ? badge("报价未回复", "red") : badge("跟进中", "green")}<button class="btn" type="button" data-open-customer-page>客户全景</button><button class="btn icon-only" id="customerDrawerClose" title="关闭" aria-label="关闭客户详情">×</button></div>
     </div>
     <section class="customer-time-card" aria-label="客户世界时间">
@@ -19022,6 +19082,7 @@ function renderCustomerDrawer(customer?: Customer) {
   void loadCustomerCommunicationDrawerInsights(customer);
   qs("#customerDrawerClose", drawer)?.addEventListener("click", closeCustomerDrawer);
   bindOutboundCallButtons(drawer);
+  void mountOutboundOwner(drawer);
   qs<HTMLButtonElement>("[data-open-customer-page]", drawer)?.addEventListener("click", () => openCustomerDetailPage(customer));
   qs<HTMLButtonElement>("[data-customer-whatsapp-drawer]", drawer)?.addEventListener("click", () => {
     void openWhatsAppForContact({ phone: customerContactDetails(customer).whatsapp, displayName: customer.contact || customer.company });
@@ -37978,6 +38039,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
       <h2>${escapeHtml(item.company)}</h2>
       <p>${escapeHtml(item.country || "国家待确认")} · ${escapeHtml(item.business || "业务待维护")} · ${escapeHtml(websiteDomain(item.website || ""))}</p>
       <p class="prospect-shortlist-joined">加入搜客清单：${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</p>
+      <div data-outbound-owner-host="1" data-target-type="prospect" data-target-id="${escapeHtml(item.id)}"></div>
     </div>
     ${renderProspectAcquisitionStage(item)}
     ${renderProspectCoveragePool(item)}
@@ -38062,6 +38124,7 @@ function renderProspectDetail(item?: WebsiteOpportunity | null) {
     </div>
   `;
   bindOutboundCallButtons(box);
+  void mountOutboundOwner(box);
   qs<HTMLButtonElement>("#prospectSaveButton", box)?.addEventListener("click", (event) => void saveProspectVerification(item, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectRestoreButton", box)?.addEventListener("click", (event) => void updateProspectBatch("restore", [item.id], event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#prospectDetailSyncButton", box)?.addEventListener("click", (event) => void convertProspectsToLeads([item.id], event.currentTarget as HTMLButtonElement));
