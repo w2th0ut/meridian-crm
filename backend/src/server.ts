@@ -302,6 +302,7 @@ import { listCallScriptUsage, saveCallScriptUsage } from "./call-script-usage.js
 import { exportCallScriptReport, listCallScriptReport } from "./call-script-report.js";
 import { createCallScriptScenario, disableCallScriptScenario, listCallScriptScenarios, renameCallScriptScenario, reorderCallScriptScenario } from "./call-script-scenario.js";
 import { addCallRecordTag, createCallTag, disableCallTag, listCallTags, removeCallRecordTag, renameCallTag } from "./call-tag.js";
+import { applyCallTagObjectList, readObjectCallTags } from "./call-tag-view.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
   assignOutboundOwner,
@@ -5947,7 +5948,7 @@ function sendCustomerOwnershipError(res: Response, error: unknown) {
   return false;
 }
 
-app.get("/api/customers", requireAuth, (req, res) => {
+app.get("/api/customers", requireAuth, asyncRoute(async (req, res) => {
   const parsedScope = z.enum(["mine", "public", "team"]).safeParse(req.query.scope || "mine");
   if (!parsedScope.success) {
     res.status(400).json({ message: "客户范围参数无效" });
@@ -5966,12 +5967,23 @@ app.get("/api/customers", requireAuth, (req, res) => {
     .map((customer) => customerWithPipeline(customer, req.user!))
     .filter((customer) => outboundOwnerMatchesList(store, req.user!, "customer", customer.id, ownerFilter))
     .map((customer) => ({ ...customer, ...outboundOwnerView(store, req.user!.teamId, "customer", customer.id) }));
+  const tagged = await applyCallTagObjectList(store, req.user!, "customer", customers, req.query as Record<string, unknown>);
+  if (!tagged.ok) {
+    res.status(tagged.status).json(tagged.body);
+    return;
+  }
   res.json({
-    customers,
+    customers: tagged.items,
+    ...(tagged.callTagFilters ? { callTagFilters: tagged.callTagFilters } : {}),
     outboundOwnerList: outboundOwnerListMeta(store, req.user!),
     ...customerPoolCounts(req.user!)
   });
-});
+}));
+
+app.get("/api/customers/:id/call-tags", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await readObjectCallTags(getStore(), req.user, "customer", req.params.id, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
 
 app.post("/api/customers", requireAuth, asyncRoute(async (req, res) => {
   const schema = z.object({
@@ -10574,7 +10586,7 @@ app.post("/api/customer-intelligence/:id/reject", requireAuth, asyncRoute(async 
   }
 }));
 
-app.get("/api/leads", requireAuth, (req, res) => {
+app.get("/api/leads", requireAuth, asyncRoute(async (req, res) => {
   const ownerFilter = parseOutboundOwnerListFilter(req.query.outboundOwner);
   if (!ownerFilter) {
     res.status(400).json({ message: "外呼负责坐席筛选无效" });
@@ -10586,8 +10598,22 @@ app.get("/api/leads", requireAuth, (req, res) => {
   const leads = scoped
     .filter((lead) => outboundOwnerMatchesList(store, req.user!, "lead", lead.id, ownerFilter))
     .map((lead) => ({ ...lead, ...outboundOwnerView(store, req.user!.teamId, "lead", lead.id) }));
-  res.json({ leads, outboundOwnerList: outboundOwnerListMeta(store, req.user!) });
-});
+  const tagged = await applyCallTagObjectList(store, req.user!, "lead", leads, req.query as Record<string, unknown>);
+  if (!tagged.ok) {
+    res.status(tagged.status).json(tagged.body);
+    return;
+  }
+  res.json({
+    leads: tagged.items,
+    ...(tagged.callTagFilters ? { callTagFilters: tagged.callTagFilters } : {}),
+    outboundOwnerList: outboundOwnerListMeta(store, req.user!)
+  });
+}));
+
+app.get("/api/leads/:id/call-tags", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await readObjectCallTags(getStore(), req.user, "lead", req.params.id, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
 
 app.get("/api/leads/:id", requireAuth, (req, res) => {
   const store = getStore();

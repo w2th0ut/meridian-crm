@@ -1,6 +1,7 @@
 import { hasIamPermission, hasIamScope, type IamActor } from "./auth.js";
 import { callbackScheduleView } from "./callback-schedule-state.js";
 import { callTagsOnRecord, recordsMatchingCallTag, tagFilterChoices } from "./call-tag.js";
+import { auditCallTagTargetRead, rejectHiddenCallTagTarget } from "./call-tag-view.js";
 import { callScriptUsageView, scriptFilterChoices } from "./call-script-usage.js";
 import { callPhoneValidityFields } from "./phone-validity-state.js";
 import { outboundInstant, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
@@ -79,6 +80,15 @@ export function recordsMatchingScript<T extends { callScriptTemplateId?: string 
   return records.filter((record) => (record.callScriptTemplateId || "") === script);
 }
 
+export function recordsMatchingTarget<T extends { targetType?: string; targetId?: string }>(
+  records: T[],
+  targetType: "customer" | "lead" | null,
+  targetId: string | null
+) {
+  if (!targetType || !targetId) return records;
+  return records.filter((record) => record.targetType === targetType && record.targetId === targetId);
+}
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const AGENT_PATTERN = /^[A-Za-z0-9_@.:-]{1,128}$/;
 
@@ -101,6 +111,9 @@ export interface OutboundCallRecordQuery {
   script: string | null;
   /** null 不筛选。none 是没有标签。其他值是标签 ID。 */
   tag: string | null;
+  /** 同时为空表示不按对象筛。只接受客户或线索。 */
+  targetType: "customer" | "lead" | null;
+  targetId: string | null;
 }
 
 export function splitAgentIds(value: string) {
@@ -218,7 +231,9 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
   const noteRaw = oneQuery(query.note);
   const scriptRaw = oneQuery(query.script);
   const tagRaw = oneQuery(query.tag);
-  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null || noteRaw === null || scriptRaw === null || tagRaw === null) return null;
+  const targetTypeRaw = oneQuery(query.targetType);
+  const targetIdRaw = oneQuery(query.targetId);
+  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null || noteRaw === null || scriptRaw === null || tagRaw === null || targetTypeRaw === null || targetIdRaw === null) return null;
   const agentId = agentRaw || null;
   const from = fromRaw || null;
   const to = toRaw || null;
@@ -248,7 +263,15 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
     else if (TAG_ID.test(tagRaw)) tag = tagRaw;
     else return null;
   }
-  return { agentId, from, to, outcome, note, script, tag };
+  let targetType: "customer" | "lead" | null = null;
+  let targetId: string | null = null;
+  if (targetTypeRaw || targetIdRaw) {
+    if (targetTypeRaw !== "customer" && targetTypeRaw !== "lead") return null;
+    if (!TAG_ID.test(targetIdRaw)) return null;
+    targetType = targetTypeRaw;
+    targetId = targetIdRaw;
+  }
+  return { agentId, from, to, outcome, note, script, tag, targetType, targetId };
 }
 
 async function ensureReadScope(store: CrmStore, user: SessionUser) {
@@ -372,6 +395,10 @@ export async function listOutboundCallRecords(
   if (parsed.agentId && !access.tenantWide && !access.allowed.has(parsed.agentId)) {
     return { status: 403, body: { result: "rejected", reason: "forbidden", message: "不能查看这个坐席的通话记录" } };
   }
+  if (parsed.targetType && parsed.targetId) {
+    const hidden = await rejectHiddenCallTagTarget(store, user, parsed.targetType, parsed.targetId, parsed.tag && parsed.tag !== "none" ? parsed.tag : "");
+    if (hidden) return hidden;
+  }
   const selected = selectOutboundCallRecords({
     records: store.outboundCallRecords,
     teamId: user.teamId,
@@ -382,15 +409,29 @@ export async function listOutboundCallRecords(
     to: parsed.to,
     timeZone: access.timeZone
   });
-  const listed = recordsMatchingCallTag(
-    recordsMatchingScript(
-      recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
-      parsed.script
+  const listed = recordsMatchingTarget(
+    recordsMatchingCallTag(
+      recordsMatchingScript(
+        recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note),
+        parsed.script
+      ),
+      parsed.tag,
+      store.callRecordTags,
+      user.teamId
     ),
-    parsed.tag,
-    store.callRecordTags,
-    user.teamId
+    parsed.targetType,
+    parsed.targetId
   );
+  if (parsed.targetType && parsed.targetId) {
+    await auditCallTagTargetRead(
+      store,
+      user,
+      parsed.targetType,
+      parsed.targetId,
+      parsed.tag && parsed.tag !== "none" ? parsed.tag : "",
+      listed.length
+    );
+  }
   const summary = summarizeOutboundCallRecords(selected);
   const generated = new Set(
     store.outboundMissedFollowUps

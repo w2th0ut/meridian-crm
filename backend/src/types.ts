@@ -5513,6 +5513,25 @@ export interface CallTagAudit {
 }
 
 /**
+ * 一次查看客户或线索上的通话标签，或一次按通话曾打标签筛选列表。
+ * 也记下从详情点进该对象通话记录时的查看。不记标签名称，不记号码，也不记密钥。
+ * 再看一次或再筛一次会再写一行。校验失败不写。
+ */
+export interface CallTagViewAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "filter";
+  targetType: "customer" | "lead" | "";
+  targetId: string;
+  tagId: string;
+  rowCount: number;
+  result: "read" | "filtered" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
