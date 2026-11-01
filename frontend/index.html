@@ -28414,11 +28414,19 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div class="section-head">
               <div class="section-title"><div><h2>外呼话术</h2><p id="dashboardCallScriptScope">按场景查看启用的话术</p></div></div>
             </div>
-            <p id="dashboardCallScriptNote" class="dashboard-call-script-note">话术是本地纯文本。坐席只能按场景查看启用的模板，不能改，也不能看历史版本或恢复。坐席可以单条收藏或取消收藏自己的启用话术。收藏的排在前面，也可以只看收藏。停用后这一条收藏还在，置灰不能再选，也不会被删掉。不能改别人的收藏。管理员可以单条新增、编辑或停用，停用后仍留在库里。编辑会留下旧版本。管理员可以在话术详情里查看版本列表和某一版正文，并单条恢复；恢复本身也会留下新版本。通话上记下的仍是模板，不是某一版。管理员还可以看到每条话术的使用次数，也就是当前被多少通本租户通话选用。这个次数只读，页面不另算比率。这里没有外呼按钮，不会自动拨号，也不会批量拨号。要拨打仍须人工点击现有的一键外呼，并走原来的门禁。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <p id="dashboardCallScriptNote" class="dashboard-call-script-note">话术是本地纯文本。坐席只能按场景查看启用的模板，不能改，也不能看历史版本或恢复。坐席可以单条收藏或取消收藏自己的启用话术。收藏的排在前面，也可以只看收藏。停用后这一条收藏还在，置灰不能再选，也不会被删掉。不能改别人的收藏。管理员可以单条新增、编辑或停用，停用后仍留在库里。管理员也可以单条新增、重命名、调整排序或停用话术场景。停用的场景不删行，下面的话术仍可查看，但新建和编辑不能再选它。坐席只能查看场景，不能改。编辑会留下旧版本。管理员可以在话术详情里查看版本列表和某一版正文，并单条恢复；恢复本身也会留下新版本。通话上记下的仍是模板，不是某一版。管理员还可以看到每条话术的使用次数，也就是当前被多少通本租户通话选用。这个次数只读，页面不另算比率。这里没有外呼按钮，不会自动拨号，也不会批量拨号。要拨打仍须人工点击现有的一键外呼，并走原来的门禁。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
             <label>场景<select id="dashboardCallScriptScenario"><option value="">全部启用</option><option value="first_call">首呼</option><option value="follow_up">回访</option><option value="missed_callback">未接通回拨</option><option value="objection">异议处理</option></select></label>
             <label><input id="dashboardCallScriptFavoritesOnly" type="checkbox">只看收藏</label>
             <div id="dashboardCallScriptList"><div class="empty-cell">正在读取</div></div>
             <div id="dashboardCallScriptManage" hidden></div>
+            <div id="dashboardCallScriptScenarios" hidden>
+              <h3>话术场景</h3>
+              <p>一次只处理一个场景。新增、重命名、调整排序和停用都单独保存。停用后这一行还在，名称和顺序仍按场景表展示。下面已有的话术仍可查看。新建和编辑话术时，不能再选已停用的场景。</p>
+              <div id="dashboardCallScriptScenarioList"></div>
+              <label>新场景名称<input id="dashboardCallScriptScenarioName" maxlength="40" autocomplete="off"></label>
+              <button class="btn" type="button" id="dashboardCallScriptScenarioCreate">新增场景</button>
+              <p id="dashboardCallScriptScenarioMessage"></p>
+            </div>
             <div id="dashboardCallScriptVersions" hidden></div>
             <div id="dashboardCallScriptUsage" hidden></div>
             <form id="dashboardCallScriptForm" hidden>

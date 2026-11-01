@@ -133,7 +133,7 @@ import {
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
 import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectIndustryAudits, prospectNoteAudits, prospectPriorityAudits, prospectTagAudits } from "./data.js";
-import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallExportAudit, CallNoteAudit, CallOutcomeAudit, CallScriptAudit, CallScriptScenario, CallScriptTemplate, CallScriptUsageAudit, CallScriptFavorite, CallScriptFavoriteAudit, CallScriptReportAudit, CallScriptVersion, CallbackSchedule, CallbackScheduleAudit, ContactPhone, ContactPhoneAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OutboundOwner, OutboundOwnerAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallExportAudit, CallNoteAudit, CallOutcomeAudit, CallScriptAudit, CallScriptScenario, CallScriptTemplate, CallScriptUsageAudit, CallScriptFavorite, CallScriptFavoriteAudit, CallScriptReportAudit, CallScriptScenarioAudit, CallScriptScenarioRow, CallScriptVersion, CallbackSchedule, CallbackScheduleAudit, ContactPhone, ContactPhoneAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OutboundOwner, OutboundOwnerAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import { readProspectIndustry } from "./prospect-industry.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
@@ -1921,6 +1921,8 @@ export async function createMysqlStore(
 		    callScriptFavorites: await loadCallScriptFavorites(pool),
 		    callScriptFavoriteAudits: await loadCallScriptFavoriteAudits(pool),
 		    callScriptReportAudits: await loadCallScriptReportAudits(pool),
+		    callScriptScenarios: await loadCallScriptScenarios(pool),
+		    callScriptScenarioAudits: await loadCallScriptScenarioAudits(pool),
 		    aliyunAgentMappings: await loadAliyunAgentMappings(pool),
 		    agentMappingAudits: await loadAgentMappingAudits(pool),
 		    aliyunScreenPops: await loadAliyunScreenPops(pool),
@@ -6409,6 +6411,66 @@ async function ensureSchema(pool: mysql.Pool) {
     INDEX idx_call_script_report_audits_team(team_id, occurred_at),
     INDEX idx_call_script_report_audits_actor(actor_id, occurred_at)
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS call_script_scenarios (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    code VARCHAR(32) NOT NULL,
+    name VARCHAR(40) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    created_by VARCHAR(64) NOT NULL DEFAULT '',
+    updated_by VARCHAR(64) NOT NULL DEFAULT '',
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL,
+    disabled_at DATETIME NULL,
+    UNIQUE KEY uniq_call_script_scenarios_code(team_id, code),
+    INDEX idx_call_script_scenarios_team(team_id, sort_order, enabled)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS call_script_scenario_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    scenario_id VARCHAR(64) NOT NULL DEFAULT '',
+    action_code VARCHAR(16) NOT NULL DEFAULT '',
+    previous_value VARCHAR(500) NOT NULL DEFAULT '',
+    next_value VARCHAR(500) NOT NULL DEFAULT '',
+    result_code VARCHAR(16) NOT NULL DEFAULT '',
+    reason_code VARCHAR(64) NOT NULL DEFAULT '',
+    INDEX idx_call_script_scenario_audits_team(team_id, occurred_at),
+    INDEX idx_call_script_scenario_audits_scenario(scenario_id),
+    INDEX idx_call_script_scenario_audits_actor(actor_id, occurred_at)
+  )`);
+  await pool.query(`INSERT INTO call_script_scenarios (id, team_id, code, name, sort_order, enabled, created_by, updated_by, created_at, updated_at)
+    SELECT CONCAT('css_', SUBSTRING(MD5(CONCAT(existing.team_id, ':', existing.scenario)), 1, 20)),
+      existing.team_id,
+      existing.scenario,
+      CASE existing.scenario
+        WHEN 'first_call' THEN '首呼'
+        WHEN 'follow_up' THEN '回访'
+        WHEN 'missed_callback' THEN '未接通回拨'
+        WHEN 'objection' THEN '异议处理'
+        ELSE LEFT(existing.scenario, 40)
+      END,
+      CASE existing.scenario
+        WHEN 'first_call' THEN 10
+        WHEN 'follow_up' THEN 20
+        WHEN 'missed_callback' THEN 30
+        WHEN 'objection' THEN 40
+        ELSE 100
+      END,
+      1, '', '', UTC_TIMESTAMP(), UTC_TIMESTAMP()
+    FROM (
+      SELECT DISTINCT team_id, scenario
+      FROM call_script_templates
+      WHERE scenario <> ''
+    ) AS existing
+    WHERE NOT EXISTS (
+      SELECT 1 FROM (
+        SELECT team_id, code FROM call_script_scenarios
+      ) AS saved
+      WHERE saved.team_id = existing.team_id AND saved.code = existing.scenario
+    )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS intent_followup_arrangements (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -13081,7 +13143,7 @@ async function loadOutboundOwnerAudits(pool: mysql.Pool): Promise<OutboundOwnerA
 }
 
 function callScriptScenario(value: unknown): CallScriptScenario {
-  if (value === "follow_up" || value === "missed_callback" || value === "objection") return value;
+  if (typeof value === "string" && /^[a-z][a-z0-9_]{0,31}$/.test(value)) return value;
   return "first_call";
 }
 
@@ -13174,6 +13236,42 @@ function callScriptReportAction(value: unknown): CallScriptReportAudit["action"]
 function callScriptReportResult(value: unknown): CallScriptReportAudit["result"] {
   if (value === "read" || value === "exported" || value === "rejected") return value;
   return "rejected";
+}
+
+function callScriptScenarioAction(value: unknown): CallScriptScenarioAudit["action"] {
+  if (value === "create" || value === "rename" || value === "reorder" || value === "disable" || value === "read") return value;
+  return "create";
+}
+
+async function loadCallScriptScenarios(pool: mysql.Pool): Promise<CallScriptScenarioRow[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM call_script_scenarios ORDER BY sort_order ASC, name ASC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    code: callScriptScenario(row.code),
+    name: row.name || "",
+    sortOrder: Number.isInteger(Number(row.sort_order)) ? Number(row.sort_order) : 0,
+    enabled: Number(row.enabled) === 1 || row.enabled === true,
+    createdBy: row.created_by || "",
+    updatedBy: row.updated_by || "",
+    createdAt: storedIso(row.created_at),
+    updatedAt: storedIso(row.updated_at),
+    disabledAt: row.disabled_at ? storedIso(row.disabled_at) : ""
+  }));
+}
+
+async function loadCallScriptScenarioAudits(pool: mysql.Pool): Promise<CallScriptScenarioAudit[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM call_script_scenario_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    actorId: row.actor_id || "",
+    at: storedIso(row.occurred_at),
+    scenarioId: row.scenario_id || "",
+    action: callScriptScenarioAction(row.action_code),
+    previousValue: row.previous_value || "",
+    nextValue: row.next_value || "",
+    result: row.result_code === "rejected" ? "rejected" : "updated",
+    reason: row.reason_code || ""
+  }));
 }
 
 async function loadCallScriptReportAudits(pool: mysql.Pool): Promise<CallScriptReportAudit[]> {
@@ -14019,6 +14117,8 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "call_script_favorites", store.callScriptFavorites, (item) => [item.id, item.teamId, item.actorId, item.templateId, item.createdAt ? mysqlDate(item.createdAt) : null], "(id,team_id,actor_id,template_id,created_at)");
 	    await replaceRows(connection, "call_script_favorite_audits", store.callScriptFavoriteAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.templateId || "", item.ownerId || "", item.action, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,template_id,owner_id,action_code,result_code,reason_code)");
 	    await replaceRows(connection, "call_script_report_audits", store.callScriptReportAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.filters || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,filters_json,row_count,result_code,reason_code)");
+	    await replaceRows(connection, "call_script_scenarios", store.callScriptScenarios, (item) => [item.id, item.teamId, item.code, item.name || "", Number.isInteger(item.sortOrder) ? item.sortOrder : 0, item.enabled ? 1 : 0, item.createdBy || "", item.updatedBy || "", item.createdAt ? mysqlDate(item.createdAt) : null, item.updatedAt ? mysqlDate(item.updatedAt) : null, item.disabledAt ? mysqlDate(item.disabledAt) : null], "(id,team_id,code,name,sort_order,enabled,created_by,updated_by,created_at,updated_at,disabled_at)");
+	    await replaceRows(connection, "call_script_scenario_audits", store.callScriptScenarioAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.scenarioId || "", item.action, item.previousValue || "", item.nextValue || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,scenario_id,action_code,previous_value,next_value,result_code,reason_code)");
 	    await replaceRows(connection, "intent_followup_arrangements", store.intentFollowupArrangements, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.callRecordId, item.activityId, item.nextFollowAt, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,target_type,target_id,call_record_id,activity_id,next_follow_at,suppressed)");
 	    await replaceRows(connection, "intent_followup_ignores", store.intentFollowupIgnores, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.callRecordId, item.active ? 1 : 0], "(id,team_id,actor_id,occurred_at,target_type,target_id,call_record_id,active)");
 	    await replaceRows(connection, "intent_followup_queue_audits", store.intentFollowupQueueAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType, item.targetId, item.callRecordId, item.activityId, item.nextFollowAt, item.result, item.reason, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,call_record_id,activity_id,next_follow_at,result_code,reason_code,suppressed)");

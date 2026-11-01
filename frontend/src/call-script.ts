@@ -43,9 +43,19 @@ export interface CallScriptFavoriteView {
   selectable: boolean;
 }
 
+export interface CallScriptScenarioChoice {
+  id: string;
+  label: string;
+  scenarioId?: string;
+  code?: string;
+  name?: string;
+  sortOrder?: number;
+  enabled?: boolean;
+}
+
 export interface CallScriptListResponse {
   canManage?: boolean;
-  scenarios?: Array<{ id: string; label: string }>;
+  scenarios?: CallScriptScenarioChoice[];
   templates?: CallScriptTemplateView[];
 }
 
@@ -58,19 +68,20 @@ export function escapeCallScriptText(value: string) {
     .replace(/'/g, "&#39;");
 }
 
-export function callScriptScenarioLabel(scenario: string) {
-  return CALL_SCRIPT_SCENARIOS.find((item) => item.id === scenario)?.label || scenario;
+export function callScriptScenarioLabel(scenario: string, scenarios: ReadonlyArray<{ id: string; label: string }> = CALL_SCRIPT_SCENARIOS) {
+  return scenarios.find((item) => item.id === scenario)?.label || CALL_SCRIPT_SCENARIOS.find((item) => item.id === scenario)?.label || scenario;
 }
 
 export function filterEnabledCallScripts(templates: CallScriptTemplateView[], scenario: string) {
   return templates.filter((item) => item.enabled !== false && (!scenario || item.scenario === scenario));
 }
 
-export function renderCallScriptScenarioOptions(selected = "", includeAll = false) {
+export function renderCallScriptScenarioOptions(selected = "", includeAll = false, scenarios: ReadonlyArray<{ id: string; label: string; enabled?: boolean }> = CALL_SCRIPT_SCENARIOS, writable = false) {
+  const rows = writable ? scenarios.filter((item) => item.enabled !== false) : scenarios;
   const all = includeAll ? `<option value=""${selected ? "" : " selected"}>全部启用</option>` : "";
-  return all + CALL_SCRIPT_SCENARIOS.map((item) => {
+  return all + rows.map((item) => {
     const picked = item.id === selected ? " selected" : "";
-    return `<option value="${item.id}"${picked}>${item.label}</option>`;
+    return `<option value="${escapeCallScriptText(item.id)}"${picked}>${escapeCallScriptText(item.label)}</option>`;
   }).join("");
 }
 
@@ -117,10 +128,40 @@ export function renderCallScriptList(templates: CallScriptTemplateView[], scenar
   }).join("");
 }
 
-export function renderCallScriptAside(templates: CallScriptTemplateView[], scenario = "first_call", options: CallScriptListOptions = {}) {
-  const selected = CALL_SCRIPT_SCENARIOS.some((item) => item.id === scenario) ? scenario : "first_call";
+export function renderCallScriptAside(templates: CallScriptTemplateView[], scenario = "first_call", options: CallScriptListOptions = {}, scenarios: ReadonlyArray<{ id: string; label: string; enabled?: boolean }> = CALL_SCRIPT_SCENARIOS) {
+  const list: ReadonlyArray<{ id: string; label: string; enabled?: boolean }> = scenarios.length ? scenarios : CALL_SCRIPT_SCENARIOS;
+  const selected = list.some((item) => item.id === scenario) ? scenario : (list[0]?.id || "first_call");
   const checked = options.favoritesOnly ? " checked" : "";
-  return `<div class="call-script-aside" data-call-script-aside="1"><label>话术<select data-call-script-scenario>${renderCallScriptScenarioOptions(selected)}</select></label><label><input type="checkbox" data-call-script-favorites-only${checked}>只看收藏</label><div data-call-script-view>${renderCallScriptList(templates, selected, options)}</div></div>`;
+  return `<div class="call-script-aside" data-call-script-aside="1"><label>话术<select data-call-script-scenario>${renderCallScriptScenarioOptions(selected, false, list)}</select></label><label><input type="checkbox" data-call-script-favorites-only${checked}>只看收藏</label><div data-call-script-view>${renderCallScriptList(templates, selected, options)}</div></div>`;
+}
+
+export function renderCallScriptScenarioAdmin(scenarios: CallScriptScenarioChoice[]) {
+  if (!scenarios.length) return `<div class="empty-cell" data-call-script-scenario-empty="1">还没有话术场景。</div>`;
+  return scenarios.map((item) => {
+    const code = item.code || item.id;
+    const name = item.name || item.label;
+    const state = item.enabled === false ? "已停用" : "启用";
+    const disable = item.enabled === false
+      ? ""
+      : `<button class="btn" type="button" data-call-script-scenario-disable="${escapeCallScriptText(code)}">停用</button>`;
+    return `<p class="call-script-manage-row" data-call-script-scenario-row="${escapeCallScriptText(code)}" data-call-script-scenario-enabled="${item.enabled === false ? "0" : "1"}"><input data-call-script-scenario-name="${escapeCallScriptText(code)}" value="${escapeCallScriptText(name)}" maxlength="40" autocomplete="off"><input data-call-script-scenario-sort="${escapeCallScriptText(code)}" value="${escapeCallScriptText(String(item.sortOrder ?? 0))}" inputmode="numeric" autocomplete="off"><span>${state}</span><button class="btn" type="button" data-call-script-scenario-rename="${escapeCallScriptText(code)}">重命名</button><button class="btn" type="button" data-call-script-scenario-reorder="${escapeCallScriptText(code)}">保存排序</button>${disable}</p>`;
+  }).join("");
+}
+
+export function callScriptScenarioCreateBody(name: string) {
+  return { name: name.trim() };
+}
+
+export function callScriptScenarioRenameBody(code: string, name: string) {
+  return { code, name: name.trim() };
+}
+
+export function callScriptScenarioReorderBody(code: string, sortOrder: number) {
+  return { code, sortOrder };
+}
+
+export function callScriptScenarioDisableBody(code: string) {
+  return { code };
 }
 
 export function callScriptFavoriteBody(templateId: string) {
@@ -205,17 +246,25 @@ export function renderCallScriptVersionPanel(input: {
   return `<div data-call-script-version-panel="1" data-call-script-template="${escapeCallScriptText(input.templateId)}"><h3>话术详情</h3><p>${escapeCallScriptText(input.title)}</p>${rows}${opened}</div>`;
 }
 
-export function readCallScriptDraft(title: string, scenario: string, body: string, language: string):
+export function readCallScriptDraft(
+  title: string,
+  scenario: string,
+  body: string,
+  language: string,
+  scenarios?: ReadonlyArray<{ id: string; enabled?: boolean }>
+):
   | { ok: true; title: string; scenario: string; body: string; language: string }
   | { ok: false; message: string } {
   const nextTitle = title.trim();
   const nextBody = body.trim();
   const nextLanguage = language.trim();
+  const options: ReadonlyArray<{ id: string; enabled?: boolean }> = scenarios || CALL_SCRIPT_SCENARIOS;
   if (!nextTitle || Array.from(nextTitle).length > 80 || /[\r\n]/.test(title)) {
     return { ok: false, message: "标题必填，最多 80 个字符" };
   }
-  if (!CALL_SCRIPT_SCENARIOS.some((item) => item.id === scenario)) {
-    return { ok: false, message: "请选择场景" };
+  const chosen = options.find((item) => item.id === scenario);
+  if (!chosen || chosen.enabled === false) {
+    return { ok: false, message: "请选择启用中的场景" };
   }
   if (!nextBody || Array.from(nextBody).length > 2000) {
     return { ok: false, message: "正文必填，最多 2000 个字符" };

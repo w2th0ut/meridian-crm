@@ -300,6 +300,7 @@ import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from 
 import { createCallScript, disableCallScript, listCallScriptVersions, listCallScripts, readCallScriptVersion, restoreCallScriptVersion, updateCallScript } from "./call-script.js";
 import { listCallScriptUsage, saveCallScriptUsage } from "./call-script-usage.js";
 import { exportCallScriptReport, listCallScriptReport } from "./call-script-report.js";
+import { createCallScriptScenario, disableCallScriptScenario, listCallScriptScenarios, renameCallScriptScenario, reorderCallScriptScenario } from "./call-script-scenario.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
   assignOutboundOwner,
@@ -9052,6 +9053,31 @@ app.post("/api/call-script-favorites", requireAuth, asyncRoute(async (req, res) 
 
 app.get("/api/call-script-usage", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallScriptUsage(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-script-scenarios", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallScriptScenarios(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-scenarios/rename", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await renameCallScriptScenario(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-scenarios/reorder", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await reorderCallScriptScenario(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-scenarios/disable", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await disableCallScriptScenario(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-scenarios", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await createCallScriptScenario(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
