@@ -5000,6 +5000,40 @@ export interface CallOutcomeAudit {
 }
 
 /**
+ * 从意向回访队列为同一个对象安排过的下次跟进。
+ * 租户、对象类型和对象 ID 唯一，用来保证不重复生成。
+ */
+export interface IntentFollowupArrangement {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  callRecordId: string;
+  activityId: string;
+  nextFollowAt: string;
+  suppressed: boolean;
+}
+
+/** 安排回访的每次操作。不记完整号码，也不记密钥。 */
+export interface IntentFollowupQueueAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "schedule";
+  targetType: "customer" | "lead" | "prospect" | "";
+  targetId: string;
+  callRecordId: string;
+  activityId: string;
+  nextFollowAt: string;
+  result: "created" | "duplicate" | "rejected";
+  reason: string;
+  suppressed: boolean;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
