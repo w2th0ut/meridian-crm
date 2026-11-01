@@ -79,7 +79,7 @@ import {
   type CallbackReminderResponse
 } from "./callback-schedule";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
-import { callWrapupBody } from "./call-wrapup";
+import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
   renderCallWrapupCounts,
   renderCallWrapupQueue,
@@ -18250,10 +18250,16 @@ async function submitCallWrapup(form: HTMLFormElement) {
   const note = form.querySelector<HTMLTextAreaElement>("[data-wrapup-note]")?.value ?? "";
   const noteTags = [...form.querySelectorAll<HTMLInputElement>("[data-wrapup-note-tag]:checked")].map((item) => item.value);
   const templateId = form.querySelector<HTMLSelectElement>("[data-wrapup-script]")?.value || "";
-  const tagId = form.querySelector<HTMLSelectElement>("[data-wrapup-tag]")?.value || "";
-  const tagAction = form.querySelector<HTMLSelectElement>("[data-wrapup-tag-action]")?.value === "remove" ? "remove" : "add";
-  if (included.has("callTag") && !tagId) {
-    toast("请选择通话标签", "error");
+  const callTags = [
+    ...[...form.querySelectorAll<HTMLInputElement>("[data-wrapup-tag-add]:checked")].map((item) => ({ tagId: item.value, action: "add" as const })),
+    ...[...form.querySelectorAll<HTMLInputElement>("[data-wrapup-tag-remove]:checked")].map((item) => ({ tagId: item.value, action: "remove" as const }))
+  ];
+  if (included.has("callTag") && !callTags.length) {
+    toast("请选择要添加或去掉的通话标签", "error");
+    return;
+  }
+  if (callTags.length > CALL_WRAPUP_TAG_LIMIT) {
+    toast(`一次最多添加或去掉 ${CALL_WRAPUP_TAG_LIMIT} 个通话标签`, "error");
     return;
   }
   const cancelCallback = form.querySelector<HTMLInputElement>("[data-wrapup-callback-cancel]")?.checked === true;
@@ -18267,7 +18273,7 @@ async function submitCallWrapup(form: HTMLFormElement) {
     outcome: included.has("outcome") ? { outcome: outcomeValue, note: outcomeNote } : null,
     note: included.has("note") ? { note, tags: noteTags } : null,
     script: included.has("script") ? { templateId: templateId || null } : null,
-    callTag: included.has("callTag") ? { tagId, action: tagAction } : null,
+    callTags: included.has("callTag") ? callTags : null,
     callback: included.has("callback")
       ? (cancelCallback ? { cancel: true } : { scheduledAt, note: callbackNote })
       : null

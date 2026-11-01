@@ -506,6 +506,15 @@ function presented(store: CrmStore, record: OutboundCallRecord, access: { timeZo
   };
 }
 
+/**
+ * 单独的添加和去掉接口不传这个选项。
+ * 通话小结去掉已停用、但仍打在这通上的标签时才传 allowDisabledRemove。
+ * 停用标签仍然不能新加。
+ */
+export interface CallRecordTagChangeOptions {
+  allowDisabledRemove?: boolean;
+}
+
 export async function addCallRecordTag(
   store: CrmStore,
   user: SessionUser | undefined,
@@ -519,9 +528,10 @@ export async function removeCallRecordTag(
   store: CrmStore,
   user: SessionUser | undefined,
   callRecordId: string,
-  body: unknown
+  body: unknown,
+  options?: CallRecordTagChangeOptions
 ) {
-  return changeCallRecordTag(store, user, callRecordId, body, "remove");
+  return changeCallRecordTag(store, user, callRecordId, body, "remove", options);
 }
 
 async function changeCallRecordTag(
@@ -529,7 +539,8 @@ async function changeCallRecordTag(
   user: SessionUser | undefined,
   callRecordId: string,
   body: unknown,
-  action: "add" | "remove"
+  action: "add" | "remove",
+  options?: CallRecordTagChangeOptions
 ) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
   const parsed = parseCallRecordTagRequest(body);
@@ -563,7 +574,8 @@ async function changeCallRecordTag(
     });
   }
   const link = findLink(store, user.teamId, local.id, tag.id);
-  if (!tag.enabled && !(action === "add" && link)) {
+  const disabledRemove = action === "remove" && options?.allowDisabledRemove === true;
+  if (!tag.enabled && !(action === "add" && link) && !disabledRemove) {
     return reject("disabled", validationMessage("disabled"));
   }
   if (action === "add" && link) {

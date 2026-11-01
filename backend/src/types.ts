@@ -5550,6 +5550,8 @@ export interface CallTagReportAudit {
 /**
  * 一次通话小结的提交，或一次被拒绝的尝试。
  * parts 只记这次请求了哪些子项以及各自的结果，不记正文、号码、录音地址或密钥。
+ * addedTagIds / removedTagIds 是标签 id 的 JSON 数组，不记标签名称。
+ * 成功时只记真正加上或去掉的；拒绝时记这次请求要加、要去掉的，不表示已经落库。
  * 各子项自己的审计仍写在原来的表里。校验失败不写这一行。
  */
 export interface CallWrapupAudit {
@@ -5560,6 +5562,8 @@ export interface CallWrapupAudit {
   callRecordId: string;
   action: "submit";
   parts: string;
+  addedTagIds: string;
+  removedTagIds: string;
   result: "updated" | "rejected";
   reason: string;
 }

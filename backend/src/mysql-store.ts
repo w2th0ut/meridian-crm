@@ -6559,10 +6559,14 @@ async function ensureSchema(pool: mysql.Pool) {
     parts_json VARCHAR(1000) NOT NULL DEFAULT '',
     result_code VARCHAR(16) NOT NULL DEFAULT '',
     reason_code VARCHAR(64) NOT NULL DEFAULT '',
+    added_tag_ids VARCHAR(1000) NOT NULL DEFAULT '',
+    removed_tag_ids VARCHAR(1000) NOT NULL DEFAULT '',
     INDEX idx_call_wrapup_audits_team(team_id, occurred_at),
     INDEX idx_call_wrapup_audits_record(call_record_id),
     INDEX idx_call_wrapup_audits_actor(actor_id, occurred_at)
   )`);
+  await ensureColumn(pool, "call_wrapup_audits", "added_tag_ids", "VARCHAR(1000) NOT NULL DEFAULT ''");
+  await ensureColumn(pool, "call_wrapup_audits", "removed_tag_ids", "VARCHAR(1000) NOT NULL DEFAULT ''");
   await pool.query(`CREATE TABLE IF NOT EXISTS call_wrapup_skips (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -13457,6 +13461,8 @@ async function loadCallWrapupAudits(pool: mysql.Pool): Promise<CallWrapupAudit[]
     callRecordId: row.call_record_id || "",
     action: "submit",
     parts: row.parts_json || "",
+    addedTagIds: row.added_tag_ids || "[]",
+    removedTagIds: row.removed_tag_ids || "[]",
     result: callWrapupResult(row.result_code),
     reason: row.reason_code || ""
   }));
@@ -14397,7 +14403,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "call_tag_audits", store.callTagAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.tagId || "", item.callRecordId || "", item.action, item.previousValue || "", item.nextValue || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,tag_id,call_record_id,action_code,previous_value,next_value,result_code,reason_code)");
 	    await replaceRows(connection, "call_tag_view_audits", store.callTagViewAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType || "", item.targetId || "", item.tagId || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,tag_id,row_count,result_code,reason_code)");
 	    await replaceRows(connection, "call_tag_report_audits", store.callTagReportAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.filters || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,filters_json,row_count,result_code,reason_code)");
-	    await replaceRows(connection, "call_wrapup_audits", store.callWrapupAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId || "", item.action, item.parts || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,call_record_id,action_code,parts_json,result_code,reason_code)");
+	    await replaceRows(connection, "call_wrapup_audits", store.callWrapupAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId || "", item.action, item.parts || "", item.result, item.reason || "", item.addedTagIds || "[]", item.removedTagIds || "[]"], "(id,team_id,actor_id,occurred_at,call_record_id,action_code,parts_json,result_code,reason_code,added_tag_ids,removed_tag_ids)");
 	    await replaceRows(connection, "call_wrapup_skips", store.callWrapupSkips, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId, item.reason, item.active ? 1 : 0], "(id,team_id,actor_id,occurred_at,call_record_id,reason_code,active)");
 	    await replaceRows(connection, "call_wrapup_skip_audits", store.callWrapupSkipAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId || "", item.action, item.reason || "", item.result], "(id,team_id,actor_id,occurred_at,call_record_id,action_code,reason_code,result_code)");
 	    await replaceRows(connection, "intent_followup_arrangements", store.intentFollowupArrangements, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.callRecordId, item.activityId, item.nextFollowAt, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,target_type,target_id,call_record_id,activity_id,next_follow_at,suppressed)");
