@@ -45,7 +45,8 @@ import {
   renderOutboundCallRecordSummary,
   renderOutboundCallOutcomeFilterEmpty,
   type OutboundCallRecordDetail,
-  type OutboundCallRecordListResponse
+  type OutboundCallRecordListResponse,
+  type OutboundCallRecordRow
 } from "./outbound-call-records";
 import {
   intentFollowupQuery,
@@ -58,6 +59,7 @@ import {
   renderCallbackReminderList,
   type CallbackReminderResponse
 } from "./callback-schedule";
+import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -816,6 +818,7 @@ interface Customer {
   teamId?: string;
   ownerName?: string;
   activities?: CustomerActivity[];
+  callNotes?: CallNoteTimelineEntry[];
   lastActivityAt?: string;
   pendingIntelligence?: CustomerIntelligenceSuggestion[];
   pendingIntelligenceCount?: number;
@@ -14192,12 +14195,14 @@ async function openLead(id: string) {
       activities: LeadActivity[];
       sourceEvents: LeadSourceEvent[];
       procurement: ProcurementContext;
+      callNotes?: CallNoteTimelineEntry[];
     }>(`/api/leads/${id}`);
     renderLeadDrawer(
       data.lead,
       data.activities,
       data.sourceEvents || [],
-      data.procurement
+      data.procurement,
+      data.callNotes
     );
   } catch (error) {
     drawer.innerHTML = `<div class="drawer-head"><div><h2>加载失败</h2><p>${escapeHtml(error instanceof Error ? error.message : "")}</p></div><button class="btn icon-only" id="leadDrawerClose" title="关闭">×</button></div>`;
@@ -14292,7 +14297,7 @@ function redrawPhoneValidity(targetType: string, targetId: string) {
   if (targetType === "customer" && state.selectedCustomerId === targetId) renderCustomerDetailPage();
   if (targetType === "lead" && leadDrawerSnapshot?.lead.id === targetId && qs("#leadDrawer")?.classList.contains("open")) {
     const snap = leadDrawerSnapshot;
-    renderLeadDrawer(snap.lead, snap.activities, snap.sourceEvents, snap.procurement);
+    renderLeadDrawer(snap.lead, snap.activities, snap.sourceEvents, snap.procurement, snap.callNotes);
   }
   if (targetType === "prospect" && state.selectedProspectId === targetId) {
     const item = state.websiteOpportunities.find((row) => row.id === targetId);
@@ -14453,17 +14458,19 @@ let leadDrawerSnapshot: {
   activities: LeadActivity[];
   sourceEvents: LeadSourceEvent[];
   procurement?: ProcurementContext;
+  callNotes?: CallNoteTimelineEntry[];
 } | null = null;
 
 function renderLeadDrawer(
   lead: Lead,
   activities: LeadActivity[],
   sourceEvents: LeadSourceEvent[],
-  procurement?: ProcurementContext
+  procurement?: ProcurementContext,
+  callNotes?: CallNoteTimelineEntry[]
 ) {
   const drawer = qs<HTMLElement>("#leadDrawer");
   if (!drawer) return;
-  leadDrawerSnapshot = { lead, activities, sourceEvents, procurement };
+  leadDrawerSnapshot = { lead, activities, sourceEvents, procurement, callNotes };
   if ((lead.phone || "").trim()) {
     void ensurePhoneValidity({ targetType: "lead", targetId: lead.id, phoneId: `lead-phone:${lead.id}` });
   }
@@ -14537,7 +14544,8 @@ function renderLeadDrawer(
     </section>
     <section class="lead-detail-section"><h3>跟进记录</h3>
     <div class="timeline">
-      ${activities.length ? activities.map((activity) => `<div class="timeline-item"><b>${LEAD_ACTIVITY_LABEL[activity.type] || activity.type}</b><span>${escapeHtml(activity.content)}</span><small>${new Date(activity.createdAt).toLocaleString("zh-CN")}${activity.nextFollowAt ? " · 下次：" + escapeHtml(activity.nextFollowAt) : ""}</small></div>`).join("") : `<div class="timeline-item"><span>暂无跟进记录</span></div>`}
+      ${activities.length ? activities.map((activity) => `<div class="timeline-item"><b>${LEAD_ACTIVITY_LABEL[activity.type] || activity.type}</b><span>${escapeHtml(activity.content)}</span><small>${new Date(activity.createdAt).toLocaleString("zh-CN")}${activity.nextFollowAt ? " · 下次：" + escapeHtml(activity.nextFollowAt) : ""}</small></div>`).join("") : (callNotes?.length ? "" : `<div class="timeline-item"><span>暂无跟进记录</span></div>`)}
+      ${renderCallNoteTimeline(callNotes)}
     </div></section>`;
 
   qs("#leadDrawerClose", drawer)?.addEventListener("click", closeLeadDrawer);
@@ -16750,6 +16758,64 @@ async function submitMissedFollowUp(form: HTMLFormElement) {
   }
 }
 
+let callNotePending = false;
+
+async function submitCallNote(form: HTMLFormElement, clear = false) {
+  const recordId = form.dataset.recordId || "";
+  if (!recordId || callNotePending) return;
+  const note = clear ? "" : form.querySelector<HTMLTextAreaElement>("[data-call-note]")?.value ?? "";
+  const tags = clear
+    ? []
+    : [...form.querySelectorAll<HTMLInputElement>("[data-call-note-tag]:checked")].map((item) => item.value);
+  const button = form.querySelector<HTMLButtonElement>(clear ? "[data-call-note-clear]" : "button[type='submit']");
+  callNotePending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; record?: OutboundCallRecordRow }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/note`,
+      { method: "POST", body: JSON.stringify({ note, tags }) }
+    );
+    toast(result.message || (clear ? "已清空通话纪要" : "已保存通话纪要"));
+    rememberCallNote(result.record);
+    await loadOutboundCallRecords();
+    const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+    if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "通话纪要没有保存", "error");
+  } finally {
+    callNotePending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+function rememberCallNote(record: OutboundCallRecordRow | undefined) {
+  if (!record?.id || (record.targetType !== "customer" && record.targetType !== "lead") || !record.targetId) return;
+  const entry: CallNoteTimelineEntry = {
+    callRecordId: record.id,
+    note: record.callNote || "",
+    tags: record.callNoteTags || [],
+    at: record.callNoteUpdatedAt || "",
+    maskedNumber: record.maskedNumber
+  };
+  const has = Boolean(entry.note.trim() || entry.tags.length);
+  if (record.targetType === "customer") {
+    const customer = state.customers.find((item) => item.id === record.targetId);
+    if (!customer) return;
+    const rest = (customer.callNotes || []).filter((item) => item.callRecordId !== record.id);
+    customer.callNotes = has ? [entry, ...rest] : rest;
+    if (state.selectedCustomerId === customer.id) {
+      renderCustomerDetailPage(customer);
+      if (qs("#customerDrawer")?.classList.contains("open")) renderCustomerDrawer(customer);
+    }
+    return;
+  }
+  if (leadDrawerSnapshot?.lead.id === record.targetId && qs("#leadDrawer")?.classList.contains("open")) {
+    const rest = (leadDrawerSnapshot.callNotes || []).filter((item) => item.callRecordId !== record.id);
+    const callNotes = has ? [entry, ...rest] : rest;
+    renderLeadDrawer(leadDrawerSnapshot.lead, leadDrawerSnapshot.activities, leadDrawerSnapshot.sourceEvents, leadDrawerSnapshot.procurement, callNotes);
+  }
+}
+
 let callOutcomePending = false;
 
 async function submitCallOutcome(form: HTMLFormElement) {
@@ -16867,8 +16933,9 @@ async function loadOutboundCallRecords() {
   const from = qs<HTMLInputElement>("#outboundCallRecordFrom")?.value || "";
   const to = qs<HTMLInputElement>("#outboundCallRecordTo")?.value || "";
   const outcome = qs<HTMLSelectElement>("#outboundCallRecordOutcome")?.value || "";
+  const note = qs<HTMLSelectElement>("#outboundCallRecordNote")?.value || "";
   try {
-    const result = await api<OutboundCallRecordListResponse>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome })}`);
+    const result = await api<OutboundCallRecordListResponse>(`/api/outbound-call-records${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note })}`);
     const agentSelect = qs<HTMLSelectElement>("#outboundCallRecordAgent");
     if (agentSelect) {
       const selected = result.scope === "self" ? (result.agents?.[0]?.cccUserId || "") : agent;
@@ -16882,9 +16949,11 @@ async function loadOutboundCallRecords() {
     summary.innerHTML = renderOutboundCallRecordSummary(result);
     list.innerHTML = result.records?.length
       ? renderOutboundCallRecordList(result.records)
-      : outcome && !result.empty
-        ? renderOutboundCallOutcomeFilterEmpty()
-        : "";
+      : note && !result.empty
+        ? renderOutboundCallNoteFilterEmpty()
+        : outcome && !result.empty
+          ? renderOutboundCallOutcomeFilterEmpty()
+          : "";
   } catch (error) {
     summary.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
     list.innerHTML = "";
@@ -17809,7 +17878,8 @@ function renderCustomerDetailPage(customer?: Customer) {
             <div><b>${escapeHtml(customerActivityLabel(activity.type))} · ${escapeHtml(activity.operatorName || "未知操作人")}</b><span>${escapeHtml(activity.content)}</span></div>
             <small>${activity.nextReminder ? `下次：${escapeHtml(activity.nextReminder)}` : "未设置下次提醒"}</small>
             ${activityHasTranscript(activity) && activity.id ? `<button class="btn" type="button" data-activity-transcript="${escapeHtml(activity.id)}" data-activity-name="${escapeHtml(current.contact || current.company)}" title="查看当天对话记录">${customerContactIcon("whatsapp")} 对话</button>` : ""}
-          </article>`).join("") : `<div class="customer-page-empty">暂无跟进记录。新增首条联系记录后会在这里形成时间线。</div>`}</div>
+          </article>`).join("") : (current.callNotes?.length ? "" : `<div class="customer-page-empty">暂无跟进记录。新增首条联系记录后会在这里形成时间线。</div>`)}
+          ${renderCallNoteTimeline(current.callNotes)}</div>
       </section>
     </div>
   `;
@@ -18403,7 +18473,8 @@ function renderCustomerDrawer(customer?: Customer) {
     <details class="timeline-details">
       <summary class="timeline-details-summary">完整跟进记录 (${(customer.activities || []).length})</summary>
       <div class="timeline">
-        ${(customer.activities || []).length ? (customer.activities || []).map((activity) => `<div class="timeline-item"><b>${escapeHtml(customerActivityLabel(activity.type))}</b><span>${escapeHtml(activity.content)}</span><small>${escapeHtml(activity.operatorName || "未知操作人")} · ${escapeHtml(formatDateTime(activity.createdAt))}${activity.nextReminder ? ` · 下次：${escapeHtml(activity.nextReminder)}` : ""}</small></div>`).join("") : `<div class="timeline-item"><b>暂无跟进记录</b></div>`}
+        ${(customer.activities || []).length ? (customer.activities || []).map((activity) => `<div class="timeline-item"><b>${escapeHtml(customerActivityLabel(activity.type))}</b><span>${escapeHtml(activity.content)}</span><small>${escapeHtml(activity.operatorName || "未知操作人")} · ${escapeHtml(formatDateTime(activity.createdAt))}${activity.nextReminder ? ` · 下次：${escapeHtml(activity.nextReminder)}` : ""}</small></div>`).join("") : (customer.callNotes?.length ? "" : `<div class="timeline-item"><b>暂无跟进记录</b></div>`)}
+        ${renderCallNoteTimeline(customer.callNotes)}
       </div>
     </details>
     ${renderCustomerDealProgress(customer)}
@@ -54167,6 +54238,12 @@ function installEvents() {
     void loadOutboundCallRecords();
   });
   qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("click", (event) => {
+    const noteClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-note-clear]");
+    const noteClearForm = noteClear?.closest<HTMLFormElement>("[data-call-note-form]");
+    if (noteClear && noteClearForm) {
+      void submitCallNote(noteClearForm, true);
+      return;
+    }
     const cancel = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-callback-cancel]");
     const cancelForm = cancel?.closest<HTMLFormElement>("[data-callback-schedule-form]");
     if (cancel && cancelForm) {
@@ -54188,6 +54265,12 @@ function installEvents() {
     if (callbackForm) {
       event.preventDefault();
       void submitCallbackSchedule(callbackForm, false);
+      return;
+    }
+    const noteForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-note-form]");
+    if (noteForm) {
+      event.preventDefault();
+      void submitCallNote(noteForm);
       return;
     }
     const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");
@@ -54225,6 +54308,12 @@ function installEvents() {
     void submitIntentFollowupIgnore(row, button.hasAttribute("data-intent-restore"));
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("click", (event) => {
+    const noteClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-note-clear]");
+    const noteClearForm = noteClear?.closest<HTMLFormElement>("[data-call-note-form]");
+    if (noteClear && noteClearForm) {
+      void submitCallNote(noteClearForm, true);
+      return;
+    }
     const cancel = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-callback-cancel]");
     const cancelForm = cancel?.closest<HTMLFormElement>("[data-callback-schedule-form]");
     if (cancel && cancelForm) {
@@ -54245,6 +54334,12 @@ function installEvents() {
     if (callbackForm) {
       event.preventDefault();
       void submitCallbackSchedule(callbackForm, false);
+      return;
+    }
+    const noteForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-note-form]");
+    if (noteForm) {
+      event.preventDefault();
+      void submitCallNote(noteForm);
       return;
     }
     const outcomeForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");

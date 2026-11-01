@@ -4979,6 +4979,12 @@ export interface OutboundCallRecord {
   callOutcome: string;
   /** 标注备注。可空，最长 200 字。 */
   callOutcomeNote: string;
+  /** 人工填写的通话纪要。空字符串表示没有正文。 */
+  callNote: string;
+  /** 纪要快捷要点，按固定顺序用逗号拼接。空字符串表示没有要点。 */
+  callNoteTags: string;
+  /** 最近一次真正写下或清空纪要的时间。不改记录本身的 updatedAt。 */
+  callNoteUpdatedAt: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -4997,6 +5003,26 @@ export interface CallOutcomeAudit {
   nextOutcome: string;
   previousNote: string;
   nextNote: string;
+}
+
+/**
+ * 一次通话纪要的新增、修改、清空，或一次被拒绝的尝试。
+ * 旧值和新值各含正文和要点。拒绝时不改当前纪要。
+ * 不记完整号码，也不记录音地址或密钥。
+ */
+export interface CallNoteAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  callRecordId: string;
+  action: "create" | "update" | "clear";
+  previousNote: string;
+  nextNote: string;
+  previousTags: string;
+  nextTags: string;
+  result: "updated" | "rejected";
+  reason: string;
 }
 
 /**

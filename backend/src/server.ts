@@ -296,6 +296,7 @@ import { handleWorkbenchApi, previewWorkbenchDial, readWorkbenchSession } from "
 import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outbound-call-records.js";
+import { callNotesForTarget, saveCallNote } from "./call-note.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
 import { labelCallOutcome } from "./call-outcome.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
@@ -7020,7 +7021,8 @@ function customerWithPipeline(customer: Customer, viewer?: SessionUser) {
     pipelineAmount: activeDeals.reduce((sum, deal) => sum + deal.amount, 0),
     activeDealCount: activeDeals.length,
     pendingIntelligence,
-    pendingIntelligenceCount: pendingIntelligence.length
+    pendingIntelligenceCount: pendingIntelligence.length,
+    callNotes: callNotesForTarget(store, customer.teamId, "customer", customer.id)
   };
   // WhatsApp 号码和绑定状态属于个人账号数据，不随团队客户列表暴露给管理员或同事。
   if (!viewer || viewer.id !== customer.ownerId) {
@@ -9014,6 +9016,11 @@ app.post("/api/outbound-call-records/:id/outcome", requireAuth, asyncRoute(async
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
+app.post("/api/outbound-call-records/:id/note", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await saveCallNote(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
 app.get("/api/intent-followup-queue", requireAuth, asyncRoute(async (req, res) => {
   let allowed = false;
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
@@ -10354,6 +10361,7 @@ app.get("/api/leads/:id", requireAuth, (req, res) => {
   res.json({
     lead,
     activities,
+    callNotes: callNotesForTarget(store, lead.teamId, "lead", lead.id),
     sourceEvents,
     procurement: candidate
       ? {

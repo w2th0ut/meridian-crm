@@ -347,6 +347,9 @@ function applyCall(
     followUpActivityId: "",
     callOutcome: "",
     callOutcomeNote: "",
+    callNote: "",
+    callNoteTags: "",
+    callNoteUpdatedAt: "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };

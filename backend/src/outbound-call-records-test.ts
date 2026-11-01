@@ -31,9 +31,9 @@ assert.equal(recordInDateRange(null, null, null), true);
 assert.equal(recordInDateRange("2026-11-01", "2026-11-01", "2026-11-01"), true);
 assert.equal(recordInDateRange("2026-10-31", "2026-11-01", "2026-11-01"), false);
 
-assert.deepEqual(parseOutboundCallRecordQuery({}), { agentId: null, from: null, to: null, outcome: null });
+assert.deepEqual(parseOutboundCallRecordQuery({}), { agentId: null, from: null, to: null, outcome: null, note: null });
 const parsed = parseOutboundCallRecordQuery({ agentId: " agent@ccc-a ", from: "2026-11-01", to: "2026-11-02" });
-assert.deepEqual(parsed, { agentId: "agent@ccc-a", from: "2026-11-01", to: "2026-11-02", outcome: null });
+assert.deepEqual(parsed, { agentId: "agent@ccc-a", from: "2026-11-01", to: "2026-11-02", outcome: null, note: null });
 assert.equal(parseOutboundCallRecordQuery({ from: "2026-13-01" }), null);
 assert.equal(parseOutboundCallRecordQuery({ from: "2026-11-02", to: "2026-11-01" }), null);
 assert.equal(parseOutboundCallRecordQuery({ agentId: ["agent@ccc-a"] }), null);

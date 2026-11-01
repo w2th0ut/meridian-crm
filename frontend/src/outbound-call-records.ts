@@ -1,4 +1,5 @@
 import { renderCallbackScheduleForm } from "./callback-schedule";
+import { renderCallNoteForm } from "./call-note";
 
 /**
  * 外呼通话记录页。统计只渲染接口返回的数字。
@@ -35,6 +36,9 @@ export interface OutboundCallRecordRow {
   callbackScheduledAt?: string;
   callbackNote?: string;
   callbackDue?: string;
+  callNote?: string;
+  callNoteTags?: string[];
+  callNoteUpdatedAt?: string;
 }
 
 export interface OutboundCallRecordDetail {
@@ -68,12 +72,13 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string }) {
+export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string; note?: string }) {
   const params = new URLSearchParams();
   if (input.agentId) params.set("agentId", input.agentId);
   if (input.from) params.set("from", input.from);
   if (input.to) params.set("to", input.to);
   if (input.outcome) params.set("outcome", input.outcome);
+  if (input.note) params.set("note", input.note);
   const query = params.toString();
   return query ? `?${query}` : "";
 }
@@ -190,9 +195,9 @@ export function renderOutboundCallRecordList(records: OutboundCallRecordRow[] | 
   if (!records?.length) return "";
   const rows = records.map((record) => {
     const established = record.established === true ? "是" : "否";
-    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}${callbackForm(record)}</td><td>${followUpButton(record)}</td></tr>`;
+    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}${callbackForm(record)}</td><td class="outbound-record-note-cell">${renderCallNoteForm(record)}</td><td>${followUpButton(record)}</td></tr>`;
   }).join("");
-  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>通话结果</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>通话结果</th><th>通话纪要</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) {
@@ -211,6 +216,7 @@ export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) 
     ? `<p data-follow-up-established="1">这通已经接通，不能从这里生成下次跟进。</p>`
     : `<form data-missed-follow-form="1"><label>下次跟进<input type="datetime-local" data-missed-follow-at value="${escapeHtml(toDateTimeLocal(suggested))}"${saved ? " disabled" : ""}></label><button class="btn" type="submit" data-generate-missed-follow="1">生成下次跟进</button></form>`;
   const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}</div>`;
+  const note = `<div class="outbound-record-outcome" data-call-note-panel="1"><h3>通话纪要</h3>${renderCallNoteForm(record)}</div>`;
   const callback = `<div class="outbound-record-outcome" data-callback-schedule-panel="1"><h3>回拨预约</h3>${callbackForm(record) || `<p data-callback-schedule-missing="1">这条通话没有关联对象，不能设置回拨预约。</p>`}</div>`;
-  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${callback}${generated}${form}${notice}</section>`;
+  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${note}${callback}${generated}${form}${notice}</section>`;
 }
