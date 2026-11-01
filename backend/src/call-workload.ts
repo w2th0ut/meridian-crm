@@ -22,13 +22,16 @@ import type {
   OutboundCallRecord,
   SessionUser
 } from "./types.js";
+import { canEditWrapupTarget } from "./agent-call-target.js";
 
 /**
  * 今日通话负荷。坐席看自己的今日，主管及以上看权限范围内的团队。
  * 今日拨打只数人工点击后写下的通话记录。小结完成、待处理、无需小结只看 call_wrapup_* 表。
  * 改正只数成功的 call_wrapup_edit_audits。通话时长只加已经记下的整数秒。
  * 没有记下的时长不写成 0。不另造接通率或评分。
- * 主管查看团队时写入 call_workload_view_audits。不拨号，不发信，不调用外部接口。
+ * 主管查看团队时写入 call_workload_view_audits。
+ * 拨打目标和小结目标只读 agent_call_targets，没有目标时不写成 0。
+ * 不拨号，不发信，不调用外部接口。
  */
 
 export const CALL_WORKLOAD_TIME_ZONE = "Asia/Shanghai";
@@ -50,6 +53,8 @@ export interface CallWorkloadRow {
   wrapupSkipped: number;
   correctionsMade: number;
   talkTimeSeconds: number | null;
+  callsTarget?: number | null;
+  wrapupTarget?: number | null;
 }
 
 export function canViewTeamCallWorkload(user: { role?: string } | undefined) {
@@ -276,6 +281,25 @@ export function buildCallWorkload(input: {
   return { rows, knownAgentIds: new Set(input.roster.keys()) };
 }
 
+export function attachCallWorkloadTargets<T extends { agentId: string }>(
+  rows: T[],
+  targets: Array<{ teamId: string; agentId: string; dialTarget: number; wrapupTarget?: number | null }>,
+  teamId: string
+): Array<T & { callsTarget: number | null; wrapupTarget: number | null }> {
+  return rows.map((row) => {
+    if (!row.agentId || row.agentId === UNASSIGNED_AGENT_ID) {
+      return { ...row, callsTarget: null, wrapupTarget: null };
+    }
+    const target = targets.find((item) => item.teamId === teamId && item.agentId === row.agentId);
+    if (!target) return { ...row, callsTarget: null, wrapupTarget: null };
+    return {
+      ...row,
+      callsTarget: target.dialTarget,
+      wrapupTarget: target.wrapupTarget ?? null
+    };
+  });
+}
+
 function reject(status: number, reason: string, message: string) {
   return { status, body: { result: "rejected" as const, reason, message } };
 }
@@ -419,13 +443,16 @@ export async function listCallWorkload(
       timeZone: CALL_WORKLOAD_TIME_ZONE,
       today,
       unmapped: parsed.scope === "self" && own.length === 0,
+      canEditWrapupTarget: canEditWrapupTarget(user),
       metrics: {
         callsMade: true,
         wrapupCompleted: true,
         wrapupPending: true,
         wrapupSkipped: true,
         correctionsMade: true,
-        talkTimeSeconds: true
+        talkTimeSeconds: true,
+        callsTarget: true,
+        wrapupTarget: true
       },
       criteria: {
         callsBy: "humanClickedCallRecord",
@@ -436,7 +463,7 @@ export async function listCallWorkload(
         talkTimeUnit: "seconds",
         establishedBy: "establishedTimeRaw"
       },
-      rows: built.rows
+      rows: attachCallWorkloadTargets(built.rows, store.agentCallTargets, user.teamId)
     }
   };
 }

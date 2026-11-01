@@ -245,6 +245,28 @@ try {
   assert.equal(self.text.includes("改正前不要出现"), false);
   assert.equal(self.text.includes("亚洲纪要不要出现"), false);
   assert.equal(self.text.includes("接通率"), false);
+  assert.equal(mine.callsTarget, null);
+  assert.equal(mine.wrapupTarget, null);
+  assert.equal(self.json.canEditWrapupTarget, false);
+
+  store.agentCallTargets.push({
+    id: "act_wl_a",
+    teamId: "europe",
+    agentId: "agent@ccc-wl-a",
+    dialTarget: 20,
+    connectedTarget: 8,
+    intentTarget: null,
+    wrapupTarget: 3,
+    updatedBy: adminUser.id,
+    updatedAt: "2026-04-04T00:00:00.000Z"
+  });
+  const selfTarget = await request("/api/call-workload?scope=self", shirley);
+  const targeted = selfTarget.json.rows.find((item: { agentId: string }) => item.agentId === "agent@ccc-wl-a");
+  assert.equal(targeted.callsMade, 5);
+  assert.equal(targeted.wrapupCompleted, 1);
+  assert.equal(targeted.callsTarget, 20);
+  assert.equal(targeted.wrapupTarget, 3);
+  assert.equal(store.callWorkloadViewAudits.length, workloadBefore);
 
   const salesTeam = await request("/api/call-workload?scope=team", shirley);
   assert.equal(salesTeam.response.status, 403);
@@ -263,6 +285,11 @@ try {
   assert.equal(teamMia.wrapupPending, 2);
   assert.equal(teamMia.talkTimeSeconds, 24);
   assert.equal(teamMia.correctionsMade, 0);
+  assert.equal(teamMine.callsTarget, 20);
+  assert.equal(teamMine.wrapupTarget, 3);
+  assert.equal(teamMia.callsTarget, null);
+  assert.equal(teamMia.wrapupTarget, null);
+  assert.equal(team.json.canEditWrapupTarget, true);
   assert.equal(team.json.rows.some((item: { agentId: string }) => item.agentId === "none"), false);
   assert.equal(team.json.rows.some((item: { agentId: string }) => item.agentId === "agent@ccc-wl-asia"), false);
   const readAudit = store.callWorkloadViewAudits.find((item) => item.actorId === alexUser.id && item.result === "read");
@@ -288,6 +315,8 @@ try {
   assert.equal(adminTeam.json.rows[0].callsMade, 1);
   assert.equal(adminTeam.json.rows[0].wrapupPending, 1);
   assert.equal(adminTeam.json.rows[0].talkTimeSeconds, null);
+  assert.equal(adminTeam.json.rows[0].callsTarget, null);
+  assert.equal(adminTeam.json.rows[0].wrapupTarget, null);
 
   const adminSelf = await request("/api/call-workload?scope=self", admin);
   assert.equal(adminSelf.response.status, 200);
@@ -327,6 +356,7 @@ try {
   store.callWrapupSkips = store.callWrapupSkips.filter((item) => !item.id.startsWith("cws_wl_"));
   store.callWrapupEditAudits = store.callWrapupEditAudits.filter((item) => !item.id.startsWith("cwe_wl_"));
   store.callWorkloadViewAudits = store.callWorkloadViewAudits.filter((item) => item.agentId !== "agent@ccc-wl-asia" && !String(item.id || "").startsWith("cwva_"));
+  store.agentCallTargets = store.agentCallTargets.filter((item) => item.id !== "act_wl_a");
   store.aliyunAgentMappings = store.aliyunAgentMappings.filter((item) => !item.id.startsWith("map_wl_"));
   store.users = store.users.filter((item) => item.id !== "u_workload_asia");
   globalThis.fetch = originalFetch;

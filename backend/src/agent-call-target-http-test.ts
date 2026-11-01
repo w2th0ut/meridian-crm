@@ -287,6 +287,119 @@ try {
   assert.equal(store.agentCallTargets.some((item) => item.agentId === "agent@ccc-tgt-alex"), false);
   assert.equal(store.agentCallTargetAudits.some((item) => item.actorId === alexUser.id && item.action === "set" && item.result === "rejected"), true);
 
+  const wrapMissing = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-alex",
+    wrapupTarget: 4
+  });
+  assert.equal(wrapMissing.response.status, 400);
+  assert.equal(wrapMissing.json.reason, "no_target");
+  assert.equal(store.agentCallTargets.some((item) => item.agentId === "agent@ccc-tgt-alex"), false);
+  assert.equal(store.agentCallTargetAudits.some((item) => item.actorId === alexUser.id && item.agentId === "agent@ccc-tgt-alex" && item.reason === "no_target" && item.nextValue === "|||4" && item.result === "rejected"), true);
+
+  const alexBase = await request("/api/agent-call-targets", admin, "POST", {
+    agentId: "agent@ccc-tgt-alex",
+    dialTarget: 10,
+    connectedTarget: 2
+  });
+  assert.equal(alexBase.response.status, 200);
+  assert.equal(alexBase.json.target.dialTarget, 10);
+  assert.equal(alexBase.json.target.wrapupTarget, null);
+  assert.equal(alexBase.json.target.intentTarget, null);
+
+  const salesWrap = await request("/api/agent-call-targets", shirley, "POST", {
+    agentId: "agent@ccc-tgt-a",
+    wrapupTarget: 9
+  });
+  assert.equal(salesWrap.response.status, 403);
+  assert.equal(salesWrap.json.reason, "forbidden");
+  assert.equal(store.agentCallTargets.find((item) => item.agentId === "agent@ccc-tgt-a")?.dialTarget, 20);
+  assert.equal(store.agentCallTargets.find((item) => item.agentId === "agent@ccc-tgt-a")?.wrapupTarget ?? null, null);
+
+  const managerWrap = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-alex",
+    wrapupTarget: 4
+  });
+  assert.equal(managerWrap.response.status, 200);
+  assert.equal(managerWrap.json.result, "updated");
+  assert.equal(managerWrap.json.target.wrapupTarget, 4);
+  assert.equal(managerWrap.json.target.dialTarget, 10);
+  assert.equal(managerWrap.json.target.connectedTarget, 2);
+  assert.equal(managerWrap.json.target.intentTarget, null);
+  const wrapAudit = store.agentCallTargetAudits.find((item) => item.actorId === alexUser.id && item.agentId === "agent@ccc-tgt-alex" && item.result === "updated");
+  assert.ok(wrapAudit);
+  assert.equal(wrapAudit.action, "update");
+  assert.equal(wrapAudit.previousValue, "10|2|");
+  assert.equal(wrapAudit.nextValue, "10|2||4");
+
+  const wrapSame = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-alex",
+    wrapupTarget: 4
+  });
+  assert.equal(wrapSame.response.status, 200);
+  assert.equal(wrapSame.json.result, "unchanged");
+  assert.equal(store.agentCallTargetAudits.filter((item) => item.actorId === alexUser.id && item.agentId === "agent@ccc-tgt-alex" && item.result === "updated").length, 1);
+
+  const preserved = await request("/api/agent-call-targets", admin, "POST", {
+    agentId: "agent@ccc-tgt-alex",
+    dialTarget: 11,
+    connectedTarget: 2
+  });
+  assert.equal(preserved.response.status, 200);
+  assert.equal(preserved.json.target.dialTarget, 11);
+  assert.equal(preserved.json.target.wrapupTarget, 4);
+  const preservedAudit = store.agentCallTargetAudits.find((item) => item.agentId === "agent@ccc-tgt-alex" && item.nextValue === "11|2||4" && item.result === "updated");
+  assert.ok(preservedAudit);
+  assert.equal(preservedAudit.previousValue, "10|2||4");
+
+  const clearedWrap = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-alex",
+    wrapupTarget: null
+  });
+  assert.equal(clearedWrap.response.status, 200);
+  assert.equal(clearedWrap.json.target.wrapupTarget, null);
+  assert.equal(clearedWrap.json.target.dialTarget, 11);
+  assert.equal(store.agentCallTargetAudits.some((item) => item.agentId === "agent@ccc-tgt-alex" && item.previousValue === "11|2||4" && item.nextValue === "11|2|" && item.result === "updated"), true);
+
+  const zeroWrap = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-alex",
+    wrapupTarget: 0
+  });
+  assert.equal(zeroWrap.response.status, 200);
+  assert.equal(zeroWrap.json.target.wrapupTarget, 0);
+  assert.equal(store.agentCallTargets.find((item) => item.agentId === "agent@ccc-tgt-alex")?.dialTarget, 11);
+
+  const teammateWrap = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-a",
+    wrapupTarget: 6
+  });
+  assert.equal(teammateWrap.response.status, 200);
+  assert.equal(teammateWrap.json.target.wrapupTarget, 6);
+  assert.equal(teammateWrap.json.target.dialTarget, 20);
+  assert.equal(teammateWrap.json.target.connectedTarget, 8);
+  const teammateClear = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-a",
+    wrapupTarget: null
+  });
+  assert.equal(teammateClear.response.status, 200);
+  assert.equal(store.agentCallTargets.find((item) => item.agentId === "agent@ccc-tgt-a")?.wrapupTarget ?? null, null);
+  assert.equal(store.agentCallTargets.find((item) => item.agentId === "agent@ccc-tgt-a")?.dialTarget, 20);
+
+  const foreignWrap = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-asia",
+    wrapupTarget: 6
+  });
+  assert.equal(foreignWrap.response.status, 403);
+  assert.equal(store.agentCallTargets.some((item) => item.teamId === "europe" && item.agentId === "agent@ccc-tgt-asia"), false);
+
+  const auditsBeforeBadWrap = store.agentCallTargetAudits.length;
+  const badWrap = await request("/api/agent-call-targets", alex, "POST", {
+    agentId: "agent@ccc-tgt-alex",
+    wrapupTarget: 10001
+  });
+  assert.equal(badWrap.response.status, 400);
+  assert.equal(store.agentCallTargetAudits.length, auditsBeforeBadWrap);
+  assert.equal(store.agentCallTargets.find((item) => item.agentId === "agent@ccc-tgt-alex")?.wrapupTarget, 0);
+
   const own = await request("/api/agent-call-targets", shirley);
   assert.equal(own.response.status, 200);
   assert.equal(own.json.canManage, false);
@@ -358,6 +471,13 @@ try {
     intentTarget: 1
   });
   assert.equal(asiaSet.response.status, 200);
+  const crossWrap = await request("/api/agent-call-targets", admin, "POST", {
+    agentId: "agent@ccc-tgt-asia",
+    wrapupTarget: 3
+  });
+  assert.equal(crossWrap.response.status, 404);
+  assert.equal(store.agentCallTargets.find((item) => item.teamId === "asia" && item.agentId === "agent@ccc-tgt-asia")?.dialTarget, 6);
+  assert.equal(store.agentCallTargets.find((item) => item.teamId === "asia" && item.agentId === "agent@ccc-tgt-asia")?.wrapupTarget ?? null, null);
   const cross = await request("/api/agent-call-targets", admin, "POST", {
     agentId: "agent@ccc-tgt-asia",
     dialTarget: 1,
@@ -378,6 +498,13 @@ try {
   });
   assert.equal(orphanSet.response.status, 404);
   assert.equal(store.agentCallTargets.find((item) => item.id === "act_orphan")?.dialTarget, 4);
+  const orphanWrap = await request("/api/agent-call-targets", admin, "POST", {
+    agentId: "agent@ccc-tgt-orphan",
+    wrapupTarget: 2
+  });
+  assert.equal(orphanWrap.response.status, 404);
+  assert.equal(store.agentCallTargets.find((item) => item.id === "act_orphan")?.dialTarget, 4);
+  assert.equal(store.agentCallTargets.find((item) => item.id === "act_orphan")?.wrapupTarget ?? null, null);
 
   const cleared = await request("/api/agent-call-targets/clear", admin, "POST", { agentId: "agent@ccc-tgt-a" });
   assert.equal(cleared.response.status, 200);
