@@ -32,6 +32,13 @@ import {
   renderPreferredPhoneChooser,
   selectPreferredPhoneId
 } from "./preferred-phone";
+import {
+  contactPhoneChoiceLabel,
+  contactPhoneCreateBody,
+  contactPhoneDeleteBody,
+  contactPhoneUpdateBody,
+  renderContactPhoneEditor
+} from "./contact-phones";
 import { renderAgentMappingTable, renderCampaignRoster, type AgentMappingView, type AgentSeatView, type AgentUserView, type CampaignView } from "./aliyun-agent-mapping";
 import { renderScreenPopStack, type ScreenPopCardView } from "./aliyun-screen-pop";
 import {
@@ -14245,6 +14252,8 @@ function clearOutboundCallAvailability() {
   phoneValidityCache.clear();
   phoneValidityLoaded.clear();
   preferredPhoneByTarget.clear();
+  contactPhoneCache.clear();
+  contactPhoneLoaded.clear();
   hideCccSoftphone();
 }
 
@@ -14323,7 +14332,161 @@ function outboundCallLineHtml(target: OutboundCallTarget, numberText: string) {
   return preferredOutboundHtml([target], numberText);
 }
 
-function preferredOutboundHtml(targets: OutboundCallTarget[], singleLabel = "") {
+type ContactPhoneView = {
+  phoneId: string;
+  label: string;
+  phone: string;
+  origin: string;
+  editable: boolean;
+};
+
+const contactPhoneCache = new Map<string, { canWrite: boolean; phones: ContactPhoneView[] }>();
+const contactPhoneLoaded = new Set<string>();
+let contactPhonePending = false;
+
+function contactPhoneCacheKey(targetType: string, targetId: string) {
+  return `${targetType}:${targetId}`;
+}
+
+function contactPhoneTargets(targetType: "customer" | "lead", targetId: string, primaryPhone: string) {
+  const cached = contactPhoneCache.get(contactPhoneCacheKey(targetType, targetId));
+  const views = (cached?.phones || []).filter((item) => item.phone.trim() && item.phoneId.trim());
+  if (views.length) {
+    return views.map((item) => ({
+      targetType,
+      targetId,
+      phoneId: item.phoneId,
+      phone: item.phone,
+      choiceLabel: contactPhoneChoiceLabel(item.label, item.phone)
+    }));
+  }
+  const primary = targetType === "customer"
+    ? customerOutboundTarget(targetId, primaryPhone)
+    : leadOutboundTarget(targetId, primaryPhone);
+  return primary ? [{ ...primary, choiceLabel: contactPhoneChoiceLabel("主号", primary.phone) }] : [];
+}
+
+function renderContactPhoneSurface(targetType: "customer" | "lead", targetId: string) {
+  phoneValidityLoaded.delete(`${targetType}:${targetId}`);
+  if (targetType === "customer" && state.selectedCustomerId === targetId && qs("#customerDetailPage")) {
+    renderCustomerDetailPage();
+  }
+  if (targetType === "lead" && leadDrawerSnapshot?.lead.id === targetId && qs("#leadDrawer")?.classList.contains("open")) {
+    const snap = leadDrawerSnapshot;
+    renderLeadDrawer(snap.lead, snap.activities, snap.sourceEvents, snap.procurement, snap.callNotes);
+  }
+  const drawer = qs<HTMLElement>("#customerDrawer");
+  const marker = drawer?.querySelector<HTMLElement>("[data-contact-phones]");
+  if (targetType === "customer" && marker?.dataset.contactId === targetId) {
+    const customer = state.customers.find((item) => item.id === targetId);
+    if (customer) renderCustomerDrawer(customer);
+  }
+}
+
+async function ensureContactPhones(targetType: "customer" | "lead", targetId: string) {
+  const key = contactPhoneCacheKey(targetType, targetId);
+  if (!targetId || contactPhoneLoaded.has(key)) return;
+  contactPhoneLoaded.add(key);
+  try {
+    const params = new URLSearchParams({ targetType, targetId });
+    const result = await api<{ canWrite?: boolean; phones?: ContactPhoneView[] }>(`/api/contact-phones?${params.toString()}`);
+    contactPhoneCache.set(key, {
+      canWrite: result.canWrite === true,
+      phones: (result.phones || []).flatMap((item) => {
+        const phoneId = (item.phoneId || "").trim();
+        const phone = (item.phone || "").trim();
+        if (!phoneId || !phone) return [];
+        return [{
+          phoneId,
+          phone,
+          label: (item.label || "").trim(),
+          origin: item.origin || "",
+          editable: item.editable === true
+        }];
+      })
+    });
+    renderContactPhoneSurface(targetType, targetId);
+  } catch {
+    contactPhoneLoaded.delete(key);
+  }
+}
+
+function contactPhoneSection(input: {
+  targetType: "customer" | "lead";
+  targetId: string;
+  primaryPhone: string;
+  className: string;
+  emptyText: string;
+  note: string;
+}) {
+  void ensureContactPhones(input.targetType, input.targetId);
+  const cached = contactPhoneCache.get(contactPhoneCacheKey(input.targetType, input.targetId));
+  const targets = contactPhoneTargets(input.targetType, input.targetId, input.primaryPhone);
+  if (targets[0]) void ensurePhoneValidity(targets[0]);
+  const line = targets.length ? preferredOutboundHtml(targets) : "";
+  const editor = renderContactPhoneEditor({
+    targetType: input.targetType,
+    targetId: input.targetId,
+    extras: (cached?.phones || []).filter((item) => item.editable),
+    canWrite: cached?.canWrite === true
+  });
+  const body = line || editor
+    ? `${line}${editor}`
+    : `<b>${escapeHtml(input.emptyText)}</b>`;
+  return `<div class="${input.className}" data-contact-phones="1" data-contact-type="${escapeHtml(input.targetType)}" data-contact-id="${escapeHtml(input.targetId)}"><span>电话</span>${body}<small>${escapeHtml(input.note)}</small></div>`;
+}
+
+async function refreshContactPhones(targetType: "customer" | "lead", targetId: string) {
+  const key = contactPhoneCacheKey(targetType, targetId);
+  contactPhoneLoaded.delete(key);
+  contactPhoneCache.delete(key);
+  await ensureContactPhones(targetType, targetId);
+}
+
+async function submitContactPhone(editor: HTMLElement, action: "create" | "update" | "delete", row?: HTMLElement) {
+  if (contactPhonePending) return;
+  const targetType = editor.dataset.contactType || "";
+  const targetId = editor.dataset.contactId || "";
+  if ((targetType !== "customer" && targetType !== "lead") || !targetId) return;
+  const scope = action === "create" ? editor.querySelector<HTMLElement>(".contact-phone-add") : row;
+  const label = scope?.querySelector<HTMLSelectElement>("[data-contact-phone-label]")?.value || "";
+  const phone = scope?.querySelector<HTMLInputElement>("[data-contact-phone-number]")?.value || "";
+  const phoneId = row?.dataset.contactPhoneId || "";
+  if (action === "delete") {
+    const confirmed = await confirmAction({
+      title: "删除附加号码",
+      message: "只删除这一个附加号码。主号不会改，也不会拨出。",
+      detail: phone,
+      detailLabel: "号码",
+      confirmLabel: "删除",
+      tone: "warning",
+      consequences: ["只删除这一个附加号码"]
+    });
+    if (!confirmed) return;
+  }
+  contactPhonePending = true;
+  try {
+    const path = action === "create"
+      ? "/api/contact-phones"
+      : action === "update"
+        ? "/api/contact-phones/update"
+        : "/api/contact-phones/delete";
+    const body = action === "create"
+      ? contactPhoneCreateBody({ targetType, targetId, label, phone })
+      : action === "update"
+        ? contactPhoneUpdateBody({ targetType, targetId, phoneId, label, phone })
+        : contactPhoneDeleteBody({ targetType, targetId, phoneId });
+    const result = await api<{ message?: string }>(path, { method: "POST", body: JSON.stringify(body) });
+    toast(result.message || "附加号码已更新");
+    await refreshContactPhones(targetType, targetId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "附加号码没有改", "error");
+  } finally {
+    contactPhonePending = false;
+  }
+}
+
+function preferredOutboundHtml(targets: Array<OutboundCallTarget & { choiceLabel?: string }>, singleLabel = "") {
   const phones = targets.filter((target) => target.phone.trim() && target.phoneId.trim() && target.targetId.trim());
   if (!phones.length) return "";
   for (const target of phones) outboundCallTargets.set(outboundTargetKey(target), target);
@@ -14342,7 +14505,9 @@ function preferredOutboundHtml(targets: OutboundCallTarget[], singleLabel = "") 
     targetId: first.targetId,
     phones: phones.map((target) => ({
       phoneId: target.phoneId,
-      label: phones.length === 1 && singleLabel.trim() ? singleLabel.trim() : target.phone,
+      label: phones.length === 1 && singleLabel.trim()
+        ? singleLabel.trim()
+        : (target.choiceLabel || target.phone),
       invalid: cachedPhoneValidity(target)?.invalid === true
     })),
     preferredPhoneId,
@@ -14565,6 +14730,19 @@ function bindOutboundCallButtons(root: ParentNode) {
       void submitPreferredPhone(chooser, true);
     });
   });
+  qsa<HTMLElement>("[data-contact-phone-editor]", root).forEach((editor) => {
+    editor.querySelector<HTMLButtonElement>("[data-contact-phone-add]")?.addEventListener("click", () => {
+      void submitContactPhone(editor, "create");
+    });
+    qsa<HTMLElement>("[data-contact-phone-id]", editor).forEach((row) => {
+      row.querySelector<HTMLButtonElement>("[data-contact-phone-save]")?.addEventListener("click", () => {
+        void submitContactPhone(editor, "update", row);
+      });
+      row.querySelector<HTMLButtonElement>("[data-contact-phone-delete]")?.addEventListener("click", () => {
+        void submitContactPhone(editor, "delete", row);
+      });
+    });
+  });
 }
 
 async function startOutboundCall(target: OutboundCallTarget, button: HTMLButtonElement) {
@@ -14625,9 +14803,6 @@ function renderLeadDrawer(
   const drawer = qs<HTMLElement>("#leadDrawer");
   if (!drawer) return;
   leadDrawerSnapshot = { lead, activities, sourceEvents, procurement, callNotes };
-  if ((lead.phone || "").trim()) {
-    void ensurePhoneValidity({ targetType: "lead", targetId: lead.id, phoneId: `lead-phone:${lead.id}` });
-  }
   const sourceProspect = state.websiteOpportunities.find((item) => item.leadId === lead.id);
   const inTrash = Boolean(lead.deletedAt);
   const sourceEvent = sourceEvents[0];
@@ -14649,9 +14824,14 @@ function renderLeadDrawer(
     : "未提供平台外部编号，本次以系统线索编号留档";
   const contactFieldsHtml = fields.map(([label, value]) => {
     if (label === "电话") {
-      const target = leadOutboundTarget(lead.id, lead.phone || "");
-      const line = target ? outboundCallLineHtml(target, lead.phone || "") : "";
-      if (line) return `<div class="info"><span>电话</span>${line}</div>`;
+      return contactPhoneSection({
+        targetType: "lead",
+        targetId: lead.id,
+        primaryPhone: lead.phone || "",
+        className: "info",
+        emptyText: value,
+        note: (lead.phone || "").trim() ? "可直接拨号" : "待补充"
+      });
     }
     return `<div class="info"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`;
   }).join("");
@@ -17936,12 +18116,14 @@ function renderCustomerDetailPage(customer?: Customer) {
   // 号码能拼出网页版直链才算「可联系」；只填了位数不够的号码同样按未维护处理。
   const whatsappHref = whatsAppEntryHref(contacts.whatsapp);
   const activeDeals = deals.filter((deal) => !deal.archivedAt && !["成交", "丢单"].includes(deal.stage));
-  const customerPhoneTarget = customerOutboundTarget(current.id, current.phone || "");
-  if (customerPhoneTarget) void ensurePhoneValidity(customerPhoneTarget);
-  const customerPhoneLine = customerPhoneTarget ? outboundCallLineHtml(customerPhoneTarget, current.phone || "") : "";
-  const customerPhoneRow = customerPhoneLine
-    ? `<div class="customer-contact-row"><span>电话</span>${customerPhoneLine}<small>可直接拨号</small></div>`
-    : `<div class="customer-contact-row"><span>电话</span><b>${escapeHtml(contacts.phone || "未维护")}</b><small>${contacts.phone ? "可直接拨号" : "待补充"}</small></div>`;
+  const customerPhoneRow = `<div class="customer-contact-phones">${contactPhoneSection({
+    targetType: "customer",
+    targetId: current.id,
+    primaryPhone: current.phone || "",
+    className: "customer-contact-row",
+    emptyText: contacts.phone || "未维护",
+    note: (current.phone || contacts.phone || "").trim() ? "可直接拨号" : "待补充"
+  })}</div>`;
   box.innerHTML = `
     <header class="customer-page-header">
       <div class="customer-page-identity">
@@ -18545,12 +18727,14 @@ function renderCustomerDrawer(customer?: Customer) {
   const drawer = qs<HTMLElement>("#customerDrawer");
   if (!drawer || !customer) return;
   const contacts = customerContactDetails(customer);
-  const drawerPhoneTarget = customerOutboundTarget(customer.id, customer.phone || "");
-  if (drawerPhoneTarget) void ensurePhoneValidity(drawerPhoneTarget);
-  const drawerPhoneLine = drawerPhoneTarget ? outboundCallLineHtml(drawerPhoneTarget, customer.phone || "") : "";
-  const drawerPhoneHtml = drawerPhoneLine
-    ? `<div class="info"><span>电话</span>${drawerPhoneLine}</div>`
-    : `<div class="info"><span>电话</span><b>${escapeHtml(contacts.phone || "未维护")}</b></div>`;
+  const drawerPhoneHtml = contactPhoneSection({
+    targetType: "customer",
+    targetId: customer.id,
+    primaryPhone: customer.phone || "",
+    className: "info",
+    emptyText: contacts.phone || "未维护",
+    note: (customer.phone || contacts.phone || "").trim() ? "可直接拨号" : "待补充"
+  });
   const billingName = customerDocumentName(customer);
   const billingAddress = customer.billingAddress || `${customer.country} / 地址待维护`;
   const documentContact = customer.documentContact || customer.contact;

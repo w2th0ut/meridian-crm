@@ -5180,6 +5180,44 @@ export interface PreferredPhoneAudit {
 }
 
 /**
+ * 客户或线索上的一个电话。
+ * legacy 是从原来的单号码列复制进来的主号，不覆盖那一列。
+ * extra 是后来单条加上的附加号码。完整号码只放在这张表和原来的电话列里。
+ */
+export interface ContactPhone {
+  id: string;
+  teamId: string;
+  targetType: "customer" | "lead";
+  targetId: string;
+  phoneId: string;
+  label: string;
+  phone: string;
+  phoneDigits: string;
+  origin: "legacy" | "extra";
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/**
+ * 一次附加号码的添加、修改或删除，或一次被拒绝的尝试。
+ * 旧值和新值是「标签|脱敏号码」，不记完整号码，也不记密钥。
+ */
+export interface ContactPhoneAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "create" | "update" | "delete";
+  targetType: "customer" | "lead" | "";
+  targetId: string;
+  phoneId: string;
+  previousValue: string;
+  nextValue: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

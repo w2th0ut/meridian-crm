@@ -44,6 +44,13 @@ export interface PhoneLookupStore {
     channelType: string;
     value: string;
   }>;
+  contactPhones?: ReadonlyArray<{
+    teamId: string;
+    targetType: string;
+    targetId: string;
+    phoneId: string;
+    phone: string;
+  }>;
 }
 
 export interface LocatedPhone {
@@ -86,11 +93,32 @@ function leadPhoneId(leadId: string) {
   return `lead-phone:${leadId}`;
 }
 
+function objectExtras(store: PhoneLookupStore, teamId: string, targetType: string, targetId: string) {
+  return (store.contactPhones || []).filter((item) =>
+    item.teamId === teamId
+    && item.targetType === targetType
+    && item.targetId === targetId
+    && (item.phone || "").trim()
+  );
+}
+
 function customerPhone(store: PhoneLookupStore, teamId: string, customerId: string, phoneId: string) {
-  if (phoneId !== customerPhoneId(customerId)) return null;
   const customer = store.customers.find((item) => item.id === customerId && item.teamId === teamId);
-  const phone = (customer?.phone || "").trim();
-  if (!customer || !phone) return null;
+  if (!customer) return null;
+  const primaryId = customerPhoneId(customerId);
+  if (phoneId === primaryId) {
+    const legacy = objectExtras(store, teamId, "customer", customerId).find((item) => item.phoneId === primaryId);
+    const phone = (customer.phone || "").trim() || (legacy?.phone || "").trim();
+    if (!phone) return null;
+    return {
+      phone,
+      ownerId: customer.ownerId,
+      publicPool: customer.poolStatus === "public"
+    };
+  }
+  const extra = objectExtras(store, teamId, "customer", customerId).find((item) => item.phoneId === phoneId);
+  const phone = (extra?.phone || "").trim();
+  if (!extra || !phone) return null;
   return {
     phone,
     ownerId: customer.ownerId,
@@ -99,10 +127,18 @@ function customerPhone(store: PhoneLookupStore, teamId: string, customerId: stri
 }
 
 function leadPhone(store: PhoneLookupStore, teamId: string, leadId: string, phoneId: string) {
-  if (phoneId !== leadPhoneId(leadId)) return null;
   const lead = store.leads.find((item) => item.id === leadId && item.teamId === teamId && !item.deletedAt);
-  const phone = (lead?.phone || "").trim();
-  if (!lead || !phone) return null;
+  if (!lead) return null;
+  const primaryId = leadPhoneId(leadId);
+  if (phoneId === primaryId) {
+    const legacy = objectExtras(store, teamId, "lead", leadId).find((item) => item.phoneId === primaryId);
+    const phone = (lead.phone || "").trim() || (legacy?.phone || "").trim();
+    if (!phone) return null;
+    return { phone, ownerId: lead.ownerId, publicPool: false };
+  }
+  const extra = objectExtras(store, teamId, "lead", leadId).find((item) => item.phoneId === phoneId);
+  const phone = (extra?.phone || "").trim();
+  if (!extra || !phone) return null;
   return { phone, ownerId: lead.ownerId, publicPool: false };
 }
 
@@ -269,6 +305,50 @@ export function locateObjectPhone(
   };
 }
 
+function listedPhones(
+  store: PhoneLookupStore,
+  teamId: string,
+  targetType: "customer" | "lead",
+  targetId: string,
+  primaryId: string,
+  locatedPrimary: { phone: string; ownerId: string; publicPool: boolean } | null
+): LocatedPhone[] {
+  const result: LocatedPhone[] = [];
+  const seenDigits = new Set<string>();
+  if (locatedPrimary) {
+    result.push({
+      targetType,
+      targetId,
+      phoneId: primaryId,
+      phone: locatedPrimary.phone,
+      ownerId: locatedPrimary.ownerId,
+      publicPool: locatedPrimary.publicPool
+    });
+    const digits = phoneDigits(locatedPrimary.phone);
+    if (digits) seenDigits.add(digits);
+  }
+  for (const extra of objectExtras(store, teamId, targetType, targetId)) {
+    if (extra.phoneId === primaryId) continue;
+    const phone = extra.phone.trim();
+    const digits = phoneDigits(phone);
+    if (!phone || (digits && seenDigits.has(digits))) continue;
+    const located = targetType === "customer"
+      ? customerPhone(store, teamId, targetId, extra.phoneId)
+      : leadPhone(store, teamId, targetId, extra.phoneId);
+    if (!located) continue;
+    if (digits) seenDigits.add(digits);
+    result.push({
+      targetType,
+      targetId,
+      phoneId: extra.phoneId,
+      phone: located.phone,
+      ownerId: located.ownerId,
+      publicPool: located.publicPool
+    });
+  }
+  return result;
+}
+
 export function listObjectPhones(
   store: PhoneLookupStore,
   teamId: string,
@@ -277,15 +357,11 @@ export function listObjectPhones(
 ): LocatedPhone[] {
   if (targetType === "customer") {
     const phoneId = customerPhoneId(targetId);
-    const located = customerPhone(store, teamId, targetId, phoneId);
-    if (!located) return [];
-    return [{ targetType, targetId, phoneId, phone: located.phone, ownerId: located.ownerId, publicPool: located.publicPool }];
+    return listedPhones(store, teamId, "customer", targetId, phoneId, customerPhone(store, teamId, targetId, phoneId));
   }
   if (targetType === "lead") {
     const phoneId = leadPhoneId(targetId);
-    const located = leadPhone(store, teamId, targetId, phoneId);
-    if (!located) return [];
-    return [{ targetType, targetId, phoneId, phone: located.phone, ownerId: located.ownerId, publicPool: false }];
+    return listedPhones(store, teamId, "lead", targetId, phoneId, leadPhone(store, teamId, targetId, phoneId));
   }
   if (targetType !== "prospect") return [];
   const candidate = store.websiteOpportunities.find((item) => item.id === targetId && item.teamId === teamId);

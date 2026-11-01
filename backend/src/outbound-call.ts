@@ -17,7 +17,7 @@ import {
   currentContactabilityDecision,
   ProspectQualificationError
 } from "./prospect-qualification.js";
-import { isPhoneMarkedInvalid } from "./phone-validity-state.js";
+import { isPhoneMarkedInvalid, listObjectPhones, locateObjectPhone } from "./phone-validity-state.js";
 import type { CrmStore } from "./store.js";
 import type {
   OutboundCallAudit,
@@ -336,15 +336,19 @@ function locateTarget(store: CrmStore, user: SessionUser, parsed: ParsedRequest)
     if (!customer) return { found: false, visible: false, phone: "" };
     if (customer.poolStatus === "public") return { found: true, visible: false, phone: "" };
     const visible = canDialOwner(user, customer.ownerId, customer.teamId);
-    const phone = visible && parsed.phoneId === customerPhoneId(customer.id) ? (customer.phone || "").trim() : "";
-    return { found: true, visible, phone };
+    const located = visible
+      ? locateObjectPhone(store, customer.teamId, "customer", customer.id, parsed.phoneId)
+      : { ok: false as const };
+    return { found: true, visible, phone: located.ok ? located.phone.phone : "" };
   }
   if (parsed.targetType === "lead") {
     const lead = store.leads.find((item) => item.id === parsed.targetId && !item.deletedAt);
     if (!lead) return { found: false, visible: false, phone: "" };
     const visible = canDialOwner(user, lead.ownerId, lead.teamId);
-    const phone = visible && parsed.phoneId === leadPhoneId(lead.id) ? (lead.phone || "").trim() : "";
-    return { found: true, visible, phone };
+    const located = visible
+      ? locateObjectPhone(store, lead.teamId, "lead", lead.id, parsed.phoneId)
+      : { ok: false as const };
+    return { found: true, visible, phone: located.ok ? located.phone.phone : "" };
   }
   const candidate = store.websiteOpportunities.find((item) => item.id === parsed.targetId);
   if (!candidate) return { found: false, visible: false, phone: "" };
@@ -496,16 +500,18 @@ export function listExactPhoneMatches(store: CrmStore, user: SessionUser, rawPho
   for (const customer of store.customers) {
     if (customer.teamId !== user.teamId) continue;
     if (!canDialOwner(user, customer.ownerId, customer.teamId)) continue;
-    const phone = (customer.phone || "").trim();
-    if (!phone || outboundPhoneDigits(phone) !== digits) continue;
-    matches.push({ targetType: "customer", targetId: customer.id, phoneId: customerPhoneId(customer.id), phone });
+    for (const item of listObjectPhones(store, customer.teamId, "customer", customer.id)) {
+      if (outboundPhoneDigits(item.phone) !== digits) continue;
+      matches.push({ targetType: "customer", targetId: customer.id, phoneId: item.phoneId, phone: item.phone });
+    }
   }
   for (const lead of store.leads) {
     if (lead.deletedAt || lead.teamId !== user.teamId) continue;
     if (!canDialOwner(user, lead.ownerId, lead.teamId)) continue;
-    const phone = (lead.phone || "").trim();
-    if (!phone || outboundPhoneDigits(phone) !== digits) continue;
-    matches.push({ targetType: "lead", targetId: lead.id, phoneId: leadPhoneId(lead.id), phone });
+    for (const item of listObjectPhones(store, lead.teamId, "lead", lead.id)) {
+      if (outboundPhoneDigits(item.phone) !== digits) continue;
+      matches.push({ targetType: "lead", targetId: lead.id, phoneId: item.phoneId, phone: item.phone });
+    }
   }
   for (const candidate of store.websiteOpportunities) {
     if (candidate.teamId !== user.teamId || !candidate.tenantProspectId) continue;
