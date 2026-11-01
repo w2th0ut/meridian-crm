@@ -1,6 +1,7 @@
 import { hasIamPermission, hasIamScope, type IamActor } from "./auth.js";
+import { callbackScheduleView } from "./callback-schedule-state.js";
 import { callPhoneValidityFields } from "./phone-validity-state.js";
-import { tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
+import { outboundInstant, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
 import type { CrmStore } from "./store.js";
 import type { AliyunAgentMapping, OutboundCallRecord, SessionUser } from "./types.js";
 
@@ -329,11 +330,13 @@ export async function listOutboundCallRecords(
       .filter((item) => item.teamId === user.teamId)
       .map((item) => item.callRecordId)
   );
+  const today = zonedDateKey(outboundInstant(), access.timeZone);
   const records = listed
     .map((record) => ({
       ...presentOutboundCallRecord(record, access.timeZone, access.labels),
       followUpGenerated: generated.has(record.id),
-      ...callPhoneValidityFields(store, record)
+      ...callPhoneValidityFields(store, record),
+      ...callbackScheduleView(store, record.teamId, record.targetType, record.targetId, today)
     }))
     .sort((left, right) => {
       if (left.localDate && right.localDate && left.localDate !== right.localDate) {

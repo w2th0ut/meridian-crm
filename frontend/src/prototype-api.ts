@@ -53,6 +53,11 @@ import {
   renderIntentFollowupQueue,
   type IntentFollowupQueueResponse
 } from "./intent-followup-queue";
+import {
+  renderCallbackReminderFailure,
+  renderCallbackReminderList,
+  type CallbackReminderResponse
+} from "./callback-schedule";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -11949,6 +11954,7 @@ async function refreshDashboardOnly() {
     renderDashboard(summary, todos.todos, customers.customers);
     renderTopbarStats();
     void refreshExchangeTicker();
+    void loadCallbackReminders();
   })();
   try {
     await dashboardRefreshPromise;
@@ -16784,7 +16790,8 @@ async function loadIntentFollowupQueue() {
   const outcome = qs<HTMLSelectElement>("#intentFollowupOutcome")?.value || "";
   const includeIgnored = qs<HTMLInputElement>("#intentFollowupIncludeIgnored")?.checked === true;
   try {
-    const result = await api<IntentFollowupQueueResponse>(`/api/intent-followup-queue${intentFollowupQuery({ agentId: agent, outcome, includeIgnored })}`);
+    const callbackDue = qs<HTMLSelectElement>("#intentFollowupCallbackDue")?.value || "";
+    const result = await api<IntentFollowupQueueResponse>(`/api/intent-followup-queue${intentFollowupQuery({ agentId: agent, outcome, includeIgnored, callbackDue })}`);
     const agentSelect = qs<HTMLSelectElement>("#intentFollowupAgent");
     if (agentSelect) {
       const selected = result.scope === "self" ? (result.agents?.[0]?.cccUserId || "") : agent;
@@ -16881,6 +16888,61 @@ async function loadOutboundCallRecords() {
   } catch (error) {
     summary.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
     list.innerHTML = "";
+  }
+}
+
+let callbackSchedulePending = false;
+
+async function submitCallbackSchedule(form: HTMLFormElement, cancel = false) {
+  if (callbackSchedulePending) return;
+  const recordId = form.dataset.callbackRecord || "";
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  if (!recordId && (!targetType || !targetId)) return;
+  const raw = form.querySelector<HTMLInputElement>("[data-callback-at]")?.value || "";
+  const scheduledAt = fromDateTimeLocal(raw);
+  const note = form.querySelector<HTMLInputElement>("[data-callback-note]")?.value ?? "";
+  if (!cancel && !scheduledAt) {
+    toast("请填写回拨预约时间", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>(cancel ? "[data-callback-cancel]" : "button[type='submit']");
+  callbackSchedulePending = true;
+  if (button) button.disabled = true;
+  try {
+    const path = recordId
+      ? `/api/outbound-call-records/${encodeURIComponent(recordId)}/callback-schedule`
+      : cancel ? "/api/callback-schedules/cancel" : "/api/callback-schedules";
+    const payload = recordId
+      ? cancel ? { cancel: true } : { scheduledAt, note }
+      : cancel ? { targetType, targetId } : { targetType, targetId, scheduledAt, note };
+    const result = await api<{ message?: string }>(path, { method: "POST", body: JSON.stringify(payload) });
+    toast(result.message || (cancel ? "已取消回拨预约" : "已保存回拨预约"));
+    if (recordId) {
+      await loadOutboundCallRecords();
+      const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+      if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+    } else {
+      await loadIntentFollowupQueue();
+    }
+    void loadCallbackReminders();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "回拨预约没有保存", "error");
+  } finally {
+    callbackSchedulePending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function loadCallbackReminders() {
+  const list = qs<HTMLElement>("#dashboardCallbackScheduleList");
+  if (!list) return;
+  const due = qs<HTMLSelectElement>("#dashboardCallbackScheduleDue")?.value || "due";
+  try {
+    const result = await api<CallbackReminderResponse>(`/api/callback-schedules?due=${encodeURIComponent(due)}`);
+    list.innerHTML = renderCallbackReminderList(result.items);
+  } catch (error) {
+    list.innerHTML = renderCallbackReminderFailure(error instanceof Error ? error.message : "回拨预约没有加载");
   }
 }
 
@@ -54105,6 +54167,12 @@ function installEvents() {
     void loadOutboundCallRecords();
   });
   qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("click", (event) => {
+    const cancel = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-callback-cancel]");
+    const cancelForm = cancel?.closest<HTMLFormElement>("[data-callback-schedule-form]");
+    if (cancel && cancelForm) {
+      void submitCallbackSchedule(cancelForm, true);
+      return;
+    }
     const mark = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-mark-phone-invalid]");
     if (mark?.dataset.markPhoneInvalid) {
       void submitCallPhoneInvalid(mark.dataset.markPhoneInvalid, mark);
@@ -54116,6 +54184,12 @@ function installEvents() {
     void openOutboundCallRecord(recordId);
   });
   qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("submit", (event) => {
+    const callbackForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-callback-schedule-form]");
+    if (callbackForm) {
+      event.preventDefault();
+      void submitCallbackSchedule(callbackForm, false);
+      return;
+    }
     const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");
     if (!form) return;
     event.preventDefault();
@@ -54126,12 +54200,24 @@ function installEvents() {
     void loadIntentFollowupQueue();
   });
   qs<HTMLElement>("#intentFollowupQueue")?.addEventListener("submit", (event) => {
+    const callbackForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-callback-schedule-form]");
+    if (callbackForm) {
+      event.preventDefault();
+      void submitCallbackSchedule(callbackForm, false);
+      return;
+    }
     const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-intent-followup-form]");
     if (!form) return;
     event.preventDefault();
     void submitIntentFollowup(form);
   });
   qs<HTMLElement>("#intentFollowupQueue")?.addEventListener("click", (event) => {
+    const cancel = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-callback-cancel]");
+    const cancelForm = cancel?.closest<HTMLFormElement>("[data-callback-schedule-form]");
+    if (cancel && cancelForm) {
+      void submitCallbackSchedule(cancelForm, true);
+      return;
+    }
     const button = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-intent-ignore], [data-intent-restore]");
     if (!button) return;
     const row = button.closest<HTMLElement>("[data-target-type]");
@@ -54139,6 +54225,12 @@ function installEvents() {
     void submitIntentFollowupIgnore(row, button.hasAttribute("data-intent-restore"));
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("click", (event) => {
+    const cancel = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-callback-cancel]");
+    const cancelForm = cancel?.closest<HTMLFormElement>("[data-callback-schedule-form]");
+    if (cancel && cancelForm) {
+      void submitCallbackSchedule(cancelForm, true);
+      return;
+    }
     const mark = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-mark-phone-invalid]");
     if (!mark?.dataset.markPhoneInvalid) return;
     void submitCallPhoneInvalid(mark.dataset.markPhoneInvalid, mark);
@@ -54149,6 +54241,12 @@ function installEvents() {
     void submitPhoneValidity(button);
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
+    const callbackForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-callback-schedule-form]");
+    if (callbackForm) {
+      event.preventDefault();
+      void submitCallbackSchedule(callbackForm, false);
+      return;
+    }
     const outcomeForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");
     if (outcomeForm) {
       event.preventDefault();
@@ -54833,6 +54931,19 @@ function installEvents() {
     const item = state.websiteOpportunities.find((row) => row.id === opener?.dataset.dashboardDueFollowUp);
     if (!item || !item.shortlistedAt || !prospectFollowUpWritable(item)) return;
     openFollowUpFromDashboard(item, "next");
+  });
+  qs<HTMLFormElement>("#dashboardCallbackScheduleFilters")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadCallbackReminders();
+  });
+  qs<HTMLButtonElement>("#dashboardCallbackScheduleRefresh")?.addEventListener("click", () => {
+    void loadCallbackReminders();
+  });
+  qs<HTMLElement>("#dashboardCallbackSchedules")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-callback-open]");
+    if (!opener) return;
+    event.preventDefault();
+    activateNavView(opener.dataset.callbackOpen || "intent-followup-queue");
   });
   qs<HTMLButtonElement>("#dashboardNextFollowDueRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);

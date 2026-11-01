@@ -28732,6 +28732,21 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardTouchpointAgeList"><div class="empty-cell">正在读取候选</div></div>
           </section>
 
+          <section class="panel section" id="dashboardCallbackSchedules" aria-label="回拨预约">
+            <div class="section-head">
+              <div class="section-title"><div><h2>回拨预约</h2><p id="dashboardCallbackScheduleScope">今日到期和已逾期的回拨</p></div></div>
+              <div class="head-actions">
+                <button class="btn" id="dashboardCallbackScheduleRefresh" type="button">刷新</button>
+              </div>
+            </div>
+            <p id="dashboardCallbackScheduleNote" class="dashboard-callback-schedule-note">这是回拨预约的提醒。今日到期是预约日期等于租户当地的今天，已逾期是预约日期早于今天。不是下次跟进，也不是今日到期里的候选跟进。点一行只打开意向回访。不会自动拨号，不会批量拨号，不会发信，也不会改抑制、convert_to_lead 或 approved_contactable。要拨打仍需人工点击现有的一键外呼。</p>
+            <form id="dashboardCallbackScheduleFilters" class="outbound-record-filters">
+              <label>到期<select id="dashboardCallbackScheduleDue"><option value="due">今日到期和已逾期</option><option value="today">今日到期</option><option value="overdue">已逾期</option></select></label>
+              <button class="btn" type="submit">筛选</button>
+            </form>
+            <div id="dashboardCallbackScheduleList"><p data-callback-reminder-empty="1">这个范围内没有今日到期或已逾期的回拨预约。</p></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
@@ -32183,7 +32198,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>外呼通话记录</h1>
-              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记。</p>
+              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。可以给这一条关联的客户、线索或搜客对象设置、修改或取消回拨预约。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
             </div>
           </div>
           <p class="outbound-record-note">接通看话单 EstablishedTime 是否有内容。平均时长只统计接通通话里能当成整数秒的 CallDuration，单位是秒。起算点和接通枚举如果和真实话单不一致，以接入方案第 9 节为准，这一页不另算一套。</p>
@@ -32202,12 +32217,13 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>意向回访队列</h1>
-              <p>列出最近一次通话标注为有意向或需回访、且还没有未完成下次跟进的客户、线索和搜客对象。可以单条安排跟进，也可以单条忽略或撤销忽略。忽略后如果又有新的通话标成有意向或需回访，对象会重新出现。不能拨号，不能发信，不能批量操作。</p>
+              <p>列出最近一次通话标注为有意向或需回访、且还没有未完成下次跟进的客户、线索和搜客对象。可以单条安排跟进，也可以单条忽略或撤销忽略。忽略后如果又有新的通话标成有意向或需回访，对象会重新出现。可以给单条对象设置、修改或取消回拨预约，并按今日到期或已逾期回拨筛选。不能拨号，不能发信，不能批量操作。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
             </div>
           </div>
           <form id="intentFollowupFilters" class="outbound-record-filters">
             <label>坐席<select id="intentFollowupAgent"></select></label>
             <label>结果<select id="intentFollowupOutcome"><option value="">全部</option><option value="有意向">有意向</option><option value="需回访">需回访</option></select></label>
+            <label>回拨<select id="intentFollowupCallbackDue"><option value="">全部</option><option value="today">今日到期回拨</option><option value="overdue">已逾期回拨</option></select></label>
             <label class="intent-followup-show-ignored"><input id="intentFollowupIncludeIgnored" type="checkbox">显示已忽略</label>
             <button class="btn" type="submit">筛选</button>
           </form>

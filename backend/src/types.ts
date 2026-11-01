@@ -5082,6 +5082,44 @@ export interface PhoneValidityAudit {
 }
 
 /**
+ * 一个客户、线索或搜客对象当前的回拨预约。
+ * 租户、对象类型和对象 ID 唯一。到期只作提醒，不触发拨号。
+ */
+export interface CallbackSchedule {
+  id: string;
+  teamId: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  scheduledAt: string;
+  note: string;
+  updatedBy: string;
+  updatedAt: string;
+  sourceCallRecordId: string;
+}
+
+/**
+ * 一次回拨预约的设置、修改或取消。
+ * 旧值和新值各含预约时间和备注。拒绝时也记一行，但不改当前预约。
+ * 不记完整号码，也不记密钥。
+ */
+export interface CallbackScheduleAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "set" | "update" | "cancel";
+  targetType: "customer" | "lead" | "prospect" | "";
+  targetId: string;
+  previousScheduledAt: string;
+  nextScheduledAt: string;
+  previousNote: string;
+  nextNote: string;
+  result: "updated" | "rejected";
+  reason: string;
+  sourceCallRecordId: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

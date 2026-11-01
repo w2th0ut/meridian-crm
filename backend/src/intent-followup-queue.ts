@@ -3,7 +3,8 @@ import { hasIamPermission } from "./auth.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
 import { appendFollowUpAudit } from "./follow-up-audit.js";
 import { suggestedMissedFollowAt, SUPPRESSION_FOLLOW_UP_NOTICE } from "./outbound-missed-follow-up.js";
-import { outboundInstant } from "./outbound-call.js";
+import { callbackScheduleView } from "./callback-schedule-state.js";
+import { outboundInstant, zonedDateKey } from "./outbound-call.js";
 import {
   outboundCallRecordVisible,
   resolveOutboundCallRecordAccess,
@@ -138,6 +139,7 @@ export interface IntentFollowupListQuery {
   agentId: string | null;
   outcome: IntentFollowupOutcome | null;
   includeIgnored: boolean;
+  callbackDue: "" | "today" | "overdue";
 }
 
 function oneQuery(value: unknown) {
@@ -151,19 +153,23 @@ export function parseIntentFollowupListQuery(query: Record<string, unknown>): In
   const agentRaw = oneQuery(query.agentId);
   const outcomeRaw = oneQuery(query.outcome);
   const ignoredRaw = oneQuery(query.includeIgnored);
-  if (agentRaw === null || outcomeRaw === null || ignoredRaw === null) return null;
+  const dueRaw = oneQuery(query.callbackDue);
+  if (agentRaw === null || outcomeRaw === null || ignoredRaw === null || dueRaw === null) return null;
   const agentId = agentRaw || null;
   if (agentId && !AGENT_PATTERN.test(agentId)) return null;
+  let callbackDue: "" | "today" | "overdue" = "";
+  if (dueRaw === "today" || dueRaw === "overdue") callbackDue = dueRaw;
+  else if (dueRaw !== "") return null;
   let outcome: IntentFollowupOutcome | null = null;
   if (outcomeRaw) {
     if (!isIntentFollowupOutcome(outcomeRaw)) return null;
     outcome = outcomeRaw;
   }
   if (ignoredRaw === "" || ignoredRaw === "0" || ignoredRaw === "false") {
-    return { agentId, outcome, includeIgnored: false };
+    return { agentId, outcome, includeIgnored: false, callbackDue };
   }
   if (ignoredRaw === "1" || ignoredRaw === "true") {
-    return { agentId, outcome, includeIgnored: true };
+    return { agentId, outcome, includeIgnored: true, callbackDue };
   }
   return null;
 }
@@ -330,7 +336,14 @@ export async function listIntentFollowupQueue(
   if (parsed.agentId && !resolved.access.tenantWide && !resolved.access.allowed.has(parsed.agentId)) {
     return { status: 403, body: { result: "rejected" as const, reason: "forbidden", message: "不能查看这个坐席的回访队列" } };
   }
-  const items = queueFromStore(store, user, resolved.access, parsed);
+  const today = zonedDateKey(outboundInstant(), resolved.access.timeZone);
+  const decorated = queueFromStore(store, user, resolved.access, parsed).map((item) => ({
+    ...item,
+    ...callbackScheduleView(store, user.teamId, item.targetType, item.targetId, today)
+  }));
+  const items = parsed.callbackDue
+    ? decorated.filter((item) => item.callbackDue === parsed.callbackDue)
+    : decorated;
   return {
     status: 200,
     body: {
@@ -340,7 +353,8 @@ export async function listIntentFollowupQueue(
       filters: {
         agentId: parsed.agentId || "",
         outcome: parsed.outcome || "",
-        includeIgnored: parsed.includeIgnored
+        includeIgnored: parsed.includeIgnored,
+        callbackDue: parsed.callbackDue
       },
       suggestedNextFollowAt: await suggestedMissedFollowAt(store, user.teamId, outboundInstant()),
       empty: items.length === 0,

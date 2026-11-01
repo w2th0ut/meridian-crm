@@ -300,6 +300,7 @@ import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outb
 import { labelCallOutcome } from "./call-outcome.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
+import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -9060,6 +9061,26 @@ app.get("/api/phone-validity", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/phone-validity", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await setPhoneValidity(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/callback-schedules", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallbackSchedules(getStore(), req.user, req.query as { due?: unknown });
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/callback-schedules/cancel", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await cancelCallbackSchedule(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/callback-schedules", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await setCallbackSchedule(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/callback-schedule", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await scheduleCallbackOnCall(getStore(), req.user, req.params.id, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
