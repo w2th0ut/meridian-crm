@@ -305,6 +305,7 @@ import { addCallRecordTag, createCallTag, disableCallTag, listCallTags, removeCa
 import { exportCallTagReport, listCallTagReport } from "./call-tag-report.js";
 import { exportCallWrapupEditReport, listCallWrapupEditReport } from "./call-wrapup-edit-report.js";
 import { listCallWorkload } from "./call-workload.js";
+import { listAgentWorkStatus, resetAgentWorkStatus, setOwnAgentWorkStatus } from "./agent-work-status.js";
 import { applyCallTagObjectList, readObjectCallTags } from "./call-tag-view.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
@@ -9158,6 +9159,21 @@ app.get("/api/call-wrapup-edit-report", requireAuth, asyncRoute(async (req, res)
 
 app.get("/api/call-workload", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallWorkload(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/agent-work-status", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listAgentWorkStatus(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/agent-work-status/reset", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await resetAgentWorkStatus(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/agent-work-status", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await setOwnAgentWorkStatus(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
