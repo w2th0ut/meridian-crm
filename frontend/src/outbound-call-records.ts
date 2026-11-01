@@ -1,3 +1,5 @@
+import { renderCallbackScheduleForm } from "./callback-schedule";
+
 /**
  * 外呼通话记录页。统计只渲染接口返回的数字。
  * 没有记录时是空状态，不补 0。
@@ -30,6 +32,9 @@ export interface OutboundCallRecordRow {
   callOutcomeNote?: string;
   phoneId?: string;
   phoneInvalid?: boolean;
+  callbackScheduledAt?: string;
+  callbackNote?: string;
+  callbackDue?: string;
 }
 
 export interface OutboundCallRecordDetail {
@@ -164,6 +169,18 @@ export function fromDateTimeLocal(value: string) {
   return match ? `${match[1]} ${match[2]}` : "";
 }
 
+function callbackForm(record: OutboundCallRecordRow) {
+  if (!record.targetType || !record.targetId) return "";
+  return renderCallbackScheduleForm({
+    recordId: record.id,
+    targetType: record.targetType,
+    targetId: record.targetId,
+    scheduledAt: record.callbackScheduledAt || "",
+    note: record.callbackNote || "",
+    due: record.callbackDue || ""
+  });
+}
+
 function followUpButton(record: OutboundCallRecordRow) {
   if (record.established === true) return "—";
   return `<button class="btn" type="button" data-open-missed-follow="${escapeHtml(record.id)}">生成下次跟进</button>`;
@@ -173,7 +190,7 @@ export function renderOutboundCallRecordList(records: OutboundCallRecordRow[] | 
   if (!records?.length) return "";
   const rows = records.map((record) => {
     const established = record.established === true ? "是" : "否";
-    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}</td><td>${followUpButton(record)}</td></tr>`;
+    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}${callbackForm(record)}</td><td>${followUpButton(record)}</td></tr>`;
   }).join("");
   return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>通话结果</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -194,5 +211,6 @@ export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) 
     ? `<p data-follow-up-established="1">这通已经接通，不能从这里生成下次跟进。</p>`
     : `<form data-missed-follow-form="1"><label>下次跟进<input type="datetime-local" data-missed-follow-at value="${escapeHtml(toDateTimeLocal(suggested))}"${saved ? " disabled" : ""}></label><button class="btn" type="submit" data-generate-missed-follow="1">生成下次跟进</button></form>`;
   const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}</div>`;
-  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${generated}${form}${notice}</section>`;
+  const callback = `<div class="outbound-record-outcome" data-callback-schedule-panel="1"><h3>回拨预约</h3>${callbackForm(record) || `<p data-callback-schedule-missing="1">这条通话没有关联对象，不能设置回拨预约。</p>`}</div>`;
+  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${callback}${generated}${form}${notice}</section>`;
 }
