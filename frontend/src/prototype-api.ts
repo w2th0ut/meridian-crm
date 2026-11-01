@@ -44,6 +44,11 @@ import {
   type OutboundCallRecordDetail,
   type OutboundCallRecordListResponse
 } from "./outbound-call-records";
+import {
+  renderIntentFollowupFailure,
+  renderIntentFollowupQueue,
+  type IntentFollowupQueueResponse
+} from "./intent-followup-queue";
 
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
@@ -4720,6 +4725,7 @@ const viewLabels: Record<string, string> = {
   "phone-workspace": "话机工作台",
   "phone-calls": "通话记录",
   "outbound-call-records": "外呼记录",
+  "intent-followup-queue": "意向回访",
   "phone-strategies": "回访策略",
   "phone-config": "话机配置",
   "plan-growth": "计划任务",
@@ -10355,6 +10361,7 @@ const viewPermissionRequirements: Record<string, string> = {
   "customer-pool": "customer.pool.claim",
   whatsapp: "communication.read",
   "outbound-call-records": "communication.read",
+  "intent-followup-queue": "communication.read",
   wecom: "communication.read",
   pipeline: "deal.read",
   documents: "document.read",
@@ -16619,6 +16626,47 @@ async function submitCallOutcome(form: HTMLFormElement) {
     toast(error instanceof Error ? error.message : "通话结果没有保存", "error");
   } finally {
     callOutcomePending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+let intentFollowupPending = false;
+
+async function loadIntentFollowupQueue() {
+  const root = qs<HTMLElement>("#intentFollowupQueue");
+  if (!root) return;
+  try {
+    const result = await api<IntentFollowupQueueResponse>("/api/intent-followup-queue");
+    root.innerHTML = renderIntentFollowupQueue(result);
+  } catch (error) {
+    root.innerHTML = renderIntentFollowupFailure(error instanceof Error ? error.message : "意向回访队列没有加载");
+  }
+}
+
+async function submitIntentFollowup(form: HTMLFormElement) {
+  if (intentFollowupPending) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  if (!targetType || !targetId) return;
+  const raw = form.querySelector<HTMLInputElement>("[data-intent-follow-at]")?.value || "";
+  const nextFollowAt = fromDateTimeLocal(raw);
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  const body: { targetType: string; targetId: string; nextFollowAt?: string } = { targetType, targetId };
+  if (nextFollowAt) body.nextFollowAt = nextFollowAt;
+  intentFollowupPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; suppressionNotice?: string }>(
+      "/api/intent-followup-queue/schedule",
+      { method: "POST", body: JSON.stringify(body) }
+    );
+    toast(result.message || "已安排下次跟进");
+    if (result.suppressionNotice) toast(result.suppressionNotice, "info");
+    await loadIntentFollowupQueue();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "下次跟进没有安排", "error");
+  } finally {
+    intentFollowupPending = false;
     if (button) button.disabled = false;
   }
 }
@@ -53886,6 +53934,12 @@ function installEvents() {
     event.preventDefault();
     void submitCallOutcome(form);
   });
+  qs<HTMLElement>("#intentFollowupQueue")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-intent-followup-form]");
+    if (!form) return;
+    event.preventDefault();
+    void submitIntentFollowup(form);
+  });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
     const outcomeForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-outcome-form]");
     if (outcomeForm) {
@@ -57142,6 +57196,9 @@ function activateNavView(view: string, after?: () => void) {
   }
   if (view === "outbound-call-records") {
     void loadOutboundCallRecords();
+  }
+  if (view === "intent-followup-queue") {
+    void loadIntentFollowupQueue();
   }
   if (view === "settings") {
     void loadTeamSystemSettings().catch((error) => toast(error instanceof Error ? error.message : "系统设置加载失败", "error"));

@@ -13500,7 +13500,21 @@
       .outbound-record-outcome-form select { min-width: 0; width: 100%; }
       .outbound-record-detail form,
       .outbound-record-outcome-form { display: grid; }
+      .intent-followup-actions { display: grid; }
+      .intent-followup-actions input { min-width: 0; width: 100%; }
     }
+
+    .intent-followup-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .intent-followup-actions input { min-width: 180px; }
+
+    [data-intent-followup-ignored] { margin-top: 20px; }
+    [data-intent-followup-ignored] h2 { margin: 0 0 8px; font-size: 16px; }
 
     .customer-contact-actions {
       display: grid;
@@ -28127,6 +28141,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <button class="nav-secondary-button" data-view="phone-workspace" title="可选遗留：话机工作台"><span>话机工作台</span></button>
             <button class="nav-secondary-button" data-view="phone-calls" title="可选遗留：通话记录与录音"><span>通话记录</span></button>
             <button class="nav-secondary-button" data-view="outbound-call-records" title="外呼通话记录"><span>外呼记录</span></button>
+            <button class="nav-secondary-button" data-view="intent-followup-queue" title="意向回访队列"><span>意向回访</span></button>
             <button class="nav-secondary-button" data-view="phone-strategies" title="可选遗留：周期回访策略"><span>回访策略</span></button>
             <button class="nav-secondary-button" data-view="phone-config" title="可选遗留：阿里云接入与声音配置"><span>话机配置</span></button>
           </div>
@@ -32155,6 +32170,15 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div id="outboundCallRecordSummary"><p data-outbound-record-empty="1">这个范围内还没有通话记录。</p></div>
           <div id="outboundCallRecordList"></div>
           <div id="outboundCallRecordDetail" hidden></div>
+        </div>
+        <div class="view" id="intent-followup-queue">
+          <div class="page-head">
+            <div>
+              <h1>意向回访队列</h1>
+              <p>列出最近一次通话标注为有意向或需回访、且还没有未完成下次跟进的客户、线索和搜客对象。可以单条安排跟进。不能拨号，不能发信，不能批量操作。</p>
+            </div>
+          </div>
+          <div id="intentFollowupQueue"><p data-intent-followup-empty="1">这个范围内还没有待回访的对象。</p></div>
         </div>
         <div class="view" id="phone-strategies"><div class="kd-phone-root"></div></div>
         <div class="view" id="phone-config"><div class="kd-phone-root"></div></div>

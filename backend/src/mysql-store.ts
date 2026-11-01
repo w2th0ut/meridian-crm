@@ -127,7 +127,7 @@ import {
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
 import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectIndustryAudits, prospectNoteAudits, prospectPriorityAudits, prospectTagAudits } from "./data.js";
-import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallOutcomeAudit, FollowUpAuditEvent, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallOutcomeAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OwnerReassignAuditEvent, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import { readProspectIndustry } from "./prospect-industry.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
@@ -1891,6 +1891,8 @@ export async function createMysqlStore(
 		    outboundMissedFollowUps: await loadOutboundMissedFollowUps(pool),
 		    outboundMissedFollowUpAudits: await loadOutboundMissedFollowUpAudits(pool),
 		    callOutcomeAudits: await loadCallOutcomeAudits(pool),
+		    intentFollowupArrangements: await loadIntentFollowupArrangements(pool),
+		    intentFollowupQueueAudits: await loadIntentFollowupQueueAudits(pool),
 		    aliyunAgentMappings: await loadAliyunAgentMappings(pool),
 		    agentMappingAudits: await loadAgentMappingAudits(pool),
 		    aliyunScreenPops: await loadAliyunScreenPops(pool),
@@ -6187,6 +6189,38 @@ async function ensureSchema(pool: mysql.Pool) {
     INDEX idx_call_outcome_audits_team(team_id, occurred_at),
     INDEX idx_call_outcome_audits_record(call_record_id),
     INDEX idx_call_outcome_audits_actor(actor_id, occurred_at)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS intent_followup_arrangements (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    target_type VARCHAR(20) NOT NULL,
+    target_id VARCHAR(64) NOT NULL,
+    call_record_id VARCHAR(64) NOT NULL DEFAULT '',
+    activity_id VARCHAR(64) NOT NULL DEFAULT '',
+    next_follow_at VARCHAR(40) NOT NULL DEFAULT '',
+    suppressed TINYINT NOT NULL DEFAULT 0,
+    UNIQUE KEY uniq_intent_followup_arr_target(team_id, target_type, target_id),
+    INDEX idx_intent_followup_arr_team(team_id, occurred_at)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS intent_followup_queue_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    action_code VARCHAR(20) NOT NULL,
+    target_type VARCHAR(20) NOT NULL DEFAULT '',
+    target_id VARCHAR(64) NOT NULL DEFAULT '',
+    call_record_id VARCHAR(64) NOT NULL DEFAULT '',
+    activity_id VARCHAR(64) NOT NULL DEFAULT '',
+    next_follow_at VARCHAR(40) NOT NULL DEFAULT '',
+    result_code VARCHAR(20) NOT NULL,
+    reason_code VARCHAR(64) NOT NULL DEFAULT '',
+    suppressed TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_intent_followup_queue_audits_team(team_id, occurred_at),
+    INDEX idx_intent_followup_queue_audits_target(team_id, target_type, target_id),
+    INDEX idx_intent_followup_queue_audits_actor(actor_id, occurred_at)
   )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_agent_mappings (
     id VARCHAR(64) PRIMARY KEY,
@@ -12553,6 +12587,55 @@ async function loadOutboundMissedFollowUps(pool: mysql.Pool): Promise<OutboundMi
   return loaded;
 }
 
+function intentTargetType(value: unknown): IntentFollowupArrangement["targetType"] | "" {
+  if (value === "customer" || value === "lead" || value === "prospect") return value;
+  return "";
+}
+
+function intentAuditResult(value: unknown): IntentFollowupQueueAudit["result"] {
+  if (value === "created" || value === "duplicate") return value;
+  return "rejected";
+}
+
+async function loadIntentFollowupArrangements(pool: mysql.Pool): Promise<IntentFollowupArrangement[]> {
+  const loaded: IntentFollowupArrangement[] = [];
+  for (const row of await rows<Record<string, any>>(pool, "SELECT * FROM intent_followup_arrangements ORDER BY occurred_at DESC")) {
+    const targetType = intentTargetType(row.target_type);
+    if (!targetType) continue;
+    loaded.push({
+      id: row.id,
+      teamId: row.team_id || "",
+      actorId: row.actor_id || "",
+      at: storedIso(row.occurred_at),
+      targetType,
+      targetId: row.target_id || "",
+      callRecordId: row.call_record_id || "",
+      activityId: row.activity_id || "",
+      nextFollowAt: row.next_follow_at || "",
+      suppressed: Boolean(row.suppressed)
+    });
+  }
+  return loaded;
+}
+
+async function loadIntentFollowupQueueAudits(pool: mysql.Pool): Promise<IntentFollowupQueueAudit[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM intent_followup_queue_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    actorId: row.actor_id || "",
+    at: storedIso(row.occurred_at),
+    action: "schedule" as const,
+    targetType: intentTargetType(row.target_type),
+    targetId: row.target_id || "",
+    callRecordId: row.call_record_id || "",
+    activityId: row.activity_id || "",
+    nextFollowAt: row.next_follow_at || "",
+    result: intentAuditResult(row.result_code),
+    reason: row.reason_code || "",
+    suppressed: Boolean(row.suppressed)
+  }));
+}
+
 async function loadCallOutcomeAudits(pool: mysql.Pool): Promise<CallOutcomeAudit[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM call_outcome_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
@@ -13112,6 +13195,8 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "aliyun_ccc_event_audits", store.aliyunCccEventAudits, (item) => [item.id, item.teamId, mysqlDate(item.at), item.instanceId, item.contactId, item.eventType, item.eventTime, item.decision, item.reason, item.maskedCaller, item.maskedCallee], "(id,team_id,occurred_at,instance_id,contact_id,event_type,event_time,decision_code,reason_code,masked_caller,masked_callee)");
 	    await replaceRows(connection, "outbound_call_records", store.outboundCallRecords, (item) => [item.id, item.teamId, item.instanceId, item.contactId, item.outboundCallAuditId, item.targetType, item.targetId, item.maskedNumber, item.contactType, item.contactDisposition, item.earlyMediaState, item.callDurationRaw, item.establishedTimeRaw, item.releaseTimeRaw, item.startTimeRaw, item.agentIds, item.recordingReady, item.recordingRef, item.recordingFileName, item.recordingUrl, item.recordingDurationRaw, item.followUpActivityId, item.callOutcome || "", item.callOutcomeNote || "", item.createdAt ? mysqlDate(item.createdAt) : null, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,instance_id,contact_id,outbound_call_audit_id,target_type,target_id,masked_number,contact_type,contact_disposition,early_media_state,call_duration_raw,established_time_raw,release_time_raw,start_time_raw,agent_ids,recording_ready,recording_ref,recording_file_name,recording_url,recording_duration_raw,follow_up_activity_id,call_outcome,call_outcome_note,created_at,updated_at)");
 	    await replaceRows(connection, "call_outcome_audits", store.callOutcomeAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId, item.previousOutcome, item.nextOutcome, item.previousNote, item.nextNote], "(id,team_id,actor_id,occurred_at,call_record_id,previous_outcome,next_outcome,previous_note,next_note)");
+	    await replaceRows(connection, "intent_followup_arrangements", store.intentFollowupArrangements, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.callRecordId, item.activityId, item.nextFollowAt, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,target_type,target_id,call_record_id,activity_id,next_follow_at,suppressed)");
+	    await replaceRows(connection, "intent_followup_queue_audits", store.intentFollowupQueueAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType, item.targetId, item.callRecordId, item.activityId, item.nextFollowAt, item.result, item.reason, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,call_record_id,activity_id,next_follow_at,result_code,reason_code,suppressed)");
 	    await replaceRows(connection, "outbound_missed_follow_ups", store.outboundMissedFollowUps, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId, item.targetType, item.targetId, item.activityId, item.nextFollowAt, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,call_record_id,target_type,target_id,activity_id,next_follow_at,suppressed)");
 	    await replaceRows(connection, "outbound_missed_follow_up_audits", store.outboundMissedFollowUpAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId, item.targetType, item.targetId, item.activityId, item.nextFollowAt, item.result, item.reason, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,call_record_id,target_type,target_id,activity_id,next_follow_at,result_code,reason_code,suppressed)");
 	    await replaceRows(connection, "aliyun_agent_mappings", store.aliyunAgentMappings, (item) => [item.id, item.teamId, item.crmUserId, item.cccUserId, item.loginName, item.displayName, item.extension, item.workMode, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,crm_user_id,ccc_user_id,login_name,display_name,extension,work_mode,updated_by,updated_at)");
