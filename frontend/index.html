@@ -13501,6 +13501,10 @@
     }
 
     .outbound-record-outcome-cell { white-space: normal; min-width: 280px; }
+    .outbound-record-note-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+    .outbound-record-note-form textarea { width: 220px; min-height: 64px; }
+    .outbound-record-note-tags { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+    .outbound-record-note-cell { white-space: normal; min-width: 280px; }
 
     .outbound-record-outcome h3 { margin: 12px 0 0; font-size: 14px; }
 
@@ -32198,7 +32202,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>外呼通话记录</h1>
-              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。可以给这一条关联的客户、线索或搜客对象设置、修改或取消回拨预约。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
+              <p>按坐席和租户当地日期查看已经记下的通话。未接通的记录可以生成一次下次跟进。可以给单条记录标注通话结果。标注为号码错误时，可以给这一条标记该号码无效。可以给这一条关联的客户、线索或搜客对象设置、修改或取消回拨预约。可以给单条记录填写、修改或清空通话纪要，并按有无纪要筛选。不能拨号，不能改通话记录上的话单，不能批量生成，不能批量标注，也不能批量标记或批量写纪要。回拨到期只作提醒，不会自动拨号，也不会批量拨号。</p>
             </div>
           </div>
           <p class="outbound-record-note">接通看话单 EstablishedTime 是否有内容。平均时长只统计接通通话里能当成整数秒的 CallDuration，单位是秒。起算点和接通枚举如果和真实话单不一致，以接入方案第 9 节为准，这一页不另算一套。</p>
@@ -32207,6 +32211,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <label>从<input id="outboundCallRecordFrom" type="date"></label>
             <label>到<input id="outboundCallRecordTo" type="date"></label>
             <label>标注结果<select id="outboundCallRecordOutcome"><option value="">全部</option><option value="有意向">有意向</option><option value="需回访">需回访</option><option value="无意向">无意向</option><option value="号码错误">号码错误</option><option value="其他">其他</option></select></label>
+            <label>纪要<select id="outboundCallRecordNote"><option value="">全部</option><option value="has">有纪要</option><option value="none">无纪要</option></select></label>
             <button class="btn" type="submit">筛选</button>
           </form>
           <div id="outboundCallRecordSummary"><p data-outbound-record-empty="1">这个范围内还没有通话记录。</p></div>

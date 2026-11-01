@@ -52,6 +52,18 @@ export function recordsMatchingOutcome<T extends { callOutcome?: string }>(recor
   return records.filter((record) => (record.callOutcome || "") === outcome);
 }
 
+export function recordHasCallNote(record: { callNote?: string; callNoteTags?: string }) {
+  return Boolean((record.callNote || "").trim() || (record.callNoteTags || "").trim());
+}
+
+export function recordsMatchingNote<T extends { callNote?: string; callNoteTags?: string }>(
+  records: T[],
+  note: CallNotePresence | null
+) {
+  if (!note) return records;
+  return records.filter((record) => recordHasCallNote(record) === (note === "has"));
+}
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const AGENT_PATTERN = /^[A-Za-z0-9_@.:-]{1,128}$/;
 
@@ -62,11 +74,14 @@ export interface OutboundCallRecordStats {
   averageConnectedDurationSeconds: number | null;
 }
 
+export type CallNotePresence = "has" | "none";
+
 export interface OutboundCallRecordQuery {
   agentId: string | null;
   from: string | null;
   to: string | null;
   outcome: CallOutcome | null;
+  note: CallNotePresence | null;
 }
 
 export function splitAgentIds(value: string) {
@@ -181,7 +196,8 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
   const fromRaw = oneQuery(query.from);
   const toRaw = oneQuery(query.to);
   const outcomeRaw = oneQuery(query.outcome);
-  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null) return null;
+  const noteRaw = oneQuery(query.note);
+  if (agentRaw === null || fromRaw === null || toRaw === null || outcomeRaw === null || noteRaw === null) return null;
   const agentId = agentRaw || null;
   const from = fromRaw || null;
   const to = toRaw || null;
@@ -194,7 +210,12 @@ export function parseOutboundCallRecordQuery(query: Record<string, unknown>): Ou
     if (!isCallOutcome(outcomeRaw)) return null;
     outcome = outcomeRaw;
   }
-  return { agentId, from, to, outcome };
+  let note: CallNotePresence | null = null;
+  if (noteRaw) {
+    if (noteRaw !== "has" && noteRaw !== "none") return null;
+    note = noteRaw;
+  }
+  return { agentId, from, to, outcome, note };
 }
 
 async function ensureReadScope(store: CrmStore, user: SessionUser) {
@@ -236,7 +257,10 @@ export function presentOutboundCallRecord(record: OutboundCallRecord, timeZone: 
     targetType: record.targetType,
     targetId: record.targetId,
     callOutcome: record.callOutcome || "",
-    callOutcomeNote: record.callOutcomeNote || ""
+    callOutcomeNote: record.callOutcomeNote || "",
+    callNote: record.callNote || "",
+    callNoteTags: (record.callNoteTags || "").split(",").map((item) => item.trim()).filter(Boolean),
+    callNoteUpdatedAt: record.callNoteUpdatedAt || ""
   };
 }
 
@@ -323,7 +347,7 @@ export async function listOutboundCallRecords(
     to: parsed.to,
     timeZone: access.timeZone
   });
-  const listed = recordsMatchingOutcome(selected, parsed.outcome);
+  const listed = recordsMatchingNote(recordsMatchingOutcome(selected, parsed.outcome), parsed.note);
   const summary = summarizeOutboundCallRecords(selected);
   const generated = new Set(
     store.outboundMissedFollowUps
