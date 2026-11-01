@@ -81,6 +81,13 @@ import {
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
 import { callWrapupBody } from "./call-wrapup";
 import {
+  renderCallWrapupCounts,
+  renderCallWrapupQueue,
+  renderCallWrapupQueueFailure,
+  type CallWrapupCountResponse,
+  type CallWrapupQueueResponse
+} from "./call-wrapup-queue";
+import {
   callTagAssignBody,
   callTagCreateBody,
   callTagDisableBody,
@@ -12207,6 +12214,7 @@ function renderDashboard(summary: DashboardSummary, todos: Todo[], customers: Cu
   renderDashboardTouchpointAge();
   renderDashboardInboundSync();
   void loadDashboardAgentCallTargets();
+  void loadDashboardCallWrapupQueue();
   void loadDashboardCallScripts();
 }
 
@@ -12334,6 +12342,117 @@ async function clearDashboardAgentCallTarget() {
     await loadDashboardAgentCallTargets();
   } catch (error) {
     if (message) message.textContent = error instanceof Error ? error.message : "没有清除";
+  }
+}
+
+let dashboardCallWrapupBound = false;
+let dashboardCallWrapupLoad = 0;
+
+function canRequestCallWrapupQueue() {
+  if (!state.user) return false;
+  if (state.iamCapabilities && !hasIamCapability("communication.read")) return false;
+  return true;
+}
+
+function bindDashboardCallWrapupQueue() {
+  const root = qs<HTMLElement>("#dashboardCallWrapupQueue");
+  if (!root || dashboardCallWrapupBound) return;
+  dashboardCallWrapupBound = true;
+  root.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const restore = target.closest<HTMLButtonElement>("[data-call-wrapup-restore]");
+    if (restore?.dataset.callWrapupRestore) {
+      event.preventDefault();
+      void restoreCallWrapupFromQueue(restore.dataset.callWrapupRestore);
+      return;
+    }
+    const open = target.closest<HTMLButtonElement>("[data-call-wrapup-open]");
+    if (open?.dataset.callWrapupOpen) {
+      event.preventDefault();
+      void openCallWrapupPanel(open.dataset.callWrapupOpen);
+    }
+  });
+  root.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-wrapup-skip-form]");
+    if (!form) return;
+    event.preventDefault();
+    void skipCallWrapupFromQueue(form);
+  });
+}
+
+async function openCallWrapupPanel(recordId: string) {
+  if (!recordId) return;
+  activateNavView("outbound-call-records");
+  await openOutboundCallRecord(recordId);
+  qs<HTMLElement>("[data-call-wrapup-panel]")?.scrollIntoView({ block: "nearest" });
+}
+
+async function skipCallWrapupFromQueue(form: HTMLFormElement) {
+  const recordId = form.dataset.callWrapupSkipForm || "";
+  const reason = form.querySelector<HTMLSelectElement>("[data-call-wrapup-skip-reason]")?.value || "";
+  if (!recordId || !reason) {
+    toast("请选择无需小结的原因", "error");
+    return;
+  }
+  try {
+    const result = await api<{ message?: string }>(`/api/call-wrapup-queue/${encodeURIComponent(recordId)}/skip`, {
+      method: "POST",
+      body: JSON.stringify({ reason })
+    });
+    toast(result.message || "已标记无需小结");
+    await loadDashboardCallWrapupQueue();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有标记", "error");
+  }
+}
+
+async function restoreCallWrapupFromQueue(recordId: string) {
+  if (!recordId) return;
+  try {
+    const result = await api<{ message?: string }>(`/api/call-wrapup-queue/${encodeURIComponent(recordId)}/restore`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    toast(result.message || "已撤销无需小结");
+    await loadDashboardCallWrapupQueue();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有撤销", "error");
+  }
+}
+
+async function loadDashboardCallWrapupQueue() {
+  bindDashboardCallWrapupQueue();
+  const list = qs<HTMLElement>("#dashboardCallWrapupList");
+  const counts = qs<HTMLElement>("#dashboardCallWrapupCounts");
+  const scope = qs<HTMLElement>("#dashboardCallWrapupScope");
+  if (!list || !state.user) return;
+  if (!canRequestCallWrapupQueue()) {
+    if (scope) scope.textContent = "没有查看通话记录的权限";
+    list.innerHTML = renderCallWrapupQueueFailure("没有查看通话记录的权限");
+    if (counts) counts.hidden = true;
+    return;
+  }
+  const ticket = ++dashboardCallWrapupLoad;
+  try {
+    const data = await api<CallWrapupQueueResponse>("/api/call-wrapup-queue");
+    if (ticket !== dashboardCallWrapupLoad) return;
+    list.innerHTML = renderCallWrapupQueue(data);
+    if (scope) scope.textContent = data.empty ? "没有待小结的通话" : `待小结 ${data.items?.length || 0} 通`;
+    if (!counts) return;
+    if (!data.canViewCounts) {
+      counts.hidden = true;
+      counts.innerHTML = "";
+      return;
+    }
+    counts.hidden = false;
+    const summary = await api<CallWrapupCountResponse>("/api/call-wrapup-queue/counts");
+    if (ticket !== dashboardCallWrapupLoad) return;
+    counts.innerHTML = `<h3>按坐席看待小结</h3>${renderCallWrapupCounts(summary)}`;
+  } catch (error) {
+    if (ticket !== dashboardCallWrapupLoad) return;
+    list.innerHTML = renderCallWrapupQueueFailure(error instanceof Error ? error.message : "待小结队列没有加载");
+    if (counts) counts.hidden = true;
   }
 }
 
@@ -18163,6 +18282,7 @@ async function submitCallWrapup(form: HTMLFormElement) {
     );
     toast(result.message || "已保存通话小结");
     await loadOutboundCallRecords();
+    void loadDashboardCallWrapupQueue();
     const panel = qs<HTMLElement>("#outboundCallRecordDetail");
     if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
     if (included.has("callback")) void loadCallbackReminders();

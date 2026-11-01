@@ -319,6 +319,7 @@ import { callNotesForTarget, saveCallNote } from "./call-note.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
 import { labelCallOutcome } from "./call-outcome.js";
 import { submitCallWrapup } from "./call-wrapup.js";
+import { listCallWrapupCounts, listCallWrapupQueue, restoreCallWrapup, skipCallWrapup } from "./call-wrapup-queue.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
 import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
@@ -9233,6 +9234,26 @@ app.post("/api/outbound-call-records/:id/next-follow-up", requireAuth, asyncRout
 
 app.post("/api/outbound-call-records/:id/wrapup", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await submitCallWrapup(getStore(), req.user, req.params.id, req.body, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-wrapup-queue/counts", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallWrapupCounts(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-wrapup-queue", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallWrapupQueue(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-wrapup-queue/:id/skip", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await skipCallWrapup(getStore(), req.user, req.params.id, req.body, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-wrapup-queue/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await restoreCallWrapup(getStore(), req.user, req.params.id, req.body, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
