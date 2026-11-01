@@ -79,6 +79,7 @@ import {
   type CallbackReminderResponse
 } from "./callback-schedule";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
+import { callWrapupBody } from "./call-wrapup";
 import {
   callTagAssignBody,
   callTagCreateBody,
@@ -18105,6 +18106,70 @@ async function submitMissedFollowUp(form: HTMLFormElement) {
     toast(error instanceof Error ? error.message : "下次跟进没有生成", "error");
   } finally {
     missedFollowUpPending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+let callWrapupPending = false;
+
+async function submitCallWrapup(form: HTMLFormElement) {
+  const recordId = form.dataset.recordId || "";
+  if (!recordId || callWrapupPending) return;
+  const included = new Set(
+    [...form.querySelectorAll<HTMLInputElement>("[data-wrapup-include]:checked")].map((item) => item.dataset.wrapupInclude || "")
+  );
+  if (!included.size) {
+    toast("请至少勾选一项通话小结", "error");
+    return;
+  }
+  const outcomeValue = form.querySelector<HTMLSelectElement>("[data-wrapup-outcome]")?.value || "";
+  const outcomeNote = form.querySelector<HTMLInputElement>("[data-wrapup-outcome-note]")?.value ?? "";
+  if (included.has("outcome") && !outcomeValue) {
+    toast("请选择通话结果", "error");
+    return;
+  }
+  const note = form.querySelector<HTMLTextAreaElement>("[data-wrapup-note]")?.value ?? "";
+  const noteTags = [...form.querySelectorAll<HTMLInputElement>("[data-wrapup-note-tag]:checked")].map((item) => item.value);
+  const templateId = form.querySelector<HTMLSelectElement>("[data-wrapup-script]")?.value || "";
+  const tagId = form.querySelector<HTMLSelectElement>("[data-wrapup-tag]")?.value || "";
+  const tagAction = form.querySelector<HTMLSelectElement>("[data-wrapup-tag-action]")?.value === "remove" ? "remove" : "add";
+  if (included.has("callTag") && !tagId) {
+    toast("请选择通话标签", "error");
+    return;
+  }
+  const cancelCallback = form.querySelector<HTMLInputElement>("[data-wrapup-callback-cancel]")?.checked === true;
+  const scheduledAt = fromDateTimeLocal(form.querySelector<HTMLInputElement>("[data-wrapup-callback-at]")?.value || "");
+  const callbackNote = form.querySelector<HTMLInputElement>("[data-wrapup-callback-note]")?.value ?? "";
+  if (included.has("callback") && !cancelCallback && !scheduledAt) {
+    toast("请填写回拨预约时间", "error");
+    return;
+  }
+  const body = callWrapupBody({
+    outcome: included.has("outcome") ? { outcome: outcomeValue, note: outcomeNote } : null,
+    note: included.has("note") ? { note, tags: noteTags } : null,
+    script: included.has("script") ? { templateId: templateId || null } : null,
+    callTag: included.has("callTag") ? { tagId, action: tagAction } : null,
+    callback: included.has("callback")
+      ? (cancelCallback ? { cancel: true } : { scheduledAt, note: callbackNote })
+      : null
+  });
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  callWrapupPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/wrapup`,
+      { method: "POST", body: JSON.stringify(body) }
+    );
+    toast(result.message || "已保存通话小结");
+    await loadOutboundCallRecords();
+    const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+    if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+    if (included.has("callback")) void loadCallbackReminders();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "通话小结没有保存", "error");
+  } finally {
+    callWrapupPending = false;
     if (button) button.disabled = false;
   }
 }
@@ -56239,6 +56304,12 @@ function installEvents() {
     void submitPhoneValidity(button);
   });
   qs<HTMLElement>("#outboundCallRecordDetail")?.addEventListener("submit", (event) => {
+    const wrapupForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-wrapup-form]");
+    if (wrapupForm) {
+      event.preventDefault();
+      void submitCallWrapup(wrapupForm);
+      return;
+    }
     const tagForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-tag-add-form]");
     if (tagForm) {
       event.preventDefault();
