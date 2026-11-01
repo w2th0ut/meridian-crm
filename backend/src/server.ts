@@ -304,6 +304,7 @@ import { createCallScriptScenario, disableCallScriptScenario, listCallScriptScen
 import { addCallRecordTag, createCallTag, disableCallTag, listCallTags, removeCallRecordTag, renameCallTag } from "./call-tag.js";
 import { exportCallTagReport, listCallTagReport } from "./call-tag-report.js";
 import { exportCallWrapupEditReport, listCallWrapupEditReport } from "./call-wrapup-edit-report.js";
+import { listCallWorkload } from "./call-workload.js";
 import { applyCallTagObjectList, readObjectCallTags } from "./call-tag-view.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
@@ -9152,6 +9153,11 @@ app.get("/api/call-wrapup-edit-report/export", requireAuth, asyncRoute(async (re
 
 app.get("/api/call-wrapup-edit-report", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallWrapupEditReport(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-workload", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallWorkload(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

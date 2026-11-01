@@ -5648,6 +5648,24 @@ export interface CallWrapupEditReportAudit {
 }
 
 /**
+ * 一次团队今日通话负荷的查看，或一次被拒绝的尝试。
+ * 只记范围和可选坐席。不记号码、录音地址、纪要或密钥。
+ * 坐席查看自己的今日不写这一行。
+ */
+export interface CallWorkloadViewAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read";
+  scope: "team";
+  agentId: string;
+  rowCount: number;
+  result: "read" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
