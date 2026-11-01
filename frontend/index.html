@@ -29436,6 +29436,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <div class="prospect-toolbar prospect-toolbar-v2">
                 <label class="prospect-search-field"><span>搜索候选</span><input id="prospectSearchInput" placeholder="公司、国家、业务或邮箱"></label>
                 <label class="prospect-sort-field"><span>排序</span><select id="prospectSortSelect"><option value="joined_desc">最新加入</option><option value="joined_asc">最早加入</option><option value="priority">行动优先级</option><option value="status_changed">最近状态变化</option></select></label>
+                <label class="prospect-sort-field"><span>外呼负责坐席</span><select id="prospectOutboundOwnerFilter" aria-label="外呼负责坐席"><option value="">全部负责坐席</option><option value="mine">我负责的</option><option value="unassigned">待指派</option></select></label>
                 <span class="prospect-total" id="prospectTotalCount">0 条候选</span>
               </div>
               <div class="prospect-date-toolbar">
@@ -32385,13 +32386,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
                 <select id="leadIntentFilter"><option value="all">全部意向</option><option value="高">高意向</option><option value="中">中意向</option><option value="低">低意向</option></select>
                 <select id="leadSourceFilter"><option value="all">全部来源</option></select>
                 <select id="leadFollowFilter"><option value="all">全部跟进</option><option value="overdue">已逾期</option><option value="planned">已计划</option><option value="unset">待安排</option></select>
+                <select id="leadOutboundOwnerFilter" aria-label="外呼负责坐席"><option value="">全部负责坐席</option><option value="mine">我负责的</option><option value="unassigned">待指派</option></select>
                 <button class="btn" id="leadReplyFilterButton" type="button" title="只看有客户回复的线索">✉ 有回复</button>
                 <button class="btn" id="leadFilterReset">重置</button>
                 <button class="btn primary" id="leadCreateOutreachBatchButton" type="button" data-permission="lead.read" title="勾选线索后生成发信批次">✉ 生成发信批次</button>
               </div>
               <div class="table-wrap lead-desktop-table">
                 <table>
-                  <thead><tr><th>公司 / 联系人</th><th>意向 / 阶段</th><th>下次跟进</th><th>来源</th><th>添加时间</th><th>状态</th><th>操作</th></tr></thead>
+                  <thead><tr><th>公司 / 联系人</th><th>意向 / 阶段</th><th>下次跟进</th><th>来源</th><th>添加时间</th><th>外呼负责坐席</th><th>状态</th><th>操作</th></tr></thead>
                   <tbody id="leadsTableBody"></tbody>
                 </table>
               </div>
@@ -32421,13 +32423,14 @@ body.platform-mode .workspace-tabs { display:none !important; }
               <div class="customer-filter-row customer-view-filter">
                 <input id="customerSearchInput" placeholder="搜索客户、联系人、国家、负责人或来源" aria-label="搜索客户">
                 <select id="customerQueueFilter" aria-label="客户工作队列"><option value="all">全部客户</option><option value="overdue">提醒已逾期</option><option value="no-activity">暂无跟进记录</option><option value="no-deal">暂无活跃商机</option></select>
+                <select id="customerOutboundOwnerFilter" aria-label="外呼负责坐席"><option value="">全部负责坐席</option><option value="mine">我负责的</option><option value="unassigned">待指派</option></select>
                 <button class="btn" id="customerFilterReset">重置</button>
               </div>
               <div class="panel section customer-list-workspace" id="customerListWorkspace">
                 <div class="toolbar" id="customerBulkToolbar"></div>
                 <div class="table-wrap customer-desktop-table">
                   <table>
-                    <thead><tr><th style="width:34px">选</th><th>客户简称</th><th>活跃商机</th><th>客户来源</th><th>客户价值</th><th>跟进节奏</th><th>通讯接入</th><th>操作</th></tr></thead>
+                    <thead><tr><th style="width:34px">选</th><th>客户简称</th><th>活跃商机</th><th>客户来源</th><th>客户价值</th><th>跟进节奏</th><th>通讯接入</th><th>外呼负责坐席</th><th>操作</th></tr></thead>
                     <tbody></tbody>
                   </table>
                 </div>
@@ -32506,6 +32509,9 @@ body.platform-mode .workspace-tabs { display:none !important; }
             .customer-pool-card > span { color: var(--muted); font-size: 10px; }
             .customer-pool-card .customer-pool-actions .btn { flex: 1; min-height: 40px; }
           }
+          .outbound-owner-cell { display: grid; gap: 4px; min-width: 128px; }
+          .outbound-owner-cell [data-outbound-owner-row] { display: flex; gap: 4px; align-items: center; }
+          .outbound-owner-cell select { min-width: 0; max-width: 148px; height: 28px; }
 
           /* ===== 导航栏 · Command Deck 暗夜（仅作用于 .sidebar 自身，安全 scope：无 !important / 无祖先 :has） ===== */
           .sidebar {

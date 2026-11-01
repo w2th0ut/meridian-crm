@@ -88,6 +88,25 @@ export function parseOwnerMineFilter(value: unknown): "" | "mine" | null {
   return null;
 }
 
+export type OutboundOwnerListFilter =
+  | { kind: "all" }
+  | { kind: "mine" }
+  | { kind: "unassigned" }
+  | { kind: "agent"; agentId: string };
+
+/**
+ * 客户、线索、搜客清单的负责坐席筛选。
+ * 省略是全部。mine 是我负责的。unassigned 是待指派。其余若像坐席 ID，就是按这个坐席。
+ */
+export function parseOutboundOwnerListFilter(value: unknown): OutboundOwnerListFilter | null {
+  if (value === undefined || value === null || value === "") return { kind: "all" };
+  if (Array.isArray(value) || typeof value !== "string") return null;
+  if (value === "mine") return { kind: "mine" };
+  if (value === "unassigned") return { kind: "unassigned" };
+  if (AGENT_PATTERN.test(value)) return { kind: "agent", agentId: value };
+  return null;
+}
+
 export function findOutboundOwner(store: OwnerStore, teamId: string, targetType: string, targetId: string) {
   return store.outboundOwners.find((item) => item.teamId === teamId && item.targetType === targetType && item.targetId === targetId) || null;
 }
@@ -123,7 +142,29 @@ export function outboundOwnerView(store: OwnerStore, teamId: string, targetType:
   };
 }
 
-function mappedAgents(store: CrmStore, teamId: string) {
+export function outboundOwnerMatchesList(
+  store: OwnerStore,
+  user: { id: string; teamId: string },
+  targetType: string,
+  targetId: string,
+  filter: OutboundOwnerListFilter
+) {
+  if (filter.kind === "all") return true;
+  const agentId = findOutboundOwner(store, user.teamId, targetType, targetId)?.agentId || "";
+  if (filter.kind === "unassigned") return !agentId;
+  if (filter.kind === "mine") return Boolean(agentId) && myOutboundAgentIds(store, user).has(agentId);
+  return agentId === filter.agentId;
+}
+
+export function outboundOwnerListMeta(store: OwnerStore, user: { id: string; teamId: string; role?: string }) {
+  return {
+    canManage: canManageOutboundOwners(user),
+    myAgentIds: [...myOutboundAgentIds(store, user)],
+    agents: mappedAgents(store, user.teamId)
+  };
+}
+
+function mappedAgents(store: OwnerStore, teamId: string) {
   const seen = new Map<string, string>();
   for (const item of store.aliyunAgentMappings) {
     if (item.teamId !== teamId || !item.cccUserId || seen.has(item.cccUserId)) continue;
