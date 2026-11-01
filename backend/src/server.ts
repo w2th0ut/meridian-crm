@@ -297,7 +297,15 @@ import { listScreenPops, matchLiveScreenPop } from "./aliyun-screen-pop.js";
 import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting } from "./aliyun-campaign-sync.js";
 import { exportOutboundCallRecords } from "./call-export.js";
 import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from "./agent-call-target.js";
-import { assignOutboundOwner, clearOutboundOwner, readOutboundOwner } from "./outbound-owner.js";
+import {
+  assignOutboundOwner,
+  clearOutboundOwner,
+  outboundOwnerListMeta,
+  outboundOwnerMatchesList,
+  outboundOwnerView,
+  parseOutboundOwnerListFilter,
+  readOutboundOwner
+} from "./outbound-owner.js";
 import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outbound-call-records.js";
 import { callNotesForTarget, saveCallNote } from "./call-note.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
@@ -5939,11 +5947,22 @@ app.get("/api/customers", requireAuth, (req, res) => {
     res.status(400).json({ message: "客户范围参数无效" });
     return;
   }
+  const ownerFilter = parseOutboundOwnerListFilter(req.query.outboundOwner);
+  if (!ownerFilter) {
+    res.status(400).json({ message: "外呼负责坐席筛选无效" });
+    return;
+  }
+  const store = getStore();
   const scoped = parsedScope.data === "public"
     ? publicPoolCustomersFor(req.user!)
     : ownedCustomersFor(req.user!, parsedScope.data);
+  const customers = scoped
+    .map((customer) => customerWithPipeline(customer, req.user!))
+    .filter((customer) => outboundOwnerMatchesList(store, req.user!, "customer", customer.id, ownerFilter))
+    .map((customer) => ({ ...customer, ...outboundOwnerView(store, req.user!.teamId, "customer", customer.id) }));
   res.json({
-    customers: scoped.map((customer) => customerWithPipeline(customer, req.user!)),
+    customers,
+    outboundOwnerList: outboundOwnerListMeta(store, req.user!),
     ...customerPoolCounts(req.user!)
   });
 });
@@ -10417,10 +10436,18 @@ app.post("/api/customer-intelligence/:id/reject", requireAuth, asyncRoute(async 
 }));
 
 app.get("/api/leads", requireAuth, (req, res) => {
-  const { leads } = getStore();
+  const ownerFilter = parseOutboundOwnerListFilter(req.query.outboundOwner);
+  if (!ownerFilter) {
+    res.status(400).json({ message: "外呼负责坐席筛选无效" });
+    return;
+  }
+  const store = getStore();
   const trash = req.query.trash === "true";
-  const scoped = leads.filter((lead) => canSeeOwner(req.user!, lead.ownerId, lead.teamId) && (trash ? Boolean(lead.deletedAt) : !lead.deletedAt));
-  res.json({ leads: scoped });
+  const scoped = store.leads.filter((lead) => canSeeOwner(req.user!, lead.ownerId, lead.teamId) && (trash ? Boolean(lead.deletedAt) : !lead.deletedAt));
+  const leads = scoped
+    .filter((lead) => outboundOwnerMatchesList(store, req.user!, "lead", lead.id, ownerFilter))
+    .map((lead) => ({ ...lead, ...outboundOwnerView(store, req.user!.teamId, "lead", lead.id) }));
+  res.json({ leads, outboundOwnerList: outboundOwnerListMeta(store, req.user!) });
 });
 
 app.get("/api/leads/:id", requireAuth, (req, res) => {
@@ -19037,6 +19064,11 @@ app.post("/api/organization-relations", requireAuth, asyncRoute(async (req, res)
 }));
 
 app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, res) => {
+  const ownerFilter = parseOutboundOwnerListFilter(req.query.outboundOwner);
+  if (!ownerFilter) {
+    res.status(400).json({ message: "外呼负责坐席筛选无效" });
+    return;
+  }
   const store = getStore();
   await store.reloadProspectCandidates?.();
   const expiredCandidates = store.websiteOpportunities.filter((item) => {
@@ -19079,6 +19111,7 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
   const scoped = store.websiteOpportunities
     .filter((item) =>
       canSeeOwner(req.user!, item.ownerId, item.teamId)
+      && outboundOwnerMatchesList(store, req.user!, "prospect", item.id, ownerFilter)
     )
     .map((item) => {
       const scored = refreshProspectScorecard(store, { ...item });
@@ -19140,10 +19173,11 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
             scored.teamId,
             scored.organizationId
           )
-        : scored.organizationId
+        : scored.organizationId,
+      ...outboundOwnerView(store, req.user!.teamId, "prospect", item.id)
       };
     });
-  res.json({ opportunities: scoped });
+  res.json({ opportunities: scoped, outboundOwnerList: outboundOwnerListMeta(store, req.user!) });
 }));
 
 app.get("/api/prospect-list/assignees", requireAuth, (req, res) => {

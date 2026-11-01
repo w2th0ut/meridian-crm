@@ -85,9 +85,14 @@ import {
   type AgentCallTargetRow
 } from "./agent-call-target";
 import {
+  matchesOutboundOwnerList,
   outboundOwnerAssignBody,
   outboundOwnerClearBody,
+  outboundOwnerFilterEmptyText,
+  renderOutboundOwnerFilterOptions,
+  renderOutboundOwnerListCell,
   renderOutboundOwnerPanel,
+  type OutboundOwnerListMeta,
   type OutboundOwnerPanel
 } from "./outbound-owner";
 
@@ -847,6 +852,8 @@ interface Customer {
   ownerId?: string;
   teamId?: string;
   ownerName?: string;
+  ownerAgentId?: string;
+  ownerAgentLabel?: string;
   activities?: CustomerActivity[];
   callNotes?: CallNoteTimelineEntry[];
   lastActivityAt?: string;
@@ -2399,6 +2406,8 @@ interface WebsiteOpportunity {
   excludedReason?: string;
   shortlistedAt?: string;
   shortlistedBy?: string;
+  ownerAgentId?: string;
+  ownerAgentLabel?: string;
   shortlistSourceRunId?: string;
   tenantProspectId?: string;
   crmCollision?: CrmCollisionView;
@@ -3577,6 +3586,8 @@ interface Lead {
   status: "new" | "following" | "converted" | "invalid";
   ownerId: string;
   teamId: string;
+  ownerAgentId?: string;
+  ownerAgentLabel?: string;
   estimatedAmount: number;
   nextFollowAt: string;
   lastActivityAt: string;
@@ -4118,6 +4129,7 @@ interface AppState {
   leadIntentFilter: string;
   leadSourceFilter: string;
   leadFollowFilter: string;
+  leadOutboundOwnerFilter: string;
   /** 只看有客户回复的线索（绿色邮箱图标来源） */
   leadReplyFilter: "all" | "replied";
   selectedLeadIds: string[];
@@ -4275,6 +4287,10 @@ interface AppState {
   selectedCustomerIds: string[];
   customerSearch: string;
   customerQueueFilter: "all" | "overdue" | "no-activity" | "no-deal";
+  customerOutboundOwnerFilter: string;
+  canManageOutboundOwner: boolean;
+  myOutboundOwnerAgentIds: string[];
+  outboundOwnerAgents: OutboundOwnerListMeta["agents"];
   customerOutcomeFilter: "open" | "won";
   customerViewMode: "list" | "map" | "board";
   customerPage: number;
@@ -4301,6 +4317,7 @@ interface AppState {
   selectedProspectId: string | null;
   selectedProspectIds: string[];
   prospectFilter: "all" | "preview" | "contactable" | "contacted" | "synced" | "excluded";
+  prospectOutboundOwnerFilter: string;
   prospectStageFilter: "all" | AcquisitionStageFilter;
   prospectCoverageFilter: CoveragePoolListFilter;
   prospectCollisionFilter: CrmCollisionListFilter;
@@ -4362,6 +4379,7 @@ const state: AppState = {
   leadIntentFilter: "all",
   leadSourceFilter: "all",
   leadFollowFilter: "all",
+  leadOutboundOwnerFilter: "",
   leadReplyFilter: "all",
   selectedLeadIds: [],
   leadSearch: "",
@@ -4518,6 +4536,10 @@ const state: AppState = {
   selectedCustomerIds: [],
   customerSearch: "",
   customerQueueFilter: "all",
+  customerOutboundOwnerFilter: "",
+  canManageOutboundOwner: false,
+  myOutboundOwnerAgentIds: [],
+  outboundOwnerAgents: [],
   customerOutcomeFilter: "open",
   customerViewMode: "list",
   customerPage: 1,
@@ -4544,6 +4566,7 @@ const state: AppState = {
   selectedProspectId: null,
   selectedProspectIds: [],
   prospectFilter: "all",
+  prospectOutboundOwnerFilter: "",
   prospectStageFilter: "all",
   prospectCoverageFilter: "all",
   prospectCollisionFilter: "all",
@@ -11741,9 +11764,11 @@ async function refreshAll(user: User) {
   state.user = user;
   state.summary = summary;
   state.customers = customers.customers;
+  absorbOutboundOwnerList(customers);
   state.publicCustomers = publicCustomers.customers;
   state.customerPoolCounts = { mineCount: customers.mineCount, publicCount: publicCustomers.publicCount };
   state.leads = leadsResp.leads;
+  absorbOutboundOwnerList(leadsResp);
   state.leadTrash = leadTrashResp.leads;
   state.todos = todos.todos;
   state.deals = deals.deals;
@@ -11763,6 +11788,7 @@ async function refreshAll(user: User) {
   state.examWorkspaceMode = exams.canManage ? "manage" : "mine";
   state.ocrJob = ocr.job;
   state.websiteOpportunities = websiteOps.opportunities;
+  absorbOutboundOwnerList(websiteOps);
   websiteOpportunitiesLoaded = true;
   state.prospectAssignees = prospectAssignees.assignees;
   state.aiConfig = aiConfig.config;
@@ -11983,6 +12009,7 @@ async function refreshDashboardOnly() {
     state.summary = summary;
     state.todos = todos.todos;
     state.customers = customers.customers;
+    absorbOutboundOwnerList(customers);
     writeDashboardCache(user, summary, todos.todos, customers.customers);
     renderDashboard(summary, todos.todos, customers.customers);
     renderTopbarStats();
@@ -13728,12 +13755,14 @@ function resetLeadFilters() {
   state.leadIntentFilter = "all";
   state.leadSourceFilter = "all";
   state.leadFollowFilter = "all";
+  state.leadOutboundOwnerFilter = "";
   state.leadSearch = "";
   state.leadPage = 1;
   setFieldValue("#leadSearchInput", "");
   setFieldValue("#leadIntentFilter", "all");
   setFieldValue("#leadSourceFilter", "all");
   setFieldValue("#leadFollowFilter", "all");
+  setFieldValue("#leadOutboundOwnerFilter", "");
   state.leadReplyFilter = "all";
   qs<HTMLButtonElement>("#leadReplyFilterButton")?.classList.remove("primary");
   renderLeads();
@@ -14237,10 +14266,11 @@ function renderLeads() {
     const matchIntent = state.leadIntentFilter === "all" || lead.intent === state.leadIntentFilter;
     const matchSource = state.leadSourceFilter === "all" || leadSourceLabel(lead) === state.leadSourceFilter;
     const matchFollow = state.leadFollowFilter === "all" || leadFollowState(lead) === state.leadFollowFilter;
+    const matchOwner = matchesOutboundOwnerList(lead.ownerAgentId, state.leadOutboundOwnerFilter, state.myOutboundOwnerAgentIds);
     const matchReply = state.leadReplyFilter === "all" || Boolean(lead.lastEmailReplyAt);
     const haystack = [lead.company, lead.contact, lead.country, lead.email, lead.phone, lead.source, lead.sourceChannel, lead.externalId, lead.inquiryContent]
       .filter(Boolean).join(" ").toLowerCase();
-    return matchStage && matchIntent && matchSource && matchFollow && matchReply && (!q || haystack.includes(q));
+    return matchStage && matchIntent && matchSource && matchFollow && matchOwner && matchReply && (!q || haystack.includes(q));
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / LEAD_PAGE_SIZE));
   state.leadPage = Math.min(state.leadPage, totalPages);
@@ -14259,6 +14289,9 @@ function renderLeads() {
     });
   }
 
+  syncOutboundOwnerFilterSelect("#leadOutboundOwnerFilter", state.leadOutboundOwnerFilter);
+  const leadOwnerEmpty = state.leadOutboundOwnerFilter && !filtered.length;
+  const leadEmptyText = leadOwnerEmpty ? outboundOwnerFilterEmptyText("线索") : (state.leadView === "trash" ? "垃圾箱中没有符合条件的线索" : "暂无符合条件的线索");
   const replyFlag = (lead: { lastEmailReplyAt?: string }) => lead.lastEmailReplyAt
     ? `<span class="lead-reply-flag" title="客户已回复：${escapeHtml(new Date(lead.lastEmailReplyAt).toLocaleString("zh-CN"))}">✉</span>`
     : "";
@@ -14268,21 +14301,23 @@ function renderLeads() {
     <td><div class="lead-follow-cell"><b>${escapeHtml(lead.nextFollowAt || "未安排")}</b><span>${leadFollowState(lead) === "overdue" ? "已逾期" : leadFollowState(lead) === "unset" ? "待安排" : "已计划"}</span></div></td>
     <td><div class="lead-source-cell"><b>${escapeHtml(leadSourceLabel(lead))}</b><span>${escapeHtml(lead.sourceCampaign || lead.externalId || "无活动编号")}</span></div></td>
     <td><div class="lead-created-cell"><b>${escapeHtml(formatLeadDate(lead.createdAt))}</b></div></td>
+    ${outboundOwnerListCell("lead", lead, "td", state.canManageOutboundOwner && state.leadView !== "trash")}
     <td>${badge(state.leadView === "trash" ? "垃圾箱" : (LEAD_STATUS_LABEL[lead.status] || lead.status), state.leadView === "trash" ? "red" : (LEAD_STATUS_TONE[lead.status] || ""))}</td>
     <td><div class="lead-row-actions">${state.leadView === "trash"
       ? `<button class="btn tiny" type="button" data-lead-row-action="restore" data-lead-row-id="${lead.id}">恢复</button>${lead.convertedCustomerId ? "" : `<button class="btn tiny danger" type="button" data-lead-row-action="permanent" data-lead-row-id="${lead.id}">永久删除</button>`}`
       : `<button class="btn tiny danger subtle" type="button" data-lead-row-action="trash" data-lead-row-id="${lead.id}">删除</button>`}</div></td>
-  </tr>`).join("") : `<tr><td colspan="7" class="empty-cell">${state.leadView === "trash" ? "垃圾箱中没有符合条件的线索" : "暂无符合条件的线索"}</td></tr>`;
+  </tr>`).join("") : `<tr><td colspan="8" class="empty-cell"${leadOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${leadEmptyText}</td></tr>`;
 
   cards.innerHTML = pageRows.length ? pageRows.map((lead) => `
     <article class="lead-mobile-card ${lead.id === state.selectedLeadId ? "selected" : ""}" data-lead-id="${lead.id}">
       <span class="lead-mobile-top"><button class="lead-name" data-open-lead="${lead.id}">${escapeHtml(lead.company)}</button>${preferredPhoneListMark(Boolean(preferredPhoneIdFor("lead", lead.id)))}${replyFlag(lead)}${badge("意向" + lead.intent, lead.intent === "高" ? "red" : lead.intent === "中" ? "amber" : "gray")}</span>
       <span>${escapeHtml(lead.contact || "联系人待补充")} · ${escapeHtml(lead.country || "国家待补充")}${lead.email ? ` · ${escapeHtml(lead.email)}` : ""}</span>
       <span class="lead-mobile-meta"><i>${escapeHtml(lead.stage)}</i><i>${escapeHtml(leadSourceLabel(lead))}</i><i>${escapeHtml(lead.nextFollowAt || "待安排跟进")}</i><i>${escapeHtml(formatLeadDate(lead.createdAt))}</i></span>
+      ${outboundOwnerListCell("lead", lead, "div", state.canManageOutboundOwner && state.leadView !== "trash")}
       <span class="lead-mobile-actions">${state.leadView === "trash"
         ? `<button class="btn tiny" type="button" data-lead-row-action="restore" data-lead-row-id="${lead.id}">恢复</button>${lead.convertedCustomerId ? "" : `<button class="btn tiny danger" type="button" data-lead-row-action="permanent" data-lead-row-id="${lead.id}">永久删除</button>`}`
         : `<button class="btn tiny danger subtle" type="button" data-lead-row-action="trash" data-lead-row-id="${lead.id}">删除</button>`}</span>
-    </article>`).join("") : `<div class="empty-cell">${state.leadView === "trash" ? "垃圾箱中没有符合条件的线索" : "暂无符合条件的线索"}</div>`;
+    </article>`).join("") : `<div class="empty-cell"${leadOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${leadEmptyText}</div>`;
 
   qsa<HTMLButtonElement>("[data-open-lead]", qs("#leads")!).forEach((button) => button.addEventListener("click", () => {
     const id = button.dataset.openLead || "";
@@ -14325,7 +14360,8 @@ function renderLeads() {
 
   const pagination = qs<HTMLElement>("#leadPagination");
   if (pagination) {
-    pagination.innerHTML = `<span>共 ${filtered.length} 条 · 第 ${state.leadPage}/${totalPages} 页</span><div><button class="btn tiny" id="leadPrevPage" ${state.leadPage <= 1 ? "disabled" : ""}>上一页</button><button class="btn tiny" id="leadNextPage" ${state.leadPage >= totalPages ? "disabled" : ""}>下一页</button></div>`;
+    const leadPageLabel = leadOwnerEmpty ? leadEmptyText : `共 ${filtered.length} 条 · 第 ${state.leadPage}/${totalPages} 页`;
+    pagination.innerHTML = `<span>${leadPageLabel}</span><div><button class="btn tiny" id="leadPrevPage" ${state.leadPage <= 1 ? "disabled" : ""}>上一页</button><button class="btn tiny" id="leadNextPage" ${state.leadPage >= totalPages ? "disabled" : ""}>下一页</button></div>`;
     qs<HTMLButtonElement>("#leadPrevPage", pagination)?.addEventListener("click", () => { state.leadPage -= 1; renderLeads(); });
     qs<HTMLButtonElement>("#leadNextPage", pagination)?.addEventListener("click", () => { state.leadPage += 1; renderLeads(); });
   }
@@ -14336,6 +14372,7 @@ function renderLeads() {
   const trashCount = qs("#leadTrashCount");
   if (activeCount) activeCount.textContent = String(state.leads.length);
   if (trashCount) trashCount.textContent = String(state.leadTrash.length);
+  bindOutboundOwnerListRows(qs("#leads") || tbody);
 }
 
 async function openLead(id: string) {
@@ -15088,6 +15125,7 @@ async function reloadLeads() {
     api<{ leads: Lead[] }>("/api/leads?trash=true")
   ]);
   state.leads = active.leads;
+  absorbOutboundOwnerList(active);
   state.leadTrash = trash.leads;
   renderLeads();
   await refreshDashboardOnly();
@@ -15353,7 +15391,9 @@ async function confirmLeadConversion(id: string) {
       api<{ deals: Deal[] }>("/api/deals")
     ]);
     state.leads = leads.leads;
+    absorbOutboundOwnerList(leads);
     state.customers = customers.customers;
+    absorbOutboundOwnerList(customers);
     state.deals = deals.deals;
     renderLeads();
     renderCustomers(state.customers);
@@ -15447,7 +15487,8 @@ function filteredCustomers(customers: Customer[]) {
       || (state.customerQueueFilter === "overdue" && customer.nextReminder.includes("逾期"))
       || (state.customerQueueFilter === "no-activity" && !customer.lastActivityAt)
       || (state.customerQueueFilter === "no-deal" && !customer.activeDealCount);
-    return matchesQuery && matchesOutcome && matchesQueue;
+    const matchesOwner = matchesOutboundOwnerList(customer.ownerAgentId, state.customerOutboundOwnerFilter, state.myOutboundOwnerAgentIds);
+    return matchesQuery && matchesOutcome && matchesQueue && matchesOwner;
   });
 }
 
@@ -15569,6 +15610,12 @@ function renderCustomers(customers: Customer[]) {
   const visibleCustomers = filteredCustomers(customers);
   const { pageCount, start, rows: pageCustomers } = customerPageRows(visibleCustomers);
   renderCustomerPagination(visibleCustomers.length, pageCount, start);
+  syncOutboundOwnerFilterSelect("#customerOutboundOwnerFilter", state.customerOutboundOwnerFilter);
+  const customerOwnerEmpty = Boolean(state.customerOutboundOwnerFilter) && !visibleCustomers.length;
+  if (customerOwnerEmpty) {
+    const summary = qs<HTMLElement>("#customerPageSummary");
+    if (summary) summary.textContent = outboundOwnerFilterEmptyText("客户");
+  }
   state.selectedCustomerIds = state.selectedCustomerIds.filter((id) => customers.some((customer) => customer.id === id));
   renderCustomerBulkBar(pageCustomers);
   tbody.innerHTML = pageCustomers.length ? pageCustomers.map((customer) => {
@@ -15585,17 +15632,19 @@ function renderCustomers(customers: Customer[]) {
     <td><div class="customer-value-cell">${customerGradeHtml(customer)}${badge(customerWonLabel(customer), customer.hasWonDeal ? "green" : "gray")}</div></td>
     <td><div class="customer-follow-cell"><span>${customer.lastActivityAt ? `最近 ${escapeHtml(formatDateTime(customer.lastActivityAt))}` : "暂无跟进"}</span><b>${reminder}</b></div></td>
     <td><button class="${whatsAppEntryClass(customerWhatsapp)}" type="button" data-customer-whatsapp ${whatsAppEntryAttrs(customerWhatsapp)}>WhatsApp</button></td>
+    ${outboundOwnerListCell("customer", customer)}
     <td><div class="customer-row-actions"><button class="btn" data-open-customer-page>全景</button><button class="btn" data-edit-customer>编辑</button><button class="btn" data-release-customer>放入公池</button></div></td>
   </tr>`;
-  }).join("") : `<tr><td colspan="8" class="empty-cell">当前${customerOutcomeLabel()}筛选下暂无客户。</td></tr>`;
+  }).join("") : `<tr><td colspan="9" class="empty-cell"${customerOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${customerOwnerEmpty ? outboundOwnerFilterEmptyText("客户") : `当前${customerOutcomeLabel()}筛选下暂无客户。`}</td></tr>`;
   const mobile = qs<HTMLElement>("#customerMobileList");
   if (mobile) mobile.innerHTML = pageCustomers.length ? pageCustomers.map((customer) => `
     <article class="customer-mobile-card" data-customer-mobile-id="${escapeHtml(customer.id)}">
       <span class="customer-mobile-top"><span class="customer-mobile-company">${countryFlag(customer.country)}<button type="button" class="customer-name ${(customer.activeDealCount || 0) > 0 ? "has-active-deal" : ""}" data-open-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.company)}</button>${preferredPhoneListMark(Boolean(preferredPhoneIdFor("customer", customer.id)))}</span>${badge(customer.pipelineStage || "暂无商机", customer.pipelineStage === "谈判" || customer.pipelineStage === "成交" ? "green" : customer.pipelineStage === "已报价" ? "amber" : "gray")}</span>
       <span>${escapeHtml(customer.country)} · ${escapeHtml(customer.contact)} · ${escapeHtml(customer.ownerName || "未分配")}</span>
       <span class="customer-mobile-meta"><i>来源 · ${escapeHtml(customer.source || "未登记")}</i><i>${customerGradeValue(customer)}级 · ${customerGradeLabel(customerGradeValue(customer))}</i><i>${customerWonLabel(customer)}</i><i>${customer.activeDealCount || 0} 个活跃商机</i><i>${escapeHtml(customer.nextReminder || "待安排")}</i><i>${customer.lastActivityAt ? `最近 ${escapeHtml(formatDateTime(customer.lastActivityAt))}` : "暂无跟进"}</i></span>
+      ${outboundOwnerListCell("customer", customer, "div")}
       <div class="customer-row-actions"><button class="${whatsAppEntryClass(customerContactDetails(customer).whatsapp)}" type="button" data-customer-mobile-whatsapp ${whatsAppEntryAttrs(customerContactDetails(customer).whatsapp)}>WhatsApp</button><button class="btn" type="button" data-customer-mobile-pool>放入公池</button></div>
-    </article>`).join("") : `<div class="empty-cell">当前${customerOutcomeLabel()}筛选下暂无客户。</div>`;
+    </article>`).join("") : `<div class="empty-cell"${customerOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${customerOwnerEmpty ? outboundOwnerFilterEmptyText("客户") : `当前${customerOutcomeLabel()}筛选下暂无客户。`}</div>`;
   qsa<HTMLElement>("tr", tbody).forEach((row, index) => {
     const customer = pageCustomers[index];
     if (!customer) return;
@@ -15669,6 +15718,7 @@ function renderCustomers(customers: Customer[]) {
     });
     qs<HTMLButtonElement>("[data-customer-mobile-pool]", card)?.addEventListener("click", () => openCustomerReleaseModal(customer));
   });
+  bindOutboundOwnerListRows(qs("#customers") || tbody);
   const selected = customers.find((item) => item.id === state.selectedCustomerId);
   if (selected && qs("#customerDrawer")?.classList.contains("open")) renderCustomerDrawer(selected);
   if (mapActive) void renderCustomerMap(visibleCustomers);
@@ -15746,6 +15796,7 @@ async function reloadCustomerScopes() {
     api<{ customers: Customer[]; mineCount: number; publicCount: number }>("/api/customers?scope=public")
   ]);
   state.customers = owned.customers;
+  absorbOutboundOwnerList(owned);
   state.publicCustomers = publicPool.customers;
   state.customerPoolCounts = { mineCount: owned.mineCount, publicCount: publicPool.publicCount };
   state.selectedCustomerIds = state.selectedCustomerIds.filter((id) => state.customers.some((customer) => customer.id === id));
@@ -17582,6 +17633,95 @@ async function saveOutboundOwner(host: HTMLElement) {
     await mountOutboundOwner(host.parentElement || host);
     void loadIntentFollowupQueue();
     void loadCallbackReminders();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "外呼负责坐席没有保存", "error");
+  } finally {
+    outboundOwnerPending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+function absorbOutboundOwnerList(payload?: object) {
+  const meta = payload && "outboundOwnerList" in payload
+    ? (payload as { outboundOwnerList?: OutboundOwnerListMeta }).outboundOwnerList
+    : undefined;
+  if (!meta) return;
+  state.canManageOutboundOwner = meta.canManage === true;
+  state.myOutboundOwnerAgentIds = meta.myAgentIds || [];
+  state.outboundOwnerAgents = meta.agents || [];
+}
+
+function outboundOwnerListCell(
+  targetType: "customer" | "lead" | "prospect",
+  item: { id: string; ownerAgentId?: string; ownerAgentLabel?: string },
+  tag: "td" | "div" = "td",
+  canManage = state.canManageOutboundOwner
+) {
+  return renderOutboundOwnerListCell({
+    targetType,
+    targetId: item.id,
+    ownerAgentId: item.ownerAgentId,
+    ownerAgentLabel: item.ownerAgentLabel,
+    canManage,
+    agents: state.outboundOwnerAgents || [],
+    tag
+  });
+}
+
+function syncOutboundOwnerFilterSelect(selector: string, selected: string) {
+  const select = qs<HTMLSelectElement>(selector);
+  if (!select) return;
+  select.innerHTML = renderOutboundOwnerFilterOptions(state.outboundOwnerAgents || [], selected);
+}
+
+function bindOutboundOwnerListRows(root: ParentNode) {
+  qsa<HTMLFormElement>("[data-outbound-owner-row]", root).forEach((form) => {
+    form.addEventListener("click", (event) => event.stopPropagation());
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void saveOutboundOwnerFromList(form);
+    });
+  });
+}
+
+function patchOutboundOwnerLocal(targetType: string, targetId: string, agentId: string, label: string) {
+  const patch = { ownerAgentId: agentId, ownerAgentLabel: label };
+  const mapItems = <T extends { id: string }>(items: T[]) => items.map((item) => item.id === targetId ? { ...item, ...patch } : item);
+  if (targetType === "customer") {
+    state.customers = mapItems(state.customers);
+    state.publicCustomers = mapItems(state.publicCustomers);
+  } else if (targetType === "lead") {
+    state.leads = mapItems(state.leads);
+    state.leadTrash = mapItems(state.leadTrash);
+  } else if (targetType === "prospect") {
+    state.websiteOpportunities = mapItems(state.websiteOpportunities);
+  }
+}
+
+async function saveOutboundOwnerFromList(form: HTMLFormElement) {
+  if (outboundOwnerPending) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  const agentId = form.querySelector<HTMLSelectElement>("[data-outbound-owner-agent]")?.value || "";
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  outboundOwnerPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; ownerAgentId?: string; ownerAgentLabel?: string }>(agentId ? "/api/outbound-owners" : "/api/outbound-owners/clear", {
+      method: "POST",
+      body: JSON.stringify(agentId ? outboundOwnerAssignBody({ targetType, targetId, agentId }) : outboundOwnerClearBody({ targetType, targetId }))
+    });
+    toast(result.message || (agentId ? "已保存外呼负责坐席" : "已清除外呼负责坐席"));
+    patchOutboundOwnerLocal(targetType, targetId, result.ownerAgentId || "", result.ownerAgentLabel || "");
+    if (qs("#customers tbody")) renderCustomers(state.customers);
+    if (qs("#leadsTableBody")) renderLeads();
+    if (qs("#prospectListRows")) renderProspectList();
+    qsa<HTMLElement>("[data-outbound-owner-host]").forEach((host) => {
+      if (host.dataset.targetType === targetType && host.dataset.targetId === targetId && host.parentElement) {
+        void mountOutboundOwner(host.parentElement);
+      }
+    });
   } catch (error) {
     toast(error instanceof Error ? error.message : "外呼负责坐席没有保存", "error");
   } finally {
@@ -35748,6 +35888,7 @@ function prospectFilteredRows() {
       if (state.prospectIntakeAgeFilter !== "all" && !intakeAgeMatchesFilter(prospectIntakeAge(item), state.prospectIntakeAgeFilter)) return false;
       if (state.prospectStatusChangeAgeFilter !== "all" && !statusChangeAgeMatchesFilter(prospectStatusChangeAge(item), state.prospectStatusChangeAgeFilter)) return false;
       if (state.prospectTouchpointAgeFilter !== "all" && !touchpointAgeMatchesFilter(prospectTouchpointAge(item), state.prospectTouchpointAgeFilter)) return false;
+      if (!matchesOutboundOwnerList(item.ownerAgentId, state.prospectOutboundOwnerFilter, state.myOutboundOwnerAgentIds)) return false;
       if (joinedWindow) {
         const joinedAt = prospectJoinedTime(item);
         if (joinedAt === null) return false;
@@ -40041,7 +40182,8 @@ function renderProspectList() {
   const pageRows = filtered.slice((state.prospectPage - 1) * PROSPECT_PAGE_SIZE, state.prospectPage * PROSPECT_PAGE_SIZE);
   state.selectedProspectIds = state.selectedProspectIds.filter((id) => all.some((item) => item.id === id));
   if (!state.selectedProspectId || !all.some((item) => item.id === state.selectedProspectId)) state.selectedProspectId = pageRows[0]?.id || filtered[0]?.id || null;
-  if (total) total.textContent = filtered.length === all.length ? `${all.length} 条候选` : `${filtered.length} 条显示 · ${all.length} 条总计`;
+  const prospectOwnerEmpty = Boolean(state.prospectOutboundOwnerFilter) && !filtered.length;
+  if (total) total.textContent = prospectOwnerEmpty ? outboundOwnerFilterEmptyText("候选") : filtered.length === all.length ? `${all.length} 条候选` : `${filtered.length} 条显示 · ${all.length} 条总计`;
   if (preview) preview.textContent = String(all.filter((item) => item.status === "preview").length);
   if (contactable) contactable.textContent = String(all.filter((item) => item.status === "contactable").length);
   if (contacted) contacted.textContent = String(all.filter((item) => item.status === "contacted").length);
@@ -40056,7 +40198,7 @@ function renderProspectList() {
   }
   const pageSummary = qs<HTMLElement>("#prospectPageSummary");
   const pageNumber = qs<HTMLElement>("#prospectPageNumber");
-  if (pageSummary) pageSummary.textContent = filtered.length ? `第 ${(state.prospectPage - 1) * PROSPECT_PAGE_SIZE + 1}-${Math.min(state.prospectPage * PROSPECT_PAGE_SIZE, filtered.length)} 条，共 ${filtered.length} 条` : "0 条结果";
+  if (pageSummary) pageSummary.textContent = prospectOwnerEmpty ? outboundOwnerFilterEmptyText("候选") : filtered.length ? `第 ${(state.prospectPage - 1) * PROSPECT_PAGE_SIZE + 1}-${Math.min(state.prospectPage * PROSPECT_PAGE_SIZE, filtered.length)} 条，共 ${filtered.length} 条` : "0 条结果";
   if (pageNumber) pageNumber.textContent = `${state.prospectPage} / ${pageCount}`;
   const prev = qs<HTMLButtonElement>("#prospectPrevPage");
   const next = qs<HTMLButtonElement>("#prospectNextPage");
@@ -40091,6 +40233,7 @@ function renderProspectList() {
     const industryButton = qs<HTMLButtonElement>(selector);
     if (industryButton) industryButton.hidden = !showProspectIndustryEntry(canTag);
   }
+  syncOutboundOwnerFilterSelect("#prospectOutboundOwnerFilter", state.prospectOutboundOwnerFilter);
   qsa<HTMLButtonElement>("[data-prospect-filter]").forEach((button) => button.classList.toggle("active", button.dataset.prospectFilter === state.prospectFilter));
   qsa<HTMLButtonElement>("[data-prospect-stage-filter]").forEach((button) => {
     const active = button.dataset.prospectStageFilter === state.prospectStageFilter;
@@ -40408,9 +40551,10 @@ function renderProspectList() {
             ${renderCrmCollisionLine(item)}
             <div class="prospect-joined-at"><span>加入搜客清单</span><time datetime="${escapeHtml(item.shortlistedAt || item.createdAt)}" title="${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}">${escapeHtml(formatProspectJoinedAt(item.shortlistedAt || item.createdAt))}</time></div>
           </div>
+          ${outboundOwnerListCell("prospect", item, "div")}
         </article>
       `;
-    }).join("") : `<div class="empty-cell">${coverageEmpty}</div>`;
+    }).join("") : `<div class="empty-cell"${prospectOwnerEmpty ? ` data-owner-filter-empty="1"` : ""}>${prospectOwnerEmpty ? outboundOwnerFilterEmptyText("候选") : coverageEmpty}</div>`;
     qsa<HTMLInputElement>("[data-prospect-select]", rows).forEach((input) => {
       input.addEventListener("change", () => {
         const id = input.dataset.prospectSelect || "";
@@ -40471,6 +40615,7 @@ function renderProspectList() {
     bindReplyAgeLinks(rows);
     bindSequenceLastStepAgeLinks(rows);
     bindIntakeAgeLinks(rows);
+    bindOutboundOwnerListRows(rows);
   }
   renderProspectDetail(selectedProspect());
   renderDashboardPendingEmails();
@@ -43039,8 +43184,9 @@ async function refreshDashboardPendingEmails(button?: HTMLButtonElement | null) 
     button.textContent = "刷新中";
   }
   try {
-    const result = await api<{ opportunities: WebsiteOpportunity[] }>("/api/tools/website-opportunities");
+    const result = await api<{ opportunities: WebsiteOpportunity[]; outboundOwnerList?: OutboundOwnerListMeta }>("/api/tools/website-opportunities");
     state.websiteOpportunities = result.opportunities || [];
+    absorbOutboundOwnerList(result);
     websiteOpportunitiesLoaded = true;
     acquisitionTodoReadError = "";
     renderProspectList();
@@ -48100,8 +48246,9 @@ async function importPendingLeadTaskResults(
     await loadProspectRuns(true);
     const refreshedJob = leadFinderJobs.find((item) => item.id === activeLeadFinderJobId);
     if (refreshedJob) await loadLeadTaskPendingCandidates(refreshedJob);
-    const opportunities = await api<{ opportunities: WebsiteOpportunity[] }>("/api/tools/website-opportunities");
+    const opportunities = await api<{ opportunities: WebsiteOpportunity[]; outboundOwnerList?: OutboundOwnerListMeta }>("/api/tools/website-opportunities");
     state.websiteOpportunities = opportunities.opportunities || [];
+    absorbOutboundOwnerList(opportunities);
     renderLeadFinder(state.websiteOpportunities);
     renderProspectList();
     renderLeadTaskDetail();
@@ -49245,9 +49392,10 @@ function syncLeadFinderRunPolling() {
 }
 
 async function refreshLeadFinderOpportunities() {
-  const result = await api<{ opportunities: WebsiteOpportunity[] }>(
+  const result = await api<{ opportunities: WebsiteOpportunity[]; outboundOwnerList?: OutboundOwnerListMeta }>(
     "/api/tools/website-opportunities"
   );
+  absorbOutboundOwnerList(result);
   const selectedIds = new Set(state.websiteOpportunities
     .filter((item) => item.selected)
     .map((item) => item.id));
@@ -49623,9 +49771,10 @@ async function reviewIdentityConflict(
     );
     await loadIdentityConflicts();
     if (action === "merge") {
-      const result = await api<{ opportunities: WebsiteOpportunity[] }>(
+      const result = await api<{ opportunities: WebsiteOpportunity[]; outboundOwnerList?: OutboundOwnerListMeta }>(
         "/api/tools/website-opportunities"
       );
+      absorbOutboundOwnerList(result);
       state.websiteOpportunities = result.opportunities || [];
       renderWebsiteOpportunities(state.websiteOpportunities);
       renderLeadFinder(state.websiteOpportunities);
@@ -50734,8 +50883,9 @@ interface CliAcquireStats { rawCount: number; created: number; evidenceUpdated?:
 
 async function refreshCandidatesAfterAcquire() {
   try {
-    const result = await api<{ opportunities: WebsiteOpportunity[] }>("/api/tools/website-opportunities");
+    const result = await api<{ opportunities: WebsiteOpportunity[]; outboundOwnerList?: OutboundOwnerListMeta }>("/api/tools/website-opportunities");
     state.websiteOpportunities = result.opportunities || [];
+    absorbOutboundOwnerList(result);
     renderWebsiteOpportunities(state.websiteOpportunities);
     renderLeadFinder(state.websiteOpportunities);
     renderProspectList();
@@ -55126,14 +55276,22 @@ function installEvents() {
     state.customerPage = 1;
     renderCustomers(state.customers);
   });
+  qs<HTMLSelectElement>("#customerOutboundOwnerFilter")?.addEventListener("change", (event) => {
+    state.customerOutboundOwnerFilter = (event.currentTarget as HTMLSelectElement).value;
+    state.customerPage = 1;
+    renderCustomers(state.customers);
+  });
   qs<HTMLButtonElement>("#customerFilterReset")?.addEventListener("click", () => {
     state.customerSearch = "";
     state.customerQueueFilter = "all";
+    state.customerOutboundOwnerFilter = "";
     state.customerPage = 1;
     const search = qs<HTMLInputElement>("#customerSearchInput");
     const filter = qs<HTMLSelectElement>("#customerQueueFilter");
+    const owner = qs<HTMLSelectElement>("#customerOutboundOwnerFilter");
     if (search) search.value = "";
     if (filter) filter.value = "all";
+    if (owner) owner.value = "";
     renderCustomers(state.customers);
   });
   qs<HTMLSelectElement>("#customerPageSize")?.addEventListener("change", (event) => {
@@ -55498,6 +55656,11 @@ function installEvents() {
   });
   qs<HTMLSelectElement>("#leadFollowFilter")?.addEventListener("change", (event) => {
     state.leadFollowFilter = (event.target as HTMLSelectElement).value;
+    state.leadPage = 1;
+    renderLeads();
+  });
+  qs<HTMLSelectElement>("#leadOutboundOwnerFilter")?.addEventListener("change", (event) => {
+    state.leadOutboundOwnerFilter = (event.target as HTMLSelectElement).value;
     state.leadPage = 1;
     renderLeads();
   });
@@ -56127,11 +56290,17 @@ function installEvents() {
     state.prospectPage = 1;
     renderProspectList();
   });
+  qs<HTMLSelectElement>("#prospectOutboundOwnerFilter")?.addEventListener("change", (event) => {
+    state.prospectOutboundOwnerFilter = (event.currentTarget as HTMLSelectElement).value;
+    state.prospectPage = 1;
+    renderProspectList();
+  });
   qs<HTMLButtonElement>("#prospectMobileDetailClose")?.addEventListener("click", closeProspectMobileDetail);
   qs<HTMLButtonElement>("#prospectOpenFinderButton")?.addEventListener("click", () => activateNavView("lead-finder", () => renderLeadFinder(state.websiteOpportunities)));
   qs<HTMLButtonElement>("#prospectRefreshButton")?.addEventListener("click", async () => {
-    const result = await api<{ opportunities: WebsiteOpportunity[] }>("/api/tools/website-opportunities");
+    const result = await api<{ opportunities: WebsiteOpportunity[]; outboundOwnerList?: OutboundOwnerListMeta }>("/api/tools/website-opportunities");
     state.websiteOpportunities = result.opportunities;
+    absorbOutboundOwnerList(result);
     websiteOpportunitiesLoaded = true;
     prospectMobileDetailOpen = false;
     document.body.classList.remove("prospect-mobile-detail-open");
