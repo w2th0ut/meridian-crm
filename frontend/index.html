@@ -13513,6 +13513,19 @@
 
     .intent-followup-actions input { min-width: 180px; }
 
+    .outbound-record-filters label.intent-followup-show-ignored {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 36px;
+    }
+
+    .outbound-record-filters label.intent-followup-show-ignored input {
+      min-width: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
     [data-intent-followup-ignored] { margin-top: 20px; }
     [data-intent-followup-ignored] h2 { margin: 0 0 8px; font-size: 16px; }
 
@@ -32175,9 +32188,15 @@ body.platform-mode .workspace-tabs { display:none !important; }
           <div class="page-head">
             <div>
               <h1>意向回访队列</h1>
-              <p>列出最近一次通话标注为有意向或需回访、且还没有未完成下次跟进的客户、线索和搜客对象。可以单条安排跟进。不能拨号，不能发信，不能批量操作。</p>
+              <p>列出最近一次通话标注为有意向或需回访、且还没有未完成下次跟进的客户、线索和搜客对象。可以单条安排跟进，也可以单条忽略或撤销忽略。忽略后如果又有新的通话标成有意向或需回访，对象会重新出现。不能拨号，不能发信，不能批量操作。</p>
             </div>
           </div>
+          <form id="intentFollowupFilters" class="outbound-record-filters">
+            <label>坐席<select id="intentFollowupAgent"></select></label>
+            <label>结果<select id="intentFollowupOutcome"><option value="">全部</option><option value="有意向">有意向</option><option value="需回访">需回访</option></select></label>
+            <label class="intent-followup-show-ignored"><input id="intentFollowupIncludeIgnored" type="checkbox">显示已忽略</label>
+            <button class="btn" type="submit">筛选</button>
+          </form>
           <div id="intentFollowupQueue"><p data-intent-followup-empty="1">这个范围内还没有待回访的对象。</p></div>
         </div>
         <div class="view" id="phone-strategies"><div class="kd-phone-root"></div></div>

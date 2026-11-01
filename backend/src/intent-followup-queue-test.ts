@@ -5,6 +5,7 @@ import {
   hasOpenNextFollowUp,
   isIntentFollowupOutcome,
   isMoreRecentCall,
+  parseIntentFollowupListQuery,
   type IntentFollowupObjectSnapshot
 } from "./intent-followup-queue.js";
 import type { CallOutcomeAudit, OutboundCallRecord } from "./types.js";
@@ -160,13 +161,136 @@ const empty = buildIntentFollowupQueue({
 });
 assert.deepEqual(empty, []);
 
+const ignoredNow = buildIntentFollowupQueue({
+  teamId: "europe",
+  records,
+  audits,
+  objects,
+  arrangements: [],
+  ignores: [{ teamId: "europe", targetType: "customer", targetId: "c-intent", callRecordId: "new-intent", active: true }],
+  visible: () => true,
+  labels: new Map()
+});
+assert.equal(ignoredNow.some((item) => item.targetId === "c-intent"), false);
+assert.equal(ignoredNow.some((item) => item.targetId === "p-back"), true);
+const shownIgnored = buildIntentFollowupQueue({
+  teamId: "europe",
+  records,
+  audits,
+  objects,
+  arrangements: [],
+  ignores: [{ teamId: "europe", targetType: "customer", targetId: "c-intent", callRecordId: "new-intent", active: true }],
+  includeIgnored: true,
+  visible: () => true,
+  labels: new Map()
+});
+const shown = shownIgnored.find((item) => item.targetId === "c-intent");
+assert.equal(shown?.ignored, true);
+assert.equal(shown?.callRecordId, "new-intent");
+const restored = buildIntentFollowupQueue({
+  teamId: "europe",
+  records,
+  audits,
+  objects,
+  arrangements: [],
+  ignores: [{ teamId: "europe", targetType: "customer", targetId: "c-intent", callRecordId: "new-intent", active: false }],
+  visible: () => true,
+  labels: new Map()
+});
+assert.equal(restored.find((item) => item.targetId === "c-intent")?.ignored, false);
+
+const requeued = buildIntentFollowupQueue({
+  teamId: "europe",
+  records: [
+    ...records,
+    record({ id: "newer-cold", targetType: "customer", targetId: "c-intent", callOutcome: "无意向", startTimeRaw: "4000" }),
+    record({ id: "newer-intent", targetType: "customer", targetId: "c-intent", callOutcome: "需回访", startTimeRaw: "5000", agentIds: "agent-a" })
+  ],
+  audits,
+  objects,
+  arrangements: [],
+  ignores: [{ teamId: "europe", targetType: "customer", targetId: "c-intent", callRecordId: "new-intent", active: true }],
+  visible: () => true,
+  labels: new Map()
+});
+const again = requeued.find((item) => item.targetId === "c-intent");
+assert.equal(again?.callRecordId, "newer-intent");
+assert.equal(again?.outcome, "需回访");
+assert.equal(again?.ignored, false);
+
+const sameCall = buildIntentFollowupQueue({
+  teamId: "europe",
+  records: records.map((item) => item.id === "new-intent" ? { ...item, callOutcome: "需回访" } : item),
+  audits,
+  objects,
+  arrangements: [],
+  ignores: [{ teamId: "europe", targetType: "customer", targetId: "c-intent", callRecordId: "new-intent", active: true }],
+  includeIgnored: true,
+  visible: () => true,
+  labels: new Map()
+});
+assert.equal(sameCall.find((item) => item.targetId === "c-intent")?.ignored, true);
+assert.equal(sameCall.find((item) => item.targetId === "c-intent")?.outcome, "需回访");
+
+const byOutcome = buildIntentFollowupQueue({
+  teamId: "europe",
+  records,
+  audits,
+  objects,
+  arrangements: [],
+  outcome: "有意向",
+  visible: () => true,
+  labels: new Map()
+});
+assert.deepEqual(byOutcome.map((item) => item.outcome), byOutcome.map(() => "有意向"));
+assert.equal(byOutcome.some((item) => item.targetId === "p-back"), false);
+assert.equal(byOutcome.some((item) => item.targetId === "c-intent"), true);
+const byAgent = buildIntentFollowupQueue({
+  teamId: "europe",
+  records,
+  audits,
+  objects,
+  arrangements: [],
+  agentId: "agent-b",
+  visible: () => true,
+  labels: new Map()
+});
+assert.deepEqual(byAgent.map((item) => item.targetId), ["l-open"]);
+const otherTeamIgnore = buildIntentFollowupQueue({
+  teamId: "europe",
+  records,
+  audits,
+  objects,
+  arrangements: [],
+  ignores: [{ teamId: "asia", targetType: "customer", targetId: "c-intent", callRecordId: "new-intent", active: true }],
+  visible: () => true,
+  labels: new Map()
+});
+assert.equal(otherTeamIgnore.some((item) => item.targetId === "c-intent"), true);
+
+assert.equal(parseIntentFollowupListQuery({}).includeIgnored, false);
+assert.equal(parseIntentFollowupListQuery({ outcome: "有意向" }).outcome, "有意向");
+assert.equal(parseIntentFollowupListQuery({ includeIgnored: "1" }).includeIgnored, true);
+assert.equal(parseIntentFollowupListQuery({ includeIgnored: "true" }).includeIgnored, true);
+assert.equal(parseIntentFollowupListQuery({ includeIgnored: "0" }).includeIgnored, false);
+assert.equal(parseIntentFollowupListQuery({ outcome: "无意向" }), null);
+assert.equal(parseIntentFollowupListQuery({ outcome: "Success" }), null);
+assert.equal(parseIntentFollowupListQuery({ agentId: ["a", "b"] }), null);
+assert.equal(parseIntentFollowupListQuery({ includeIgnored: "maybe" }), null);
+assert.equal(parseIntentFollowupListQuery({ agentId: "bad id" }), null);
+
 const schema = readFileSync(new URL("./mysql-store.ts", import.meta.url), "utf8");
 assert.match(schema, /CREATE TABLE IF NOT EXISTS intent_followup_queue_audits \(/);
 assert.match(schema, /CREATE TABLE IF NOT EXISTS intent_followup_arrangements \(/);
+assert.match(schema, /CREATE TABLE IF NOT EXISTS intent_followup_ignores \(/);
 assert.equal(schema.includes("CREATE TABLE intent_followup_queue_audits"), false);
 assert.equal(schema.includes("CREATE TABLE intent_followup_arrangements"), false);
-assert.equal(schema.includes("intent_followup_ignores"), false);
+assert.equal(schema.includes("CREATE TABLE intent_followup_ignores"), false);
 assert.match(schema, /UNIQUE KEY uniq_intent_followup_arr_target\(team_id, target_type, target_id\)/);
+assert.match(schema, /UNIQUE KEY uniq_intent_followup_ignore_target\(team_id, target_type, target_id\)/);
+assert.match(schema, /ensureColumn\(pool, "intent_followup_ignores", "call_record_id", "VARCHAR\(64\) NOT NULL DEFAULT ''"\)/);
+assert.match(schema, /ensureColumn\(pool, "intent_followup_ignores", "active", "TINYINT NOT NULL DEFAULT 1"\)/);
+assert.match(schema, /value === "ignore" \|\| value === "restore"/);
 
 const source = readFileSync(new URL("./intent-followup-queue.ts", import.meta.url), "utf8");
 assert.doesNotMatch(source, /makeCall|MakeCall|aliyuncs|convert_to_lead|convertProspect|approved_contactable|unsuppress|send-development-email/i);

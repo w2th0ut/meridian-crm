@@ -20,6 +20,7 @@ import type { CrmStore } from "./store.js";
 import type {
   CallOutcomeAudit,
   IntentFollowupArrangement,
+  IntentFollowupIgnore,
   IntentFollowupQueueAudit,
   OutboundCallRecord,
   SessionUser,
@@ -30,6 +31,8 @@ import type {
  * 意向回访队列。
  * 最近一次通话标注为有意向或需回访，且关联对象没有未完成下次跟进时入队。
  * 安排跟进只写本地下次跟进。忽略可以撤销。两次都写审计。
+ * 忽略只对当前这一通通话生效。之后另有一通标成有意向或需回访时重新入队。
+ * 可以按坐席、按结果筛选，也可以显示已忽略。
  * 不拨号，不发信，不推进序列，不解除抑制。
  */
 
@@ -39,6 +42,7 @@ export type IntentFollowupTargetType = "customer" | "lead" | "prospect";
 
 const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "items", "outcomes"] as const;
 const TARGET_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const AGENT_PATTERN = /^[A-Za-z0-9_@.:-]{1,128}$/;
 
 const TARGET_LABEL: Record<IntentFollowupTargetType, string> = {
   customer: "客户",
@@ -119,6 +123,49 @@ export interface IntentFollowupQueueRow {
   agentLabel: string;
   maskedNumber: string;
   suppressionNotice: string;
+  ignored: boolean;
+}
+
+export interface IntentFollowupIgnoreRef {
+  teamId: string;
+  targetType: string;
+  targetId: string;
+  callRecordId: string;
+  active: boolean;
+}
+
+export interface IntentFollowupListQuery {
+  agentId: string | null;
+  outcome: IntentFollowupOutcome | null;
+  includeIgnored: boolean;
+}
+
+function oneQuery(value: unknown) {
+  if (Array.isArray(value)) return null;
+  if (value === undefined || value === null) return "";
+  return typeof value === "string" ? value.trim() : null;
+}
+
+/** 空参数保持原队列。坐席、结果和「显示已忽略」都是可选筛选。非法值返回 null。 */
+export function parseIntentFollowupListQuery(query: Record<string, unknown>): IntentFollowupListQuery | null {
+  const agentRaw = oneQuery(query.agentId);
+  const outcomeRaw = oneQuery(query.outcome);
+  const ignoredRaw = oneQuery(query.includeIgnored);
+  if (agentRaw === null || outcomeRaw === null || ignoredRaw === null) return null;
+  const agentId = agentRaw || null;
+  if (agentId && !AGENT_PATTERN.test(agentId)) return null;
+  let outcome: IntentFollowupOutcome | null = null;
+  if (outcomeRaw) {
+    if (!isIntentFollowupOutcome(outcomeRaw)) return null;
+    outcome = outcomeRaw;
+  }
+  if (ignoredRaw === "" || ignoredRaw === "0" || ignoredRaw === "false") {
+    return { agentId, outcome, includeIgnored: false };
+  }
+  if (ignoredRaw === "1" || ignoredRaw === "true") {
+    return { agentId, outcome, includeIgnored: true };
+  }
+  return null;
 }
 
 export function buildIntentFollowupQueue(input: {
@@ -127,6 +174,10 @@ export function buildIntentFollowupQueue(input: {
   audits: CallOutcomeAudit[];
   objects: IntentFollowupObjectSnapshot[];
   arrangements: Array<{ teamId: string; targetType: string; targetId: string }>;
+  ignores?: IntentFollowupIgnoreRef[];
+  includeIgnored?: boolean;
+  agentId?: string | null;
+  outcome?: string | null;
   visible: (record: OutboundCallRecord) => boolean;
   labels: Map<string, string>;
 }) {
@@ -138,6 +189,11 @@ export function buildIntentFollowupQueue(input: {
   const arranged = new Set(input.arrangements
     .filter((item) => item.teamId === input.teamId)
     .map((item) => intentFollowupKey(item.targetType, item.targetId)));
+  const ignoredByKey = new Map<string, IntentFollowupIgnoreRef>();
+  for (const item of input.ignores || []) {
+    if (item.teamId !== input.teamId || !item.active || !item.callRecordId) continue;
+    ignoredByKey.set(intentFollowupKey(item.targetType, item.targetId), item);
+  }
   const latest = new Map<string, OutboundCallRecord>();
   for (const record of input.records) {
     if (record.teamId !== input.teamId) continue;
@@ -154,6 +210,11 @@ export function buildIntentFollowupQueue(input: {
     const object = objects.get(key);
     if (!object || hasOpenNextFollowUp(object.nextFollowAt) || arranged.has(key)) continue;
     const agents = splitAgentIds(record.agentIds);
+    const ignore = ignoredByKey.get(key);
+    const ignored = Boolean(ignore && ignore.callRecordId === record.id);
+    if (ignored && !input.includeIgnored) continue;
+    if (input.agentId && !agents.includes(input.agentId)) continue;
+    if (input.outcome && outcome !== input.outcome) continue;
     active.push({
       targetType: object.targetType,
       targetId: object.targetId,
@@ -165,7 +226,8 @@ export function buildIntentFollowupQueue(input: {
       agentIds: agents,
       agentLabel: agents.map((id) => input.labels.get(id) || id).join("、"),
       maskedNumber: record.maskedNumber || "",
-      suppressionNotice: object.suppressed ? SUPPRESSION_FOLLOW_UP_NOTICE : ""
+      suppressionNotice: object.suppressed ? SUPPRESSION_FOLLOW_UP_NOTICE : "",
+      ignored
     });
   }
   active.sort((left, right) => {
@@ -229,7 +291,7 @@ function snapshotsFor(store: CrmStore, teamId: string, at: string): IntentFollow
   return rows;
 }
 
-function queueFromStore(store: CrmStore, user: SessionUser, access: OutboundCallRecordAccess) {
+function queueFromStore(store: CrmStore, user: SessionUser, access: OutboundCallRecordAccess, query: IntentFollowupListQuery) {
   const at = outboundInstant().toISOString();
   return buildIntentFollowupQueue({
     teamId: user.teamId,
@@ -237,21 +299,49 @@ function queueFromStore(store: CrmStore, user: SessionUser, access: OutboundCall
     audits: store.callOutcomeAudits,
     objects: snapshotsFor(store, user.teamId, at),
     arrangements: store.intentFollowupArrangements,
+    ignores: store.intentFollowupIgnores,
+    includeIgnored: query.includeIgnored,
+    agentId: query.agentId,
+    outcome: query.outcome,
     visible: (record) => outboundCallRecordVisible(record, user.teamId, access),
     labels: access.labels
   });
 }
 
-export async function listIntentFollowupQueue(store: CrmStore, user: SessionUser | undefined) {
+function agentOptions(access: OutboundCallRecordAccess) {
+  return [...access.allowed].map((cccUserId) => ({
+    cccUserId,
+    label: access.labels.get(cccUserId) || cccUserId
+  })).sort((left, right) => left.label.localeCompare(right.label, "zh") || left.cccUserId.localeCompare(right.cccUserId));
+}
+
+export async function listIntentFollowupQueue(
+  store: CrmStore,
+  user: SessionUser | undefined,
+  query: Record<string, unknown> = {}
+) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
   const resolved = await resolveOutboundCallRecordAccess(store, user);
   if (!resolved.ok) return { status: resolved.status, body: resolved.body };
-  const items = queueFromStore(store, user, resolved.access);
+  const parsed = parseIntentFollowupListQuery(query);
+  if (!parsed) {
+    return { status: 400, body: { result: "rejected" as const, reason: "invalid_request", message: "参数格式错误" } };
+  }
+  if (parsed.agentId && !resolved.access.tenantWide && !resolved.access.allowed.has(parsed.agentId)) {
+    return { status: 403, body: { result: "rejected" as const, reason: "forbidden", message: "不能查看这个坐席的回访队列" } };
+  }
+  const items = queueFromStore(store, user, resolved.access, parsed);
   return {
     status: 200,
     body: {
       scope: resolved.access.teamScope ? "team" as const : "self" as const,
       timeZone: resolved.access.timeZone,
+      agents: agentOptions(resolved.access),
+      filters: {
+        agentId: parsed.agentId || "",
+        outcome: parsed.outcome || "",
+        includeIgnored: parsed.includeIgnored
+      },
       suggestedNextFollowAt: await suggestedMissedFollowAt(store, user.teamId, outboundInstant()),
       empty: items.length === 0,
       items
@@ -305,6 +395,16 @@ function findArrangement(store: CrmStore, teamId: string, targetType: string, ta
   return store.intentFollowupArrangements.find((item) =>
     item.teamId === teamId && item.targetType === targetType && item.targetId === targetId
   );
+}
+
+function findIgnore(store: CrmStore, teamId: string, targetType: string, targetId: string) {
+  return store.intentFollowupIgnores.find((item) =>
+    item.teamId === teamId && item.targetType === targetType && item.targetId === targetId
+  );
+}
+
+function ignoreCoversCall(item: IntentFollowupIgnore | undefined, callRecordId: string) {
+  return Boolean(item && item.active && item.callRecordId === callRecordId);
 }
 
 async function ownerVisible(store: CrmStore, user: SessionUser, permission: string, ownerId: string, teamId: string) {
@@ -799,6 +899,194 @@ export async function scheduleIntentFollowup(store: CrmStore, user: SessionUser 
       activityId,
       nextFollowAt,
       suppressionNotice: suppressed ? SUPPRESSION_FOLLOW_UP_NOTICE : ""
+    }
+  };
+}
+
+function explainNotIgnorable(
+  store: CrmStore,
+  teamId: string,
+  targetType: IntentFollowupTargetType,
+  targetId: string,
+  record: OutboundCallRecord
+) {
+  const outcome = record.callOutcome || "";
+  if (!isIntentFollowupOutcome(outcome)) {
+    return { status: 409, reason: "not_eligible", message: "最近一次通话不是有意向或需回访" };
+  }
+  const openFollow = openFollowValue(store, teamId, targetType, targetId);
+  if (openFollow === null) {
+    return { status: 404, reason: "not_found", message: "对象不存在" };
+  }
+  if (hasOpenNextFollowUp(openFollow)) {
+    return { status: 409, reason: "already_has_follow_up", message: "这个对象已有未完成的下次跟进" };
+  }
+  if (findArrangement(store, teamId, targetType, targetId)) {
+    return { status: 409, reason: "not_eligible", message: "这个对象已经安排过回访" };
+  }
+  return null;
+}
+
+function writeIgnoreState(
+  store: CrmStore,
+  user: SessionUser,
+  targetType: IntentFollowupTargetType,
+  targetId: string,
+  callRecordId: string,
+  active: boolean
+) {
+  const at = outboundInstant().toISOString();
+  const existing = findIgnore(store, user.teamId, targetType, targetId);
+  if (existing) {
+    existing.actorId = user.id;
+    existing.at = at;
+    existing.callRecordId = callRecordId;
+    existing.active = active;
+    return existing;
+  }
+  const created: IntentFollowupIgnore = {
+    id: `ifi_${randomUUID()}`,
+    teamId: user.teamId,
+    actorId: user.id,
+    at,
+    targetType,
+    targetId,
+    callRecordId,
+    active
+  };
+  store.intentFollowupIgnores.unshift(created);
+  return created;
+}
+
+export async function ignoreIntentFollowup(store: CrmStore, user: SessionUser | undefined, body: unknown) {
+  const loaded = await loadActionContext(store, user, body, "ignore");
+  if (!loaded.ok) return { status: loaded.status, body: loaded.body };
+  const { parsed, record } = loaded;
+  const actor = loaded.user;
+  const blocked = explainNotIgnorable(store, actor.teamId, parsed.targetType, parsed.targetId, record);
+  if (blocked) {
+    await writeAudit(store, {
+      teamId: actor.teamId,
+      actorId: actor.id,
+      action: "ignore",
+      targetType: parsed.targetType,
+      targetId: parsed.targetId,
+      callRecordId: record.id,
+      activityId: "",
+      nextFollowAt: "",
+      result: "rejected",
+      reason: blocked.reason,
+      suppressed: false
+    });
+    return reject(blocked.status, blocked.reason, blocked.message, {
+      targetType: parsed.targetType,
+      targetId: parsed.targetId
+    });
+  }
+  const current = findIgnore(store, actor.teamId, parsed.targetType, parsed.targetId);
+  if (ignoreCoversCall(current, record.id)) {
+    await writeAudit(store, {
+      teamId: actor.teamId,
+      actorId: actor.id,
+      action: "ignore",
+      targetType: parsed.targetType,
+      targetId: parsed.targetId,
+      callRecordId: record.id,
+      activityId: "",
+      nextFollowAt: "",
+      result: "duplicate",
+      reason: "duplicate",
+      suppressed: current?.active ? objectSuppressed(store, parsed.targetType, parsed.targetId, actor.teamId, outboundInstant().toISOString()) : false
+    });
+    return {
+      status: 200,
+      body: {
+        result: "duplicate" as const,
+        action: "ignore" as const,
+        message: "这个对象已经忽略",
+        targetType: parsed.targetType,
+        targetId: parsed.targetId,
+        callRecordId: record.id
+      }
+    };
+  }
+  const suppressed = objectSuppressed(store, parsed.targetType, parsed.targetId, actor.teamId, outboundInstant().toISOString());
+  writeIgnoreState(store, actor, parsed.targetType, parsed.targetId, record.id, true);
+  await writeAudit(store, {
+    teamId: actor.teamId,
+    actorId: actor.id,
+    action: "ignore",
+    targetType: parsed.targetType,
+    targetId: parsed.targetId,
+    callRecordId: record.id,
+    activityId: "",
+    nextFollowAt: "",
+    result: "created",
+    reason: "",
+    suppressed
+  });
+  return {
+    status: 201,
+    body: {
+      result: "created" as const,
+      action: "ignore" as const,
+      message: "已忽略",
+      targetType: parsed.targetType,
+      targetId: parsed.targetId,
+      callRecordId: record.id
+    }
+  };
+}
+
+export async function restoreIntentFollowup(store: CrmStore, user: SessionUser | undefined, body: unknown) {
+  const loaded = await loadActionContext(store, user, body, "restore");
+  if (!loaded.ok) return { status: loaded.status, body: loaded.body };
+  const { parsed, record } = loaded;
+  const actor = loaded.user;
+  const current = findIgnore(store, actor.teamId, parsed.targetType, parsed.targetId);
+  if (!ignoreCoversCall(current, record.id)) {
+    await writeAudit(store, {
+      teamId: actor.teamId,
+      actorId: actor.id,
+      action: "restore",
+      targetType: parsed.targetType,
+      targetId: parsed.targetId,
+      callRecordId: record.id,
+      activityId: "",
+      nextFollowAt: "",
+      result: "rejected",
+      reason: "not_ignored",
+      suppressed: false
+    });
+    return reject(409, "not_ignored", "这个对象没有被忽略", {
+      targetType: parsed.targetType,
+      targetId: parsed.targetId
+    });
+  }
+  const suppressed = objectSuppressed(store, parsed.targetType, parsed.targetId, actor.teamId, outboundInstant().toISOString());
+  writeIgnoreState(store, actor, parsed.targetType, parsed.targetId, record.id, false);
+  await writeAudit(store, {
+    teamId: actor.teamId,
+    actorId: actor.id,
+    action: "restore",
+    targetType: parsed.targetType,
+    targetId: parsed.targetId,
+    callRecordId: record.id,
+    activityId: "",
+    nextFollowAt: "",
+    result: "created",
+    reason: "",
+    suppressed
+  });
+  return {
+    status: 200,
+    body: {
+      result: "created" as const,
+      action: "restore" as const,
+      message: "已撤销忽略",
+      targetType: parsed.targetType,
+      targetId: parsed.targetId,
+      callRecordId: record.id
     }
   };
 }

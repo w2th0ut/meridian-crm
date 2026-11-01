@@ -167,6 +167,7 @@ try {
     owned({ id: "ifq_mia", ownerId: miaUser.id, nextReminder: "" }),
     owned({ id: "ifq_noupdate", ownerId: "u_ifq_noupdate", nextReminder: "" }),
     owned({ id: "ifq_unmapped", ownerId: shirleyUser.id, nextReminder: "" }),
+    owned({ id: "ifq_dismiss", ownerId: shirleyUser.id, nextReminder: "" }),
     owned({ id: "ifq_asia", ownerId: "u_ifq_asia", teamId: "asia", nextReminder: "" })
   );
   store.leads.push(
@@ -239,6 +240,7 @@ try {
     record({ id: "ocr_ifq_deleted", targetType: "lead", targetId: "ifq_deleted", callOutcome: "有意向", startTimeRaw: newer }),
     record({ id: "ocr_ifq_prospect", targetType: "prospect", targetId: "ifq_prospect", callOutcome: "需回访", startTimeRaw: newer }),
     record({ id: "ocr_ifq_preview", targetType: "prospect", targetId: "ifq_preview", callOutcome: "有意向", startTimeRaw: newer }),
+    record({ id: "ocr_ifq_dismiss", targetType: "customer", targetId: "ifq_dismiss", callOutcome: "有意向", startTimeRaw: newer }),
     record({ id: "ocr_ifq_asia", teamId: "asia", targetType: "customer", targetId: "ifq_asia", callOutcome: "有意向", startTimeRaw: newer, agentIds: "agent@ccc-ifq-asia" })
   );
   store.callOutcomeAudits.push({
@@ -272,6 +274,13 @@ try {
   assert.equal(deniedWrite.response.status, 403);
   assert.equal(store.intentFollowupQueueAudits.length, 0);
   assert.equal(store.intentFollowupArrangements.length, 0);
+  const deniedIgnore = await request("/api/intent-followup-queue/ignore", noRead, "POST", { targetType: "customer", targetId: "ifq_dismiss" });
+  assert.equal(deniedIgnore.response.status, 403);
+  assert.equal(store.intentFollowupQueueAudits.length, 0);
+  const deniedRestore = await request("/api/intent-followup-queue/restore", noRead, "POST", { targetType: "customer", targetId: "ifq_dismiss" });
+  assert.equal(deniedRestore.response.status, 403);
+  assert.equal(store.intentFollowupIgnores.length, 0);
+  assert.equal(store.intentFollowupQueueAudits.length, 0);
   const anonymous = await request("/api/intent-followup-queue/schedule", "", "POST", { targetType: "customer", targetId: "ifq_intent" });
   assert.equal(anonymous.response.status, 401);
   assert.equal(store.intentFollowupQueueAudits.length, 0);
@@ -289,6 +298,8 @@ try {
   assert.ok(shirleyIds.includes("ifq_prospect"));
   assert.ok(shirleyIds.includes("ifq_preview"));
   assert.ok(shirleyIds.includes("ifq_public"));
+  assert.ok(shirleyIds.includes("ifq_dismiss"));
+  assert.equal(listed.json.items.find((item: { targetId: string }) => item.targetId === "ifq_dismiss").ignored, false);
   assert.equal(shirleyIds.includes("ifq_open"), false);
   assert.equal(shirleyIds.includes("ifq_cold"), false);
   assert.equal(shirleyIds.includes("ifq_deleted"), false);
@@ -316,6 +327,48 @@ try {
 
   const adminList = await request("/api/intent-followup-queue", admin);
   assert.equal(ids(adminList.json.items).includes("ifq_unmapped"), true);
+
+  const intentOnly = await request(`/api/intent-followup-queue?outcome=${encodeURIComponent("有意向")}`, shirley);
+  assert.equal(intentOnly.response.status, 200);
+  assert.equal(intentOnly.json.items.every((item: { outcome: string }) => item.outcome === "有意向"), true);
+  assert.equal(ids(intentOnly.json.items).includes("ifq_intent"), true);
+  assert.equal(ids(intentOnly.json.items).includes("ifq_dismiss"), true);
+  assert.equal(ids(intentOnly.json.items).includes("ifq_callback"), false);
+  assert.equal(ids(intentOnly.json.items).includes("ifq_asia"), false);
+  const callbackOnly = await request(`/api/intent-followup-queue?outcome=${encodeURIComponent("需回访")}`, shirley);
+  assert.equal(callbackOnly.response.status, 200);
+  assert.equal(ids(callbackOnly.json.items).includes("ifq_callback"), true);
+  assert.equal(ids(callbackOnly.json.items).includes("ifq_prospect"), true);
+  assert.equal(ids(callbackOnly.json.items).includes("ifq_intent"), false);
+  const badOutcome = await request(`/api/intent-followup-queue?outcome=${encodeURIComponent("无意向")}`, shirley);
+  assert.equal(badOutcome.response.status, 400);
+  assert.equal(badOutcome.json.reason, "invalid_request");
+  const badSuccess = await request("/api/intent-followup-queue?outcome=Success", shirley);
+  assert.equal(badSuccess.response.status, 400);
+  const badFlag = await request("/api/intent-followup-queue?includeIgnored=maybe", shirley);
+  assert.equal(badFlag.response.status, 400);
+  const badAgent = await request("/api/intent-followup-queue?agentId=bad%20id", shirley);
+  assert.equal(badAgent.response.status, 400);
+  const repeated = await request("/api/intent-followup-queue?agentId=a&agentId=b", shirley);
+  assert.equal(repeated.response.status, 400);
+  const otherSeat = await request(`/api/intent-followup-queue?agentId=${encodeURIComponent("agent@ccc-ifq-b")}`, shirley);
+  assert.equal(otherSeat.response.status, 403);
+  assert.equal(otherSeat.json.reason, "forbidden");
+  const ownSeat = await request(`/api/intent-followup-queue?agentId=${encodeURIComponent("agent@ccc-ifq-a")}`, shirley);
+  assert.equal(ownSeat.response.status, 200);
+  assert.equal(ids(ownSeat.json.items).includes("ifq_dismiss"), true);
+  assert.equal(ids(ownSeat.json.items).includes("ifq_mia"), false);
+  const managerSeat = await request(`/api/intent-followup-queue?agentId=${encodeURIComponent("agent@ccc-ifq-b")}`, alex);
+  assert.equal(managerSeat.response.status, 200);
+  assert.equal(managerSeat.json.scope, "team");
+  assert.deepEqual(ids(managerSeat.json.items), ["ifq_mia"]);
+  const adminForeign = await request(`/api/intent-followup-queue?agentId=${encodeURIComponent("agent@ccc-ifq-asia")}`, admin);
+  assert.equal(adminForeign.response.status, 200);
+  assert.deepEqual(ids(adminForeign.json.items), []);
+  const showAll = await request("/api/intent-followup-queue?includeIgnored=1", shirley);
+  assert.equal(showAll.response.status, 200);
+  assert.equal(showAll.json.filters.includeIgnored, true);
+  assert.equal(showAll.json.items.every((item: { ignored?: boolean }) => item.ignored === false), true);
   store.users.push({
     ...shirleyUser,
     id: "u_ifq_empty",
@@ -342,6 +395,29 @@ try {
   const reverse = await request("/api/intent-followup-queue/schedule", asia, "POST", { targetType: "customer", targetId: "ifq_intent" });
   assert.equal(reverse.response.status, 404);
   assert.equal(store.customers.find((item) => item.id === "ifq_intent")?.nextReminder, "");
+  const crossIgnore = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "customer", targetId: "ifq_asia" });
+  assert.equal(crossIgnore.response.status, 404);
+  assert.equal(store.intentFollowupIgnores.some((item) => item.targetId === "ifq_asia"), false);
+  assert.equal(store.intentFollowupQueueAudits.find((item) => item.action === "ignore" && item.targetId === "ifq_asia" && item.actorId === shirleyUser.id)?.result, "rejected");
+  const reverseIgnore = await request("/api/intent-followup-queue/ignore", asia, "POST", { targetType: "customer", targetId: "ifq_dismiss" });
+  assert.equal(reverseIgnore.response.status, 404);
+  assert.equal(store.intentFollowupIgnores.some((item) => item.targetId === "ifq_dismiss"), false);
+  assert.equal(store.customers.find((item) => item.id === "ifq_dismiss")?.nextReminder, "");
+  const asiaOwn = await request("/api/intent-followup-queue/ignore", asia, "POST", { targetType: "customer", targetId: "ifq_asia" });
+  assert.equal(asiaOwn.response.status, 201);
+  assert.equal(asiaOwn.json.action, "ignore");
+  const shirleyAfterAsia = await request("/api/intent-followup-queue?includeIgnored=1", shirley);
+  assert.equal(ids(shirleyAfterAsia.json.items).includes("ifq_asia"), false);
+  const asiaHidden = await request("/api/intent-followup-queue", asia);
+  assert.equal(ids(asiaHidden.json.items).includes("ifq_asia"), false);
+  const asiaShown = await request("/api/intent-followup-queue?includeIgnored=1", asia);
+  assert.equal(asiaShown.json.items.find((item: { targetId: string }) => item.targetId === "ifq_asia")?.ignored, true);
+  const asiaRestore = await request("/api/intent-followup-queue/restore", asia, "POST", { targetType: "customer", targetId: "ifq_asia" });
+  assert.equal(asiaRestore.response.status, 200);
+  assert.equal(asiaRestore.json.action, "restore");
+  assert.equal(store.intentFollowupIgnores.find((item) => item.targetId === "ifq_asia")?.active, false);
+  const asiaBack = await request("/api/intent-followup-queue", asia);
+  assert.deepEqual(ids(asiaBack.json.items), ["ifq_asia"]);
 
   const hiddenSeat = await request("/api/intent-followup-queue/schedule", shirley, "POST", {
     targetType: "customer",
@@ -349,6 +425,10 @@ try {
     nextFollowAt: "2026-11-03 15:00"
   });
   assert.equal(hiddenSeat.response.status, 404);
+  assert.equal(store.customers.find((item) => item.id === "ifq_mia")?.nextReminder, "");
+  const hiddenIgnore = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "customer", targetId: "ifq_mia" });
+  assert.equal(hiddenIgnore.response.status, 404);
+  assert.equal(store.intentFollowupIgnores.some((item) => item.targetId === "ifq_mia"), false);
   assert.equal(store.customers.find((item) => item.id === "ifq_mia")?.nextReminder, "");
 
   const already = await request("/api/intent-followup-queue/schedule", shirley, "POST", {
@@ -495,6 +575,146 @@ try {
   assert.equal(managerProspect.response.status, 403);
   assert.equal(store.websiteOpportunities.find((item) => item.id === "ifq_preview")?.nextFollowAt || "", "");
 
+  const leadsAtIgnore = store.leads.length;
+  const activitiesAtIgnore = store.customerActivities.length;
+  const decisionsAtIgnore = store.prospectContactabilityDecisions.length;
+  const suppressionAtIgnore = store.prospectSuppressionEvents.length;
+  const notIgnored = await request("/api/intent-followup-queue/restore", shirley, "POST", { targetType: "customer", targetId: "ifq_dismiss" });
+  assert.equal(notIgnored.response.status, 409);
+  assert.equal(notIgnored.json.reason, "not_ignored");
+  assert.equal(store.intentFollowupQueueAudits.find((item) => item.action === "restore" && item.targetId === "ifq_dismiss")?.result, "rejected");
+  const batchIgnore = await request("/api/intent-followup-queue/ignore", shirley, "POST", {
+    targetType: "customer",
+    targetId: "ifq_dismiss",
+    records: ["ifq_dismiss"]
+  });
+  assert.equal(batchIgnore.response.status, 400);
+  assert.equal(batchIgnore.json.reason, "invalid_request");
+  assert.equal(store.intentFollowupIgnores.some((item) => item.targetId === "ifq_dismiss"), false);
+  const batchRestore = await request("/api/intent-followup-queue/restore", shirley, "POST", ["ifq_dismiss"]);
+  assert.equal(batchRestore.response.status, 400);
+
+  const ignored = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "customer", targetId: "ifq_dismiss" });
+  assert.equal(ignored.response.status, 201);
+  assert.equal(ignored.json.result, "created");
+  assert.equal(ignored.json.action, "ignore");
+  assert.equal(ignored.json.callRecordId, "ocr_ifq_dismiss");
+  assert.equal(store.customers.find((item) => item.id === "ifq_dismiss")?.nextReminder, "");
+  assert.equal(store.intentFollowupArrangements.some((item) => item.targetId === "ifq_dismiss"), false);
+  const ignoreRow = store.intentFollowupIgnores.find((item) => item.targetId === "ifq_dismiss");
+  assert.equal(ignoreRow?.active, true);
+  assert.equal(ignoreRow?.callRecordId, "ocr_ifq_dismiss");
+  assert.equal(ignoreRow?.teamId, "europe");
+  assert.equal(ignoreRow?.actorId, shirleyUser.id);
+  const ignoreAudit = store.intentFollowupQueueAudits.find((item) => item.action === "ignore" && item.targetId === "ifq_dismiss" && item.result === "created");
+  assert.equal(ignoreAudit?.actorId, shirleyUser.id);
+  assert.equal(ignoreAudit?.teamId, "europe");
+  assert.equal(ignoreAudit?.at, "2026-10-31T03:00:00.000Z");
+  assert.equal(ignoreAudit?.callRecordId, "ocr_ifq_dismiss");
+  assert.equal(JSON.stringify(ignoreAudit || {}).includes("do-not-leak-ifq"), false);
+  const afterIgnore = await request("/api/intent-followup-queue", shirley);
+  assert.equal(ids(afterIgnore.json.items).includes("ifq_dismiss"), false);
+  const withIgnored = await request("/api/intent-followup-queue?includeIgnored=1", shirley);
+  assert.equal(withIgnored.json.items.find((item: { targetId: string }) => item.targetId === "ifq_dismiss")?.ignored, true);
+  assert.equal(ids(withIgnored.json.items).includes("ifq_asia"), false);
+  const duplicateIgnore = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "customer", targetId: "ifq_dismiss" });
+  assert.equal(duplicateIgnore.response.status, 200);
+  assert.equal(duplicateIgnore.json.result, "duplicate");
+  assert.equal(duplicateIgnore.json.action, "ignore");
+  assert.equal(store.intentFollowupIgnores.filter((item) => item.targetId === "ifq_dismiss").length, 1);
+  assert.equal(store.intentFollowupQueueAudits.find((item) => item.action === "ignore" && item.targetId === "ifq_dismiss" && item.result === "duplicate")?.actorId, shirleyUser.id);
+
+  const dismissCall = store.outboundCallRecords.find((item) => item.id === "ocr_ifq_dismiss");
+  assert.ok(dismissCall);
+  dismissCall.callOutcome = "需回访";
+  const relabeled = await request(`/api/intent-followup-queue?includeIgnored=1&outcome=${encodeURIComponent("需回访")}`, shirley);
+  const relabeledRow = relabeled.json.items.find((item: { targetId: string }) => item.targetId === "ifq_dismiss");
+  assert.equal(relabeledRow?.ignored, true);
+  assert.equal(relabeledRow?.callRecordId, "ocr_ifq_dismiss");
+  const hiddenRelabel = await request("/api/intent-followup-queue", shirley);
+  assert.equal(ids(hiddenRelabel.json.items).includes("ifq_dismiss"), false);
+  dismissCall.callOutcome = "有意向";
+
+  const restored = await request("/api/intent-followup-queue/restore", shirley, "POST", { targetType: "customer", targetId: "ifq_dismiss" });
+  assert.equal(restored.response.status, 200);
+  assert.equal(restored.json.result, "created");
+  assert.equal(restored.json.action, "restore");
+  assert.equal(store.intentFollowupIgnores.find((item) => item.targetId === "ifq_dismiss")?.active, false);
+  const restoreAudit = store.intentFollowupQueueAudits.find((item) => item.action === "restore" && item.targetId === "ifq_dismiss" && item.result === "created");
+  assert.equal(restoreAudit?.actorId, shirleyUser.id);
+  assert.equal(restoreAudit?.teamId, "europe");
+  assert.equal(restoreAudit?.callRecordId, "ocr_ifq_dismiss");
+  assert.ok(restoreAudit?.at);
+  const back = await request("/api/intent-followup-queue", shirley);
+  assert.equal(ids(back.json.items).includes("ifq_dismiss"), true);
+  assert.equal(back.json.items.find((item: { targetId: string }) => item.targetId === "ifq_dismiss")?.ignored, false);
+
+  const ignoredAgain = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "customer", targetId: "ifq_dismiss" });
+  assert.equal(ignoredAgain.response.status, 201);
+  store.outboundCallRecords.push(record({
+    id: "ocr_ifq_dismiss_cold",
+    targetType: "customer",
+    targetId: "ifq_dismiss",
+    callOutcome: "无意向",
+    startTimeRaw: String(Date.parse("2026-10-22T02:00:00.000Z"))
+  }));
+  const stillIgnored = await request("/api/intent-followup-queue?includeIgnored=1", shirley);
+  assert.equal(ids(stillIgnored.json.items).includes("ifq_dismiss"), false);
+  store.outboundCallRecords.push(record({
+    id: "ocr_ifq_dismiss_next",
+    targetType: "customer",
+    targetId: "ifq_dismiss",
+    callOutcome: "有意向",
+    startTimeRaw: String(Date.parse("2026-10-25T02:00:00.000Z")),
+    updatedAt: "2026-10-25T02:00:00.000Z"
+  }));
+  const requeued = await request("/api/intent-followup-queue", shirley);
+  const requeuedRow = requeued.json.items.find((item: { targetId: string }) => item.targetId === "ifq_dismiss");
+  assert.equal(requeuedRow?.callRecordId, "ocr_ifq_dismiss_next");
+  assert.equal(requeuedRow?.outcome, "有意向");
+  assert.equal(requeuedRow?.ignored, false);
+  assert.equal(store.intentFollowupIgnores.find((item) => item.targetId === "ifq_dismiss")?.active, true);
+  assert.equal(store.intentFollowupIgnores.find((item) => item.targetId === "ifq_dismiss")?.callRecordId, "ocr_ifq_dismiss");
+
+  const managerIgnore = await request("/api/intent-followup-queue/ignore", alex, "POST", { targetType: "customer", targetId: "ifq_mia" });
+  assert.equal(managerIgnore.response.status, 201);
+  assert.equal(managerIgnore.json.action, "ignore");
+  const managerAfter = await request("/api/intent-followup-queue", alex);
+  assert.equal(ids(managerAfter.json.items).includes("ifq_mia"), false);
+  const managerShown = await request("/api/intent-followup-queue?includeIgnored=1", alex);
+  assert.equal(managerShown.json.items.find((item: { targetId: string }) => item.targetId === "ifq_mia")?.ignored, true);
+  const shirleyMissesMia = await request("/api/intent-followup-queue?includeIgnored=1", shirley);
+  assert.equal(ids(shirleyMissesMia.json.items).includes("ifq_mia"), false);
+  const managerUndo = await request("/api/intent-followup-queue/restore", alex, "POST", { targetType: "customer", targetId: "ifq_mia" });
+  assert.equal(managerUndo.response.status, 200);
+  assert.equal(store.intentFollowupQueueAudits.find((item) => item.action === "restore" && item.targetId === "ifq_mia" && item.result === "created")?.actorId, store.users.find((item) => item.email === "alex@keduoduo.com")?.id);
+  const miaBack = await request("/api/intent-followup-queue", alex);
+  assert.equal(ids(miaBack.json.items).includes("ifq_mia"), true);
+
+  const noWriteIgnore = await request("/api/intent-followup-queue/ignore", noUpdate, "POST", { targetType: "customer", targetId: "ifq_noupdate" });
+  assert.equal(noWriteIgnore.response.status, 201);
+  assert.equal(store.customers.find((item) => item.id === "ifq_noupdate")?.nextReminder, "");
+  assert.equal(store.intentFollowupArrangements.some((item) => item.targetId === "ifq_noupdate"), false);
+  const publicIgnore = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "customer", targetId: "ifq_public" });
+  assert.equal(publicIgnore.response.status, 201);
+  assert.equal(store.customers.find((item) => item.id === "ifq_public")?.nextReminder, "");
+  assert.equal(store.customers.find((item) => item.id === "ifq_public")?.poolStatus, "public");
+  const previewIgnore = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "prospect", targetId: "ifq_preview" });
+  assert.equal(previewIgnore.response.status, 201);
+  assert.equal(store.websiteOpportunities.find((item) => item.id === "ifq_preview")?.nextFollowAt || "", "");
+  assert.equal(store.leads.length, leadsAtIgnore);
+  assert.equal(store.prospectContactabilityDecisions.length, decisionsAtIgnore);
+  const openIgnore = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "customer", targetId: "ifq_open" });
+  assert.equal(openIgnore.response.status, 409);
+  assert.equal(openIgnore.json.reason, "already_has_follow_up");
+  assert.equal(store.customers.find((item) => item.id === "ifq_open")?.nextReminder, "不要改");
+  const coldIgnore = await request("/api/intent-followup-queue/ignore", shirley, "POST", { targetType: "customer", targetId: "ifq_cold" });
+  assert.equal(coldIgnore.response.status, 409);
+  assert.equal(coldIgnore.json.reason, "not_eligible");
+  assert.equal(store.customerActivities.length, activitiesAtIgnore);
+  assert.equal(store.prospectSuppressionEvents.length, suppressionAtIgnore);
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_ifq_intent")?.callOutcome, "有意向");
+
   assert.equal(aliyunHits, 0);
   assert.equal(store.outboundCallAudits.length, callAuditsBefore);
   assert.equal(store.outreachSequences.length, sequencesBefore);
@@ -525,6 +745,7 @@ try {
   store.aliyunAgentMappings = store.aliyunAgentMappings.filter((item) => !item.id.startsWith("map_ifq_"));
   store.aliyunOutboundConfigs = store.aliyunOutboundConfigs.filter((item) => item.updatedBy !== "ifq-test");
   store.intentFollowupArrangements = store.intentFollowupArrangements.filter((item) => !item.targetId.startsWith("ifq_"));
+  store.intentFollowupIgnores = store.intentFollowupIgnores.filter((item) => !item.targetId.startsWith("ifq_"));
   store.intentFollowupQueueAudits = store.intentFollowupQueueAudits.filter((item) => !item.targetId.startsWith("ifq_") && item.reason !== "invalid_request");
   store.customerActivities = store.customerActivities.filter((item) => !item.content.startsWith("通话结果为"));
   store.leadActivities = store.leadActivities.filter((item) => !item.content.startsWith("通话结果为"));

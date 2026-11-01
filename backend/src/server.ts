@@ -298,7 +298,7 @@ import { readCampaignReadSetting, syncCampaignRoster, updateCampaignReadSetting 
 import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outbound-call-records.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
 import { labelCallOutcome } from "./call-outcome.js";
-import { listIntentFollowupQueue, scheduleIntentFollowup } from "./intent-followup-queue.js";
+import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import {
   createMarketAnalysisRun,
   MARKET_ANALYSIS_JOB_TYPE,
@@ -9016,7 +9016,7 @@ app.get("/api/intent-followup-queue", requireAuth, asyncRoute(async (req, res) =
   let allowed = false;
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
-  const outcome = await listIntentFollowupQueue(getStore(), req.user);
+  const outcome = await listIntentFollowupQueue(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
@@ -9025,6 +9025,22 @@ app.post("/api/intent-followup-queue/schedule", requireAuth, asyncRoute(async (r
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await scheduleIntentFollowup(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/intent-followup-queue/ignore", requireAuth, asyncRoute(async (req, res) => {
+  let allowed = false;
+  await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
+  if (!allowed || res.headersSent) return;
+  const outcome = await ignoreIntentFollowup(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/intent-followup-queue/restore", requireAuth, asyncRoute(async (req, res) => {
+  let allowed = false;
+  await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
+  if (!allowed || res.headersSent) return;
+  const outcome = await restoreIntentFollowup(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
