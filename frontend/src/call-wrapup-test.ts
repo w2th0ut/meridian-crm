@@ -13,10 +13,18 @@ assert.deepEqual(callWrapupBody({
 assert.deepEqual(callWrapupBody({
   script: { templateId: "" },
   callTag: { tagId: "ctag_a", action: "remove" },
+  callTags: [
+    { tagId: "ctag_b", action: "add" },
+    { tagId: "ctag_off", action: "remove" }
+  ],
   callback: { cancel: true }
 }), {
   script: { templateId: null },
   callTag: { tagId: "ctag_a", action: "remove" },
+  callTags: [
+    { tagId: "ctag_b", action: "add" },
+    { tagId: "ctag_off", action: "remove" }
+  ],
   callback: { cancel: true }
 });
 assert.deepEqual(callWrapupBody({}), {});
@@ -46,6 +54,10 @@ assert.match(form, /data-wrapup-include="outcome"/);
 assert.match(form, /data-wrapup-include="note"/);
 assert.match(form, /data-wrapup-include="script"/);
 assert.match(form, /data-wrapup-include="callTag"/);
+assert.match(form, /data-wrapup-tag-add="ctag_on"/);
+assert.match(form, /data-wrapup-tag-remove="ctag_off"/);
+assert.match(form, /一次最多 10 个/);
+assert.equal(form.includes("data-wrapup-tag-add=\"ctag_off\""), false);
 assert.match(form, /data-wrapup-include="callback"/);
 assert.match(form, /提交通话小结/);
 assert.match(form, /原&lt;script&gt;/);
@@ -78,5 +90,8 @@ const api = readFileSync(new URL("./prototype-api.ts", import.meta.url), "utf8")
 assert.match(api, /data-call-wrapup-form/);
 assert.match(api, /outbound-call-records\/\$\{encodeURIComponent\(recordId\)\}\/wrapup/);
 assert.match(api, /callWrapupBody/);
+assert.match(api, /data-wrapup-tag-add/);
+assert.match(api, /data-wrapup-tag-remove/);
+assert.match(api, /CALL_WRAPUP_TAG_LIMIT/);
 
 console.log("call wrapup frontend tests passed");

@@ -59,6 +59,8 @@ function audit(partial: Partial<CallWrapupAudit> & Pick<CallWrapupAudit, "callRe
     at: "2026-04-04T05:00:00.000Z",
     action: "submit",
     parts: "{\"outcome\":\"updated\"}",
+    addedTagIds: "[]",
+    removedTagIds: "[]",
     reason: "",
     ...partial
   };
@@ -136,6 +138,12 @@ assert.equal(callEndedAtMs(""), null);
 assert.equal(callEndedAtMs("0"), null);
 assert.equal(callEndedAtMs("1532458000000"), 1532458000000);
 assert.equal(hasSuccessfulCallWrapup([audit({ callRecordId: "a", result: "rejected" })], "europe", "a"), false);
+assert.equal(hasSuccessfulCallWrapup([
+  audit({ callRecordId: "multi", result: "updated", addedTagIds: "[\"ctag_a\",\"ctag_b\"]", removedTagIds: "[\"ctag_off\"]" })
+], "europe", "multi"), true);
+assert.equal(hasSuccessfulCallWrapup([
+  audit({ callRecordId: "multi", result: "rejected", addedTagIds: "[\"ctag_a\"]", removedTagIds: "[]" })
+], "europe", "multi"), false);
 assert.equal(formatEndedAgo(0), "0秒");
 assert.equal(formatEndedAgo(59), "59秒");
 assert.equal(formatEndedAgo(60), "1分钟");

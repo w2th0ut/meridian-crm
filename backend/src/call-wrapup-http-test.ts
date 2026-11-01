@@ -210,6 +210,7 @@ try {
   );
   store.callTags.push(
     tag({ id: "ctag_wrap_on", name: "价格敏感" }),
+    tag({ id: "ctag_wrap_two", name: "要样品" }),
     tag({ id: "ctag_wrap_off", name: "停用标签", enabled: false, disabledAt: "2026-04-02T00:00:00.000Z" })
   );
   store.websiteOpportunities.push({ ...seedProspect, id: "web_wrap_mia", ownerId: miaUser.id, company: "只属于 Mia" });
@@ -294,6 +295,9 @@ try {
   const summaryParts = JSON.parse(summary?.parts || "{}") as Record<string, string>;
   assert.equal(summaryParts.outcome, "updated");
   assert.equal(summaryParts.callback, "updated");
+  assert.equal(summary?.addedTagIds, JSON.stringify(["ctag_wrap_on"]));
+  assert.equal(summary?.removedTagIds, "[]");
+  assert.equal(summary?.addedTagIds.includes("价格敏感"), false);
 
   const outcomeAuditsAfterSave = store.callOutcomeAudits.filter((item) => item.callRecordId === "ocr_wrap_a1").length;
   const noteAuditsAfterSave = store.callNoteAudits.filter((item) => item.callRecordId === "ocr_wrap_a1").length;
@@ -475,7 +479,155 @@ try {
   assert.equal(removed.json.parts.callTag, "updated");
   assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_a1" && item.tagId === "ctag_wrap_on"), false);
   assert.equal(store.callTagAudits.some((item) => item.callRecordId === "ocr_wrap_a1" && item.action === "remove" && item.result === "updated"), true);
+  assert.equal(store.callWrapupAudits.some((item) => item.callRecordId === "ocr_wrap_a1" && item.result === "updated" && item.removedTagIds === JSON.stringify(["ctag_wrap_on"])), true);
   assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_wrap_a1")?.callOutcome, "无意向");
+
+  store.callRecordTags.push({
+    id: "crt_wrap_off_link",
+    teamId: "europe",
+    callRecordId: "ocr_wrap_a1",
+    tagId: "ctag_wrap_off",
+    createdBy: adminUser.id,
+    createdAt: "2026-04-04T02:00:00.000Z"
+  });
+  const directDisabled = await request("/api/outbound-call-records/ocr_wrap_a1/tags/remove", shirley, "POST", { tagId: "ctag_wrap_off" });
+  assert.equal(directDisabled.response.status, 400);
+  assert.equal(directDisabled.json.reason, "disabled");
+  assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_a1" && item.tagId === "ctag_wrap_off"), true);
+  const tagAuditsBeforeMulti = store.callTagAudits.length;
+  const wrapupsBeforeMulti = store.callWrapupAudits.length;
+  let multiPersists = -1;
+  const multi = await (async () => {
+    let result: { response: { status: number }; json: Record<string, any> } = { response: { status: 0 }, json: {} };
+    multiPersists = await counted(store, async () => {
+      result = await request("/api/outbound-call-records/ocr_wrap_a1/wrapup", shirley, "POST", {
+        outcome: { outcome: "需回访", note: "多标签备注勿进汇总" },
+        callTags: [
+          { tagId: "ctag_wrap_on", action: "add" },
+          { tagId: "ctag_wrap_two", action: "add" },
+          { tagId: "ctag_wrap_off", action: "remove" }
+        ]
+      });
+    });
+    return result;
+  })();
+  assert.equal(multiPersists, 1);
+  assert.equal(multi.response.status, 200);
+  assert.equal(multi.json.result, "updated");
+  assert.equal(multi.json.parts.callTag, "updated");
+  assert.equal(multi.json.parts.outcome, "updated");
+  assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_a1" && item.tagId === "ctag_wrap_on"), true);
+  assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_a1" && item.tagId === "ctag_wrap_two"), true);
+  assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_a1" && item.tagId === "ctag_wrap_off"), false);
+  assert.equal(store.callTagAudits.filter((item) => item.callRecordId === "ocr_wrap_a1" && item.action === "add" && item.result === "updated" && item.tagId === "ctag_wrap_on").length, 2);
+  assert.equal(store.callTagAudits.filter((item) => item.callRecordId === "ocr_wrap_a1" && item.action === "add" && item.result === "updated" && item.tagId === "ctag_wrap_two").length, 1);
+  assert.equal(store.callTagAudits.filter((item) => item.callRecordId === "ocr_wrap_a1" && item.action === "remove" && item.result === "updated" && item.tagId === "ctag_wrap_off").length, 1);
+  const multiSummary = store.callWrapupAudits.find((item) => item.callRecordId === "ocr_wrap_a1" && item.addedTagIds === JSON.stringify(["ctag_wrap_on", "ctag_wrap_two"]));
+  assert.equal(multiSummary?.result, "updated");
+  assert.equal(multiSummary?.removedTagIds, JSON.stringify(["ctag_wrap_off"]));
+  assert.equal(multiSummary?.parts.includes("多标签备注勿进汇总"), false);
+  assert.equal(multiSummary?.parts.includes("停用标签"), false);
+  assert.equal(multiSummary?.addedTagIds.includes("价格敏感"), false);
+  assert.equal(multiSummary?.removedTagIds.includes("停用标签"), false);
+  const sameMulti = await request("/api/outbound-call-records/ocr_wrap_a1/wrapup", shirley, "POST", {
+    callTags: [
+      { tagId: "ctag_wrap_on", action: "add" },
+      { tagId: "ctag_wrap_two", action: "add" }
+    ]
+  });
+  assert.equal(sameMulti.json.result, "unchanged");
+  assert.equal(store.callTagAudits.length, tagAuditsBeforeMulti + 3);
+  assert.equal(store.callWrapupAudits.length, wrapupsBeforeMulti + 1);
+
+  const beforeMultiReject = {
+    outcome: store.outboundCallRecords.find((item) => item.id === "ocr_wrap_a1")?.callOutcome,
+    outcomeNote: store.outboundCallRecords.find((item) => item.id === "ocr_wrap_a1")?.callOutcomeNote,
+    outcomeAudits: store.callOutcomeAudits.length,
+    tagAudits: store.callTagAudits.length,
+    wrapups: store.callWrapupAudits.length
+  };
+  const missingMulti = await request("/api/outbound-call-records/ocr_wrap_a1/wrapup", shirley, "POST", {
+    outcome: { outcome: "其他", note: "多标签回滚勿留下" },
+    callTags: [
+      { tagId: "ctag_wrap_on", action: "remove" },
+      { tagId: "ctag_wrap_missing_multi", action: "add" }
+    ]
+  });
+  assert.equal(missingMulti.response.status, 404);
+  assert.equal(missingMulti.json.reason, "not_found");
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_wrap_a1")?.callOutcome, beforeMultiReject.outcome);
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_wrap_a1")?.callOutcomeNote, beforeMultiReject.outcomeNote);
+  assert.equal(store.callOutcomeAudits.length, beforeMultiReject.outcomeAudits);
+  assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_a1" && item.tagId === "ctag_wrap_on"), true);
+  assert.equal(store.callTagAudits.filter((item) => item.tagId === "ctag_wrap_on" && item.action === "remove" && item.result === "updated").length, 1);
+  assert.equal(store.callTagAudits.some((item) => item.tagId === "ctag_wrap_missing_multi" && item.result === "rejected" && item.reason === "not_found"), true);
+  const missingMultiWrap = store.callWrapupAudits.find((item) => item.addedTagIds === JSON.stringify(["ctag_wrap_missing_multi"]));
+  assert.equal(missingMultiWrap?.result, "rejected");
+  assert.equal(missingMultiWrap?.reason, "not_found");
+  assert.equal(missingMultiWrap?.removedTagIds, JSON.stringify(["ctag_wrap_on"]));
+  assert.equal(JSON.parse(missingMultiWrap?.parts || "{}").outcome, "rolled_back");
+  assert.equal(JSON.parse(missingMultiWrap?.parts || "{}").callTag, "rejected");
+  assert.equal(missingMultiWrap?.parts.includes("多标签回滚勿留下"), false);
+
+  const beforeDisabledMulti = {
+    outcome: store.outboundCallRecords.find((item) => item.id === "ocr_wrap_a1")?.callOutcome,
+    tagAudits: store.callTagAudits.length,
+    wrapups: store.callWrapupAudits.length
+  };
+  let disabledMultiPersists = -1;
+  const disabledMulti = await (async () => {
+    let result: { response: { status: number }; json: Record<string, any> } = { response: { status: 0 }, json: {} };
+    disabledMultiPersists = await counted(store, async () => {
+      result = await request("/api/outbound-call-records/ocr_wrap_a1/wrapup", shirley, "POST", {
+        outcome: { outcome: "号码错误", note: "停用添加要回滚" },
+        callTags: [
+          { tagId: "ctag_wrap_two", action: "remove" },
+          { tagId: "ctag_wrap_off", action: "add" }
+        ]
+      });
+    });
+    return result;
+  })();
+  assert.equal(disabledMultiPersists, 0);
+  assert.equal(disabledMulti.response.status, 400);
+  assert.equal(disabledMulti.json.reason, "disabled");
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_wrap_a1")?.callOutcome, beforeDisabledMulti.outcome);
+  assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_a1" && item.tagId === "ctag_wrap_two"), true);
+  assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_a1" && item.tagId === "ctag_wrap_off"), false);
+  assert.equal(store.callTagAudits.length, beforeDisabledMulti.tagAudits);
+  assert.equal(store.callWrapupAudits.length, beforeDisabledMulti.wrapups);
+
+  const wrapupsBeforeLimit = store.callWrapupAudits.length;
+  const tooMany = await request("/api/outbound-call-records/ocr_wrap_a1/wrapup", shirley, "POST", {
+    callTags: Array.from({ length: 11 }, (_, index) => ({ tagId: `ctag_wrap_n${index}`, action: "add" }))
+  });
+  assert.equal(tooMany.response.status, 400);
+  assert.equal(tooMany.json.reason, "too_many_tags");
+  assert.equal(store.callWrapupAudits.length, wrapupsBeforeLimit);
+  const duplicate = await request("/api/outbound-call-records/ocr_wrap_a1/wrapup", shirley, "POST", {
+    callTag: { tagId: "ctag_wrap_on", action: "add" },
+    callTags: [{ tagId: "ctag_wrap_on", action: "remove" }]
+  });
+  assert.equal(duplicate.response.status, 400);
+  assert.equal(duplicate.json.reason, "invalid_request");
+  assert.equal(store.callWrapupAudits.length, wrapupsBeforeLimit);
+
+  const hiddenTags = await request("/api/outbound-call-records/ocr_wrap_mia/wrapup", shirley, "POST", {
+    callTags: [
+      { tagId: "ctag_wrap_on", action: "add" },
+      { tagId: "ctag_wrap_off", action: "remove" }
+    ]
+  });
+  assert.equal(hiddenTags.response.status, 403);
+  assert.equal(hiddenTags.json.reason, "forbidden");
+  assert.equal(store.callRecordTags.some((item) => item.callRecordId === "ocr_wrap_mia"), false);
+  assert.equal(store.callTagAudits.some((item) => item.callRecordId === "ocr_wrap_mia"), false);
+  const hiddenTagWrap = store.callWrapupAudits.find((item) => item.callRecordId === "ocr_wrap_mia" && item.addedTagIds === JSON.stringify(["ctag_wrap_on"]));
+  assert.equal(hiddenTagWrap?.result, "rejected");
+  assert.equal(hiddenTagWrap?.reason, "forbidden");
+  assert.equal(hiddenTagWrap?.removedTagIds, JSON.stringify(["ctag_wrap_off"]));
+  assert.equal(hiddenTagWrap?.parts.includes("停用标签"), false);
+  assert.equal(hiddenTagWrap?.addedTagIds.includes("价格敏感"), false);
 
   assert.equal(aliyunHits, 0);
   assert.equal(store.customerActivities.length, activitiesBefore);

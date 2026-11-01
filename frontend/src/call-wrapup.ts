@@ -1,7 +1,10 @@
 /**
  * 通话详情里的通话小结。一次提交只处理这一通勾选的子项。
+ * 通话标签可以一次勾选多个要添加的启用标签，以及要去掉的已有标签。
  * 没勾选的不放进正文。这里没有拨号按钮。
  */
+
+export const CALL_WRAPUP_TAG_LIMIT = 10;
 
 import { CALL_NOTE_MAX, CALL_NOTE_TAGS } from "./call-note";
 import type { CallScriptChoice } from "./call-script-usage";
@@ -32,6 +35,7 @@ export interface CallWrapupBodyInput {
   note?: { note: string; tags: string[] } | null;
   script?: { templateId: string | null } | null;
   callTag?: { tagId: string; action: "add" | "remove" } | null;
+  callTags?: Array<{ tagId: string; action: "add" | "remove" }> | null;
   callback?: { cancel: true } | { scheduledAt: string; note: string } | null;
 }
 
@@ -54,6 +58,9 @@ export function callWrapupBody(input: CallWrapupBodyInput) {
   if (input.note) body.note = { note: input.note.note, tags: input.note.tags };
   if (input.script) body.script = { templateId: input.script.templateId ? input.script.templateId : null };
   if (input.callTag) body.callTag = { tagId: input.callTag.tagId, action: input.callTag.action };
+  if (input.callTags && input.callTags.length) {
+    body.callTags = input.callTags.map((item) => ({ tagId: item.tagId, action: item.action }));
+  }
   if (input.callback) body.callback = input.callback;
   return body;
 }
@@ -99,24 +106,45 @@ function scriptOptions(record: CallWrapupRecord, choices: CallScriptChoice[]) {
   }).join("");
 }
 
-function tagOptions(record: CallWrapupRecord, choices: CallTagChoice[]) {
-  const applied = new Set((record.callTags || []).map((item) => item.id));
-  const rows = new Map<string, { name: string; enabled: boolean }>();
-  for (const item of choices) {
-    if (!item.id) continue;
-    rows.set(item.id, { name: item.name, enabled: item.enabled !== false });
-  }
+function wrapupTagLists(record: CallWrapupRecord, choices: CallTagChoice[]) {
+  const applied = new Map<string, { name: string; enabled: boolean }>();
   for (const item of record.callTags || []) {
-    if (!item.id || rows.has(item.id)) continue;
-    rows.set(item.id, { name: item.name, enabled: item.enabled !== false });
+    if (!item.id || applied.has(item.id)) continue;
+    applied.set(item.id, { name: item.name || "", enabled: item.enabled !== false });
   }
-  const options = [...rows.entries()].map(([id, item]) => {
-    const disabled = item.enabled ? "" : " disabled";
-    const state = item.enabled ? "" : "（已停用）";
-    const mark = applied.has(id) ? "（已打上）" : "";
-    return `<option value="${escapeHtml(id)}"${disabled}>${escapeHtml(item.name)}${escapeHtml(mark)}${escapeHtml(state)}</option>`;
-  });
-  return `<option value="">请选择</option>${options.join("")}`;
+  const addable: Array<{ id: string; name: string }> = [];
+  const seen = new Set<string>();
+  for (const item of choices) {
+    if (!item.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    if (applied.has(item.id)) {
+      const current = applied.get(item.id)!;
+      applied.set(item.id, { name: item.name || current.name, enabled: item.enabled !== false });
+      continue;
+    }
+    if (item.enabled === false) continue;
+    addable.push({ id: item.id, name: item.name || "" });
+  }
+  const byName = (left: { name: string }, right: { name: string }) => left.name.localeCompare(right.name, "zh");
+  addable.sort(byName);
+  const removable = [...applied.entries()]
+    .map(([id, item]) => ({ id, name: item.name, enabled: item.enabled }))
+    .sort(byName);
+  return { addable, removable };
+}
+
+function tagChangeFields(record: CallWrapupRecord, choices: CallTagChoice[]) {
+  const { addable, removable } = wrapupTagLists(record, choices);
+  const adds = addable.length
+    ? addable.map((item) => `<label><input type="checkbox" data-wrapup-tag-add="${escapeHtml(item.id)}" value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</label>`).join("")
+    : `<span data-wrapup-tag-add-empty="1">没有可添加的启用标签</span>`;
+  const removes = removable.length
+    ? removable.map((item) => {
+      const state = item.enabled ? "" : "（已停用）";
+      return `<label><input type="checkbox" data-wrapup-tag-remove="${escapeHtml(item.id)}" value="${escapeHtml(item.id)}">${escapeHtml(item.name)}${escapeHtml(state)}</label>`;
+    }).join("")
+    : `<span data-wrapup-tag-remove-empty="1">这条通话还没有标签</span>`;
+  return `<p data-wrapup-tag-hint="1">勾选要添加的启用标签，或要去掉的已有标签。一次最多 ${CALL_WRAPUP_TAG_LIMIT} 个。停用的不能新加，已经打上的可以去掉。</p><div data-wrapup-tag-add-list="1">添加${adds}</div><div data-wrapup-tag-remove-list="1">去掉${removes}</div>`;
 }
 
 export function renderCallWrapupForm(
@@ -127,7 +155,7 @@ export function renderCallWrapupForm(
   const callback = record.targetType && record.targetId
     ? `<fieldset data-wrapup-section="callback"><label><input type="checkbox" data-wrapup-include="callback">回拨预约</label><label>时间<input type="datetime-local" data-wrapup-callback-at value="${escapeHtml(toDateTimeLocal(record.callbackScheduledAt || ""))}"></label><label>备注<input data-wrapup-callback-note maxlength="${CALLBACK_NOTE_MAX}" value="${escapeHtml(record.callbackNote || "")}"></label><label><input type="checkbox" data-wrapup-callback-cancel>取消回拨</label></fieldset>`
     : `<p data-wrapup-callback-missing="1">这条通话没有关联对象，这次小结不能改回拨预约。</p>`;
-  return `<form data-call-wrapup-form="1" data-record-id="${escapeHtml(record.id)}"><p data-call-wrapup-hint="1">勾选要一起保存的项。没勾选的保持原样。</p><fieldset data-wrapup-section="outcome"><label><input type="checkbox" data-wrapup-include="outcome">通话结果</label><label>通话结果<select data-wrapup-outcome>${outcomeOptions(record.callOutcome || "")}</select></label><label>备注<input data-wrapup-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label></fieldset><fieldset data-wrapup-section="note"><label><input type="checkbox" data-wrapup-include="note">通话纪要</label><label>通话纪要<textarea data-wrapup-note maxlength="${CALL_NOTE_MAX}" rows="3">${escapeHtml(record.callNote || "")}</textarea></label><div data-wrapup-note-tags="1">${noteTagOptions(record.callNoteTags)}</div></fieldset><fieldset data-wrapup-section="script"><label><input type="checkbox" data-wrapup-include="script">所用话术</label><label>选用<select data-wrapup-script>${scriptOptions(record, scriptChoices)}</select></label></fieldset><fieldset data-wrapup-section="callTag"><label><input type="checkbox" data-wrapup-include="callTag">通话标签</label><label>操作<select data-wrapup-tag-action><option value="add">添加</option><option value="remove">去掉</option></select></label><label>标签<select data-wrapup-tag>${tagOptions(record, tagChoices)}</select></label></fieldset>${callback}<button class="btn" type="submit">提交通话小结</button></form>`;
+  return `<form data-call-wrapup-form="1" data-record-id="${escapeHtml(record.id)}"><p data-call-wrapup-hint="1">勾选要一起保存的项。没勾选的保持原样。</p><fieldset data-wrapup-section="outcome"><label><input type="checkbox" data-wrapup-include="outcome">通话结果</label><label>通话结果<select data-wrapup-outcome>${outcomeOptions(record.callOutcome || "")}</select></label><label>备注<input data-wrapup-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label></fieldset><fieldset data-wrapup-section="note"><label><input type="checkbox" data-wrapup-include="note">通话纪要</label><label>通话纪要<textarea data-wrapup-note maxlength="${CALL_NOTE_MAX}" rows="3">${escapeHtml(record.callNote || "")}</textarea></label><div data-wrapup-note-tags="1">${noteTagOptions(record.callNoteTags)}</div></fieldset><fieldset data-wrapup-section="script"><label><input type="checkbox" data-wrapup-include="script">所用话术</label><label>选用<select data-wrapup-script>${scriptOptions(record, scriptChoices)}</select></label></fieldset><fieldset data-wrapup-section="callTag"><label><input type="checkbox" data-wrapup-include="callTag">通话标签</label>${tagChangeFields(record, tagChoices)}</fieldset>${callback}<button class="btn" type="submit">提交通话小结</button></form>`;
 }
 
 export function renderCallWrapupPanel(

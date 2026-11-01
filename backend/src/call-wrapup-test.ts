@@ -15,10 +15,43 @@ assert.equal(ok.ok, true);
 if (ok.ok) {
   assert.deepEqual(ok.parts, ["outcome", "note", "script", "callTag", "callback"]);
   assert.equal(ok.callTagAction, "add");
+  assert.deepEqual(ok.callTags, [{ tagId: "ctag_a", action: "add" }]);
 }
 const remove = parseCallWrapupRequest({ callTag: { tagId: "ctag_a", action: "remove" } });
 assert.equal(remove.ok, true);
-if (remove.ok) assert.equal(remove.callTagAction, "remove");
+if (remove.ok) {
+  assert.equal(remove.callTagAction, "remove");
+  assert.deepEqual(remove.callTags, [{ tagId: "ctag_a", action: "remove" }]);
+}
+const many = parseCallWrapupRequest({
+  callTag: { tagId: "ctag_a", action: "remove" },
+  callTags: [
+    { tagId: "ctag_b" },
+    { tagId: "ctag_c", action: "add" }
+  ]
+});
+assert.equal(many.ok, true);
+if (many.ok) {
+  assert.deepEqual(many.parts, ["callTag"]);
+  assert.equal(many.callTagAction, "remove");
+  assert.deepEqual(many.callTags, [
+    { tagId: "ctag_a", action: "remove" },
+    { tagId: "ctag_b", action: "add" },
+    { tagId: "ctag_c", action: "add" }
+  ]);
+}
+assert.equal(parseCallWrapupRequest({ callTags: [] }).ok, false);
+assert.equal(parseCallWrapupRequest({ callTags: { tagId: "ctag_a" } }).ok, false);
+assert.equal(parseCallWrapupRequest({ callTags: [{ tagId: "ctag_a", action: "rename" }] }).ok, false);
+assert.equal(parseCallWrapupRequest({ callTags: [{ tagIds: ["ctag_a"] }] }).ok, false);
+assert.equal(parseCallWrapupRequest({
+  callTags: [{ tagId: "ctag_a", action: "add" }, { tagId: "ctag_a", action: "remove" }]
+}).ok, false);
+const tooMany = parseCallWrapupRequest({
+  callTags: Array.from({ length: 11 }, (_, index) => ({ tagId: `ctag_${index}`, action: "add" }))
+});
+assert.equal(tooMany.ok, false);
+if (!tooMany.ok) assert.equal(tooMany.reason, "too_many_tags");
 assert.equal(parseCallWrapupRequest({}).ok, false);
 assert.equal(parseCallWrapupRequest([]).ok, false);
 assert.equal(parseCallWrapupRequest({ outcome: { outcome: "成交" } }).ok, false);
@@ -42,6 +75,10 @@ assert.equal(schema.includes("CREATE TABLE call_wrapup_audits"), false);
 assert.equal(schema.includes("DROP TABLE call_wrapup_audits"), false);
 assert.equal(schema.includes("DROP TABLE IF EXISTS call_wrapup_audits"), false);
 assert.equal(schema.includes("ALTER TABLE call_wrapup_audits"), false);
+assert.match(schema, /ensureColumn\(pool, "call_wrapup_audits", "added_tag_ids", "VARCHAR\(1000\) NOT NULL DEFAULT ''"\)/);
+assert.match(schema, /ensureColumn\(pool, "call_wrapup_audits", "removed_tag_ids", "VARCHAR\(1000\) NOT NULL DEFAULT ''"\)/);
+assert.equal(schema.includes("DROP COLUMN added_tag_ids"), false);
+assert.equal(schema.includes("DROP COLUMN removed_tag_ids"), false);
 assert.equal(schema.includes("ALTER TABLE call_outcome_audits"), false);
 assert.equal(schema.includes("ALTER TABLE call_note_audits"), false);
 assert.equal(schema.includes("ALTER TABLE call_script_usage_audits"), false);
@@ -55,6 +92,9 @@ assert.match(source, /saveCallNote\(/);
 assert.match(source, /saveCallScriptUsage\(/);
 assert.match(source, /addCallRecordTag\(/);
 assert.match(source, /removeCallRecordTag\(/);
+assert.match(source, /allowDisabledRemove: true/);
+assert.match(source, /addedTagIds/);
+assert.match(source, /removedTagIds/);
 assert.match(source, /scheduleCallbackOnCall\(/);
 assert.equal(source.includes("aliyuncs.com"), false);
 assert.equal(source.includes("requestOutboundCall"), false);

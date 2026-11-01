@@ -29,12 +29,20 @@ import type {
 /**
  * 坐席在一条有权看到的通话上，一次提交通话小结。
  * 填了的通话结果、纪要、话术、标签和回拨复用各自的校验、权限和审计。
+ * 标签可以一次添加多个启用中的，并去掉已经打上的，含已停用但仍打着的。
  * 这些改动先留在内存里，最后一次 persist 才落库；任一项失败就先恢复快照再决定要不要记拒绝审计。
  * 不拨号，不发信，不调用外部接口，不推进序列，不改抑制，不转线索。
  */
 
 const PART_KEYS = ["outcome", "note", "script", "callTag", "callback"] as const;
 export type CallWrapupPart = (typeof PART_KEYS)[number];
+const BODY_KEYS = new Set<string>([...PART_KEYS, "callTags"]);
+export const CALL_WRAPUP_TAG_LIMIT = 10;
+
+export interface CallWrapupTagChange {
+  tagId: string;
+  action: "add" | "remove";
+}
 
 const BATCH_KEYS = [
   "records", "ids", "callRecordIds", "recordIds", "targets", "items", "outcomes",
@@ -45,7 +53,7 @@ const BATCH_KEYS = [
 type StepResult = { status: number; body: Record<string, any> };
 
 export function parseCallWrapupRequest(body: unknown):
-  | { ok: true; parts: CallWrapupPart[]; callTagAction: "add" | "remove" }
+  | { ok: true; parts: CallWrapupPart[]; callTagAction: "add" | "remove"; callTags: CallWrapupTagChange[] }
   | { ok: false; reason: string; message: string } {
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, reason: "invalid_request", message: "一次只能为一条通话记录提交通话小结" };
@@ -54,10 +62,10 @@ export function parseCallWrapupRequest(body: unknown):
   if (BATCH_KEYS.some((key) => key in record)) {
     return { ok: false, reason: "invalid_request", message: "一次只能为一条通话记录提交通话小结" };
   }
-  if (Object.keys(record).some((key) => !(PART_KEYS as readonly string[]).includes(key))) {
+  if (Object.keys(record).some((key) => !BODY_KEYS.has(key))) {
     return { ok: false, reason: "invalid_request", message: "一次只能为一条通话记录提交通话小结" };
   }
-  const parts = PART_KEYS.filter((key) => key in record);
+  const parts = PART_KEYS.filter((key) => key in record || (key === "callTag" && "callTags" in record));
   if (!parts.length) {
     return { ok: false, reason: "invalid_request", message: "请至少填写一项通话小结" };
   }
@@ -73,17 +81,13 @@ export function parseCallWrapupRequest(body: unknown):
     const parsed = parseCallScriptUsageRequest(record.script);
     if (!parsed.ok) return { ok: false, reason: parsed.reason, message: "一次只能为一条通话记录选择话术" };
   }
-  let callTagAction: "add" | "remove" = "add";
-  if ("callTag" in record) {
-    const parsed = parseWrapupTag(record.callTag);
-    if (!parsed.ok) return { ok: false, reason: parsed.reason, message: "一次只能为一条通话记录添加或去掉一个标签" };
-    callTagAction = parsed.action;
-  }
+  const tags = parseWrapupTags(record);
+  if (!tags.ok) return { ok: false, reason: tags.reason, message: tags.message };
   if ("callback" in record) {
     const parsed = parseCallCallbackRequest(record.callback);
     if (!parsed.ok) return { ok: false, reason: parsed.reason, message: "回拨预约格式不正确" };
   }
-  return { ok: true, parts, callTagAction };
+  return { ok: true, parts, callTagAction: tags.callTagAction, callTags: tags.callTags };
 }
 
 function outcomeMessage(reason: string) {
@@ -100,8 +104,8 @@ function noteMessage(reason: string) {
   return "一次只能为一条通话记录填写纪要";
 }
 
-function parseWrapupTag(body: unknown):
-  | { ok: true; action: "add" | "remove" }
+function parseWrapupTagChange(body: unknown):
+  | { ok: true; change: CallWrapupTagChange }
   | { ok: false; reason: "invalid_request" } {
   if (body === null || typeof body !== "object" || Array.isArray(body)) return { ok: false, reason: "invalid_request" };
   const record = body as Record<string, unknown>;
@@ -109,9 +113,52 @@ function parseWrapupTag(body: unknown):
   if (Object.keys(record).some((key) => key !== "tagId" && key !== "action")) return { ok: false, reason: "invalid_request" };
   const parsed = parseCallRecordTagRequest({ tagId: record.tagId });
   if (!parsed.ok) return { ok: false, reason: "invalid_request" };
-  if (record.action === undefined) return { ok: true, action: "add" };
+  if (record.action === undefined) return { ok: true, change: { tagId: parsed.tagId, action: "add" } };
   if (record.action !== "add" && record.action !== "remove") return { ok: false, reason: "invalid_request" };
-  return { ok: true, action: record.action };
+  return { ok: true, change: { tagId: parsed.tagId, action: record.action } };
+}
+
+function parseWrapupTags(record: Record<string, unknown>):
+  | { ok: true; callTagAction: "add" | "remove"; callTags: CallWrapupTagChange[] }
+  | { ok: false; reason: string; message: string } {
+  const callTags: CallWrapupTagChange[] = [];
+  let callTagAction: "add" | "remove" = "add";
+  if ("callTag" in record) {
+    const parsed = parseWrapupTagChange(record.callTag);
+    if (!parsed.ok) return { ok: false, reason: parsed.reason, message: "一次只能为一条通话记录添加或去掉一个标签" };
+    callTags.push(parsed.change);
+    callTagAction = parsed.change.action;
+  }
+  if ("callTags" in record) {
+    if (!Array.isArray(record.callTags) || record.callTags.length === 0) {
+      return { ok: false, reason: "invalid_request", message: "一次只能为一条通话记录添加或去掉通话标签" };
+    }
+    for (const item of record.callTags) {
+      const parsed = parseWrapupTagChange(item);
+      if (!parsed.ok) return { ok: false, reason: "invalid_request", message: "一次只能为一条通话记录添加或去掉通话标签" };
+      callTags.push(parsed.change);
+    }
+    if (!("callTag" in record)) callTagAction = callTags[0].action;
+  }
+  if (callTags.length > CALL_WRAPUP_TAG_LIMIT) {
+    return { ok: false, reason: "too_many_tags", message: `一次最多添加或去掉 ${CALL_WRAPUP_TAG_LIMIT} 个通话标签` };
+  }
+  const seen = new Set<string>();
+  for (const change of callTags) {
+    if (seen.has(change.tagId)) {
+      return { ok: false, reason: "invalid_request", message: "一次不能重复提交同一个通话标签" };
+    }
+    seen.add(change.tagId);
+  }
+  return { ok: true, callTagAction, callTags };
+}
+
+function tagIdsText(ids: string[]) {
+  return JSON.stringify(ids).slice(0, 1000);
+}
+
+function requestedTagIds(changes: CallWrapupTagChange[], action: "add" | "remove") {
+  return tagIdsText(changes.filter((item) => item.action === action).map((item) => item.tagId));
 }
 
 function reject(reason: string, message: string, status = 400) {
@@ -245,6 +292,8 @@ export async function submitCallWrapup(
       callRecordId: clipId(callRecordId),
       action: "submit",
       parts: partsJson(states),
+      addedTagIds: requestedTagIds(parsed.callTags, "add"),
+      removedTagIds: requestedTagIds(parsed.callTags, "remove"),
       result: "rejected",
       reason: "forbidden"
     }, true);
@@ -263,7 +312,9 @@ export async function submitCallWrapup(
   const snapshot = capture(store, local.id);
   const { view, flush } = deferredStore(store);
   const states: Partial<Record<CallWrapupPart, string>> = {};
-  const steps: Array<{ key: CallWrapupPart; run: () => Promise<StepResult> }> = [];
+  const appliedAdds: string[] = [];
+  const appliedRemoves: string[] = [];
+  const steps: Array<{ key: CallWrapupPart; run: () => Promise<StepResult>; tagId?: string }> = [];
   if (parsed.parts.includes("outcome")) {
     steps.push({ key: "outcome", run: () => labelCallOutcome(view, user, local.id, payload.outcome) as Promise<StepResult> });
   }
@@ -273,12 +324,12 @@ export async function submitCallWrapup(
   if (parsed.parts.includes("script")) {
     steps.push({ key: "script", run: () => saveCallScriptUsage(view, user, local.id, payload.script) as Promise<StepResult> });
   }
-  if (parsed.parts.includes("callTag")) {
-    const tagBody = { tagId: (payload.callTag as { tagId?: unknown }).tagId };
-    const run = parsed.callTagAction === "remove"
-      ? () => removeCallRecordTag(view, user, local.id, tagBody) as Promise<StepResult>
+  for (const change of parsed.callTags) {
+    const tagBody = { tagId: change.tagId };
+    const run = change.action === "remove"
+      ? () => removeCallRecordTag(view, user, local.id, tagBody, { allowDisabledRemove: true }) as Promise<StepResult>
       : () => addCallRecordTag(view, user, local.id, tagBody) as Promise<StepResult>;
-    steps.push({ key: "callTag", run });
+    steps.push({ key: "callTag", run, tagId: change.tagId });
   }
   if (parsed.parts.includes("callback")) {
     steps.push({ key: "callback", run: () => scheduleCallbackOnCall(view, user, local.id, payload.callback) as Promise<StepResult> });
@@ -305,13 +356,22 @@ export async function submitCallWrapup(
         callRecordId: local.id,
         action: "submit",
         parts: partsJson(failed),
+        addedTagIds: requestedTagIds(parsed.callTags, "add"),
+        removedTagIds: requestedTagIds(parsed.callTags, "remove"),
         result: "rejected",
         reason: typeof outcome.body.reason === "string" ? outcome.body.reason : "rejected"
       }, false);
       await flush();
       return outcome;
     }
-    states[step.key] = partState(outcome.body.result);
+    if (step.key === "callTag") {
+      if (outcome.body.result === "added" && step.tagId) appliedAdds.push(step.tagId);
+      if (outcome.body.result === "removed" && step.tagId) appliedRemoves.push(step.tagId);
+      const next = partState(outcome.body.result);
+      states.callTag = states.callTag === "updated" || next === "updated" ? "updated" : "unchanged";
+    } else {
+      states[step.key] = partState(outcome.body.result);
+    }
   }
 
   const changed = Object.values(states).some((value) => value === "updated");
@@ -333,6 +393,8 @@ export async function submitCallWrapup(
     callRecordId: local.id,
     action: "submit",
     parts: partsJson(states),
+    addedTagIds: tagIdsText(appliedAdds),
+    removedTagIds: tagIdsText(appliedRemoves),
     result: "updated",
     reason: ""
   }, false);
