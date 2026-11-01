@@ -5364,6 +5364,34 @@ export interface CallScriptVersion {
 }
 
 /**
+ * 坐席自己收藏的一条话术。停用模板不删这一行。
+ * 同一人同一模板只有一行。不记正文。
+ */
+export interface CallScriptFavorite {
+  id: string;
+  teamId: string;
+  actorId: string;
+  templateId: string;
+  createdAt: string;
+}
+
+/**
+ * 一次收藏、取消收藏，或一次被拒绝的查看和越权操作。
+ * 不记话术正文，也不记号码或密钥。成功的读取不写这一行。
+ */
+export interface CallScriptFavoriteAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  templateId: string;
+  ownerId: string;
+  action: "favorite" | "unfavorite" | "read";
+  result: "updated" | "rejected";
+  reason: string;
+}
+
+/**
  * 一次把话术记到某通通话上的选择、更换、清除，或一次被拒绝的尝试。
  * 旧值和新值是模板 ID。没有选用时是空。不记话术正文，也不记号码或密钥。
  * read 只用于越权查看使用次数，不表示改了某一通。

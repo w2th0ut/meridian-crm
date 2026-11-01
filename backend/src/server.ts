@@ -299,6 +299,7 @@ import { exportOutboundCallRecords } from "./call-export.js";
 import { clearAgentCallTarget, listAgentCallTargets, saveAgentCallTarget } from "./agent-call-target.js";
 import { createCallScript, disableCallScript, listCallScriptVersions, listCallScripts, readCallScriptVersion, restoreCallScriptVersion, updateCallScript } from "./call-script.js";
 import { listCallScriptUsage, saveCallScriptUsage } from "./call-script-usage.js";
+import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
   assignOutboundOwner,
   clearOutboundOwner,
@@ -9030,6 +9031,21 @@ app.post("/api/agent-call-targets/clear", requireAuth, asyncRoute(async (req, re
 
 app.post("/api/agent-call-targets", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await saveAgentCallTarget(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-script-favorites", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallScriptFavorites(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-favorites/remove", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await unfavoriteCallScript(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-script-favorites", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await favoriteCallScript(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
