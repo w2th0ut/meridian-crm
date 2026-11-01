@@ -21,6 +21,8 @@ export interface IntentFollowupQueueRow {
   callbackScheduledAt?: string;
   callbackNote?: string;
   callbackDue?: string;
+  ownerAgentId?: string;
+  ownerAgentLabel?: string;
 }
 
 export interface IntentFollowupAgentOption {
@@ -34,7 +36,7 @@ export interface IntentFollowupQueueResponse {
   agents?: IntentFollowupAgentOption[];
   suggestedNextFollowAt?: string;
   empty?: boolean;
-  filters?: { callbackDue?: string };
+  filters?: { callbackDue?: string; owner?: string };
   items?: IntentFollowupQueueRow[];
 }
 
@@ -46,12 +48,13 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function intentFollowupQuery(input: { agentId?: string; outcome?: string; includeIgnored?: boolean; callbackDue?: string }) {
+export function intentFollowupQuery(input: { agentId?: string; outcome?: string; includeIgnored?: boolean; callbackDue?: string; owner?: string }) {
   const params = new URLSearchParams();
   if (input.agentId) params.set("agentId", input.agentId);
   if (input.outcome) params.set("outcome", input.outcome);
   if (input.includeIgnored) params.set("includeIgnored", "1");
   if (input.callbackDue === "today" || input.callbackDue === "overdue") params.set("callbackDue", input.callbackDue);
+  if (input.owner === "mine") params.set("owner", "mine");
   const query = params.toString();
   return query ? `?${query}` : "";
 }
@@ -104,9 +107,10 @@ export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefi
       note: row.callbackNote || "",
       due: row.callbackDue || ""
     });
-    return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td><b>${escapeHtml(row.name || row.targetId)}</b><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}${callback}</td></tr>`;
+    const ownerLabel = row.ownerAgentId ? (row.ownerAgentLabel || row.ownerAgentId) : "未指派";
+    return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td><b>${escapeHtml(row.name || row.targetId)}</b><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td data-owner-agent="${escapeHtml(row.ownerAgentId || "")}">${escapeHtml(ownerLabel)}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}${callback}</td></tr>`;
   }).join("");
-  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>对象</th><th>通话结果</th><th>标注时间</th><th>坐席</th><th>号码</th><th>操作</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>对象</th><th>通话结果</th><th>标注时间</th><th>坐席</th><th>负责坐席</th><th>号码</th><th>操作</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse) {
@@ -116,6 +120,9 @@ export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse) {
   if (!active.length && !ignored.length) {
     if (input.filters?.callbackDue === "today" || input.filters?.callbackDue === "overdue") {
       return `<p data-intent-followup-empty="1" data-callback-filter-empty="1">这个筛选下没有今日到期或已逾期的回拨预约。</p>`;
+    }
+    if (input.filters?.owner === "mine") {
+      return `<p data-intent-followup-empty="1" data-owner-filter-empty="1">这个筛选下没有我负责的对象。</p>`;
     }
     return renderIntentFollowupEmpty();
   }

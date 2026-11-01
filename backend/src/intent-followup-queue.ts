@@ -4,6 +4,7 @@ import { isPublicCustomer } from "./customer-public-pool.js";
 import { appendFollowUpAudit } from "./follow-up-audit.js";
 import { suggestedMissedFollowAt, SUPPRESSION_FOLLOW_UP_NOTICE } from "./outbound-missed-follow-up.js";
 import { callbackScheduleView } from "./callback-schedule-state.js";
+import { outboundOwnerView, parseOwnerMineFilter, userOwnsOutboundTarget } from "./outbound-owner.js";
 import { outboundInstant, zonedDateKey } from "./outbound-call.js";
 import {
   outboundCallRecordVisible,
@@ -140,6 +141,7 @@ export interface IntentFollowupListQuery {
   outcome: IntentFollowupOutcome | null;
   includeIgnored: boolean;
   callbackDue: "" | "today" | "overdue";
+  owner: "" | "mine";
 }
 
 function oneQuery(value: unknown) {
@@ -154,22 +156,25 @@ export function parseIntentFollowupListQuery(query: Record<string, unknown>): In
   const outcomeRaw = oneQuery(query.outcome);
   const ignoredRaw = oneQuery(query.includeIgnored);
   const dueRaw = oneQuery(query.callbackDue);
-  if (agentRaw === null || outcomeRaw === null || ignoredRaw === null || dueRaw === null) return null;
+  const ownerRaw = oneQuery(query.owner);
+  if (agentRaw === null || outcomeRaw === null || ignoredRaw === null || dueRaw === null || ownerRaw === null) return null;
   const agentId = agentRaw || null;
   if (agentId && !AGENT_PATTERN.test(agentId)) return null;
   let callbackDue: "" | "today" | "overdue" = "";
   if (dueRaw === "today" || dueRaw === "overdue") callbackDue = dueRaw;
   else if (dueRaw !== "") return null;
+  const owner = parseOwnerMineFilter(ownerRaw);
+  if (owner === null) return null;
   let outcome: IntentFollowupOutcome | null = null;
   if (outcomeRaw) {
     if (!isIntentFollowupOutcome(outcomeRaw)) return null;
     outcome = outcomeRaw;
   }
   if (ignoredRaw === "" || ignoredRaw === "0" || ignoredRaw === "false") {
-    return { agentId, outcome, includeIgnored: false, callbackDue };
+    return { agentId, outcome, includeIgnored: false, callbackDue, owner };
   }
   if (ignoredRaw === "1" || ignoredRaw === "true") {
-    return { agentId, outcome, includeIgnored: true, callbackDue };
+    return { agentId, outcome, includeIgnored: true, callbackDue, owner };
   }
   return null;
 }
@@ -341,9 +346,16 @@ export async function listIntentFollowupQueue(
     ...item,
     ...callbackScheduleView(store, user.teamId, item.targetType, item.targetId, today)
   }));
-  const items = parsed.callbackDue
+  const dueItems = parsed.callbackDue
     ? decorated.filter((item) => item.callbackDue === parsed.callbackDue)
     : decorated;
+  const owned = dueItems.map((item) => ({
+    ...item,
+    ...outboundOwnerView(store, user.teamId, item.targetType, item.targetId)
+  }));
+  const items = parsed.owner === "mine"
+    ? owned.filter((item) => userOwnsOutboundTarget(store, user, item.targetType, item.targetId))
+    : owned;
   return {
     status: 200,
     body: {
@@ -354,7 +366,8 @@ export async function listIntentFollowupQueue(
         agentId: parsed.agentId || "",
         outcome: parsed.outcome || "",
         includeIgnored: parsed.includeIgnored,
-        callbackDue: parsed.callbackDue
+        callbackDue: parsed.callbackDue,
+        owner: parsed.owner
       },
       suggestedNextFollowAt: await suggestedMissedFollowAt(store, user.teamId, outboundInstant()),
       empty: items.length === 0,
