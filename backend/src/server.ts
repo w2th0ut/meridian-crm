@@ -318,6 +318,7 @@ import { listOutboundCallRecords, OUTBOUND_CALL_RECORD_PERMISSION } from "./outb
 import { callNotesForTarget, saveCallNote } from "./call-note.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
 import { labelCallOutcome } from "./call-outcome.js";
+import { submitCallWrapup } from "./call-wrapup.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
 import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
@@ -9227,6 +9228,11 @@ app.post("/api/outbound-call-records/:id/next-follow-up", requireAuth, asyncRout
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await generateMissedCallFollowUp(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/wrapup", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await submitCallWrapup(getStore(), req.user, req.params.id, req.body, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

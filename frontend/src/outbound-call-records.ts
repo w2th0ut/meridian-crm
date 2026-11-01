@@ -1,5 +1,6 @@
 import { renderCallbackScheduleForm } from "./callback-schedule";
 import { renderCallNoteForm } from "./call-note";
+import { renderCallWrapupPanel } from "./call-wrapup";
 import { renderCallTagChips, renderCallTagPanel, type CallTagChoice } from "./call-tag";
 import { renderCallScriptUsageForm, type CallScriptChoice } from "./call-script-usage";
 
@@ -281,10 +282,11 @@ export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) 
   const form = established
     ? `<p data-follow-up-established="1">这通已经接通，不能从这里生成下次跟进。</p>`
     : `<form data-missed-follow-form="1"><label>下次跟进<input type="datetime-local" data-missed-follow-at value="${escapeHtml(toDateTimeLocal(suggested))}"${saved ? " disabled" : ""}></label><button class="btn" type="submit" data-generate-missed-follow="1">生成下次跟进</button></form>`;
+  const wrapup = renderCallWrapupPanel(record, input.scriptChoices || [], input.tagChoices || []);
   const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}</div>`;
   const note = `<div class="outbound-record-outcome" data-call-note-panel="1"><h3>通话纪要</h3>${renderCallNoteForm(record)}</div>`;
   const script = `<div class="outbound-record-outcome" data-call-script-usage-panel="1"><h3>所用话术</h3>${renderCallScriptUsageForm(record, input.scriptChoices || [])}</div>`;
   const tags = renderCallTagPanel(record, input.tagChoices || []);
   const callback = `<div class="outbound-record-outcome" data-callback-schedule-panel="1"><h3>回拨预约</h3>${callbackForm(record) || `<p data-callback-schedule-missing="1">这条通话没有关联对象，不能设置回拨预约。</p>`}</div>`;
-  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${outcome}${note}${script}${tags}${callback}${generated}${form}${notice}</section>`;
+  return `<section class="outbound-record-detail" data-call-detail="${escapeHtml(record.id)}"><h2>通话详情</h2><p>号码 ${escapeHtml(record.maskedNumber || "—")} · 话单结果 ${escapeHtml(record.contactDisposition || "—")} · 接通 ${established ? "是" : "否"}</p>${wrapup}${outcome}${note}${script}${tags}${callback}${generated}${form}${notice}</section>`;
 }
