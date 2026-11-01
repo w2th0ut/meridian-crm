@@ -18300,6 +18300,77 @@ async function submitCallWrapup(form: HTMLFormElement) {
   }
 }
 
+let callWrapupEditPending = false;
+
+async function submitCallWrapupEdit(form: HTMLFormElement) {
+  const recordId = form.dataset.recordId || "";
+  if (!recordId || callWrapupEditPending) return;
+  const included = new Set(
+    [...form.querySelectorAll<HTMLInputElement>("[data-wrapup-edit-include]:checked")].map((item) => item.dataset.wrapupEditInclude || "")
+  );
+  if (!included.size) {
+    toast("请至少勾选一项要改正的通话小结", "error");
+    return;
+  }
+  const body: Record<string, unknown> = {};
+  if (included.has("note")) {
+    body.note = form.querySelector<HTMLTextAreaElement>("[data-wrapup-edit-note]")?.value ?? "";
+  }
+  if (included.has("outcome")) {
+    const outcome = form.querySelector<HTMLSelectElement>("[data-wrapup-edit-outcome]")?.value || "";
+    if (!outcome) {
+      toast("请选择通话结果", "error");
+      return;
+    }
+    body.outcome = {
+      outcome,
+      note: form.querySelector<HTMLInputElement>("[data-wrapup-edit-outcome-note]")?.value ?? ""
+    };
+  }
+  if (included.has("callTag")) {
+    const callTags = [
+      ...[...form.querySelectorAll<HTMLInputElement>("[data-wrapup-edit-tag-add]:checked")].map((item) => ({ tagId: item.value, action: "add" as const })),
+      ...[...form.querySelectorAll<HTMLInputElement>("[data-wrapup-edit-tag-remove]:checked")].map((item) => ({ tagId: item.value, action: "remove" as const }))
+    ];
+    if (!callTags.length) {
+      toast("请选择要添加或去掉的通话标签", "error");
+      return;
+    }
+    if (callTags.length > CALL_WRAPUP_TAG_LIMIT) {
+      toast(`一次最多添加或去掉 ${CALL_WRAPUP_TAG_LIMIT} 个通话标签`, "error");
+      return;
+    }
+    body.callTags = callTags;
+  }
+  if (included.has("nextFollowAt")) {
+    const clear = form.querySelector<HTMLInputElement>("[data-wrapup-edit-follow-clear]")?.checked === true;
+    const nextFollowAt = clear ? "" : fromDateTimeLocal(form.querySelector<HTMLInputElement>("[data-wrapup-edit-follow-at]")?.value || "");
+    if (!clear && !nextFollowAt) {
+      toast("请填写下次跟进时间", "error");
+      return;
+    }
+    body.nextFollowAt = nextFollowAt;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  callWrapupEditPending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/wrapup-edit`,
+      { method: "POST", body: JSON.stringify(body) }
+    );
+    toast(result.message || "已改正通话小结");
+    await loadOutboundCallRecords();
+    const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+    if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "通话小结没有改正", "error");
+  } finally {
+    callWrapupEditPending = false;
+    if (button) button.disabled = false;
+  }
+}
+
 let callNotePending = false;
 
 async function submitCallNote(form: HTMLFormElement, clear = false) {
@@ -56434,6 +56505,12 @@ function installEvents() {
     if (wrapupForm) {
       event.preventDefault();
       void submitCallWrapup(wrapupForm);
+      return;
+    }
+    const wrapupEditForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-wrapup-edit-form]");
+    if (wrapupEditForm) {
+      event.preventDefault();
+      void submitCallWrapupEdit(wrapupEditForm);
       return;
     }
     const tagForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-tag-add-form]");

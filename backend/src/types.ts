@@ -5599,6 +5599,39 @@ export interface CallWrapupSkipAudit {
 }
 
 /**
+ * 一次改正已提交通话小结的前值和后值。
+ * beforeJson / afterJson 只含纪要正文、通话结果、结果备注、标签 id 和下次跟进时间。
+ * 不记标签名称、号码、录音地址、话术正文或密钥。拒绝且看不见通话时两份都是 {}。
+ */
+export interface CallWrapupEditSnapshot {
+  note: string;
+  outcome: string;
+  outcomeNote: string;
+  tagIds: string[];
+  nextFollowAt: string;
+}
+
+export interface CallWrapupEditAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  callRecordId: string;
+  beforeJson: string;
+  afterJson: string;
+  result: "updated" | "rejected";
+  reason: string;
+}
+
+/** 本租户改正已提交小结的窗口小时数。没有这一行时按 24 小时。 */
+export interface CallWrapupEditWindow {
+  teamId: string;
+  windowHours: number;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
