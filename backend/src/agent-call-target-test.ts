@@ -78,6 +78,17 @@ assert.equal(formatAgentCallTargetValue(null), "");
 assert.equal(formatAgentCallTargetValue({ dialTarget: 20, connectedTarget: 8, intentTarget: 3 }), "20|8|3");
 assert.equal(formatAgentCallTargetValue({ dialTarget: 20, connectedTarget: 8, intentTarget: null }), "20|8|");
 assert.equal(formatAgentCallTargetValue({ dialTarget: 0, connectedTarget: 0, intentTarget: 0 }), "0|0|0");
+assert.equal(formatAgentCallTargetValue({ dialTarget: 20, connectedTarget: 8, intentTarget: 3, wrapupTarget: null }), "20|8|3");
+assert.equal(formatAgentCallTargetValue({ dialTarget: 20, connectedTarget: 8, intentTarget: 3, wrapupTarget: 4 }), "20|8|3|4");
+assert.equal(formatAgentCallTargetValue({ dialTarget: 20, connectedTarget: 8, intentTarget: null, wrapupTarget: 0 }), "20|8||0");
+assert.equal(sameAgentCallTarget(
+  { dialTarget: 20, connectedTarget: 8, intentTarget: null },
+  { dialTarget: 20, connectedTarget: 8, intentTarget: null, wrapupTarget: null }
+), true);
+assert.equal(sameAgentCallTarget(
+  { dialTarget: 20, connectedTarget: 8, intentTarget: null, wrapupTarget: null },
+  { dialTarget: 20, connectedTarget: 8, intentTarget: null, wrapupTarget: 1 }
+), false);
 assert.equal(sameAgentCallTarget(
   { dialTarget: 20, connectedTarget: 8, intentTarget: null },
   { dialTarget: 20, connectedTarget: 8, intentTarget: null }
@@ -92,6 +103,23 @@ assert.equal(set.ok && set.intentTarget, null);
 const withIntent = parseAgentCallTargetWrite({ agentId: "agent@ccc-a", dialTarget: 0, connectedTarget: AGENT_CALL_TARGET_MAX, intentTarget: 0 });
 assert.equal(withIntent.ok && withIntent.intentTarget, 0);
 assert.equal(parseAgentCallTargetWrite({ agentId: "agent@ccc-a", dialTarget: 20, connectedTarget: 8, intentTarget: null }).ok, true);
+const wrapOnly = parseAgentCallTargetWrite({ agentId: "agent@ccc-a", wrapupTarget: 4 });
+assert.equal(wrapOnly.ok && wrapOnly.mode === "wrapup" && wrapOnly.wrapupTarget, 4);
+const wrapClear = parseAgentCallTargetWrite({ agentId: "agent@ccc-a", wrapupTarget: null });
+assert.equal(wrapClear.ok && wrapClear.mode === "wrapup" && wrapClear.wrapupTarget, null);
+const fullKept = parseAgentCallTargetWrite({ agentId: "agent@ccc-a", dialTarget: 20, connectedTarget: 8 });
+assert.equal(fullKept.ok && fullKept.mode === "full" && fullKept.wrapupTarget, undefined);
+const fullWrap = parseAgentCallTargetWrite({ agentId: "agent@ccc-a", dialTarget: 20, connectedTarget: 8, wrapupTarget: 0 });
+assert.equal(fullWrap.ok && fullWrap.mode === "full" && fullWrap.wrapupTarget, 0);
+for (const body of [
+  { agentId: "agent@ccc-a", wrapupTarget: "" },
+  { agentId: "agent@ccc-a", wrapupTarget: 10001 },
+  { agentId: "agent@ccc-a", wrapupTarget: 1.5 },
+  { agentId: "agent@ccc-a", dialTarget: 1, connectedTarget: 1, wrapupTarget: "" },
+  { agentId: "agent@ccc-a", wrapupTarget: 1, intentTarget: 1 }
+]) {
+  assert.equal(parseAgentCallTargetWrite(body).ok, false);
+}
 for (const body of [
   { agentId: "agent@ccc-a", dialTarget: 10001, connectedTarget: 1 },
   { agentId: "agent@ccc-a", dialTarget: -1, connectedTarget: 1 },
@@ -122,11 +150,20 @@ assert.equal(schema.includes("CREATE TABLE agent_call_target_audits"), false);
 assert.equal(schema.includes("DROP TABLE agent_call_targets"), false);
 assert.equal(schema.includes("DROP TABLE agent_call_target_audits"), false);
 assert.match(schema, /uniq_agent_call_targets_agent/);
+assert.match(schema, /wrapup_target INT NULL/);
+assert.match(schema, /ensureColumn\(pool, "agent_call_targets", "wrapup_target", "INT NULL"\)/);
+assert.equal(schema.includes("call_daily_targets"), false);
+assert.equal(schema.includes("call_daily_target_audits"), false);
+assert.equal(schema.includes("DROP TABLE agent_call_targets"), false);
+assert.equal(schema.includes("DROP COLUMN wrapup_target"), false);
 
 const source = readFileSync(new URL("./agent-call-target.ts", import.meta.url), "utf8");
 assert.equal(source.includes("aliyuncs.com"), false);
 assert.equal(source.includes("requestOutboundCall"), false);
 assert.equal(source.includes("MakeCall"), false);
+assert.match(source, /canEditWrapupTarget/);
+assert.match(source, /wrapupTarget/);
+assert.equal(source.includes("call_daily_targets"), false);
 assert.match(source, /establishedTimeRaw|selectOutboundCallRecords|summarizeOutboundCallRecords/);
 assert.match(source, /有意向/);
 assert.equal(AGENT_CALL_TARGET_TIME_ZONE, "Asia/Shanghai");

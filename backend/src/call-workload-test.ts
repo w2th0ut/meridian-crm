@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   CALL_WORKLOAD_TIME_ZONE,
   UNASSIGNED_AGENT_ID,
+  attachCallWorkloadTargets,
   buildCallWorkload,
   canViewTeamCallWorkload,
   isHumanClickedCallRecord,
@@ -193,6 +194,31 @@ assert.equal(canViewTeamCallWorkload({ role: "manager" }), true);
 assert.equal(canViewTeamCallWorkload({ role: "admin" }), true);
 assert.equal(canViewTeamCallWorkload({ role: "super_admin" }), true);
 
+const attached = attachCallWorkloadTargets(
+  [
+    { agentId: "agent-a", callsMade: 5, wrapupCompleted: 1 },
+    { agentId: UNASSIGNED_AGENT_ID, callsMade: 1, wrapupCompleted: 0 }
+  ],
+  [
+    { teamId: "europe", agentId: "agent-a", dialTarget: 20, wrapupTarget: null },
+    { teamId: "asia", agentId: "agent-a", dialTarget: 9, wrapupTarget: 9 },
+    { teamId: "europe", agentId: "agent-b", dialTarget: 4, wrapupTarget: 2 }
+  ],
+  "europe"
+);
+assert.equal(attached[0]?.callsMade, 5);
+assert.equal(attached[0]?.callsTarget, 20);
+assert.equal(attached[0]?.wrapupTarget, null);
+assert.equal(attached[1]?.callsTarget, null);
+assert.equal(attached[1]?.wrapupTarget, null);
+const withWrap = attachCallWorkloadTargets(
+  [{ agentId: "agent-b", callsMade: 0, wrapupCompleted: 0 }],
+  [{ teamId: "europe", agentId: "agent-b", dialTarget: 0, wrapupTarget: 0 }],
+  "europe"
+);
+assert.equal(withWrap[0]?.callsTarget, 0);
+assert.equal(withWrap[0]?.wrapupTarget, 0);
+
 const schema = readFileSync(new URL("./mysql-store.ts", import.meta.url), "utf8");
 assert.match(schema, /CREATE TABLE IF NOT EXISTS call_workload_view_audits \(/);
 assert.equal((schema.match(/CREATE TABLE IF NOT EXISTS call_workload_view_audits \(/g) || []).length, 1);
@@ -213,6 +239,10 @@ assert.equal(source.includes("MakeCall"), false);
 assert.equal(source.includes("convert_to_lead"), false);
 assert.equal(source.includes("approved_contactable"), false);
 assert.match(source, /isHumanClickedCallRecord/);
+assert.match(source, /attachCallWorkloadTargets/);
+assert.match(source, /agentCallTargets/);
+assert.equal(source.includes("call_daily_targets"), false);
+assert.equal(source.includes("MakeCall"), false);
 assert.match(source, /call_wrapup/);
 assert.match(source, /talkTimeSeconds === null|talkSamples === 0/);
 

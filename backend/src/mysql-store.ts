@@ -6279,11 +6279,13 @@ async function ensureSchema(pool: mysql.Pool) {
     dial_target INT NOT NULL,
     connected_target INT NOT NULL,
     intent_target INT NULL,
+    wrapup_target INT NULL,
     updated_by VARCHAR(64) NOT NULL DEFAULT '',
     updated_at DATETIME NULL,
     UNIQUE KEY uniq_agent_call_targets_agent(team_id, agent_id),
     INDEX idx_agent_call_targets_team(team_id, updated_at)
   )`);
+  await ensureColumn(pool, "agent_call_targets", "wrapup_target", "INT NULL");
   await pool.query(`CREATE TABLE IF NOT EXISTS agent_call_target_audits (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -13287,6 +13289,7 @@ async function loadAgentCallTargets(pool: mysql.Pool): Promise<AgentCallTarget[]
     dialTarget: storedTargetCount(row.dial_target),
     connectedTarget: storedTargetCount(row.connected_target),
     intentTarget: storedOptionalTargetCount(row.intent_target),
+    wrapupTarget: storedOptionalTargetCount(row.wrapup_target),
     updatedBy: row.updated_by || "",
     updatedAt: storedIso(row.updated_at)
   }));
@@ -14534,7 +14537,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "call_outcome_audits", store.callOutcomeAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId, item.previousOutcome, item.nextOutcome, item.previousNote, item.nextNote], "(id,team_id,actor_id,occurred_at,call_record_id,previous_outcome,next_outcome,previous_note,next_note)");
 	    await replaceRows(connection, "call_note_audits", store.callNoteAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId, item.action, item.previousNote, item.nextNote, item.previousTags, item.nextTags, item.result, item.reason], "(id,team_id,actor_id,occurred_at,call_record_id,action_code,previous_note,next_note,previous_tags,next_tags,result_code,reason_code)");
 	    await replaceRows(connection, "call_export_audits", store.callExportAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.filters || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.plaintext ? 1 : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,filters_json,row_count,plaintext,result_code,reason_code)");
-	    await replaceRows(connection, "agent_call_targets", store.agentCallTargets, (item) => [item.id, item.teamId, item.agentId, Number.isInteger(item.dialTarget) ? item.dialTarget : 0, Number.isInteger(item.connectedTarget) ? item.connectedTarget : 0, item.intentTarget === null || item.intentTarget === undefined ? null : item.intentTarget, item.updatedBy || "", item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,agent_id,dial_target,connected_target,intent_target,updated_by,updated_at)");
+	    await replaceRows(connection, "agent_call_targets", store.agentCallTargets, (item) => [item.id, item.teamId, item.agentId, Number.isInteger(item.dialTarget) ? item.dialTarget : 0, Number.isInteger(item.connectedTarget) ? item.connectedTarget : 0, item.intentTarget === null || item.intentTarget === undefined ? null : item.intentTarget, item.wrapupTarget === null || item.wrapupTarget === undefined ? null : item.wrapupTarget, item.updatedBy || "", item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,agent_id,dial_target,connected_target,intent_target,wrapup_target,updated_by,updated_at)");
 	    await replaceRows(connection, "agent_call_target_audits", store.agentCallTargetAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.agentId || "", item.action, item.previousValue || "", item.nextValue || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,agent_id,action_code,previous_value,next_value,result_code,reason_code)");
 	    await replaceRows(connection, "outbound_owners", store.outboundOwners, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.agentId || "", item.updatedBy || "", item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,target_type,target_id,agent_id,updated_by,updated_at)");
 	    await replaceRows(connection, "outbound_owner_audits", store.outboundOwnerAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType || "", item.targetId || "", item.previousAgentId || "", item.nextAgentId || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,previous_agent_id,next_agent_id,result_code,reason_code)");

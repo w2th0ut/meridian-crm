@@ -165,6 +165,7 @@ import {
 } from "./call-wrapup-edit-report";
 import {
   callWorkloadQuery,
+  readWrapupTargetCount,
   renderCallWorkload,
   type CallWorkloadResponse
 } from "./call-workload";
@@ -12962,11 +12963,35 @@ async function loadCallWorkload(scope: "self" | "team") {
   if (!list || !state.user) return;
   if (scope === "team" && !canViewCallWorkloadTeam()) return;
   if (message) message.textContent = "";
+  callWorkloadScope = scope;
   try {
     const data = await api<CallWorkloadResponse>(`/api/call-workload${callWorkloadQuery({ scope })}`);
     list.innerHTML = renderCallWorkload(data);
   } catch (error) {
     list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到今日通话负荷")}</div>`;
+  }
+}
+
+let callWorkloadScope: "self" | "team" = "self";
+
+async function saveCallWrapupTarget(form: HTMLFormElement) {
+  const message = qs<HTMLElement>("#dashboardCallWorkloadMessage");
+  const agentId = form.querySelector<HTMLInputElement>("[data-wrapup-agent]")?.value || "";
+  const counts = readWrapupTargetCount(form.querySelector<HTMLInputElement>("[data-wrapup-target]")?.value || "");
+  if (!agentId || !counts.ok) {
+    if (message) message.textContent = counts.ok ? "请选择坐席" : counts.message;
+    return;
+  }
+  if (message) message.textContent = "";
+  try {
+    await api("/api/agent-call-targets", {
+      method: "POST",
+      body: JSON.stringify({ agentId, wrapupTarget: counts.wrapupTarget })
+    });
+    await loadCallWorkload(callWorkloadScope);
+    if (message) message.textContent = counts.wrapupTarget === null ? "已去掉小结目标" : "已保存小结目标";
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "没有保存小结目标";
   }
 }
 
@@ -56492,6 +56517,12 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#dashboardCallWorkloadTeam")?.addEventListener("click", () => {
     void loadCallWorkload("team");
+  });
+  qs<HTMLElement>("#dashboardCallWorkloadList")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-wrapup-target-form]");
+    if (!form) return;
+    event.preventDefault();
+    void saveCallWrapupTarget(form);
   });
   qs<HTMLFormElement>("#dashboardCallWrapupEditReportFilters")?.addEventListener("submit", (event) => {
     event.preventDefault();
