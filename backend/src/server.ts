@@ -319,6 +319,7 @@ import { callNotesForTarget, saveCallNote } from "./call-note.js";
 import { generateMissedCallFollowUp, readMissedCallFollowUpDetail } from "./outbound-missed-follow-up.js";
 import { labelCallOutcome } from "./call-outcome.js";
 import { submitCallWrapup } from "./call-wrapup.js";
+import { editCallWrapup, presentCallWrapupEdit, setCallWrapupEditWindow } from "./call-wrapup-edit.js";
 import { listCallWrapupCounts, listCallWrapupQueue, restoreCallWrapup, skipCallWrapup } from "./call-wrapup-queue.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
@@ -9221,6 +9222,11 @@ app.get("/api/outbound-call-records/:id", requireAuth, asyncRoute(async (req, re
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await readMissedCallFollowUpDetail(getStore(), req.user, req.params.id);
+  if (outcome.status === 200 && req.user) {
+    const wrapupEdit = presentCallWrapupEdit(getStore(), req.user, req.params.id);
+    if (!res.headersSent) res.status(200).json({ ...outcome.body, wrapupEdit });
+    return;
+  }
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
@@ -9234,6 +9240,16 @@ app.post("/api/outbound-call-records/:id/next-follow-up", requireAuth, asyncRout
 
 app.post("/api/outbound-call-records/:id/wrapup", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await submitCallWrapup(getStore(), req.user, req.params.id, req.body, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/outbound-call-records/:id/wrapup-edit", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await editCallWrapup(getStore(), req.user, req.params.id, req.body, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.put("/api/call-wrapup-edit-window", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await setCallWrapupEditWindow(getStore(), req.user, req.body, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
