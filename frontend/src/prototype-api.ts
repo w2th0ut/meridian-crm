@@ -144,6 +144,12 @@ import {
   type CallScriptReportResponse
 } from "./call-script-report";
 import {
+  callTagReportQuery,
+  renderCallTagReport,
+  renderCallTagReportAgentOptions,
+  type CallTagReportResponse
+} from "./call-tag-report";
+import {
   matchesOutboundOwnerList,
   outboundOwnerAssignBody,
   outboundOwnerClearBody,
@@ -12585,6 +12591,70 @@ function paintCallScriptSurfaces() {
 function paintCallScriptReportAccess() {
   const section = qs<HTMLElement>("#dashboardCallScriptReport");
   if (section) section.hidden = !callScriptCanManage;
+  paintCallTagReportAccess();
+}
+
+function paintCallTagReportAccess() {
+  const section = qs<HTMLElement>("#dashboardCallTagReport");
+  if (section) section.hidden = !callScriptCanManage;
+}
+
+function callTagReportFilterInput() {
+  return {
+    from: qs<HTMLInputElement>("#dashboardCallTagReportFrom")?.value || "",
+    to: qs<HTMLInputElement>("#dashboardCallTagReportTo")?.value || "",
+    agentId: qs<HTMLSelectElement>("#dashboardCallTagReportAgent")?.value || ""
+  };
+}
+
+async function loadCallTagReport() {
+  const list = qs<HTMLElement>("#dashboardCallTagReportList");
+  const message = qs<HTMLElement>("#dashboardCallTagReportMessage");
+  if (!callScriptCanManage || !list) return;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<CallTagReportResponse>(`/api/call-tag-report${callTagReportQuery(callTagReportFilterInput())}`);
+    const select = qs<HTMLSelectElement>("#dashboardCallTagReportAgent");
+    if (select) select.innerHTML = renderCallTagReportAgentOptions(data.agents, select.value);
+    list.innerHTML = renderCallTagReport(data);
+  } catch (error) {
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到通话标签使用统计")}</div>`;
+  }
+}
+
+async function exportCallTagReport() {
+  const message = qs<HTMLElement>("#dashboardCallTagReportMessage");
+  const button = qs<HTMLButtonElement>("#dashboardCallTagReportExport");
+  if (!callScriptCanManage) return;
+  if (message) message.textContent = "";
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`/api/call-tag-report/export${callTagReportQuery(callTagReportFilterInput())}`, {
+      credentials: "same-origin"
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: "导出没有完成" })) as { message?: string };
+      const text = body.message || "导出没有完成";
+      if (message) message.textContent = text;
+      toast(text, "error");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "通话标签使用统计.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "导出没有完成";
+    if (message) message.textContent = text;
+    toast(text, "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function callScriptReportFilterInput() {
@@ -56041,6 +56111,13 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#dashboardCallScriptReportExport")?.addEventListener("click", () => {
     void exportCallScriptReport();
+  });
+  qs<HTMLFormElement>("#dashboardCallTagReportFilters")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadCallTagReport();
+  });
+  qs<HTMLButtonElement>("#dashboardCallTagReportExport")?.addEventListener("click", () => {
+    void exportCallTagReport();
   });
   qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("click", (event) => {
     const noteClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-note-clear]");
