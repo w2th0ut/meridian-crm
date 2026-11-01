@@ -5218,6 +5218,23 @@ export interface ContactPhoneAudit {
 }
 
 /**
+ * 一次通话记录 CSV 导出。
+ * 筛选条件只记坐席、日期、标注结果和有无纪要，不记号码。
+ * 不记文件正文，也不记完整号码、录音地址或密钥。
+ */
+export interface CallExportAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  filters: string;
+  rowCount: number;
+  plaintext: boolean;
+  result: "exported" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

@@ -17259,10 +17259,70 @@ async function submitIntentFollowupIgnore(row: HTMLElement, restore: boolean) {
   }
 }
 
+function syncCallExportPlaintext() {
+  const label = qs<HTMLElement>("#outboundCallRecordPlaintextLabel");
+  if (!label) return;
+  label.hidden = !isSystemAdministrator();
+  if (label.hidden) {
+    const box = qs<HTMLInputElement>("#outboundCallRecordPlaintext");
+    if (box) box.checked = false;
+  }
+}
+
+async function exportOutboundCallRecords() {
+  const message = qs<HTMLElement>("#outboundCallRecordExportMessage");
+  const button = qs<HTMLButtonElement>("#outboundCallRecordExport");
+  if (message) {
+    message.hidden = true;
+    message.textContent = "";
+  }
+  const agent = qs<HTMLSelectElement>("#outboundCallRecordAgent")?.value || "";
+  const from = qs<HTMLInputElement>("#outboundCallRecordFrom")?.value || "";
+  const to = qs<HTMLInputElement>("#outboundCallRecordTo")?.value || "";
+  const outcome = qs<HTMLSelectElement>("#outboundCallRecordOutcome")?.value || "";
+  const note = qs<HTMLSelectElement>("#outboundCallRecordNote")?.value || "";
+  const plaintext = isSystemAdministrator() && qs<HTMLInputElement>("#outboundCallRecordPlaintext")?.checked === true;
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`/api/outbound-call-records/export${outboundCallRecordQuery({ agentId: agent, from, to, outcome, note, plaintext: plaintext ? "1" : "" })}`, {
+      credentials: "same-origin"
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: "导出没有完成" })) as { message?: string };
+      const text = body.message || "导出没有完成";
+      if (message) {
+        message.hidden = false;
+        message.textContent = text;
+      }
+      toast(text, "error");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "外呼通话记录.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "导出没有完成";
+    if (message) {
+      message.hidden = false;
+      message.textContent = text;
+    }
+    toast(text, "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadOutboundCallRecords() {
   const summary = qs<HTMLElement>("#outboundCallRecordSummary");
   const list = qs<HTMLElement>("#outboundCallRecordList");
   if (!summary || !list) return;
+  syncCallExportPlaintext();
   const agent = qs<HTMLSelectElement>("#outboundCallRecordAgent")?.value || "";
   const from = qs<HTMLInputElement>("#outboundCallRecordFrom")?.value || "";
   const to = qs<HTMLInputElement>("#outboundCallRecordTo")?.value || "";
@@ -54575,6 +54635,9 @@ function installEvents() {
   qs<HTMLFormElement>("#outboundCallRecordFilters")?.addEventListener("submit", (event) => {
     event.preventDefault();
     void loadOutboundCallRecords();
+  });
+  qs<HTMLButtonElement>("#outboundCallRecordExport")?.addEventListener("click", () => {
+    void exportOutboundCallRecords();
   });
   qs<HTMLElement>("#outboundCallRecordList")?.addEventListener("click", (event) => {
     const noteClear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-note-clear]");

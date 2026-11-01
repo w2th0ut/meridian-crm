@@ -72,13 +72,14 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string; note?: string }) {
+export function outboundCallRecordQuery(input: { agentId?: string; from?: string; to?: string; outcome?: string; note?: string; plaintext?: string }) {
   const params = new URLSearchParams();
   if (input.agentId) params.set("agentId", input.agentId);
   if (input.from) params.set("from", input.from);
   if (input.to) params.set("to", input.to);
   if (input.outcome) params.set("outcome", input.outcome);
   if (input.note) params.set("note", input.note);
+  if (input.plaintext === "1") params.set("plaintext", "1");
   const query = params.toString();
   return query ? `?${query}` : "";
 }
