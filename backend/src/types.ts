@@ -4820,11 +4820,17 @@ export interface NextFollowUpAuditEvent {
     | "batch_set_next_follow_up"
     | "batch_reject_forbidden"
     | "batch_reject_public_pool"
-    | "batch_reject_not_contactable";
+    | "batch_reject_not_contactable"
+    | "reject_forbidden"
+    | "reject_public_pool"
+    | "reject_not_contactable"
+    | "reject_not_found";
   oldValue: string;
   newValue: string;
   /** 同一次工作台批量设置共用。单条设置和清空为空。 */
   batchId?: string;
+  /** 从单条通话结果顺手写下时指向那一通。其他入口为空。 */
+  callRecordId?: string;
 }
 
 /** 批量追加备注的最小审计。操作人、时间、对象、动作、这次追加的备注。 */
