@@ -5150,6 +5150,24 @@ export interface CallbackScheduleAudit {
 }
 
 /**
+ * 一次回拨到期队列的查看或导出，或一次被拒绝的团队查看。
+ * 只记范围、是否只看已逾期和行数。不记备注、号码或密钥。
+ * 标完成不写这张表，仍走 callback_schedule_audits。
+ */
+export interface CallbackDueQueueAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "export";
+  scope: "mine" | "team";
+  overdueOnly: boolean;
+  rowCount: number;
+  result: "read" | "exported" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。
