@@ -108,6 +108,7 @@ import {
   renderOtherOutcomeFollowupFailure,
   type OtherOutcomeFollowupResponse
 } from "./other-outcome-followup";
+import { missingNextFollowupBatchBody } from "./missing-next-followup-batch";
 import {
   renderUnlabeledConnectedFollowup,
   renderUnlabeledConnectedFollowupFailure,
@@ -19964,6 +19965,61 @@ async function clearNegativeOutcomeFollowup(form: HTMLFormElement) {
     negativeOutcomeFollowupBusy = false;
     if (button) button.disabled = false;
   }
+}
+
+async function submitMissingNextFollowupBatch(form: HTMLFormElement, reload: () => Promise<void>) {
+  const root = form.parentElement;
+  const picked = [...(root?.querySelectorAll<HTMLInputElement>("[data-missing-next-followup-pick]:checked") || [])];
+  const targets = picked.flatMap((box) => {
+    const value = box.value || "";
+    const splitAt = value.indexOf(":");
+    if (splitAt <= 0) return [];
+    const targetType = value.slice(0, splitAt);
+    const targetId = value.slice(splitAt + 1);
+    if (!targetType || !targetId) return [];
+    return [{ targetType, targetId }];
+  });
+  if (!targets.length) {
+    toast("先选择对象", "error");
+    return;
+  }
+  const raw = form.querySelector<HTMLInputElement>("[data-missing-next-follow-at]")?.value || "";
+  const nextFollowAt = fromDateTimeLocal(raw);
+  if (!nextFollowAt) {
+    toast("请填写下次跟进时间", "error");
+    return;
+  }
+  const note = form.querySelector<HTMLInputElement>("[data-missing-next-follow-note]")?.value || "";
+  const button = form.querySelector<HTMLButtonElement>("[data-missing-next-followup-submit]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/missing-next-followups/schedule", {
+      method: "POST",
+      body: JSON.stringify(missingNextFollowupBatchBody({ targets, nextFollowAt, note }))
+    });
+    toast(result.message || "已设置下次跟进");
+    await reload();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "下次跟进没有设上", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function bindMissingNextFollowupBatch(root: HTMLElement | null, reload: () => Promise<void>) {
+  root?.addEventListener("click", (event) => {
+    const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-missing-next-followup-all]");
+    if (!all) return;
+    root.querySelectorAll<HTMLInputElement>("[data-missing-next-followup-pick]").forEach((box) => {
+      box.checked = all.checked;
+    });
+  });
+  root?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-missing-next-followup-batch]");
+    if (!form) return;
+    event.preventDefault();
+    void submitMissingNextFollowupBatch(form, reload);
+  });
 }
 
 let otherOutcomeFollowupScope: "mine" | "team" = "mine";
@@ -58774,6 +58830,10 @@ function installEvents() {
     event.preventDefault();
     void scheduleOtherOutcomeFollowup(form);
   });
+  bindMissingNextFollowupBatch(qs<HTMLElement>("#dashboardOtherOutcomeFollowup"), () => loadOtherOutcomeFollowups(otherOutcomeFollowupScope));
+  bindMissingNextFollowupBatch(qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup"), () => loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope));
+  bindMissingNextFollowupBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
+  bindMissingNextFollowupBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
   qs<HTMLButtonElement>("#dashboardUnlabeledConnectedFollowupMine")?.addEventListener("click", () => {
     void loadUnlabeledConnectedFollowups("mine");
   });

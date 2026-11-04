@@ -1,9 +1,11 @@
 import { renderCallbackScheduleForm } from "./callback-schedule";
+import { missingNextFollowupBatchForm, missingNextFollowupPick } from "./missing-next-followup-batch";
 
 /**
  * 意向回访队列。
  * 只渲染接口返回的对象。空列表是空状态，不补 0。
- * 每一行单独安排跟进、忽略或撤销忽略，也可以单条设置或取消回拨预约。没有拨号，也没有批量入口。
+ * 每一行单独安排跟进、忽略或撤销忽略，也可以单条设置或取消回拨预约。
+ * 还在名单里的可以勾选，一次设置同一个下次跟进时间和备注。没有拨号。
  */
 
 export interface IntentFollowupQueueRow {
@@ -108,7 +110,8 @@ export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefi
       due: row.callbackDue || ""
     });
     const ownerLabel = row.ownerAgentId ? (row.ownerAgentLabel || row.ownerAgentId) : "未指派";
-    return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td><b>${escapeHtml(row.name || row.targetId)}</b><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td data-owner-agent="${escapeHtml(row.ownerAgentId || "")}">${escapeHtml(ownerLabel)}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}${callback}</td></tr>`;
+    const pick = row.ignored ? "" : missingNextFollowupPick(row.targetType, row.targetId);
+    return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td>${pick}<b>${escapeHtml(row.name || row.targetId)}</b><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td data-owner-agent="${escapeHtml(row.ownerAgentId || "")}">${escapeHtml(ownerLabel)}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}${callback}</td></tr>`;
   }).join("");
   return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>对象</th><th>通话结果</th><th>标注时间</th><th>坐席</th><th>负责坐席</th><th>号码</th><th>操作</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
@@ -127,7 +130,9 @@ export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse) {
     return renderIntentFollowupEmpty();
   }
   const suggested = input.suggestedNextFollowAt || "";
-  const activeHtml = renderIntentFollowupRows(active, suggested);
+  const activeHtml = active.length
+    ? `${missingNextFollowupBatchForm()}${renderIntentFollowupRows(active, suggested)}`
+    : "";
   const ignoredHtml = ignored.length
     ? `<section data-intent-followup-ignored="1"><h2>已忽略</h2>${renderIntentFollowupRows(ignored, suggested)}</section>`
     : "";

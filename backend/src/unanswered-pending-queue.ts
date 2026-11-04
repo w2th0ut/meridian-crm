@@ -255,6 +255,15 @@ function ownAgentIds(store: CrmStore, user: SessionUser, scope: "mine" | "team")
     .map((item) => item.cccUserId);
 }
 
+export function collectUnansweredPendingRows(
+  store: CrmStore,
+  user: SessionUser,
+  access: OutboundCallRecordAccess,
+  scope: "mine" | "team"
+) {
+  return queueFromStore(store, user, access, { scope, age: "" }, outboundInstant());
+}
+
 function queueFromStore(store: CrmStore, user: SessionUser, access: OutboundCallRecordAccess, query: UnansweredPendingQueueQuery, now: Date) {
   return buildUnansweredPendingQueue({
     teamId: user.teamId,

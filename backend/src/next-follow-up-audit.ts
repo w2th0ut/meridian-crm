@@ -15,17 +15,20 @@ export function appendNextFollowUpAudit(
     oldValue: string;
     newValue: string;
     at?: string;
+    objectType?: NextFollowUpAuditEvent["objectType"];
+    batchId?: string;
   }
 ) {
   const event: NextFollowUpAuditEvent = {
     id: `nfu_${randomUUID()}`,
     actorId: input.actorId,
     at: input.at || new Date().toISOString(),
-    objectType: "prospect_candidate",
+    objectType: input.objectType || "prospect_candidate",
     objectId: input.objectId,
     action: input.action,
     oldValue: input.oldValue,
-    newValue: input.newValue
+    newValue: input.newValue,
+    batchId: input.batchId || ""
   };
   store.nextFollowUpAudits.unshift(event);
   return event;

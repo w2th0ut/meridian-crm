@@ -336,6 +336,7 @@ import { listUnansweredPendingQueue } from "./unanswered-pending-queue.js";
 import { clearNegativeOutcomeFollowup, listNegativeOutcomeFollowups } from "./negative-outcome-followup.js";
 import { listOtherOutcomeFollowups, scheduleOtherOutcomeFollowup } from "./other-outcome-followup.js";
 import { listUnlabeledConnectedFollowups, scheduleUnlabeledConnectedFollowup } from "./unlabeled-connected-followup.js";
+import { scheduleMissingNextFollowups } from "./missing-next-followup-batch.js";
 import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip } from "./same-day-call-skip.js";
 import { labelUnlabeledConnectedCalls, listUnlabeledConnectedCalls } from "./call-outcome-batch.js";
 import { createOutcomeNotePhrase, disableOutcomeNotePhrase, listOutcomeNotePhrases } from "./call-outcome-note-phrase.js";
@@ -9523,6 +9524,11 @@ app.get("/api/prospect-call-notes", requireAuth, asyncRoute(async (req, res) => 
 
 app.get("/api/follow-up-outcome-notes", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listFollowUpOutcomeNotes(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/missing-next-followups/schedule", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await scheduleMissingNextFollowups(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

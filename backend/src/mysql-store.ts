@@ -6100,9 +6100,11 @@ async function ensureSchema(pool: mysql.Pool) {
     action_code VARCHAR(40) NOT NULL,
     old_value TEXT,
     new_value TEXT,
+    batch_id VARCHAR(64) NULL,
     INDEX idx_next_follow_up_audits_object(object_type, object_id),
     INDEX idx_next_follow_up_audits_actor(actor_id, occurred_at)
   )`);
+  await ensureColumn(pool, "next_follow_up_audits", "batch_id", "VARCHAR(64) NULL");
   await pool.query(`CREATE TABLE IF NOT EXISTS prospect_note_audits (
     id VARCHAR(64) PRIMARY KEY,
     actor_id VARCHAR(64) NOT NULL,
@@ -15051,16 +15053,33 @@ async function loadAliyunOutboundConfigAudits(pool: mysql.Pool): Promise<AliyunO
   }));
 }
 
+function nextFollowUpAuditAction(code: string): NextFollowUpAuditEvent["action"] {
+  if (
+    code === "clear_next_follow_up"
+    || code === "batch_set_next_follow_up"
+    || code === "batch_reject_forbidden"
+    || code === "batch_reject_public_pool"
+    || code === "batch_reject_not_contactable"
+  ) return code;
+  return "set_next_follow_up";
+}
+
+function nextFollowUpAuditObjectType(code: string): NextFollowUpAuditEvent["objectType"] {
+  if (code === "customer" || code === "lead") return code;
+  return "prospect_candidate";
+}
+
 async function loadNextFollowUpAudits(pool: mysql.Pool): Promise<NextFollowUpAuditEvent[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM next_follow_up_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
     actorId: row.actor_id || "",
     at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at || new Date().toISOString(),
-    objectType: "prospect_candidate",
+    objectType: nextFollowUpAuditObjectType(String(row.object_type || "")),
     objectId: row.object_id || "",
-    action: row.action_code === "clear_next_follow_up" ? "clear_next_follow_up" : "set_next_follow_up",
+    action: nextFollowUpAuditAction(String(row.action_code || "")),
     oldValue: row.old_value || "",
-    newValue: row.new_value || ""
+    newValue: row.new_value || "",
+    batchId: row.batch_id || ""
   }));
 }
 
@@ -15478,7 +15497,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "follow_up_audits", store.followUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.activityId], "(id,actor_id,occurred_at,object_type,object_id,action_code,activity_id)");
 	    await replaceRows(connection, "owner_reassign_audits", store.ownerReassignAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.previousOwnerId, item.nextOwnerId], "(id,actor_id,occurred_at,object_type,object_id,action_code,previous_owner_id,next_owner_id)");
 	    await replaceRows(connection, "prospect_tag_audits", store.prospectTagAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, JSON.stringify(item.tags || [])], "(id,actor_id,occurred_at,object_type,object_id,action_code,tags_json)");
-	    await replaceRows(connection, "next_follow_up_audits", store.nextFollowUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
+	    await replaceRows(connection, "next_follow_up_audits", store.nextFollowUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue, item.batchId || null], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value,batch_id)");
 	    await replaceRows(connection, "prospect_note_audits", store.prospectNoteAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.note || ""], "(id,actor_id,occurred_at,object_type,object_id,action_code,note)");
 	    await replaceRows(connection, "prospect_priority_audits", store.prospectPriorityAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
 	    await replaceRows(connection, "prospect_industry_audits", store.prospectIndustryAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value)");
