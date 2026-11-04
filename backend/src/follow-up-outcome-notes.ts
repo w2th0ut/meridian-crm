@@ -49,7 +49,8 @@ export function parseFollowUpOutcomeNoteQuery(query: Record<string, unknown>): {
 export function followUpOutcomeNoteAt(record: OutboundCallRecord, audits: readonly CallOutcomeAudit[]) {
   const note = (record.callOutcomeNote || "").trim();
   const matches = audits.filter((item) => (
-    item.teamId === record.teamId
+    item.action !== "read"
+    && item.teamId === record.teamId
     && item.callRecordId === record.id
     && (item.nextNote || "").trim() === note
     && (item.at || "").trim()
