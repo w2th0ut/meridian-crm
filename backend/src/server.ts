@@ -308,6 +308,7 @@ import { listCallWorkload } from "./call-workload.js";
 import { listAgentWorkStatus, resetAgentWorkStatus, setOwnAgentWorkStatus } from "./agent-work-status.js";
 import { exportAgentWorkStatusReport, listAgentWorkStatusReport } from "./agent-work-status-report.js";
 import { listAgentWorkStatusTimeouts, saveAgentWorkStatusTimeout } from "./agent-work-status-timeout.js";
+import { listAgentWorkStatusTimeoutDispositions, recordAgentWorkStatusTimeoutDisposition } from "./agent-work-status-timeout-disposition.js";
 import { applyCallTagObjectList, readObjectCallTags } from "./call-tag-view.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
@@ -9192,6 +9193,16 @@ app.get("/api/agent-work-status-timeouts", requireAuth, asyncRoute(async (req, r
 
 app.post("/api/agent-work-status-timeouts", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await saveAgentWorkStatusTimeout(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/agent-work-status-timeout-dispositions", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listAgentWorkStatusTimeoutDispositions(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/agent-work-status-timeout-dispositions", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await recordAgentWorkStatusTimeoutDisposition(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

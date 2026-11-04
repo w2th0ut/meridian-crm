@@ -133,7 +133,7 @@ import {
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
 import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectIndustryAudits, prospectNoteAudits, prospectPriorityAudits, prospectTagAudits } from "./data.js";
-import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallExportAudit, CallNoteAudit, CallOutcomeAudit, CallScriptAudit, CallScriptScenario, CallScriptTemplate, CallScriptUsageAudit, CallScriptFavorite, CallScriptFavoriteAudit, CallScriptReportAudit, CallRecordTag, CallTag, CallTagAudit, CallTagReportAudit, CallWrapupAudit, CallWrapupSkip, CallWrapupSkipAudit, CallWrapupEditAudit, CallWrapupEditWindow, CallWrapupEditReportAudit, CallWorkloadViewAudit, AgentWorkStatusAudit, AgentWorkStatusLog, AgentWorkStatusReportAudit, AgentWorkStatusTimeout, AgentWorkStatusTimeoutAudit, CallTagViewAudit, CallScriptScenarioAudit, CallScriptScenarioRow, CallScriptVersion, CallbackSchedule, CallbackScheduleAudit, CallbackDueQueueAudit, CallbackScheduleReportAudit, UnansweredPendingQueueAudit, ContactPhone, ContactPhoneAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OutboundOwner, OutboundOwnerAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallExportAudit, CallNoteAudit, CallOutcomeAudit, CallScriptAudit, CallScriptScenario, CallScriptTemplate, CallScriptUsageAudit, CallScriptFavorite, CallScriptFavoriteAudit, CallScriptReportAudit, CallRecordTag, CallTag, CallTagAudit, CallTagReportAudit, CallWrapupAudit, CallWrapupSkip, CallWrapupSkipAudit, CallWrapupEditAudit, CallWrapupEditWindow, CallWrapupEditReportAudit, CallWorkloadViewAudit, AgentWorkStatusAudit, AgentWorkStatusLog, AgentWorkStatusReportAudit, AgentWorkStatusTimeout, AgentWorkStatusTimeoutAudit, AgentWorkStatusTimeoutDispositionAudit, CallTagViewAudit, CallScriptScenarioAudit, CallScriptScenarioRow, CallScriptVersion, CallbackSchedule, CallbackScheduleAudit, CallbackDueQueueAudit, CallbackScheduleReportAudit, UnansweredPendingQueueAudit, ContactPhone, ContactPhoneAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OutboundOwner, OutboundOwnerAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import { readProspectIndustry } from "./prospect-industry.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
@@ -1943,6 +1943,7 @@ export async function createMysqlStore(
 		    agentWorkStatusReportAudits: await loadAgentWorkStatusReportAudits(pool),
 		    agentWorkStatusTimeouts: await loadAgentWorkStatusTimeouts(pool),
 		    agentWorkStatusTimeoutAudits: await loadAgentWorkStatusTimeoutAudits(pool),
+		    agentWorkStatusTimeoutDispositionAudits: await loadAgentWorkStatusTimeoutDispositionAudits(pool),
 		    aliyunAgentMappings: await loadAliyunAgentMappings(pool),
 		    agentMappingAudits: await loadAgentMappingAudits(pool),
 		    aliyunScreenPops: await loadAliyunScreenPops(pool),
@@ -6805,6 +6806,38 @@ async function ensureSchema(pool: mysql.Pool) {
     WHERE NOT EXISTS (
       SELECT 1 FROM (
         SELECT team_id FROM agent_work_status_timeout_audits
+      ) AS saved
+      WHERE saved.team_id = existing.team_id
+    )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS agent_work_status_timeout_disposition_audits (
+    id VARCHAR(64) PRIMARY KEY,
+    team_id VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(64) NOT NULL,
+    occurred_at DATETIME NULL,
+    action_code VARCHAR(16) NOT NULL DEFAULT '',
+    agent_id VARCHAR(128) NOT NULL DEFAULT '',
+    log_id VARCHAR(64) NOT NULL DEFAULT '',
+    status_code VARCHAR(16) NOT NULL DEFAULT '',
+    note_text VARCHAR(200) NOT NULL DEFAULT '',
+    elapsed_seconds INT NOT NULL DEFAULT 0,
+    threshold_seconds INT NOT NULL DEFAULT 0,
+    filters_json VARCHAR(200) NOT NULL DEFAULT '',
+    row_count INT NOT NULL DEFAULT 0,
+    result_code VARCHAR(16) NOT NULL DEFAULT '',
+    reason_code VARCHAR(64) NOT NULL DEFAULT '',
+    INDEX idx_agent_work_status_timeout_disposition_audits_team(team_id, occurred_at),
+    INDEX idx_agent_work_status_timeout_disposition_audits_actor(actor_id, occurred_at)
+  )`);
+  await pool.query(`INSERT INTO agent_work_status_timeout_disposition_audits (id, team_id, actor_id, occurred_at, action_code, agent_id, log_id, status_code, note_text, elapsed_seconds, threshold_seconds, filters_json, row_count, result_code, reason_code)
+    SELECT 'awstda_seed_absent', existing.team_id, '', UTC_TIMESTAMP(), 'read', '', '', '', '', 0, 0, '', 0, 'read', ''
+    FROM (
+      SELECT DISTINCT team_id
+      FROM users
+      WHERE team_id <> '' AND team_id <> 'all' AND team_id = ''
+    ) AS existing
+    WHERE NOT EXISTS (
+      SELECT 1 FROM (
+        SELECT team_id FROM agent_work_status_timeout_disposition_audits
       ) AS saved
       WHERE saved.team_id = existing.team_id
     )`);
@@ -13911,6 +13944,41 @@ async function loadAgentWorkStatusTimeoutAudits(pool: mysql.Pool): Promise<Agent
   }));
 }
 
+function agentWorkStatusTimeoutDispositionAction(value: unknown): AgentWorkStatusTimeoutDispositionAudit["action"] {
+  if (value === "reminded" || value === "acknowledged" || value === "noted") return value;
+  return "read";
+}
+
+function agentWorkStatusTimeoutDispositionResult(value: unknown): AgentWorkStatusTimeoutDispositionAudit["result"] {
+  if (value === "recorded" || value === "rejected") return value;
+  return "read";
+}
+
+function agentWorkStatusTimeoutDispositionStatus(value: unknown): AgentWorkStatusTimeoutDispositionAudit["status"] {
+  if (value === "break" || value === "busy") return value;
+  return "";
+}
+
+async function loadAgentWorkStatusTimeoutDispositionAudits(pool: mysql.Pool): Promise<AgentWorkStatusTimeoutDispositionAudit[]> {
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM agent_work_status_timeout_disposition_audits ORDER BY occurred_at DESC")).map((row) => ({
+    id: row.id,
+    teamId: row.team_id || "",
+    actorId: row.actor_id || "",
+    at: storedIso(row.occurred_at),
+    action: agentWorkStatusTimeoutDispositionAction(row.action_code),
+    agentId: row.agent_id || "",
+    logId: row.log_id || "",
+    status: agentWorkStatusTimeoutDispositionStatus(row.status_code),
+    note: row.note_text || "",
+    elapsedSeconds: Number.isFinite(Number(row.elapsed_seconds)) ? Number(row.elapsed_seconds) : 0,
+    thresholdSeconds: Number.isFinite(Number(row.threshold_seconds)) ? Number(row.threshold_seconds) : 0,
+    filters: row.filters_json || "",
+    rowCount: Number.isFinite(Number(row.row_count)) ? Number(row.row_count) : 0,
+    result: agentWorkStatusTimeoutDispositionResult(row.result_code),
+    reason: row.reason_code || ""
+  }));
+}
+
 async function loadAgentWorkStatusReportAudits(pool: mysql.Pool): Promise<AgentWorkStatusReportAudit[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM agent_work_status_report_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
@@ -14965,6 +15033,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "agent_work_status_report_audits", store.agentWorkStatusReportAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.filters || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,filters_json,row_count,result_code,reason_code)");
 	    await replaceRows(connection, "agent_work_status_timeouts", store.agentWorkStatusTimeouts, (item) => [item.id, item.teamId, item.status, item.thresholdSeconds, item.updatedBy || "", item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,status_code,threshold_seconds,updated_by,updated_at)");
 	    await replaceRows(connection, "agent_work_status_timeout_audits", store.agentWorkStatusTimeoutAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.filters || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,filters_json,row_count,result_code,reason_code)");
+	    await replaceRows(connection, "agent_work_status_timeout_disposition_audits", store.agentWorkStatusTimeoutDispositionAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.agentId || "", item.logId || "", item.status || "", item.note || "", Number.isFinite(item.elapsedSeconds) ? item.elapsedSeconds : 0, Number.isFinite(item.thresholdSeconds) ? item.thresholdSeconds : 0, item.filters || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,agent_id,log_id,status_code,note_text,elapsed_seconds,threshold_seconds,filters_json,row_count,result_code,reason_code)");
 	    await replaceRows(connection, "intent_followup_arrangements", store.intentFollowupArrangements, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.callRecordId, item.activityId, item.nextFollowAt, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,target_type,target_id,call_record_id,activity_id,next_follow_at,suppressed)");
 	    await replaceRows(connection, "intent_followup_ignores", store.intentFollowupIgnores, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.callRecordId, item.active ? 1 : 0], "(id,team_id,actor_id,occurred_at,target_type,target_id,call_record_id,active)");
 	    await replaceRows(connection, "intent_followup_queue_audits", store.intentFollowupQueueAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType, item.targetId, item.callRecordId, item.activityId, item.nextFollowAt, item.result, item.reason, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,call_record_id,activity_id,next_follow_at,result_code,reason_code,suppressed)");

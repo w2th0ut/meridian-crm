@@ -105,6 +105,13 @@ import {
   renderAgentWorkStatusTimeouts,
   type AgentWorkStatusTimeoutResponse
 } from "./agent-work-status-timeout";
+import {
+  agentWorkStatusTimeoutDispositionBody,
+  agentWorkStatusTimeoutDispositionQuery,
+  renderAgentWorkStatusTimeoutDispositionAgents,
+  renderAgentWorkStatusTimeoutDispositions,
+  type AgentWorkStatusTimeoutDispositionResponse
+} from "./agent-work-status-timeout-disposition";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
 import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
@@ -12837,6 +12844,12 @@ function canViewAgentWorkStatusTimeout(user = state.user) {
 function paintAgentWorkStatusTimeoutAccess() {
   const section = qs<HTMLElement>("#dashboardAgentWorkStatusTimeout");
   if (section) section.hidden = !canViewAgentWorkStatusTimeout();
+  paintAgentWorkStatusTimeoutDispositionAccess();
+}
+
+function paintAgentWorkStatusTimeoutDispositionAccess() {
+  const section = qs<HTMLElement>("#dashboardAgentWorkStatusTimeoutDisposition");
+  if (section) section.hidden = !canViewAgentWorkStatusTimeout();
 }
 
 function callTagReportFilterInput() {
@@ -19823,6 +19836,8 @@ async function loadAgentWorkStatusTimeouts() {
   try {
     const data = await api<AgentWorkStatusTimeoutResponse>(`/api/agent-work-status-timeouts${agentWorkStatusTimeoutQuery(agentWorkStatusTimeoutFilterValue())}`);
     list.innerHTML = renderAgentWorkStatusTimeouts(data);
+    const agentSelect = qs<HTMLSelectElement>("#dashboardAgentWorkStatusTimeoutDispositionAgent");
+    if (agentSelect) agentSelect.innerHTML = renderAgentWorkStatusTimeoutDispositionAgents(data.rows, agentSelect.value);
   } catch (error) {
     list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到坐席状态超时")}</div>`;
   }
@@ -19853,6 +19868,61 @@ async function saveAgentWorkStatusTimeout(clear: boolean) {
     toast(text, "error");
   } finally {
     agentWorkStatusTimeoutBusy = false;
+  }
+}
+
+let agentWorkStatusTimeoutDispositionBusy = false;
+
+function agentWorkStatusTimeoutDispositionFilterInput() {
+  return {
+    from: qs<HTMLInputElement>("#dashboardAgentWorkStatusTimeoutDispositionFrom")?.value || "",
+    to: qs<HTMLInputElement>("#dashboardAgentWorkStatusTimeoutDispositionTo")?.value || "",
+    disposition: qs<HTMLSelectElement>("#dashboardAgentWorkStatusTimeoutDispositionKind")?.value || ""
+  };
+}
+
+async function loadAgentWorkStatusTimeoutDispositions() {
+  const list = qs<HTMLElement>("#dashboardAgentWorkStatusTimeoutDispositionList");
+  const message = qs<HTMLElement>("#dashboardAgentWorkStatusTimeoutDispositionMessage");
+  if (!canViewAgentWorkStatusTimeout() || !list) return;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<AgentWorkStatusTimeoutDispositionResponse>(`/api/agent-work-status-timeout-dispositions${agentWorkStatusTimeoutDispositionQuery(agentWorkStatusTimeoutDispositionFilterInput())}`);
+    list.innerHTML = renderAgentWorkStatusTimeoutDispositions(data);
+  } catch (error) {
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到坐席状态超时处置")}</div>`;
+  }
+}
+
+async function recordAgentWorkStatusTimeoutDisposition() {
+  if (agentWorkStatusTimeoutDispositionBusy || !canViewAgentWorkStatusTimeout()) return;
+  const agentId = qs<HTMLSelectElement>("#dashboardAgentWorkStatusTimeoutDispositionAgent")?.value || "";
+  const disposition = qs<HTMLSelectElement>("#dashboardAgentWorkStatusTimeoutDispositionSet")?.value || "";
+  const note = qs<HTMLInputElement>("#dashboardAgentWorkStatusTimeoutDispositionNote")?.value || "";
+  const message = qs<HTMLElement>("#dashboardAgentWorkStatusTimeoutDispositionMessage");
+  if (message) message.textContent = "";
+  if (!agentId) {
+    const text = "请先查看当前超时，再选择坐席";
+    if (message) message.textContent = text;
+    toast(text, "error");
+    return;
+  }
+  agentWorkStatusTimeoutDispositionBusy = true;
+  try {
+    const result = await api<{ result?: string; message?: string }>("/api/agent-work-status-timeout-dispositions", {
+      method: "POST",
+      body: JSON.stringify(agentWorkStatusTimeoutDispositionBody({ agentId, disposition, note }))
+    });
+    const text = result.message || "已记下这次处置";
+    if (message) message.textContent = text;
+    toast(text);
+    if (result.result === "recorded") await loadAgentWorkStatusTimeoutDispositions();
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "处置没有记下";
+    if (message) message.textContent = text;
+    toast(text, "error");
+  } finally {
+    agentWorkStatusTimeoutDispositionBusy = false;
   }
 }
 
@@ -58113,6 +58183,13 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#dashboardAgentWorkStatusTimeoutClear")?.addEventListener("click", () => {
     void saveAgentWorkStatusTimeout(true);
+  });
+  qs<HTMLFormElement>("#dashboardAgentWorkStatusTimeoutDispositionForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void recordAgentWorkStatusTimeoutDisposition();
+  });
+  qs<HTMLButtonElement>("#dashboardAgentWorkStatusTimeoutDispositionView")?.addEventListener("click", () => {
+    void loadAgentWorkStatusTimeoutDispositions();
   });
   qs<HTMLElement>("#dashboardUnansweredPendingQueue")?.addEventListener("click", (event) => {
     const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-unanswered-pending-open]");

@@ -5799,6 +5799,30 @@ export interface AgentWorkStatusTimeoutAudit {
 }
 
 /**
+ * 一次坐席状态超时处置的登记或查看，或一次被拒绝的尝试。
+ * 成功的登记记下坐席 ID、当前这一段的日志 ID、状态、处置和备注。
+ * 筛选条件不记备注全文、坐席名、状态原因或密钥。
+ * 查看审计不进入处置记录列表。
+ */
+export interface AgentWorkStatusTimeoutDispositionAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "reminded" | "acknowledged" | "noted";
+  agentId: string;
+  logId: string;
+  status: "" | "break" | "busy";
+  note: string;
+  elapsedSeconds: number;
+  thresholdSeconds: number;
+  filters: string;
+  rowCount: number;
+  result: "read" | "recorded" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
