@@ -5754,6 +5754,22 @@ export interface AgentWorkStatusAudit {
 }
 
 /**
+ * 一次坐席工作状态时长报表的查看或导出，或一次被拒绝的尝试。
+ * 筛选只记开始日、结束日和坐席 ID。不记原因、改前状态或密钥。
+ */
+export interface AgentWorkStatusReportAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "export";
+  filters: string;
+  rowCount: number;
+  result: "read" | "exported" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

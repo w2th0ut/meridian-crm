@@ -306,6 +306,7 @@ import { exportCallTagReport, listCallTagReport } from "./call-tag-report.js";
 import { exportCallWrapupEditReport, listCallWrapupEditReport } from "./call-wrapup-edit-report.js";
 import { listCallWorkload } from "./call-workload.js";
 import { listAgentWorkStatus, resetAgentWorkStatus, setOwnAgentWorkStatus } from "./agent-work-status.js";
+import { exportAgentWorkStatusReport, listAgentWorkStatusReport } from "./agent-work-status-report.js";
 import { applyCallTagObjectList, readObjectCallTags } from "./call-tag-view.js";
 import { favoriteCallScript, listCallScriptFavorites, unfavoriteCallScript } from "./call-script-favorite.js";
 import {
@@ -9162,6 +9163,24 @@ app.get("/api/call-wrapup-edit-report", requireAuth, asyncRoute(async (req, res)
 
 app.get("/api/call-workload", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallWorkload(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/agent-work-status-report/export", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await exportAgentWorkStatusReport(getStore(), req.user, req.query as Record<string, unknown>);
+  if ("csv" in outcome) {
+    res.status(200);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", `attachment; filename="agent-work-status-report.csv"; filename*=UTF-8''${encodeURIComponent(outcome.filename)}`);
+    res.send(outcome.csv);
+    return;
+  }
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/agent-work-status-report", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listAgentWorkStatusReport(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

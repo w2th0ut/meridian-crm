@@ -95,6 +95,11 @@ import {
   unansweredPendingQueueQuery,
   type UnansweredPendingQueueResponse
 } from "./unanswered-pending-queue";
+import {
+  agentWorkStatusReportQuery,
+  renderAgentWorkStatusReport,
+  type AgentWorkStatusReportResponse
+} from "./agent-work-status-report";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
 import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
@@ -12807,6 +12812,16 @@ function paintUnansweredPendingQueueAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardUnansweredPendingTeam");
   if (team) team.hidden = !canViewUnansweredPendingTeam();
+  paintAgentWorkStatusReportAccess();
+}
+
+function canViewAgentWorkStatusReport(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintAgentWorkStatusReportAccess() {
+  const section = qs<HTMLElement>("#dashboardAgentWorkStatusReport");
+  if (section) section.hidden = !canViewAgentWorkStatusReport();
 }
 
 function callTagReportFilterInput() {
@@ -19717,6 +19732,64 @@ async function scheduleUnansweredPendingCallback(form: HTMLFormElement) {
     toast(error instanceof Error ? error.message : "回拨预约没有保存", "error");
   } finally {
     unansweredPendingBusy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+let agentWorkStatusReportAgentId = "";
+
+function agentWorkStatusReportFilterInput() {
+  return {
+    from: qs<HTMLInputElement>("#dashboardAgentWorkStatusReportFrom")?.value || "",
+    to: qs<HTMLInputElement>("#dashboardAgentWorkStatusReportTo")?.value || "",
+    agentId: agentWorkStatusReportAgentId
+  };
+}
+
+async function loadAgentWorkStatusReport() {
+  const list = qs<HTMLElement>("#dashboardAgentWorkStatusReportList");
+  const message = qs<HTMLElement>("#dashboardAgentWorkStatusReportMessage");
+  if (!canViewAgentWorkStatusReport() || !list) return;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<AgentWorkStatusReportResponse>(`/api/agent-work-status-report${agentWorkStatusReportQuery(agentWorkStatusReportFilterInput())}`);
+    list.innerHTML = renderAgentWorkStatusReport(data);
+  } catch (error) {
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到坐席工作状态时长")}</div>`;
+  }
+}
+
+async function exportAgentWorkStatusReport() {
+  const message = qs<HTMLElement>("#dashboardAgentWorkStatusReportMessage");
+  const button = qs<HTMLButtonElement>("#dashboardAgentWorkStatusReportExport");
+  if (!canViewAgentWorkStatusReport()) return;
+  if (message) message.textContent = "";
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`/api/agent-work-status-report/export${agentWorkStatusReportQuery(agentWorkStatusReportFilterInput())}`, {
+      credentials: "same-origin"
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: "导出没有完成" })) as { message?: string };
+      const text = body.message || "导出没有完成";
+      if (message) message.textContent = text;
+      toast(text, "error");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "坐席工作状态时长.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "导出没有完成";
+    if (message) message.textContent = text;
+    toast(text, "error");
+  } finally {
     if (button) button.disabled = false;
   }
 }
@@ -57947,6 +58020,27 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#dashboardUnansweredPendingTeam")?.addEventListener("click", () => {
     void loadUnansweredPendingQueue("team");
+  });
+  qs<HTMLFormElement>("#dashboardAgentWorkStatusReportFilters")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadAgentWorkStatusReport();
+  });
+  qs<HTMLButtonElement>("#dashboardAgentWorkStatusReportExport")?.addEventListener("click", () => {
+    void exportAgentWorkStatusReport();
+  });
+  qs<HTMLElement>("#dashboardAgentWorkStatusReport")?.addEventListener("click", (event) => {
+    const clear = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-agent-work-status-report-clear]");
+    if (clear) {
+      event.preventDefault();
+      agentWorkStatusReportAgentId = "";
+      void loadAgentWorkStatusReport();
+      return;
+    }
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-agent-work-status-report-open]");
+    if (!opener) return;
+    event.preventDefault();
+    agentWorkStatusReportAgentId = opener.dataset.agentWorkStatusReportOpen || "";
+    void loadAgentWorkStatusReport();
   });
   qs<HTMLElement>("#dashboardUnansweredPendingQueue")?.addEventListener("click", (event) => {
     const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-unanswered-pending-open]");
