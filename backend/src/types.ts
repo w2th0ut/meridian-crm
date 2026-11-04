@@ -5245,6 +5245,27 @@ export interface OtherOutcomeFollowupAudit {
 }
 
 /**
+ * 一次已接通、尚未标成五项人工结果、并且还没有下次跟进的查看或记下，或一次被拒绝的操作。
+ * 查看只记范围和行数。记下成功时记下对象、通话记录和写上的下次跟进，最长 200 字。
+ * 不记号码、对象名、录音地址、话单枚举或密钥。拒绝的记下不记这次想写的时间。
+ */
+export interface UnlabeledConnectedFollowupAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "schedule";
+  scope: "" | "mine" | "team";
+  targetType: "" | "customer" | "lead" | "prospect";
+  targetId: string;
+  callRecordId: string;
+  nextFollowAt: string;
+  rowCount: number;
+  result: "read" | "updated" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。
