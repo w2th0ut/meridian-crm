@@ -30,7 +30,7 @@ export type CallOutcomeShortcutPlan =
 
 export function renderCallOutcomeKeyHint() {
   const labels = CALL_OUTCOME_SHORTCUTS.map((item, index) => `${index + 1} ${item}`).join("，");
-  return `<p tabindex="0" data-call-outcome-key-hint="1">${labels}。已加载的常用短语按 Alt+1 起插入。回车保存。备注、短语输入和结果下拉聚焦时不拦截。</p>`;
+  return `<p tabindex="0" data-call-outcome-key-hint="1">${labels}。已加载的常用短语按 Alt+1 起插入。回车保存。备注、短语输入、结果下拉和转交给下拉聚焦时不拦截。</p>`;
 }
 
 function digitFrom(input: { key: string; code?: string }) {

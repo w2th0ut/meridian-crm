@@ -2,6 +2,7 @@ import { renderCallbackScheduleForm } from "./callback-schedule";
 import { renderCallNoteForm } from "./call-note";
 import { renderCallOutcomeKeyHint } from "./call-outcome-keys";
 import { renderCallOutcomeNextFollow } from "./call-outcome-next-follow";
+import { renderCallOutcomeTransfer, type CallOutcomeTransferView } from "./call-outcome-transfer";
 import { renderCallOutcomeMarkInvalid } from "./call-outcome-wrong-number";
 import { renderSameNumberInvalidLink } from "./same-number-invalid";
 import { renderOutcomeNotePhraseShell } from "./call-outcome-note-phrase";
@@ -166,13 +167,16 @@ export function renderCallOutcomeOptions(selected: string) {
   return blank + options.join("");
 }
 
-export function renderCallOutcomeForm(record: { id: string; callOutcome?: string; callOutcomeNote?: string; targetType?: string; targetId?: string }) {
+export function renderCallOutcomeForm(
+  record: { id: string; callOutcome?: string; callOutcomeNote?: string; targetType?: string; targetId?: string },
+  transfer?: CallOutcomeTransferView
+) {
   const targetType = (record.targetType || "").trim();
   const targetId = (record.targetId || "").trim();
   const target = targetType && targetId
     ? ` data-target-type="${escapeHtml(targetType)}" data-target-id="${escapeHtml(targetId)}"`
     : "";
-  return `<form class="outbound-record-outcome-form" data-call-outcome-form="1" data-record-id="${escapeHtml(record.id)}"${target}>${renderCallOutcomeKeyHint()}<label>通话结果<select data-call-outcome>${renderCallOutcomeOptions(record.callOutcome || "")}</select></label>${renderCallOutcomeMarkInvalid(record.callOutcome || "")}${renderCallOutcomeNextFollow(record.callOutcome || "")}<label>备注<input data-call-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label>${renderOutcomeNotePhraseShell()}<button class="btn" type="submit">保存标注</button></form>`;
+  return `<form class="outbound-record-outcome-form" data-call-outcome-form="1" data-record-id="${escapeHtml(record.id)}"${target}>${renderCallOutcomeKeyHint()}<label>通话结果<select data-call-outcome>${renderCallOutcomeOptions(record.callOutcome || "")}</select></label>${renderCallOutcomeMarkInvalid(record.callOutcome || "")}${renderCallOutcomeNextFollow(record.callOutcome || "")}${renderCallOutcomeTransfer(record, transfer)}<label>备注<input data-call-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label>${renderOutcomeNotePhraseShell()}<button class="btn" type="submit">保存标注</button></form>`;
 }
 
 /** 只在这一条被标成号码错误、并且对得上现在的号码时出现。已经无效就只提示，不在这里取消。 */
@@ -285,16 +289,16 @@ function followUpButton(record: OutboundCallRecordRow) {
   return `<button class="btn" type="button" data-open-missed-follow="${escapeHtml(record.id)}">生成下次跟进</button>`;
 }
 
-export function renderOutboundCallRecordList(records: OutboundCallRecordRow[] | undefined) {
+export function renderOutboundCallRecordList(records: OutboundCallRecordRow[] | undefined, transfer?: CallOutcomeTransferView) {
   if (!records?.length) return "";
   const rows = records.map((record) => {
     const established = record.established === true ? "是" : "否";
-    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}${callbackForm(record)}</td><td class="outbound-record-note-cell">${renderCallNoteForm(record)}</td><td data-call-script-usage-label="${escapeHtml(record.id)}">${escapeHtml(scriptListLabel(record))}</td><td class="outbound-record-tags" data-call-tag-cell="${escapeHtml(record.id)}">${renderCallTagChips(record.callTags)}</td><td>${followUpButton(record)}</td></tr>`;
+    return `<tr data-record-id="${escapeHtml(record.id)}"><td>${escapeHtml(record.localDate || "—")}</td><td>${escapeHtml(record.agentLabel || "—")}</td><td>${escapeHtml(record.maskedNumber || "—")}</td><td>${escapeHtml(record.contactDisposition || "—")}</td><td>${established}</td><td>${escapeHtml(record.callDurationRaw || "—")}</td><td>${escapeHtml(record.targetType || "—")}</td><td class="outbound-record-outcome-cell">${renderCallOutcomeForm(record, transfer)}${renderMarkPhoneInvalid(record)}${callbackForm(record)}</td><td class="outbound-record-note-cell">${renderCallNoteForm(record)}</td><td data-call-script-usage-label="${escapeHtml(record.id)}">${escapeHtml(scriptListLabel(record))}</td><td class="outbound-record-tags" data-call-tag-cell="${escapeHtml(record.id)}">${renderCallTagChips(record.callTags)}</td><td>${followUpButton(record)}</td></tr>`;
   }).join("");
   return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>当地日期</th><th>坐席</th><th>号码</th><th>话单结果</th><th>接通</th><th>时长原文</th><th>对象</th><th>通话结果</th><th>通话纪要</th><th>所用话术</th><th>通话标签</th><th>下次跟进</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) {
+export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail, transfer?: CallOutcomeTransferView) {
   const record = input.record;
   if (!record?.id) return `<p data-outbound-record-empty="1">通话记录不存在。</p>`;
   const established = record.established === true;
@@ -311,7 +315,7 @@ export function renderOutboundCallRecordDetail(input: OutboundCallRecordDetail) 
     : `<form data-missed-follow-form="1"><label>下次跟进<input type="datetime-local" data-missed-follow-at value="${escapeHtml(toDateTimeLocal(suggested))}"${saved ? " disabled" : ""}></label><button class="btn" type="submit" data-generate-missed-follow="1">生成下次跟进</button></form>`;
   const wrapup = renderCallWrapupPanel(record, input.scriptChoices || [], input.tagChoices || []);
   const wrapupEdit = renderCallWrapupEdit(record, input.wrapupEdit, input.tagChoices || []);
-  const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record)}${renderMarkPhoneInvalid(record)}</div>`;
+  const outcome = `<div class="outbound-record-outcome" data-call-outcome-panel="1"><h3>通话结果</h3>${renderCallOutcomeForm(record, transfer)}${renderMarkPhoneInvalid(record)}</div>`;
   const note = `<div class="outbound-record-outcome" data-call-note-panel="1"><h3>通话纪要</h3>${renderCallNoteForm(record)}</div>`;
   const script = `<div class="outbound-record-outcome" data-call-script-usage-panel="1"><h3>所用话术</h3>${renderCallScriptUsageForm(record, input.scriptChoices || [])}</div>`;
   const tags = renderCallTagPanel(record, input.tagChoices || []);

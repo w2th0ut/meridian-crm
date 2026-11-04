@@ -133,7 +133,7 @@ const submitEnd = api.indexOf("async function loadOutboundCallRecords", submitSt
 assert.ok(submitStart > 0 && submitEnd > submitStart);
 const submit = api.slice(submitStart, submitEnd);
 assert.match(submit, /\/api\/outbound-call-records\/\$\{encodeURIComponent\(recordId\)\}\/outcome/);
-assert.match(submit, /JSON\.stringify\(\{ outcome, note, nextFollowChoice, markNumberInvalid \}\)/);
+assert.match(submit, /JSON\.stringify\(body\)/);
 assert.doesNotMatch(submit, /MakeCall|aliyuncs|today_follow_advance|callRecordIds/);
 const loadStart = api.indexOf("async function loadOutcomeNotePhrases");
 const loadEnd = api.indexOf("function insertOutcomeNotePhrase", loadStart);
