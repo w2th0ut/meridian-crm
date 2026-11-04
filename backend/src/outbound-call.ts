@@ -49,6 +49,7 @@ export type OutboundCallReason =
   | "daily_limit"
   | "min_interval"
   | "invalid_number"
+  | "skipped_today"
   | "dial_failed";
 
 export function customerPhoneId(customerId: string) {
@@ -81,11 +82,12 @@ const MESSAGES: Record<OutboundCallReason, string> = {
   daily_limit: "同一号码今日拨打次数已达上限",
   min_interval: "距上次拨打未满最小间隔",
   invalid_number: "该号码已标记无效",
+  skipped_today: "这个对象今天已标记不再拨打",
   dial_failed: "外呼没有发出"
 };
 
 function statusFor(reason: OutboundCallReason) {
-  if (reason === "invalid_request" || reason === "outside_window" || reason === "daily_limit" || reason === "min_interval" || reason === "invalid_number") return 400;
+  if (reason === "invalid_request" || reason === "outside_window" || reason === "daily_limit" || reason === "min_interval" || reason === "invalid_number" || reason === "skipped_today") return 400;
   if (reason === "forbidden" || reason === "disabled" || reason === "unmapped") return 403;
   if (reason === "not_found") return 404;
   if (reason === "dial_failed") return 502;
@@ -221,6 +223,18 @@ async function callingLimitReason(store: CrmStore, teamId: string, phone: string
     if (latest && at.getTime() - latest < policy.minIntervalMinutes * 60_000) return "min_interval";
   }
   return null;
+}
+
+/** 当地今天、仍然生效的今日不再拨。不看号码，只看对象。 */
+export function sameDaySkipActive(store: CrmStore, teamId: string, targetType: string, targetId: string, dateKey: string) {
+  if (!teamId || !targetType || !targetId || !dateKey) return false;
+  return (store.sameDayCallSkips || []).some((item) =>
+    item.teamId === teamId
+    && item.targetType === targetType
+    && item.targetId === targetId
+    && item.active
+    && item.skipOn === dateKey
+  );
 }
 
 function dialerFor(region: string) {
@@ -593,6 +607,12 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
   }
   // 原有门禁都通过之后才拒绝无效号码。不改前面的原因，也不放宽它们。
   if (!reason && isPhoneMarkedInvalid(store, user.teamId, parsed.phoneId)) reason = "invalid_number";
+  // 无效号码之后才看今日不再拨。抑制、时段、频次和无权限仍保持原来的原因。
+  if (!reason) {
+    const timeZone = await resolveTenantTimezone(store, user.teamId);
+    const dateKey = zonedDateKey(outboundNow(), timeZone);
+    if (sameDaySkipActive(store, user.teamId, parsed.targetType, parsed.targetId, dateKey)) reason = "skipped_today";
+  }
 
   if (reason) {
     await writeAudit(store, {
@@ -687,6 +707,26 @@ export async function previewWorkbenchCallee(store: CrmStore, user: SessionUser 
     return rejected("invalid_request");
   }
   const resolved = await resolveWorkbenchCallee(store, user, raw);
+  if (!resolved.reason && resolved.match) {
+    const timeZone = await resolveTenantTimezone(store, user.teamId);
+    const dateKey = zonedDateKey(outboundNow(), timeZone);
+    if (sameDaySkipActive(store, user.teamId, resolved.match.targetType, resolved.match.targetId, dateKey)) {
+      await writeAudit(store, {
+        teamId: user.teamId,
+        actorId: user.id,
+        targetType: resolved.match.targetType,
+        targetId: resolved.match.targetId,
+        phoneId: resolved.match.phoneId,
+        maskedNumber: resolved.masked,
+        numberKey: outboundNumberKey(resolved.match.phone),
+        result: "rejected",
+        reason: "skipped_today",
+        jobId: ""
+      });
+      const outcome = rejected("skipped_today");
+      return { status: outcome.status, body: { allowed: false, ...outcome.body } };
+    }
+  }
   if (resolved.reason) {
     await writeAudit(store, {
       teamId: user.teamId,

@@ -114,6 +114,13 @@ import {
   type UnlabeledConnectedFollowupResponse
 } from "./unlabeled-connected-followup";
 import {
+  renderSameDayCallSkipControl,
+  renderSameDayCallSkipFailure,
+  renderSameDayCallSkips,
+  sameDayCallSkipQuery,
+  type SameDayCallSkipResponse
+} from "./same-day-call-skip";
+import {
   agentWorkStatusReportQuery,
   renderAgentWorkStatusReport,
   type AgentWorkStatusReportResponse
@@ -12890,6 +12897,18 @@ function paintUnlabeledConnectedFollowupAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardUnlabeledConnectedFollowupTeam");
   if (team) team.hidden = !canViewUnlabeledConnectedFollowupTeam();
+  paintSameDayCallSkipAccess();
+}
+
+function canViewSameDayCallSkipTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintSameDayCallSkipAccess() {
+  const section = qs<HTMLElement>("#dashboardSameDayCallSkip");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardSameDayCallSkipTeam");
+  if (team) team.hidden = !canViewSameDayCallSkipTeam();
   paintAgentWorkStatusReportAccess();
 }
 
@@ -16018,7 +16037,7 @@ function preferredOutboundHtml(targets: Array<OutboundCallTarget & { choiceLabel
     dialButtonHtml,
     validityHtml,
     invalidHintHtml
-  })}${renderCallScriptAside(callScriptPickerTemplates(), "first_call", callScriptListOptions(false))}`;
+  })}${renderSameDayCallSkipControl(first.targetType, first.targetId)}${renderCallScriptAside(callScriptPickerTemplates(), "first_call", callScriptListOptions(false))}`;
 }
 
 function redrawPreferredPhone(targetType: string, targetId: string) {
@@ -16231,6 +16250,12 @@ function bindOutboundCallButtons(root: ParentNode) {
     });
     chooser.querySelector<HTMLButtonElement>("[data-preferred-phone-clear]")?.addEventListener("click", () => {
       void submitPreferredPhone(chooser, true);
+    });
+  });
+  qsa<HTMLFormElement>("[data-same-day-call-skip]", root).forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submitSameDayCallSkip(form);
     });
   });
   qsa<HTMLElement>("[data-contact-phone-editor]", root).forEach((editor) => {
@@ -19975,6 +20000,75 @@ async function scheduleUnlabeledConnectedFollowup(form: HTMLFormElement) {
   } finally {
     unlabeledConnectedFollowupBusy = false;
     if (button) button.disabled = false;
+  }
+}
+
+let sameDayCallSkipScope: "mine" | "team" = "mine";
+let sameDayCallSkipBusy = false;
+
+async function loadSameDayCallSkips(scope: "mine" | "team") {
+  const list = qs<HTMLElement>("#dashboardSameDayCallSkipList");
+  if (!list) return;
+  if (scope === "team" && !canViewSameDayCallSkipTeam()) return;
+  sameDayCallSkipScope = scope;
+  const message = qs<HTMLElement>("#dashboardSameDayCallSkipMessage");
+  if (message) message.textContent = "";
+  try {
+    const data = await api<SameDayCallSkipResponse>(`/api/same-day-call-skips${sameDayCallSkipQuery({ scope })}`);
+    list.innerHTML = renderSameDayCallSkips(data);
+  } catch (error) {
+    list.innerHTML = renderSameDayCallSkipFailure(error instanceof Error ? error.message : "今日不再拨没有加载");
+  }
+}
+
+function markSameDayCallSkipped(targetType: string, targetId: string) {
+  qsa<HTMLButtonElement>("[data-outbound-call]").forEach((button) => {
+    if (button.dataset.outboundType !== targetType || button.dataset.outboundId !== targetId) return;
+    button.disabled = true;
+    showOutboundCallStatus(button, { tone: "error", message: "这个对象今天已标记不再拨打" });
+  });
+}
+
+async function submitSameDayCallSkip(form: HTMLFormElement) {
+  if (sameDayCallSkipBusy) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  const reason = form.querySelector<HTMLSelectElement>("[data-same-day-skip-reason]")?.value || "";
+  const note = form.querySelector<HTMLInputElement>("[data-same-day-skip-note]")?.value.trim() || "";
+  const button = form.querySelector<HTMLButtonElement>("[data-same-day-skip-set]");
+  sameDayCallSkipBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/same-day-call-skips", {
+      method: "POST",
+      body: JSON.stringify(note ? { targetType, targetId, reason, note } : { targetType, targetId, reason })
+    });
+    toast(result.message || "已记下今日不再拨");
+    markSameDayCallSkipped(targetType, targetId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "今日不再拨没有记下", "error");
+    if (button) button.disabled = false;
+  } finally {
+    sameDayCallSkipBusy = false;
+  }
+}
+
+async function clearSameDayCallSkip(targetType: string, targetId: string, button: HTMLButtonElement | null) {
+  if (sameDayCallSkipBusy) return;
+  sameDayCallSkipBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/same-day-call-skips/clear", {
+      method: "POST",
+      body: JSON.stringify({ targetType, targetId })
+    });
+    toast(result.message || "已撤销今日不再拨");
+    await loadSameDayCallSkips(sameDayCallSkipScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "今日不再拨没有撤销", "error");
+    if (button) button.disabled = false;
+  } finally {
+    sameDayCallSkipBusy = false;
   }
 }
 
@@ -58541,6 +58635,26 @@ function installEvents() {
     if (!form) return;
     event.preventDefault();
     void scheduleUnlabeledConnectedFollowup(form);
+  });
+  qs<HTMLButtonElement>("#dashboardSameDayCallSkipMine")?.addEventListener("click", () => {
+    void loadSameDayCallSkips("mine");
+  });
+  qs<HTMLButtonElement>("#dashboardSameDayCallSkipTeam")?.addEventListener("click", () => {
+    void loadSameDayCallSkips("team");
+  });
+  qs<HTMLElement>("#dashboardSameDayCallSkip")?.addEventListener("click", (event) => {
+    const clear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-same-day-call-skip-clear]");
+    if (clear) {
+      event.preventDefault();
+      void clearSameDayCallSkip(clear.dataset.targetType || "", clear.dataset.targetId || "", clear);
+      return;
+    }
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-same-day-call-skip-open]");
+    if (!opener) return;
+    const row = opener.closest<HTMLElement>("[data-same-day-call-skip-row]");
+    if (!row) return;
+    event.preventDefault();
+    openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
   });
   qs<HTMLButtonElement>("#dashboardNextFollowDueRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);

@@ -5299,6 +5299,42 @@ export interface FollowUpOutcomeNoteViewAudit {
 }
 
 /**
+ * 一个客户、线索或搜客对象在租户当地日不再接受人工外呼。
+ * 同一租户、同一对象只保留一行。active 且 skipOn 等于当地今天时才挡住拨打。
+ * 不记号码。
+ */
+export interface SameDayCallSkip {
+  id: string;
+  teamId: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  skipOn: string;
+  reason: "reached" | "asked_later" | "wrong_time" | "other";
+  note: string;
+  active: boolean;
+  actorId: string;
+  updatedAt: string;
+}
+
+/** 今日不再拨的设置、撤销或查看。拒绝时不记备注。不记号码、录音地址或密钥。 */
+export interface SameDayCallSkipAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "set" | "clear" | "read";
+  scope: "" | "mine" | "team";
+  targetType: "" | "customer" | "lead" | "prospect";
+  targetId: string;
+  skipOn: string;
+  skipReason: "" | "reached" | "asked_later" | "wrong_time" | "other";
+  note: string;
+  rowCount: number;
+  result: "updated" | "read" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。
