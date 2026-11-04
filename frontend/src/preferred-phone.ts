@@ -3,6 +3,8 @@
  * 改选和设置都不拨号。拨打仍要点外呼，并走服务端原来的门禁。
  */
 
+import { showMissedNumberSwitch } from "./missed-number-switch";
+
 export interface PreferredPhoneChoice {
   phoneId: string;
   label: string;
@@ -109,5 +111,8 @@ export function renderPreferredPhoneChooser(input: {
   const clear = input.canWrite
     ? `<button class="btn preferred-phone-button" type="button" data-preferred-phone-clear="1"${actions.showClear ? "" : " hidden"}>清除首选</button>`
     : "";
-  return `<div class="outbound-call-line preferred-phone-chooser" data-preferred-phone-chooser="1" data-preferred-type="${escapeHtml(input.targetType)}" data-preferred-id="${escapeHtml(input.targetId)}" data-preferred-current="${escapeHtml(preferredPhoneId)}">${picker}${mark}${input.dialButtonHtml}${save}${clear}<span data-preferred-validity>${input.validityHtml}</span>${input.invalidHintHtml}<p class="outbound-call-status" data-outbound-status role="status" hidden></p></div>`;
+  const switchAfterMiss = showMissedNumberSwitch({ phoneCount: phones.length, canWrite: input.canWrite })
+    ? `<button class="btn preferred-phone-button" type="button" data-missed-number-switch="1" title="只改首选，不会拨出">首选改到另一个号码</button>`
+    : "";
+  return `<div class="outbound-call-line preferred-phone-chooser" data-preferred-phone-chooser="1" data-preferred-type="${escapeHtml(input.targetType)}" data-preferred-id="${escapeHtml(input.targetId)}" data-preferred-current="${escapeHtml(preferredPhoneId)}">${picker}${mark}${input.dialButtonHtml}${save}${clear}${switchAfterMiss}<span data-preferred-validity>${input.validityHtml}</span>${input.invalidHintHtml}<p class="outbound-call-status" data-outbound-status role="status" hidden></p></div>`;
 }

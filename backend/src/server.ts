@@ -340,6 +340,7 @@ import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip } from "
 import { listProspectCallNotes } from "./prospect-call-notes.js";
 import { listFollowUpOutcomeNotes } from "./follow-up-outcome-notes.js";
 import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
+import { switchPreferredAfterMiss } from "./missed-number-switch.js";
 import { createContactPhone, deleteContactPhone, readContactPhones, updateContactPhone } from "./contact-phone.js";
 import {
   createMarketAnalysisRun,
@@ -9570,6 +9571,11 @@ app.get("/api/preferred-phones", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/preferred-phones/clear", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await clearPreferredPhone(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/preferred-phones/switch-after-miss", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await switchPreferredAfterMiss(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
