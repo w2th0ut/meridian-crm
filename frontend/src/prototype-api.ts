@@ -89,6 +89,12 @@ import {
   renderCallbackScheduleReport,
   type CallbackScheduleReportResponse
 } from "./callback-schedule-report";
+import {
+  renderUnansweredPendingQueue,
+  renderUnansweredPendingQueueFailure,
+  unansweredPendingQueueQuery,
+  type UnansweredPendingQueueResponse
+} from "./unanswered-pending-queue";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
 import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
@@ -12789,6 +12795,18 @@ function canViewCallbackScheduleReport(user = state.user) {
 function paintCallbackScheduleReportAccess() {
   const section = qs<HTMLElement>("#dashboardCallbackScheduleReport");
   if (section) section.hidden = !canViewCallbackScheduleReport();
+  paintUnansweredPendingQueueAccess();
+}
+
+function canViewUnansweredPendingTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintUnansweredPendingQueueAccess() {
+  const section = qs<HTMLElement>("#dashboardUnansweredPendingQueue");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardUnansweredPendingTeam");
+  if (team) team.hidden = !canViewUnansweredPendingTeam();
 }
 
 function callTagReportFilterInput() {
@@ -19614,6 +19632,91 @@ async function rescheduleCallbackDue(form: HTMLFormElement) {
     toast(error instanceof Error ? error.message : "回拨预约没有保存", "error");
   } finally {
     callbackDueQueuePending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+let unansweredPendingScope: "mine" | "team" = "mine";
+let unansweredPendingBusy = false;
+
+function unansweredPendingAge(): "" | "within7" | "over7" {
+  const age = qs<HTMLSelectElement>("#dashboardUnansweredPendingAge")?.value || "";
+  if (age === "within7" || age === "over7") return age;
+  return "";
+}
+
+function unansweredPendingFilter() {
+  return {
+    scope: unansweredPendingScope,
+    age: unansweredPendingAge()
+  };
+}
+
+async function loadUnansweredPendingQueue(scope: "mine" | "team") {
+  const list = qs<HTMLElement>("#dashboardUnansweredPendingList");
+  if (!list) return;
+  if (scope === "team" && !canViewUnansweredPendingTeam()) return;
+  unansweredPendingScope = scope;
+  const message = qs<HTMLElement>("#dashboardUnansweredPendingMessage");
+  if (message) message.textContent = "";
+  try {
+    const data = await api<UnansweredPendingQueueResponse>(`/api/unanswered-pending-queue${unansweredPendingQueueQuery(unansweredPendingFilter())}`);
+    list.innerHTML = renderUnansweredPendingQueue(data);
+  } catch (error) {
+    list.innerHTML = renderUnansweredPendingQueueFailure(error instanceof Error ? error.message : "未接通待处理队列没有加载");
+  }
+}
+
+async function generateUnansweredPendingFollowUp(form: HTMLFormElement) {
+  if (unansweredPendingBusy) return;
+  const recordId = form.dataset.callRecordId || "";
+  const raw = form.querySelector<HTMLInputElement>("[data-unanswered-follow-at]")?.value || "";
+  const nextFollowAt = raw.trim() ? fromDateTimeLocal(raw) : "";
+  if (raw.trim() && !nextFollowAt) {
+    toast("下次跟进时间格式不对", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  unansweredPendingBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(`/api/outbound-call-records/${encodeURIComponent(recordId)}/next-follow-up`, {
+      method: "POST",
+      body: JSON.stringify(nextFollowAt ? { nextFollowAt } : {})
+    });
+    toast(result.message || "已生成下次跟进");
+    await loadUnansweredPendingQueue(unansweredPendingScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有生成下次跟进", "error");
+  } finally {
+    unansweredPendingBusy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function scheduleUnansweredPendingCallback(form: HTMLFormElement) {
+  if (unansweredPendingBusy) return;
+  const recordId = form.dataset.callRecordId || "";
+  const scheduledAt = fromDateTimeLocal(form.querySelector<HTMLInputElement>("[data-unanswered-callback-at]")?.value || "");
+  const note = form.querySelector<HTMLInputElement>("[data-unanswered-callback-note]")?.value ?? "";
+  if (!scheduledAt) {
+    toast("请填写回拨预约时间", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  unansweredPendingBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>(`/api/outbound-call-records/${encodeURIComponent(recordId)}/callback-schedule`, {
+      method: "POST",
+      body: JSON.stringify({ scheduledAt, note })
+    });
+    toast(result.message || "已设置回拨预约");
+    await loadUnansweredPendingQueue(unansweredPendingScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "回拨预约没有保存", "error");
+  } finally {
+    unansweredPendingBusy = false;
     if (button) button.disabled = false;
   }
 }
@@ -57838,6 +57941,32 @@ function installEvents() {
     if (!rescheduleForm) return;
     event.preventDefault();
     void rescheduleCallbackDue(rescheduleForm);
+  });
+  qs<HTMLButtonElement>("#dashboardUnansweredPendingMine")?.addEventListener("click", () => {
+    void loadUnansweredPendingQueue("mine");
+  });
+  qs<HTMLButtonElement>("#dashboardUnansweredPendingTeam")?.addEventListener("click", () => {
+    void loadUnansweredPendingQueue("team");
+  });
+  qs<HTMLElement>("#dashboardUnansweredPendingQueue")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-unanswered-pending-open]");
+    if (!opener) return;
+    const row = opener.closest<HTMLElement>("[data-unanswered-pending-row]");
+    if (!row) return;
+    event.preventDefault();
+    openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
+  });
+  qs<HTMLElement>("#dashboardUnansweredPendingQueue")?.addEventListener("submit", (event) => {
+    const followUp = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-unanswered-pending-follow-up]");
+    if (followUp) {
+      event.preventDefault();
+      void generateUnansweredPendingFollowUp(followUp);
+      return;
+    }
+    const callback = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-unanswered-pending-callback]");
+    if (!callback) return;
+    event.preventDefault();
+    void scheduleUnansweredPendingCallback(callback);
   });
   qs<HTMLButtonElement>("#dashboardNextFollowDueRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);

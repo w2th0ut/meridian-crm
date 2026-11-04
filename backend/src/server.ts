@@ -329,6 +329,7 @@ import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from ".
 import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
 import { completeCallbackDueQueue, exportCallbackDueQueue, listCallbackDueQueue } from "./callback-due-queue.js";
 import { exportCallbackScheduleReport, listCallbackScheduleReport } from "./callback-schedule-report.js";
+import { listUnansweredPendingQueue } from "./unanswered-pending-queue.js";
 import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
 import { createContactPhone, deleteContactPhone, readContactPhones, updateContactPhone } from "./contact-phone.js";
 import {
@@ -9432,6 +9433,11 @@ app.get("/api/callback-due-queue/export", requireAuth, asyncRoute(async (req, re
 
 app.get("/api/callback-due-queue", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallbackDueQueue(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/unanswered-pending-queue", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listUnansweredPendingQueue(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
