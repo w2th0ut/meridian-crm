@@ -6369,8 +6369,12 @@ async function ensureSchema(pool: mysql.Pool) {
     created_at DATETIME NULL,
     updated_at DATETIME NULL,
     disabled_at DATETIME NULL,
+    usage_kind VARCHAR(32) NOT NULL DEFAULT 'script',
+    owner_id VARCHAR(64) NOT NULL DEFAULT '',
     INDEX idx_call_script_templates_team(team_id, scenario, enabled)
   )`);
+  await ensureColumn(pool, "call_script_templates", "usage_kind", "VARCHAR(32) NOT NULL DEFAULT 'script'");
+  await ensureColumn(pool, "call_script_templates", "owner_id", "VARCHAR(64) NOT NULL DEFAULT ''");
   await pool.query(`CREATE TABLE IF NOT EXISTS call_script_audits (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -6505,7 +6509,7 @@ async function ensureSchema(pool: mysql.Pool) {
     FROM (
       SELECT DISTINCT team_id, scenario
       FROM call_script_templates
-      WHERE scenario <> ''
+      WHERE scenario <> '' AND usage_kind = 'script'
     ) AS existing
     WHERE NOT EXISTS (
       SELECT 1 FROM (
@@ -13826,7 +13830,7 @@ function callScriptScenario(value: unknown): CallScriptScenario {
 }
 
 function callScriptAction(value: unknown): CallScriptAudit["action"] {
-  if (value === "create" || value === "update" || value === "disable" || value === "read" || value === "restore" || value === "versions" || value === "version") return value;
+  if (value === "create" || value === "update" || value === "disable" || value === "read" || value === "restore" || value === "versions" || value === "version" || value === "phrase_create" || value === "phrase_disable" || value === "phrase_read") return value;
   return "create";
 }
 
@@ -13835,20 +13839,25 @@ function callScriptResult(value: unknown): CallScriptAudit["result"] {
 }
 
 async function loadCallScriptTemplates(pool: mysql.Pool): Promise<CallScriptTemplate[]> {
-  return (await rows<Record<string, any>>(pool, "SELECT * FROM call_script_templates ORDER BY updated_at DESC")).map((row) => ({
-    id: row.id,
-    teamId: row.team_id || "",
-    title: row.title || "",
-    scenario: callScriptScenario(row.scenario),
-    language: row.language_tag || "",
-    body: row.body_text || "",
-    enabled: Number(row.enabled) === 1 || row.enabled === true,
-    createdBy: row.created_by || "",
-    updatedBy: row.updated_by || "",
-    createdAt: storedIso(row.created_at),
-    updatedAt: storedIso(row.updated_at),
-    disabledAt: row.disabled_at ? storedIso(row.disabled_at) : ""
-  }));
+  return (await rows<Record<string, any>>(pool, "SELECT * FROM call_script_templates ORDER BY updated_at DESC")).map((row) => {
+    const usageKind = row.usage_kind === "outcome_note" ? "outcome_note" as const : "script" as const;
+    return {
+      id: row.id,
+      teamId: row.team_id || "",
+      title: row.title || "",
+      scenario: usageKind === "outcome_note" ? "" : callScriptScenario(row.scenario),
+      language: row.language_tag || "",
+      body: row.body_text || "",
+      enabled: Number(row.enabled) === 1 || row.enabled === true,
+      createdBy: row.created_by || "",
+      updatedBy: row.updated_by || "",
+      createdAt: storedIso(row.created_at),
+      updatedAt: storedIso(row.updated_at),
+      disabledAt: row.disabled_at ? storedIso(row.disabled_at) : "",
+      usageKind,
+      ownerId: row.owner_id || ""
+    };
+  });
 }
 
 function callScriptUsageAction(value: unknown): CallScriptUsageAudit["action"] {
@@ -15486,7 +15495,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "agent_call_target_audits", store.agentCallTargetAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.agentId || "", item.action, item.previousValue || "", item.nextValue || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,agent_id,action_code,previous_value,next_value,result_code,reason_code)");
 	    await replaceRows(connection, "outbound_owners", store.outboundOwners, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.agentId || "", item.updatedBy || "", item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,target_type,target_id,agent_id,updated_by,updated_at)");
 	    await replaceRows(connection, "outbound_owner_audits", store.outboundOwnerAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType || "", item.targetId || "", item.previousAgentId || "", item.nextAgentId || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,previous_agent_id,next_agent_id,result_code,reason_code)");
-	    await replaceRows(connection, "call_script_templates", store.callScriptTemplates, (item) => [item.id, item.teamId, item.title || "", item.scenario, item.language || "", item.body || "", item.enabled ? 1 : 0, item.createdBy || "", item.updatedBy || "", item.createdAt ? mysqlDate(item.createdAt) : null, item.updatedAt ? mysqlDate(item.updatedAt) : null, item.disabledAt ? mysqlDate(item.disabledAt) : null], "(id,team_id,title,scenario,language_tag,body_text,enabled,created_by,updated_by,created_at,updated_at,disabled_at)");
+	    await replaceRows(connection, "call_script_templates", store.callScriptTemplates, (item) => [item.id, item.teamId, item.title || "", item.scenario, item.language || "", item.body || "", item.enabled ? 1 : 0, item.createdBy || "", item.updatedBy || "", item.createdAt ? mysqlDate(item.createdAt) : null, item.updatedAt ? mysqlDate(item.updatedAt) : null, item.disabledAt ? mysqlDate(item.disabledAt) : null, item.usageKind === "outcome_note" ? "outcome_note" : "script", item.ownerId || ""], "(id,team_id,title,scenario,language_tag,body_text,enabled,created_by,updated_by,created_at,updated_at,disabled_at,usage_kind,owner_id)");
 	    await replaceRows(connection, "call_script_audits", store.callScriptAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.templateId || "", item.action, item.previousValue || "", item.nextValue || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,template_id,action_code,previous_value,next_value,result_code,reason_code)");
 	    await replaceRows(connection, "call_script_usage_audits", store.callScriptUsageAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId || "", item.action, item.previousTemplateId || "", item.nextTemplateId || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,call_record_id,action_code,previous_template_id,next_template_id,result_code,reason_code)");
 	    await replaceRows(connection, "call_script_versions", store.callScriptVersions, (item) => [item.id, item.teamId, item.templateId, item.versionNo, item.title || "", item.scenario, item.language || "", item.body || "", item.enabled ? 1 : 0, item.savedBy || "", item.savedAt ? mysqlDate(item.savedAt) : null, item.source], "(id,team_id,template_id,version_no,title,scenario,language_tag,body_text,enabled,saved_by,saved_at,source_action)");

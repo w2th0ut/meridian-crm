@@ -85,6 +85,7 @@ export function importCallScriptScenariosFromTemplates(store: Pick<CrmStore, "ca
   const now = outboundInstant().toISOString();
   let added = 0;
   for (const template of store.callScriptTemplates) {
+    if (template.usageKind === "outcome_note") continue;
     const code = template.scenario;
     if (!code || !CODE_PATTERN.test(code)) continue;
     const key = `${template.teamId}\0${code}`;

@@ -129,6 +129,11 @@ import {
   type UnlabeledConnectedCallResponse
 } from "./call-outcome-batch";
 import {
+  applyOutcomeNotePhrase,
+  renderOutcomeNotePhrases,
+  type OutcomeNotePhraseView
+} from "./call-outcome-note-phrase";
+import {
   agentWorkStatusReportQuery,
   renderAgentWorkStatusReport,
   type AgentWorkStatusReportResponse
@@ -20170,6 +20175,58 @@ async function submitCallOutcomeBatch() {
   } finally {
     unlabeledConnectedCallBusy = false;
     if (button) button.disabled = false;
+  }
+}
+
+async function loadOutcomeNotePhrases(shell: HTMLElement) {
+  const body = shell.querySelector<HTMLElement>("[data-outcome-note-phrase-body]");
+  if (!body) return;
+  try {
+    const data = await api<{ phrases?: OutcomeNotePhraseView[] }>("/api/call-outcome-note-phrases");
+    body.innerHTML = renderOutcomeNotePhrases(data.phrases || []);
+  } catch (error) {
+    body.innerHTML = `<p data-outcome-note-phrase-error="1">${escapeHtml(error instanceof Error ? error.message : "常用短语没有加载")}</p>`;
+  }
+}
+
+function insertOutcomeNotePhrase(button: HTMLButtonElement) {
+  const shell = button.closest<HTMLElement>("[data-outcome-note-phrases]");
+  const form = shell?.closest("form");
+  const input = form?.querySelector<HTMLInputElement>("[data-call-outcome-note], [data-call-outcome-batch-note]");
+  if (!input) return;
+  const next = applyOutcomeNotePhrase(input.value, button.dataset.outcomeNotePhraseText || "");
+  if (!next.inserted) {
+    toast("这条短语放不进备注", "error");
+    return;
+  }
+  input.value = next.value;
+}
+
+async function saveOutcomeNotePhrase(shell: HTMLElement) {
+  const text = shell.querySelector<HTMLInputElement>("[data-outcome-note-phrase-draft]")?.value || "";
+  const scope = shell.querySelector<HTMLSelectElement>("[data-outcome-note-phrase-scope]")?.value || "";
+  try {
+    const result = await api<{ message?: string }>("/api/call-outcome-note-phrases", {
+      method: "POST",
+      body: JSON.stringify({ text, scope })
+    });
+    toast(result.message || "已保存常用短语");
+    await loadOutcomeNotePhrases(shell);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "常用短语没有保存", "error");
+  }
+}
+
+async function disableOutcomeNotePhrase(shell: HTMLElement, id: string) {
+  try {
+    const result = await api<{ message?: string }>("/api/call-outcome-note-phrases/disable", {
+      method: "POST",
+      body: JSON.stringify({ id })
+    });
+    toast(result.message || "已停用常用短语");
+    await loadOutcomeNotePhrases(shell);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "常用短语没有停用", "error");
   }
 }
 
@@ -58781,6 +58838,36 @@ function installEvents() {
   qs<HTMLFormElement>("#dashboardCallOutcomeBatchForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     void submitCallOutcomeBatch();
+  });
+  document.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    const shell = target?.closest<HTMLElement>("[data-outcome-note-phrases]");
+    if (!shell) return;
+    const load = target?.closest<HTMLButtonElement>("[data-outcome-note-phrase-load]");
+    const insert = target?.closest<HTMLButtonElement>("[data-outcome-note-phrase=\"1\"]");
+    const save = target?.closest<HTMLButtonElement>("[data-outcome-note-phrase-save]");
+    const disable = target?.closest<HTMLButtonElement>("[data-outcome-note-phrase-disable]");
+    if (!load && !insert && !save && !disable) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (load) {
+      void loadOutcomeNotePhrases(shell);
+      return;
+    }
+    if (insert) {
+      insertOutcomeNotePhrase(insert);
+      return;
+    }
+    if (save) {
+      void saveOutcomeNotePhrase(shell);
+      return;
+    }
+    if (disable?.dataset.outcomeNotePhraseDisable) void disableOutcomeNotePhrase(shell, disable.dataset.outcomeNotePhraseDisable);
+  });
+  document.addEventListener("keydown", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (event.key !== "Enter" || !target?.closest("[data-outcome-note-phrases]")) return;
+    event.preventDefault();
   });
   qs<HTMLButtonElement>("#dashboardNextFollowDueRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);

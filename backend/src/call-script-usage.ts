@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { canManageCallScripts } from "./call-script.js";
+import { canManageCallScripts, isSpokenCallScript } from "./call-script.js";
 import { scenarioLabelFor } from "./call-script-scenario.js";
 import { outboundInstant } from "./outbound-call.js";
 import {
@@ -58,7 +58,7 @@ export function callScriptUsageView(store: CrmStore, record: Pick<OutboundCallRe
 
 export function enabledCallScriptChoices(store: CrmStore, teamId: string) {
   return store.callScriptTemplates
-    .filter((item) => item.teamId === teamId && item.enabled)
+    .filter((item) => item.teamId === teamId && item.enabled && isSpokenCallScript(item))
     .slice()
     .sort((left, right) => left.title.localeCompare(right.title, "zh") || left.id.localeCompare(right.id))
     .map(presentChoice);
@@ -68,11 +68,14 @@ export function enabledCallScriptChoices(store: CrmStore, teamId: string) {
 export function scriptFilterChoices(store: CrmStore, teamId: string, records: Array<Pick<OutboundCallRecord, "callScriptTemplateId">>) {
   const ids = new Set<string>();
   for (const template of store.callScriptTemplates) {
-    if (template.teamId === teamId && template.enabled) ids.add(template.id);
+    if (template.teamId === teamId && template.enabled && isSpokenCallScript(template)) ids.add(template.id);
   }
   for (const record of records) {
     const id = (record.callScriptTemplateId || "").trim();
-    if (id) ids.add(id);
+    if (!id) continue;
+    const template = store.callScriptTemplates.find((item) => item.id === id && item.teamId === teamId);
+    if (template && !isSpokenCallScript(template)) continue;
+    ids.add(id);
   }
   return [...ids].map((id) => {
     const template = findTeamTemplate(store, teamId, id);
@@ -98,7 +101,7 @@ export function callScriptUsageCounts(store: CrmStore, teamId: string) {
     counts.set(id, (counts.get(id) || 0) + 1);
   }
   return store.callScriptTemplates
-    .filter((item) => item.teamId === teamId)
+    .filter((item) => item.teamId === teamId && isSpokenCallScript(item))
     .slice()
     .sort((left, right) => left.title.localeCompare(right.title, "zh") || left.id.localeCompare(right.id))
     .map((template) => ({
@@ -118,7 +121,9 @@ function presentChoice(template: CallScriptTemplate) {
 }
 
 function findTeamTemplate(store: CrmStore, teamId: string, templateId: string) {
-  return store.callScriptTemplates.find((item) => item.id === templateId && item.teamId === teamId) || null;
+  const found = store.callScriptTemplates.find((item) => item.id === templateId && item.teamId === teamId) || null;
+  if (!found || !isSpokenCallScript(found)) return null;
+  return found;
 }
 
 function reject(reason: string, message: string, status = 400) {

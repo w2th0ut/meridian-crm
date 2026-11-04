@@ -29090,6 +29090,7 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <form id="dashboardCallOutcomeBatchForm">
               <label>通话结果<select data-call-outcome-batch-outcome="1"><option value="有意向">有意向</option><option value="需回访">需回访</option><option value="无意向">无意向</option><option value="号码错误">号码错误</option><option value="其他">其他</option></select></label>
               <label>备注<input data-call-outcome-batch-note="1" maxlength="200" placeholder="不填就写成没有备注"></label>
+              <div data-outcome-note-phrases="1"><p data-outcome-note-phrase-hint="1">常用短语只插入备注，不会自动保存标注。</p><button class="btn" type="button" data-outcome-note-phrase-load="1">常用短语</button><div data-outcome-note-phrase-body="1"><p data-outcome-note-phrase-idle="1">点常用短语后才读取。</p></div></div>
               <button class="btn" type="submit" data-call-outcome-batch-submit="1">标注所选</button>
             </form>
             <p id="dashboardCallOutcomeBatchMessage"></p>
