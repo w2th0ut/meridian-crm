@@ -5668,6 +5668,40 @@ export interface CallWorkloadViewAudit {
 }
 
 /**
+ * 坐席在 CRM 里手工切换的工作状态。
+ * 只记本地变更。不读云联络中心，也不改坐席映射上的 workMode。
+ */
+export interface AgentWorkStatusLog {
+  id: string;
+  teamId: string;
+  agentId: string;
+  crmUserId: string;
+  actorId: string;
+  at: string;
+  status: "available" | "busy" | "break";
+  reason: string;
+  source: "self" | "manager";
+}
+
+/**
+ * 主管把别人的工作状态改回时的审计，以及被拒绝的改回。
+ * 坐席改自己的状态不写这一张。不记号码或密钥。
+ */
+export interface AgentWorkStatusAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  agentId: string;
+  action: "reset";
+  previousStatus: "" | "available" | "busy" | "break";
+  nextStatus: "" | "available" | "busy" | "break";
+  reason: string;
+  result: "updated" | "rejected";
+  reasonCode: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */

@@ -170,6 +170,11 @@ import {
   type CallWorkloadResponse
 } from "./call-workload";
 import {
+  readAgentWorkStatusInput,
+  renderAgentWorkStatusSummary,
+  type AgentWorkStatusResponse
+} from "./agent-work-status";
+import {
   matchesOutboundOwnerList,
   outboundOwnerAssignBody,
   outboundOwnerClearBody,
@@ -12973,6 +12978,100 @@ async function loadCallWorkload(scope: "self" | "team") {
 }
 
 let callWorkloadScope: "self" | "team" = "self";
+
+function paintAgentWorkStatusSummary(data: AgentWorkStatusResponse | undefined) {
+  const summary = qs<HTMLElement>("#cccAgentWorkStatusSummary");
+  if (!summary) return;
+  const row = data?.row || data?.rows?.[0];
+  summary.innerHTML = renderAgentWorkStatusSummary(data?.unmapped ? null : row || data);
+  const select = qs<HTMLSelectElement>("#cccAgentWorkStatus");
+  if (select && row?.status) select.value = row.status;
+  const reason = qs<HTMLInputElement>("#cccAgentWorkStatusReason");
+  if (reason && row) reason.value = row.reason || "";
+}
+
+async function loadCccAgentWorkStatus() {
+  const summary = qs<HTMLElement>("#cccAgentWorkStatusSummary");
+  if (!summary || !state.user) return;
+  try {
+    const data = await api<AgentWorkStatusResponse>("/api/agent-work-status?scope=self");
+    paintAgentWorkStatusSummary(data);
+  } catch (error) {
+    summary.textContent = error instanceof Error ? error.message : "没有读到工作状态";
+  }
+}
+
+async function submitOwnAgentWorkStatus(statusValue: string, reasonValue: string, message?: HTMLElement | null) {
+  const parsed = readAgentWorkStatusInput(statusValue, reasonValue);
+  if (!parsed.ok) {
+    if (message) message.textContent = parsed.message;
+    return;
+  }
+  if (message) message.textContent = "";
+  const data = await api<AgentWorkStatusResponse>("/api/agent-work-status", {
+    method: "POST",
+    body: JSON.stringify({ status: parsed.status, reason: parsed.reason })
+  });
+  paintAgentWorkStatusSummary(data);
+  const dashboardStatus = qs<HTMLSelectElement>("#dashboardAgentWorkStatus");
+  const dashboardReason = qs<HTMLInputElement>("#dashboardAgentWorkStatusReason");
+  if (dashboardStatus) dashboardStatus.value = parsed.status;
+  if (dashboardReason) dashboardReason.value = parsed.reason;
+  if (qs<HTMLElement>("#dashboardCallWorkloadList [data-call-workload]")) {
+    await loadCallWorkload(callWorkloadScope);
+  }
+  if (message) message.textContent = data.result === "unchanged" ? "工作状态没有变化" : "已保存工作状态";
+}
+
+async function saveOwnAgentWorkStatus(form: HTMLFormElement) {
+  const message = qs<HTMLElement>("#dashboardCallWorkloadMessage");
+  try {
+    await submitOwnAgentWorkStatus(
+      form.querySelector<HTMLSelectElement>("[data-work-status], #dashboardAgentWorkStatus")?.value || "",
+      form.querySelector<HTMLInputElement>("[data-work-status-reason], #dashboardAgentWorkStatusReason")?.value || "",
+      message
+    );
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "没有保存工作状态";
+  }
+}
+
+async function saveCccAgentWorkStatus(form: HTMLFormElement) {
+  const summary = qs<HTMLElement>("#cccAgentWorkStatusSummary");
+  try {
+    await submitOwnAgentWorkStatus(
+      form.querySelector<HTMLSelectElement>("#cccAgentWorkStatus")?.value || "",
+      form.querySelector<HTMLInputElement>("#cccAgentWorkStatusReason")?.value || "",
+      null
+    );
+  } catch (error) {
+    if (summary) summary.textContent = error instanceof Error ? error.message : "没有保存工作状态";
+  }
+}
+
+async function resetAgentWorkStatus(form: HTMLFormElement) {
+  const message = qs<HTMLElement>("#dashboardCallWorkloadMessage");
+  const agentId = form.querySelector<HTMLInputElement>("[data-work-status-agent]")?.value || "";
+  const parsed = readAgentWorkStatusInput(
+    form.querySelector<HTMLSelectElement>("[data-work-status]")?.value || "",
+    form.querySelector<HTMLInputElement>("[data-work-status-reason]")?.value || ""
+  );
+  if (!agentId || !parsed.ok) {
+    if (message) message.textContent = parsed.ok ? "请选择坐席" : parsed.message;
+    return;
+  }
+  if (message) message.textContent = "";
+  try {
+    const data = await api<AgentWorkStatusResponse>("/api/agent-work-status/reset", {
+      method: "POST",
+      body: JSON.stringify({ agentId, status: parsed.status, reason: parsed.reason })
+    });
+    await loadCallWorkload("team");
+    if (message) message.textContent = data.result === "unchanged" ? "工作状态没有变化" : "已改回工作状态";
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "没有改回工作状态";
+  }
+}
 
 async function saveCallWrapupTarget(form: HTMLFormElement) {
   const message = qs<HTMLElement>("#dashboardCallWorkloadMessage");
@@ -56520,9 +56619,19 @@ function installEvents() {
   });
   qs<HTMLElement>("#dashboardCallWorkloadList")?.addEventListener("submit", (event) => {
     const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-wrapup-target-form]");
-    if (!form) return;
+    if (form) {
+      event.preventDefault();
+      void saveCallWrapupTarget(form);
+      return;
+    }
+    const reset = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-agent-work-status-reset]");
+    if (!reset) return;
     event.preventDefault();
-    void saveCallWrapupTarget(form);
+    void resetAgentWorkStatus(reset);
+  });
+  qs<HTMLFormElement>("#dashboardAgentWorkStatusForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveOwnAgentWorkStatus(event.currentTarget as HTMLFormElement);
   });
   qs<HTMLFormElement>("#dashboardCallWrapupEditReportFilters")?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -56711,6 +56820,11 @@ function installEvents() {
     if (!panel || !button) return;
     const collapsed = panel.classList.toggle("is-collapsed");
     button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    if (!collapsed) void loadCccAgentWorkStatus();
+  });
+  qs<HTMLFormElement>("#cccAgentWorkStatusForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveCccAgentWorkStatus(event.currentTarget as HTMLFormElement);
   });
   qs<HTMLElement>("#cccScreenPopStack")?.addEventListener("click", (event) => {
     const link = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-screen-pop-view]");

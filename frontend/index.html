@@ -28523,7 +28523,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div class="section-head">
               <div class="section-title"><div><h2>今日通话负荷</h2><p id="dashboardCallWorkloadScope">坐席看我的今日，主管看团队</p></div></div>
             </div>
-            <p id="dashboardCallWorkloadNote" class="dashboard-call-workload-note">今日拨打只数人工点击后已经写下的通话记录。没有对应外呼审计，或点击被拒绝的，不算。小结已完成、待处理和无需小结只对照 call_wrapup 相关表。改正只数今天已经记下的成功改正。通话时长只加接通且时长是整数秒的记录，没有可加的时长时写 —，不写成 0。不另算接通率。人工拨打和小结完成对照已有的每日外呼目标。没有拨打目标或小结目标时写 —，不把缺的目标画成 0。主管可以在这一块保存小结目标，一次一个坐席。拨打、接通和意向仍只由管理员在每日外呼目标里设置。要人工点查看，打开工作台本身不拉这一份。业务员只能看自己的坐席。主管查看团队会留下一条查看记录。这里没有外呼按钮，不会自动拨号，也不会批量拨号。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <p id="dashboardCallWorkloadNote" class="dashboard-call-workload-note">今日拨打只数人工点击后已经写下的通话记录。没有对应外呼审计，或点击被拒绝的，不算。小结已完成、待处理和无需小结只对照 call_wrapup 相关表。改正只数今天已经记下的成功改正。通话时长只加接通且时长是整数秒的记录，没有可加的时长时写 —，不写成 0。不另算接通率。人工拨打和小结完成对照已有的每日外呼目标。没有拨打目标或小结目标时写 —，不把缺的目标画成 0。主管可以在这一块保存小结目标，一次一个坐席。拨打、接通和意向仍只由管理员在每日外呼目标里设置。要人工点查看，打开工作台本身不拉这一份。业务员只能看自己的坐席。主管查看团队会留下一条查看记录。工作状态是坐席自己记下的可接听、忙碌或小休，今日时长只从这些变更行计算。没有记下时写 —，不画成 0。主管可以在团队视图里改回，一次一个坐席。这里没有外呼按钮，不会自动拨号，也不会批量拨号。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <form id="dashboardAgentWorkStatusForm" class="head-actions">
+              <label>我的工作状态
+                <select id="dashboardAgentWorkStatus" aria-label="我的工作状态">
+                  <option value="available">可接听</option>
+                  <option value="busy">忙碌</option>
+                  <option value="break">小休</option>
+                </select>
+              </label>
+              <label>原因<input id="dashboardAgentWorkStatusReason" maxlength="200" aria-label="工作状态原因" autocomplete="off"></label>
+              <button class="btn" type="submit">保存我的状态</button>
+            </form>
             <div class="head-actions">
               <button class="btn" type="button" id="dashboardCallWorkloadSelf">查看我的今日</button>
               <button class="btn" type="button" id="dashboardCallWorkloadTeam" hidden>查看团队今日</button>
@@ -36197,6 +36208,18 @@ body.platform-mode .workspace-tabs { display:none !important; }
   <aside id="cccSoftphone" hidden>
     <button class="btn" id="cccSoftphoneToggle" type="button" aria-expanded="false" aria-controls="cccSoftphonePanel">软电话</button>
     <div id="cccSoftphonePanel" class="is-collapsed">
+      <form id="cccAgentWorkStatusForm">
+        <p id="cccAgentWorkStatusSummary">点开软电话后显示本地工作状态。</p>
+        <label>工作状态
+          <select id="cccAgentWorkStatus" aria-label="我的工作状态">
+            <option value="available">可接听</option>
+            <option value="busy">忙碌</option>
+            <option value="break">小休</option>
+          </select>
+        </label>
+        <label>原因<input id="cccAgentWorkStatusReason" maxlength="200" aria-label="工作状态原因" autocomplete="off"></label>
+        <button class="btn" type="submit">保存我的状态</button>
+      </form>
       <p id="cccAgentCallProgress" hidden></p>
       <div id="cccCallScripts"></div>
       <div id="ccc-workbench-container"></div>

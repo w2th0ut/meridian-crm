@@ -23,6 +23,7 @@ import type {
   SessionUser
 } from "./types.js";
 import { canEditWrapupTarget } from "./agent-call-target.js";
+import { attachAgentWorkStatus, canResetAgentWorkStatus } from "./agent-work-status.js";
 
 /**
  * 今日通话负荷。坐席看自己的今日，主管及以上看权限范围内的团队。
@@ -444,6 +445,7 @@ export async function listCallWorkload(
       today,
       unmapped: parsed.scope === "self" && own.length === 0,
       canEditWrapupTarget: canEditWrapupTarget(user),
+      canResetWorkStatus: teamView && canResetAgentWorkStatus(user),
       metrics: {
         callsMade: true,
         wrapupCompleted: true,
@@ -452,7 +454,11 @@ export async function listCallWorkload(
         correctionsMade: true,
         talkTimeSeconds: true,
         callsTarget: true,
-        wrapupTarget: true
+        wrapupTarget: true,
+        workStatus: true,
+        availableSeconds: true,
+        busySeconds: true,
+        breakSeconds: true
       },
       criteria: {
         callsBy: "humanClickedCallRecord",
@@ -463,7 +469,16 @@ export async function listCallWorkload(
         talkTimeUnit: "seconds",
         establishedBy: "establishedTimeRaw"
       },
-      rows: attachCallWorkloadTargets(built.rows, store.agentCallTargets, user.teamId)
+      rows: attachAgentWorkStatus(
+        attachCallWorkloadTargets(built.rows, store.agentCallTargets, user.teamId),
+        store.agentWorkStatusLogs,
+        user.teamId,
+        now
+      ).map((row) => ({
+        ...row,
+        workStatus: row.status,
+        workStatusReason: row.reason
+      }))
     }
   };
 }
