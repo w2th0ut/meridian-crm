@@ -24,6 +24,7 @@ import {
   type OutboundCallTarget
 } from "./outbound-call";
 import { renderPhoneValidityControl, type PhoneValidityTarget } from "./phone-validity";
+import { renderSameNumberInvalidLink, sameNumberInvalidRequest } from "./same-number-invalid";
 import {
   preferredChooserActions,
   preferredPhoneClearBody,
@@ -15885,15 +15886,28 @@ function outboundCallButtonHtml(target: OutboundCallTarget | null) {
   return `<button class="btn outbound-call-button" type="button" data-outbound-call="1" data-outbound-type="${escapeHtml(target.targetType)}" data-outbound-id="${escapeHtml(target.targetId)}" data-outbound-phone-id="${escapeHtml(target.phoneId)}" title="${escapeHtml(outboundCallButtonTitle(invalid))}"${disabled}>外呼</button>`;
 }
 
+const sameNumberCountCache = new Map<string, number>();
+
+function sameNumberCountFor(target: { targetType: string; targetId: string; phoneId: string }) {
+  return sameNumberCountCache.get(phoneValidityCacheKey(target)) || 0;
+}
+
 function phoneValidityControlHtml(target: OutboundCallTarget, includeStatus: boolean) {
   const cached = cachedPhoneValidity(target);
-  return renderPhoneValidityControl({
+  const control = renderPhoneValidityControl({
     targetType: target.targetType,
     targetId: target.targetId,
     phoneId: target.phoneId,
     invalid: cached?.invalid === true,
     canWrite: cached?.canWrite === true,
     includeStatus
+  });
+  if (cached?.invalid !== true || cached.canWrite !== true) return control;
+  return control + renderSameNumberInvalidLink({
+    count: sameNumberCountFor(target),
+    targetType: target.targetType,
+    targetId: target.targetId,
+    phoneId: target.phoneId
   });
 }
 
@@ -16204,6 +16218,19 @@ function redrawPhoneValidity(targetType: string, targetId: string) {
   }
 }
 
+async function rememberSameNumberCount(targetType: string, targetId: string, phoneId: string) {
+  const key = phoneValidityCacheKey({ targetType, targetId, phoneId });
+  try {
+    const params = new URLSearchParams({ targetType, targetId, phoneId });
+    const result = await api<{ count?: number }>(`/api/phone-validity/same-number?${params.toString()}`);
+    const count = typeof result.count === "number" && result.count > 0 ? Math.floor(result.count) : 0;
+    sameNumberCountCache.set(key, count);
+    return count;
+  } catch {
+    return sameNumberCountCache.get(key) || 0;
+  }
+}
+
 async function ensurePhoneValidity(target: PhoneValidityTarget) {
   const stamp = `${target.targetType}:${target.targetId}`;
   if (phoneValidityLoaded.has(stamp)) return;
@@ -16221,6 +16248,10 @@ async function ensurePhoneValidity(target: PhoneValidityTarget) {
       if (!prev || prev.invalid !== next.invalid || prev.canWrite !== next.canWrite) {
         phoneValidityCache.set(key, next);
         changed = true;
+      }
+      if (next.invalid && next.canWrite && !sameNumberCountCache.has(key)) {
+        const count = await rememberSameNumberCount(target.targetType, target.targetId, phoneId);
+        if (count > 0) changed = true;
       }
     }
     if (changed) redrawPhoneValidity(target.targetType, target.targetId);
@@ -16252,6 +16283,8 @@ async function submitPhoneValidity(button: HTMLButtonElement) {
     if (invalid && preferredPhoneIdFor(targetType, targetId) === phoneId) {
       preferredPhoneByTarget.delete(preferredPhoneKey(targetType, targetId));
     }
+    if (result.invalid === true) await rememberSameNumberCount(targetType, targetId, phoneId);
+    else sameNumberCountCache.delete(phoneValidityCacheKey({ targetType, targetId, phoneId }));
     toast(result.message || (invalid ? "已标记该号码无效" : "已取消号码无效标记"));
     redrawPreferredPhone(targetType, targetId);
   } catch (error) {
@@ -16280,6 +16313,7 @@ async function submitCallPhoneInvalid(recordId: string, button?: HTMLButtonEleme
       if (preferredPhoneIdFor(result.targetType, result.targetId) === result.phoneId) {
         preferredPhoneByTarget.delete(preferredPhoneKey(result.targetType, result.targetId));
       }
+      if (result.invalid !== false) await rememberSameNumberCount(result.targetType, result.targetId, result.phoneId);
     }
     toast(result.message || "已标记该号码无效");
     if (result.targetType && result.targetId) redrawPreferredPhone(result.targetType, result.targetId);
@@ -16289,6 +16323,48 @@ async function submitCallPhoneInvalid(recordId: string, button?: HTMLButtonEleme
   } catch (error) {
     toast(error instanceof Error ? error.message : "号码没有标记", "error");
     if (button) button.disabled = false;
+  } finally {
+    phoneValidityPending = false;
+  }
+}
+
+async function submitSameNumberInvalid(button: HTMLButtonElement) {
+  if (phoneValidityPending) return;
+  const targetType = button.dataset.sameNumberType || "";
+  const targetId = button.dataset.sameNumberId || "";
+  const phoneId = button.dataset.sameNumberPhone || "";
+  if ((targetType !== "customer" && targetType !== "lead" && targetType !== "prospect") || !targetId || !phoneId) return;
+  phoneValidityPending = true;
+  button.disabled = true;
+  try {
+    const result = await api<{
+      message?: string;
+      targets?: Array<{ targetType?: string; targetId?: string; phoneId?: string }>;
+    }>(`/api/phone-validity/same-number`, {
+      method: "POST",
+      body: JSON.stringify(sameNumberInvalidRequest({ targetType, targetId, phoneId }))
+    });
+    sameNumberCountCache.set(phoneValidityCacheKey({ targetType, targetId, phoneId }), 0);
+    for (const item of result.targets || []) {
+      const type = (item.targetType || "").trim();
+      const id = (item.targetId || "").trim();
+      const linkedPhoneId = (item.phoneId || "").trim();
+      if ((type !== "customer" && type !== "lead" && type !== "prospect") || !id || !linkedPhoneId) continue;
+      phoneValidityCache.set(phoneValidityCacheKey({ targetType: type, targetId: id, phoneId: linkedPhoneId }), {
+        invalid: true,
+        canWrite: true
+      });
+    }
+    await loadPreferredPhoneIndex();
+    redrawPhoneValidity(targetType, targetId);
+    redrawPreferredPhone(targetType, targetId);
+    toast(result.message || "已把其他对象上的这个号码标为无效");
+    await loadOutboundCallRecords();
+    const panel = qs<HTMLElement>("#outboundCallRecordDetail");
+    if (panel && !panel.hidden && panel.dataset.recordId) await openOutboundCallRecord(panel.dataset.recordId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "其他对象上的号码没有改", "error");
+    button.disabled = false;
   } finally {
     phoneValidityPending = false;
   }
@@ -18692,6 +18768,15 @@ async function openOutboundCallRecord(recordId: string) {
   panel.dataset.recordId = recordId;
   try {
     const result = await api<OutboundCallRecordDetail>(`/api/outbound-call-records/${encodeURIComponent(recordId)}`);
+    const record = result.record;
+    if (record?.phoneInvalid && record.phoneId && record.targetType && record.targetId) {
+      await rememberSameNumberCount(record.targetType, record.targetId, record.phoneId);
+      record.sameNumberCount = sameNumberCountFor({
+        targetType: record.targetType,
+        targetId: record.targetId,
+        phoneId: record.phoneId
+      });
+    }
     panel.innerHTML = renderOutboundCallRecordDetail(result);
   } catch (error) {
     panel.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
@@ -19083,10 +19168,15 @@ async function submitCallOutcome(form: HTMLFormElement) {
   callOutcomePending = true;
   if (button) button.disabled = true;
   try {
-    const result = await api<{ message?: string; result?: string }>(
+    const result = await api<{ message?: string; result?: string; phoneId?: string; phoneInvalidResult?: string; markNumberInvalid?: boolean }>(
       `/api/outbound-call-records/${encodeURIComponent(recordId)}/outcome`,
       { method: "POST", body: JSON.stringify({ outcome, note, nextFollowChoice, markNumberInvalid }) }
     );
+    const linkedType = form.dataset.targetType || "";
+    const linkedId = form.dataset.targetId || "";
+    if (result.markNumberInvalid && result.phoneId && linkedType && linkedId && (result.phoneInvalidResult === "updated" || result.phoneInvalidResult === "unchanged")) {
+      await rememberSameNumberCount(linkedType, linkedId, result.phoneId);
+    }
     toast(result.message || "已保存通话结果");
     await loadOutboundCallRecords();
     const panel = qs<HTMLElement>("#outboundCallRecordDetail");
@@ -19309,8 +19399,17 @@ async function loadOutboundCallRecords() {
       agentSelect.disabled = result.scope !== "team";
     }
     summary.innerHTML = renderOutboundCallRecordSummary(result);
-    list.innerHTML = result.records?.length
-      ? renderOutboundCallRecordList(result.records)
+    const records = (result.records || []).map((record) => {
+      if (!record.phoneInvalid || !record.phoneId || !record.targetType || !record.targetId) return record;
+      const count = sameNumberCountFor({
+        targetType: record.targetType,
+        targetId: record.targetId,
+        phoneId: record.phoneId
+      });
+      return count > 0 ? { ...record, sameNumberCount: count } : record;
+    });
+    list.innerHTML = records.length
+      ? renderOutboundCallRecordList(records)
       : targetType && targetId && tag && !result.empty
         ? renderOutboundCallTargetFilterEmpty()
       : tag && !result.empty
@@ -58008,6 +58107,11 @@ function installEvents() {
     void submitCallPhoneInvalid(mark.dataset.markPhoneInvalid, mark);
   });
   document.addEventListener("click", (event) => {
+    const sameNumber = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-same-number-invalid]");
+    if (sameNumber && !sameNumber.disabled) {
+      void submitSameNumberInvalid(sameNumber);
+      return;
+    }
     const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-phone-validity]");
     if (!button || button.disabled) return;
     void submitPhoneValidity(button);

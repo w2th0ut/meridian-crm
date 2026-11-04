@@ -3,6 +3,7 @@ import { renderCallNoteForm } from "./call-note";
 import { renderCallOutcomeKeyHint } from "./call-outcome-keys";
 import { renderCallOutcomeNextFollow } from "./call-outcome-next-follow";
 import { renderCallOutcomeMarkInvalid } from "./call-outcome-wrong-number";
+import { renderSameNumberInvalidLink } from "./same-number-invalid";
 import { renderOutcomeNotePhraseShell } from "./call-outcome-note-phrase";
 import { renderCallWrapupPanel } from "./call-wrapup";
 import { renderCallWrapupEdit, type CallWrapupEditView } from "./call-wrapup-edit";
@@ -41,6 +42,7 @@ export interface OutboundCallRecordRow {
   callOutcomeNote?: string;
   phoneId?: string;
   phoneInvalid?: boolean;
+  sameNumberCount?: number;
   callbackScheduledAt?: string;
   callbackNote?: string;
   callbackDue?: string;
@@ -174,10 +176,24 @@ export function renderCallOutcomeForm(record: { id: string; callOutcome?: string
 }
 
 /** 只在这一条被标成号码错误、并且对得上现在的号码时出现。已经无效就只提示，不在这里取消。 */
-export function renderMarkPhoneInvalid(record: { id: string; callOutcome?: string; phoneId?: string; phoneInvalid?: boolean }) {
+export function renderMarkPhoneInvalid(record: {
+  id: string;
+  callOutcome?: string;
+  phoneId?: string;
+  phoneInvalid?: boolean;
+  targetType?: string;
+  targetId?: string;
+  sameNumberCount?: number;
+}) {
   if (record.callOutcome !== "号码错误" || !(record.phoneId || "").trim()) return "";
   if (record.phoneInvalid) {
-    return `<p class="phone-validity-status" data-phone-invalid="1">该号码已标记无效</p>`;
+    const link = renderSameNumberInvalidLink({
+      count: record.sameNumberCount || 0,
+      targetType: record.targetType || "",
+      targetId: record.targetId || "",
+      phoneId: record.phoneId || ""
+    });
+    return `<p class="phone-validity-status" data-phone-invalid="1">该号码已标记无效</p>${link}`;
   }
   return `<button class="btn" type="button" data-mark-phone-invalid="${escapeHtml(record.id)}">标记该号码无效</button>`;
 }

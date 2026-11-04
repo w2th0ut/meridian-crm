@@ -5120,6 +5120,7 @@ export interface PhoneValidity {
  * 一次号码有效性的修改。前值和后值是 valid 或 invalid。
  * 来源通话只在从通话记录标记时有值。不记完整号码。
  * 从通话结果里拒绝标无效时，result 是 rejected，reason 是原因，前值和后值保持原状。
+ * 同一次同号联动的成功行共用 batchId。单条标记留空。
  */
 export interface PhoneValidityAudit {
   id: string;
@@ -5134,6 +5135,7 @@ export interface PhoneValidityAudit {
   sourceCallRecordId: string;
   result?: "" | "rejected";
   reason?: string;
+  batchId?: string;
 }
 
 /**
