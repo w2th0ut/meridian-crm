@@ -161,8 +161,13 @@ export function renderCallOutcomeOptions(selected: string) {
   return blank + options.join("");
 }
 
-export function renderCallOutcomeForm(record: { id: string; callOutcome?: string; callOutcomeNote?: string }) {
-  return `<form class="outbound-record-outcome-form" data-call-outcome-form="1" data-record-id="${escapeHtml(record.id)}"><label>通话结果<select data-call-outcome>${renderCallOutcomeOptions(record.callOutcome || "")}</select></label><label>备注<input data-call-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label>${renderOutcomeNotePhraseShell()}<button class="btn" type="submit">保存标注</button></form>`;
+export function renderCallOutcomeForm(record: { id: string; callOutcome?: string; callOutcomeNote?: string; targetType?: string; targetId?: string }) {
+  const targetType = (record.targetType || "").trim();
+  const targetId = (record.targetId || "").trim();
+  const target = targetType && targetId
+    ? ` data-target-type="${escapeHtml(targetType)}" data-target-id="${escapeHtml(targetId)}"`
+    : "";
+  return `<form class="outbound-record-outcome-form" data-call-outcome-form="1" data-record-id="${escapeHtml(record.id)}"${target}><label>通话结果<select data-call-outcome>${renderCallOutcomeOptions(record.callOutcome || "")}</select></label><label>备注<input data-call-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label>${renderOutcomeNotePhraseShell()}<button class="btn" type="submit">保存标注</button></form>`;
 }
 
 /** 只在这一条被标成号码错误、并且对得上现在的号码时出现。已经无效就只提示，不在这里取消。 */
