@@ -29059,6 +29059,27 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardAgentWorkStatusTimeoutList"><div class="empty-cell">点查看后才读取。</div></div>
           </section>
 
+          <section class="panel section" id="dashboardAgentWorkStatusTimeoutDisposition" aria-label="坐席状态超时处置" hidden>
+            <div class="section-head">
+              <div class="section-title"><div><h2>坐席状态超时处置</h2><p id="dashboardAgentWorkStatusTimeoutDispositionScope">主管登记当前超时坐席的已提醒、已知悉或备注</p></div></div>
+            </div>
+            <p id="dashboardAgentWorkStatusTimeoutDispositionNote" class="dashboard-agent-work-status-timeout-disposition-note">这一份只给主管、管理员和超级管理员看。只对当前已经超过阈值、还没改走的那一段登记。先查看上面的超时列表，再选择坐席。已提醒和已知悉可以不写备注。选备注时要写备注，最长 200 字。同一段、同一种处置、同一条备注再提交一次，不会多记一行。要人工点查看处置记录，打开工作台本身不拉这一份，也不按间隔再请求。登记成功后才再读一次。日期按上海时间。列表只在这一页上显示，不发信，不发消息，不推送到系统外，也不调用云联络中心。这里没有外呼按钮，不会自动拨号，也不会批量拨号。不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <form id="dashboardAgentWorkStatusTimeoutDispositionForm">
+              <label>坐席<select id="dashboardAgentWorkStatusTimeoutDispositionAgent"><option value="">选择当前超时的坐席</option></select></label>
+              <label>处置<select id="dashboardAgentWorkStatusTimeoutDispositionSet"><option value="reminded">已提醒</option><option value="acknowledged">已知悉</option><option value="noted">备注</option></select></label>
+              <label>备注<input id="dashboardAgentWorkStatusTimeoutDispositionNote" type="text" maxlength="200"></label>
+              <button class="btn" type="submit">登记</button>
+            </form>
+            <div class="head-actions">
+              <label>开始<input id="dashboardAgentWorkStatusTimeoutDispositionFrom" type="date"></label>
+              <label>结束<input id="dashboardAgentWorkStatusTimeoutDispositionTo" type="date"></label>
+              <label>处置<select id="dashboardAgentWorkStatusTimeoutDispositionKind"><option value="">全部</option><option value="reminded">已提醒</option><option value="acknowledged">已知悉</option><option value="noted">备注</option></select></label>
+              <button class="btn primary" type="button" id="dashboardAgentWorkStatusTimeoutDispositionView">查看处置记录</button>
+            </div>
+            <p id="dashboardAgentWorkStatusTimeoutDispositionMessage"></p>
+            <div id="dashboardAgentWorkStatusTimeoutDispositionList"><div class="empty-cell">点查看后才读取。</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>
