@@ -100,6 +100,11 @@ import {
   renderAgentWorkStatusReport,
   type AgentWorkStatusReportResponse
 } from "./agent-work-status-report";
+import {
+  agentWorkStatusTimeoutQuery,
+  renderAgentWorkStatusTimeouts,
+  type AgentWorkStatusTimeoutResponse
+} from "./agent-work-status-timeout";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
 import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
@@ -12822,6 +12827,16 @@ function canViewAgentWorkStatusReport(user = state.user) {
 function paintAgentWorkStatusReportAccess() {
   const section = qs<HTMLElement>("#dashboardAgentWorkStatusReport");
   if (section) section.hidden = !canViewAgentWorkStatusReport();
+  paintAgentWorkStatusTimeoutAccess();
+}
+
+function canViewAgentWorkStatusTimeout(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintAgentWorkStatusTimeoutAccess() {
+  const section = qs<HTMLElement>("#dashboardAgentWorkStatusTimeout");
+  if (section) section.hidden = !canViewAgentWorkStatusTimeout();
 }
 
 function callTagReportFilterInput() {
@@ -19791,6 +19806,53 @@ async function exportAgentWorkStatusReport() {
     toast(text, "error");
   } finally {
     if (button) button.disabled = false;
+  }
+}
+
+let agentWorkStatusTimeoutBusy = false;
+
+function agentWorkStatusTimeoutFilterValue() {
+  return qs<HTMLSelectElement>("#dashboardAgentWorkStatusTimeoutStatus")?.value || "";
+}
+
+async function loadAgentWorkStatusTimeouts() {
+  const list = qs<HTMLElement>("#dashboardAgentWorkStatusTimeoutList");
+  const message = qs<HTMLElement>("#dashboardAgentWorkStatusTimeoutMessage");
+  if (!canViewAgentWorkStatusTimeout() || !list) return;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<AgentWorkStatusTimeoutResponse>(`/api/agent-work-status-timeouts${agentWorkStatusTimeoutQuery(agentWorkStatusTimeoutFilterValue())}`);
+    list.innerHTML = renderAgentWorkStatusTimeouts(data);
+  } catch (error) {
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到坐席状态超时")}</div>`;
+  }
+}
+
+async function saveAgentWorkStatusTimeout(clear: boolean) {
+  if (agentWorkStatusTimeoutBusy || !canViewAgentWorkStatusTimeout()) return;
+  const status = qs<HTMLSelectElement>("#dashboardAgentWorkStatusTimeoutSetStatus")?.value || "";
+  const raw = qs<HTMLInputElement>("#dashboardAgentWorkStatusTimeoutSeconds")?.value || "";
+  const message = qs<HTMLElement>("#dashboardAgentWorkStatusTimeoutMessage");
+  if (message) message.textContent = "";
+  const body = clear
+    ? { status, thresholdSeconds: null }
+    : { status, thresholdSeconds: Number(raw) };
+  agentWorkStatusTimeoutBusy = true;
+  try {
+    const result = await api<{ result?: string; message?: string }>("/api/agent-work-status-timeouts", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    const text = result.message || (clear ? "已清除这个阈值" : "已记下这个阈值");
+    if (message) message.textContent = text;
+    toast(text);
+    if (result.result === "updated" || result.result === "cleared") await loadAgentWorkStatusTimeouts();
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "阈值没有保存";
+    if (message) message.textContent = text;
+    toast(text, "error");
+  } finally {
+    agentWorkStatusTimeoutBusy = false;
   }
 }
 
@@ -58041,6 +58103,16 @@ function installEvents() {
     event.preventDefault();
     agentWorkStatusReportAgentId = opener.dataset.agentWorkStatusReportOpen || "";
     void loadAgentWorkStatusReport();
+  });
+  qs<HTMLButtonElement>("#dashboardAgentWorkStatusTimeoutView")?.addEventListener("click", () => {
+    void loadAgentWorkStatusTimeouts();
+  });
+  qs<HTMLFormElement>("#dashboardAgentWorkStatusTimeoutForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveAgentWorkStatusTimeout(false);
+  });
+  qs<HTMLButtonElement>("#dashboardAgentWorkStatusTimeoutClear")?.addEventListener("click", () => {
+    void saveAgentWorkStatusTimeout(true);
   });
   qs<HTMLElement>("#dashboardUnansweredPendingQueue")?.addEventListener("click", (event) => {
     const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-unanswered-pending-open]");
