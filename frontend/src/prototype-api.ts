@@ -102,6 +102,12 @@ import {
   type NegativeOutcomeFollowupResponse
 } from "./negative-outcome-followup";
 import {
+  otherOutcomeFollowupQuery,
+  renderOtherOutcomeFollowup,
+  renderOtherOutcomeFollowupFailure,
+  type OtherOutcomeFollowupResponse
+} from "./other-outcome-followup";
+import {
   agentWorkStatusReportQuery,
   renderAgentWorkStatusReport,
   type AgentWorkStatusReportResponse
@@ -12842,6 +12848,18 @@ function paintNegativeOutcomeFollowupAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardNegativeOutcomeFollowupTeam");
   if (team) team.hidden = !canViewNegativeOutcomeFollowupTeam();
+  paintOtherOutcomeFollowupAccess();
+}
+
+function canViewOtherOutcomeFollowupTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintOtherOutcomeFollowupAccess() {
+  const section = qs<HTMLElement>("#dashboardOtherOutcomeFollowup");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardOtherOutcomeFollowupTeam");
+  if (team) team.hidden = !canViewOtherOutcomeFollowupTeam();
   paintAgentWorkStatusReportAccess();
 }
 
@@ -19831,6 +19849,52 @@ async function clearNegativeOutcomeFollowup(form: HTMLFormElement) {
     toast(error instanceof Error ? error.message : "下次跟进没有清除", "error");
   } finally {
     negativeOutcomeFollowupBusy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+let otherOutcomeFollowupScope: "mine" | "team" = "mine";
+let otherOutcomeFollowupBusy = false;
+
+async function loadOtherOutcomeFollowups(scope: "mine" | "team") {
+  const list = qs<HTMLElement>("#dashboardOtherOutcomeFollowupList");
+  if (!list) return;
+  if (scope === "team" && !canViewOtherOutcomeFollowupTeam()) return;
+  otherOutcomeFollowupScope = scope;
+  const message = qs<HTMLElement>("#dashboardOtherOutcomeFollowupMessage");
+  if (message) message.textContent = "";
+  try {
+    const data = await api<OtherOutcomeFollowupResponse>(`/api/other-outcome-followups${otherOutcomeFollowupQuery({ scope })}`);
+    list.innerHTML = renderOtherOutcomeFollowup(data);
+  } catch (error) {
+    list.innerHTML = renderOtherOutcomeFollowupFailure(error instanceof Error ? error.message : "其他结果跟进没有加载");
+  }
+}
+
+async function scheduleOtherOutcomeFollowup(form: HTMLFormElement) {
+  if (otherOutcomeFollowupBusy) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  const raw = form.querySelector<HTMLInputElement>("[data-other-outcome-follow-at]")?.value || "";
+  const nextFollowAt = raw.trim() ? fromDateTimeLocal(raw) : "";
+  if (raw.trim() && !nextFollowAt) {
+    toast("下次跟进时间格式不对", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  otherOutcomeFollowupBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/other-outcome-followups/schedule", {
+      method: "POST",
+      body: JSON.stringify(nextFollowAt ? { targetType, targetId, nextFollowAt } : { targetType, targetId })
+    });
+    toast(result.message || "已记下下次跟进");
+    await loadOtherOutcomeFollowups(otherOutcomeFollowupScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "下次跟进没有记下", "error");
+  } finally {
+    otherOutcomeFollowupBusy = false;
     if (button) button.disabled = false;
   }
 }
@@ -58301,6 +58365,26 @@ function installEvents() {
     if (!form) return;
     event.preventDefault();
     void clearNegativeOutcomeFollowup(form);
+  });
+  qs<HTMLButtonElement>("#dashboardOtherOutcomeFollowupMine")?.addEventListener("click", () => {
+    void loadOtherOutcomeFollowups("mine");
+  });
+  qs<HTMLButtonElement>("#dashboardOtherOutcomeFollowupTeam")?.addEventListener("click", () => {
+    void loadOtherOutcomeFollowups("team");
+  });
+  qs<HTMLElement>("#dashboardOtherOutcomeFollowup")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-other-outcome-followup-open]");
+    if (!opener) return;
+    const row = opener.closest<HTMLElement>("[data-other-outcome-followup-row]");
+    if (!row) return;
+    event.preventDefault();
+    openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
+  });
+  qs<HTMLElement>("#dashboardOtherOutcomeFollowup")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-other-outcome-followup-schedule]");
+    if (!form) return;
+    event.preventDefault();
+    void scheduleOtherOutcomeFollowup(form);
   });
   qs<HTMLButtonElement>("#dashboardNextFollowDueRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
