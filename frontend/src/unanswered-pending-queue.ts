@@ -4,6 +4,7 @@
  */
 
 import { CALLBACK_NOTE_MAX } from "./callback-schedule";
+import { missingNextFollowupBatchForm, missingNextFollowupPick } from "./missing-next-followup-batch";
 
 export interface UnansweredPendingQueueItem {
   targetType: string;
@@ -63,9 +64,9 @@ export function renderUnansweredPendingQueue(data: UnansweredPendingQueueRespons
     const when = (item.unansweredAt || "").trim() || "—";
     const agent = (item.agentLabel || "").trim() || "—";
     const number = (item.maskedNumber || "").trim() || "—";
-    return `<li data-unanswered-pending-row="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}" data-call-record-id="${escapeHtml(item.callRecordId)}"><button type="button" class="btn" data-unanswered-pending-open="1">${escapeHtml(item.name || item.targetId)}</button><span>${escapeHtml(item.targetLabel || item.targetType)}</span><time data-unanswered-pending-at="1">${escapeHtml(when)}</time><span data-unanswered-pending-age="1">${escapeHtml(ageText(item))}</span><span data-unanswered-pending-agent="1">通话坐席 ${escapeHtml(agent)}</span><span data-unanswered-pending-number="1">${escapeHtml(number)}</span><form data-unanswered-pending-follow-up="1" data-call-record-id="${escapeHtml(item.callRecordId)}"><label>下次跟进<input type="datetime-local" data-unanswered-follow-at></label><button class="btn" type="submit">生成下次跟进</button></form><form data-unanswered-pending-callback="1" data-call-record-id="${escapeHtml(item.callRecordId)}"><label>回拨预约<input type="datetime-local" data-unanswered-callback-at></label><label>备注<input data-unanswered-callback-note maxlength="${CALLBACK_NOTE_MAX}"></label><button class="btn" type="submit">保存回拨预约</button></form></li>`;
+    return `<li data-unanswered-pending-row="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}" data-call-record-id="${escapeHtml(item.callRecordId)}">${missingNextFollowupPick(item.targetType, item.targetId)}<button type="button" class="btn" data-unanswered-pending-open="1">${escapeHtml(item.name || item.targetId)}</button><span>${escapeHtml(item.targetLabel || item.targetType)}</span><time data-unanswered-pending-at="1">${escapeHtml(when)}</time><span data-unanswered-pending-age="1">${escapeHtml(ageText(item))}</span><span data-unanswered-pending-agent="1">通话坐席 ${escapeHtml(agent)}</span><span data-unanswered-pending-number="1">${escapeHtml(number)}</span><form data-unanswered-pending-follow-up="1" data-call-record-id="${escapeHtml(item.callRecordId)}"><label>下次跟进<input type="datetime-local" data-unanswered-follow-at></label><button class="btn" type="submit">生成下次跟进</button></form><form data-unanswered-pending-callback="1" data-call-record-id="${escapeHtml(item.callRecordId)}"><label>回拨预约<input type="datetime-local" data-unanswered-callback-at></label><label>备注<input data-unanswered-callback-note maxlength="${CALLBACK_NOTE_MAX}"></label><button class="btn" type="submit">保存回拨预约</button></form></li>`;
   }).join("");
   const scope = data?.scope === "team" ? "团队" : "我的";
   const age = data?.age === "over7" ? "超过七日" : data?.age === "within7" ? "七日及以内" : "全部日龄";
-  return `<div data-unanswered-pending-queue="1"><p data-unanswered-pending-scope="${escapeHtml(data?.scope || "mine")}">${escapeHtml(scope)} · ${escapeHtml(age)}</p><ul>${body}</ul></div>`;
+  return `<div data-unanswered-pending-queue="1"><p data-unanswered-pending-scope="${escapeHtml(data?.scope || "mine")}">${escapeHtml(scope)} · ${escapeHtml(age)}</p>${missingNextFollowupBatchForm()}<ul>${body}</ul></div>`;
 }

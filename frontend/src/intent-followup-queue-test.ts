@@ -55,7 +55,9 @@ const page = renderIntentFollowupQueue({
 assert.match(page, /data-intent-followup-row="1"/);
 assert.equal(page.includes("data-intent-followup-empty"), false);
 assert.match(page, /data-intent-ignore="1"/);
-assert.equal(page.includes("批量"), false);
+assert.match(page, /批量设置下次跟进/);
+assert.equal(page.includes("批量忽略"), false);
+assert.equal(page.includes("批量拨号"), false);
 assert.equal(page.includes("data-intent-followup-ignored"), false);
 
 const ignoredPage = renderIntentFollowupQueue({
@@ -83,7 +85,9 @@ assert.match(ignoredPage, /已忽略/);
 assert.match(ignoredPage, /data-intent-restore="1"/);
 assert.match(ignoredPage, /撤销忽略/);
 assert.match(ignoredPage, /data-intent-ignore="1"/);
-assert.equal(ignoredPage.includes("批量"), false);
+assert.match(ignoredPage, /批量设置下次跟进/);
+assert.equal(ignoredPage.includes("批量忽略"), false);
+assert.equal(ignoredPage.includes("批量拨号"), false);
 assert.equal(ignoredPage.includes("拨号"), false);
 assert.equal(intentFollowupQuery({}), "");
 assert.equal(intentFollowupQuery({ includeIgnored: false }), "");
@@ -100,7 +104,9 @@ const view = html.slice(viewStart, viewEnd);
 assert.match(view, /意向回访队列/);
 assert.match(view, /data-intent-followup-empty="1"/);
 assert.match(view, /不能拨号/);
-assert.match(view, /不能批量操作/);
+assert.match(view, /一次设置同一个下次跟进时间和备注/);
+assert.match(view, /忽略仍是一条一条/);
+assert.equal(view.includes("不能批量操作"), false);
 assert.match(view, /id="intentFollowupFilters"/);
 assert.match(view, /id="intentFollowupAgent"/);
 assert.match(view, /id="intentFollowupOutcome"/);

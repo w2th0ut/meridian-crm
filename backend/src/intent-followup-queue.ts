@@ -303,6 +303,16 @@ function snapshotsFor(store: CrmStore, teamId: string, at: string): IntentFollow
   return rows;
 }
 
+export function collectIntentFollowupRows(store: CrmStore, user: SessionUser, access: OutboundCallRecordAccess) {
+  return queueFromStore(store, user, access, {
+    agentId: null,
+    outcome: null,
+    includeIgnored: false,
+    callbackDue: "",
+    owner: ""
+  });
+}
+
 function queueFromStore(store: CrmStore, user: SessionUser, access: OutboundCallRecordAccess, query: IntentFollowupListQuery) {
   const at = outboundInstant().toISOString();
   return buildIntentFollowupQueue({

@@ -4812,11 +4812,19 @@ export interface NextFollowUpAuditEvent {
   id: string;
   actorId: string;
   at: string;
-  objectType: "prospect_candidate";
+  objectType: "prospect_candidate" | "customer" | "lead";
   objectId: string;
-  action: "set_next_follow_up" | "clear_next_follow_up";
+  action:
+    | "set_next_follow_up"
+    | "clear_next_follow_up"
+    | "batch_set_next_follow_up"
+    | "batch_reject_forbidden"
+    | "batch_reject_public_pool"
+    | "batch_reject_not_contactable";
   oldValue: string;
   newValue: string;
+  /** 同一次工作台批量设置共用。单条设置和清空为空。 */
+  batchId?: string;
 }
 
 /** 批量追加备注的最小审计。操作人、时间、对象、动作、这次追加的备注。 */

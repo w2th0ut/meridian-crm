@@ -231,6 +231,15 @@ function ownAgentIds(store: CrmStore, user: SessionUser, scope: "mine" | "team")
     .map((item) => item.cccUserId);
 }
 
+export function collectOtherOutcomeFollowupRows(
+  store: CrmStore,
+  user: SessionUser,
+  access: OutboundCallRecordAccess,
+  scope: "mine" | "team"
+) {
+  return queueFromStore(store, user, access, { scope }, outboundInstant().toISOString());
+}
+
 function queueFromStore(
   store: CrmStore,
   user: SessionUser,
