@@ -131,6 +131,12 @@ import {
   type AgentWorkStatusTimeoutDispositionResponse
 } from "./agent-work-status-timeout-disposition";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
+import {
+  renderProspectCallNotes,
+  renderProspectCallNotesFailure,
+  renderProspectCallNotesShell,
+  type ProspectCallNotesResponse
+} from "./prospect-call-notes";
 import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
   renderCallWrapupCounts,
@@ -41479,6 +41485,7 @@ function renderProspectFollowUpEntry(
     <div class="prospect-follow-up-head"><b>跟进记录</b></div>
     ${renderProspectFollowUpSummary(item)}
     ${renderProspectNextFollow(item)}
+    ${renderProspectCallNotesShell(item.id)}
     ${writable ? `<label class="form-field"><span>下次跟进</span><input id="${nextId}" type="datetime-local" value="${escapeHtml(prospectNextFollowInputValue(item.nextFollowAt))}"></label>
       <div class="prospect-action-row"><button class="btn" id="${nextButtonId}" type="button">保存下次跟进</button></div>
       <label class="form-field"><span>本次跟进</span><textarea id="${inputId}" maxlength="2000" placeholder="写下这次跟进，例如已回复、约了时间、暂时没需求"></textarea></label>
@@ -41515,6 +41522,29 @@ function bindProspectFollowUpEntry(
   qs<HTMLButtonElement>(`#${nextButtonId}`, root)?.addEventListener("click", (event) => {
     void saveProspectNextFollow(item, root, nextId, event.currentTarget as HTMLButtonElement);
   });
+  const notes = root.querySelector<HTMLElement>("[data-prospect-call-notes]");
+  notes?.querySelector<HTMLButtonElement>("[data-prospect-call-notes-load]")?.addEventListener("click", () => {
+    void loadProspectCallNotes(item.id, notes);
+  });
+  notes?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-prospect-call-note-open]");
+    if (!opener) return;
+    const recordId = opener.getAttribute("data-call-record-id") || "";
+    if (!recordId) return;
+    activateNavView("outbound-call-records");
+    void openOutboundCallRecord(recordId);
+  });
+}
+
+async function loadProspectCallNotes(candidateId: string, root: ParentNode) {
+  const body = root.querySelector<HTMLElement>("[data-prospect-call-notes-body]");
+  if (!body || !candidateId) return;
+  try {
+    const data = await api<ProspectCallNotesResponse>(`/api/prospect-call-notes?candidateId=${encodeURIComponent(candidateId)}`);
+    body.innerHTML = renderProspectCallNotes(data);
+  } catch (error) {
+    body.innerHTML = renderProspectCallNotesFailure(error instanceof Error ? error.message : "通话纪要没有加载");
+  }
 }
 
 async function saveProspectFollowUp(

@@ -336,6 +336,7 @@ import { listUnansweredPendingQueue } from "./unanswered-pending-queue.js";
 import { clearNegativeOutcomeFollowup, listNegativeOutcomeFollowups } from "./negative-outcome-followup.js";
 import { listOtherOutcomeFollowups, scheduleOtherOutcomeFollowup } from "./other-outcome-followup.js";
 import { listUnlabeledConnectedFollowups, scheduleUnlabeledConnectedFollowup } from "./unlabeled-connected-followup.js";
+import { listProspectCallNotes } from "./prospect-call-notes.js";
 import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
 import { createContactPhone, deleteContactPhone, readContactPhones, updateContactPhone } from "./contact-phone.js";
 import {
@@ -9507,6 +9508,11 @@ app.post("/api/other-outcome-followups/schedule", requireAuth, asyncRoute(async 
 
 app.get("/api/unlabeled-connected-followups", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listUnlabeledConnectedFollowups(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/prospect-call-notes", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listProspectCallNotes(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
