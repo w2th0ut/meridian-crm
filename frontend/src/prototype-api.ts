@@ -20021,11 +20021,11 @@ async function loadSameDayCallSkips(scope: "mine" | "team") {
   }
 }
 
-function markSameDayCallSkipped(targetType: string, targetId: string) {
+function markSameDayCallSkipped(targetType: string, targetId: string, message = "这个对象今天已标记不再拨打") {
   qsa<HTMLButtonElement>("[data-outbound-call]").forEach((button) => {
     if (button.dataset.outboundType !== targetType || button.dataset.outboundId !== targetId) return;
     button.disabled = true;
-    showOutboundCallStatus(button, { tone: "error", message: "这个对象今天已标记不再拨打" });
+    showOutboundCallStatus(button, { tone: "error", message });
   });
 }
 
@@ -20035,16 +20035,20 @@ async function submitSameDayCallSkip(form: HTMLFormElement) {
   const targetId = form.dataset.targetId || "";
   const reason = form.querySelector<HTMLSelectElement>("[data-same-day-skip-reason]")?.value || "";
   const note = form.querySelector<HTMLInputElement>("[data-same-day-skip-note]")?.value.trim() || "";
+  const resumeOn = form.querySelector<HTMLInputElement>("[data-same-day-skip-resume]")?.value.trim() || "";
   const button = form.querySelector<HTMLButtonElement>("[data-same-day-skip-set]");
   sameDayCallSkipBusy = true;
   if (button) button.disabled = true;
   try {
+    const body: { targetType: string; targetId: string; reason: string; note?: string; resumeOn?: string } = { targetType, targetId, reason };
+    if (note) body.note = note;
+    if (resumeOn) body.resumeOn = resumeOn;
     const result = await api<{ message?: string }>("/api/same-day-call-skips", {
       method: "POST",
-      body: JSON.stringify(note ? { targetType, targetId, reason, note } : { targetType, targetId, reason })
+      body: JSON.stringify(body)
     });
-    toast(result.message || "已记下今日不再拨");
-    markSameDayCallSkipped(targetType, targetId);
+    toast(result.message || "已记下暂停外呼");
+    markSameDayCallSkipped(targetType, targetId, result.message || "这个对象今天已标记不再拨打");
   } catch (error) {
     toast(error instanceof Error ? error.message : "今日不再拨没有记下", "error");
     if (button) button.disabled = false;

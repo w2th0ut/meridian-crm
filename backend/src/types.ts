@@ -5300,8 +5300,8 @@ export interface FollowUpOutcomeNoteViewAudit {
 
 /**
  * 一个客户、线索或搜客对象在租户当地日不再接受人工外呼。
- * 同一租户、同一对象只保留一行。active 且 skipOn 等于当地今天时才挡住拨打。
- * 不记号码。
+ * 同一租户、同一对象只保留一行。resumeOn 为空或等于当地明天时，只在 skipOn 当天挡住。
+ * 更晚的 resumeOn 挡到这一天之前。不记号码。
  */
 export interface SameDayCallSkip {
   id: string;
@@ -5309,6 +5309,7 @@ export interface SameDayCallSkip {
   targetType: "customer" | "lead" | "prospect";
   targetId: string;
   skipOn: string;
+  resumeOn?: string;
   reason: "reached" | "asked_later" | "wrong_time" | "other";
   note: string;
   active: boolean;
@@ -5327,6 +5328,7 @@ export interface SameDayCallSkipAudit {
   targetType: "" | "customer" | "lead" | "prospect";
   targetId: string;
   skipOn: string;
+  resumeOn?: string;
   skipReason: "" | "reached" | "asked_later" | "wrong_time" | "other";
   note: string;
   rowCount: number;

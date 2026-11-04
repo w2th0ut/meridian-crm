@@ -12,6 +12,7 @@ export interface SameDayCallSkipItem {
   reasonLabel?: string;
   note?: string;
   skipOn?: string;
+  resumeOn?: string;
   actorLabel?: string;
   updatedAt?: string;
 }
@@ -50,13 +51,35 @@ function whenText(value: string | undefined) {
   return parsed.toLocaleString("zh-CN", { hour12: false });
 }
 
+function localDateKey(now: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return `${pick("year")}-${pick("month")}-${pick("day")}`;
+}
+
+export function defaultResumeOn(now = new Date()) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDateKey(now));
+  if (!match) return "";
+  const utc = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  utc.setUTCDate(utc.getUTCDate() + 1);
+  const year = utc.getUTCFullYear();
+  const month = String(utc.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(utc.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resumeText(value: string | undefined) {
+  const text = (value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "—";
+}
+
 export function sameDayCallSkipQuery(input: { scope: "mine" | "team" }) {
   return `?scope=${encodeURIComponent(input.scope)}`;
 }
 
-export function renderSameDayCallSkipControl(targetType: string, targetId: string) {
+export function renderSameDayCallSkipControl(targetType: string, targetId: string, resumeOn = defaultResumeOn()) {
   const options = REASONS.map((item) => `<option value="${item.value}">${item.label}</option>`).join("");
-  return `<form data-same-day-call-skip="1" data-target-type="${escapeHtml(targetType)}" data-target-id="${escapeHtml(targetId)}"><label>今日不再拨<select data-same-day-skip-reason="1">${options}</select></label><input data-same-day-skip-note="1" maxlength="200" placeholder="备注，可以不填"><button class="btn" type="submit" data-same-day-skip-set="1">今日不再拨</button></form>`;
+  return `<form data-same-day-call-skip="1" data-target-type="${escapeHtml(targetType)}" data-target-id="${escapeHtml(targetId)}"><label>暂停外呼至<input data-same-day-skip-resume="1" type="date" value="${escapeHtml(resumeOn)}"></label><label>原因<select data-same-day-skip-reason="1">${options}</select></label><input data-same-day-skip-note="1" maxlength="200" placeholder="备注，可以不填"><button class="btn" type="submit" data-same-day-skip-set="1">暂停外呼至</button></form>`;
 }
 
 export function renderSameDayCallSkipEmpty() {
@@ -74,7 +97,7 @@ export function renderSameDayCallSkips(data: SameDayCallSkipResponse | undefined
   const scope = data?.scope === "team" ? "团队" : "我的";
   const body = rows.map((item) => {
     const note = (item.note || "").trim();
-    return `<li data-same-day-call-skip-row="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}"><button type="button" class="btn" data-same-day-call-skip-open="1">${escapeHtml(item.name || item.targetId)}</button><span>${escapeHtml(item.targetLabel || item.targetType)}</span><span data-same-day-call-skip-reason="1">${escapeHtml(textOrDash(item.reasonLabel))}</span><span data-same-day-call-skip-note="1">${escapeHtml(textOrDash(note))}</span><time data-same-day-call-skip-at="1">${escapeHtml(whenText(item.updatedAt))}</time><span data-same-day-call-skip-actor="1">${escapeHtml(textOrDash(item.actorLabel))}</span><button type="button" class="btn" data-same-day-call-skip-clear="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}">撤销</button></li>`;
+    return `<li data-same-day-call-skip-row="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}"><button type="button" class="btn" data-same-day-call-skip-open="1">${escapeHtml(item.name || item.targetId)}</button><span>${escapeHtml(item.targetLabel || item.targetType)}</span><span data-same-day-call-skip-resume="1">${escapeHtml(resumeText(item.resumeOn))}</span><span data-same-day-call-skip-reason="1">${escapeHtml(textOrDash(item.reasonLabel))}</span><span data-same-day-call-skip-note="1">${escapeHtml(textOrDash(note))}</span><time data-same-day-call-skip-at="1">${escapeHtml(whenText(item.updatedAt))}</time><span data-same-day-call-skip-actor="1">${escapeHtml(textOrDash(item.actorLabel))}</span><button type="button" class="btn" data-same-day-call-skip-clear="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}">撤销</button></li>`;
   }).join("");
   return `<div data-same-day-call-skip-list="1"><p data-same-day-call-skip-scope="${escapeHtml(data?.scope || "mine")}">${escapeHtml(scope)}</p><ul>${body}</ul></div>`;
 }
