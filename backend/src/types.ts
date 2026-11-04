@@ -5168,6 +5168,22 @@ export interface CallbackDueQueueAudit {
 }
 
 /**
+ * 一次回拨预约报表的查看或导出，或一次被拒绝的尝试。
+ * 筛选只记开始日和结束日。不记备注、前后值、号码或密钥。
+ */
+export interface CallbackScheduleReportAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "export";
+  filters: string;
+  rowCount: number;
+  result: "read" | "exported" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。
