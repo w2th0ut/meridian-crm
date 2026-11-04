@@ -28996,6 +28996,21 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardCallbackDueQueueList"><p data-callback-due-empty="1">点查看后才读取回拨到期队列。</p></div>
           </section>
 
+          <section class="panel section" id="dashboardCallbackScheduleReport" aria-label="回拨预约报表" hidden>
+            <div class="section-head">
+              <div class="section-title"><div><h2>回拨预约报表</h2><p id="dashboardCallbackScheduleReportScope">主管按日期查看今日到期、已逾期、已完成和已改期</p></div></div>
+            </div>
+            <p id="dashboardCallbackScheduleReportNote" class="dashboard-callback-schedule-report-note">这一份只给主管、管理员和超级管理员看。今日到期和已逾期只数当前回拨预约里已经写下的行，预约日期按租户当地日和所选范围比较。已完成只数取消成功的审计，含原来的取消和队列里标成已完成。已改期只数预约时间确实变了的修改。第一次设置、只改备注和被拒绝的都不计入。队列的查看和导出会出现在明细里，改前和改后没有记下就写成「—」，也不另算成一项次数。要人工点查看或导出，打开工作台本身不拉这一份。导出是浏览器本地下载的 CSV，没有号码列，单元格如果像公式会加单引号。这里没有外呼按钮，不会自动拨号，也不会批量拨号。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <form id="dashboardCallbackScheduleReportFilters">
+              <label>开始<input id="dashboardCallbackScheduleReportFrom" type="date"></label>
+              <label>结束<input id="dashboardCallbackScheduleReportTo" type="date"></label>
+              <button class="btn" type="submit">查看</button>
+              <button class="btn" type="button" id="dashboardCallbackScheduleReportExport">导出 CSV</button>
+            </form>
+            <p id="dashboardCallbackScheduleReportMessage"></p>
+            <div id="dashboardCallbackScheduleReportList"><div class="empty-cell">选择日期后查看。</div></div>
+          </section>
+
           <section class="kd-board" id="kdBoard" aria-label="未来七天跟进船期">
             <div class="kd-board-head">
               <h2>跟进船期</h2>

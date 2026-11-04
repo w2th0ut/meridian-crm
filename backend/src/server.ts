@@ -328,6 +328,7 @@ import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, s
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
 import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
 import { completeCallbackDueQueue, exportCallbackDueQueue, listCallbackDueQueue } from "./callback-due-queue.js";
+import { exportCallbackScheduleReport, listCallbackScheduleReport } from "./callback-schedule-report.js";
 import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
 import { createContactPhone, deleteContactPhone, readContactPhones, updateContactPhone } from "./contact-phone.js";
 import {
@@ -9395,6 +9396,24 @@ app.post("/api/phone-validity", requireAuth, asyncRoute(async (req, res) => {
 
 app.get("/api/callback-schedules", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallbackSchedules(getStore(), req.user, req.query as { due?: unknown });
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/callback-schedule-report/export", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await exportCallbackScheduleReport(getStore(), req.user, req.query as Record<string, unknown>);
+  if ("csv" in outcome) {
+    res.status(200);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", `attachment; filename="callback-schedule-report.csv"; filename*=UTF-8''${encodeURIComponent(outcome.filename)}`);
+    res.send(outcome.csv);
+    return;
+  }
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/callback-schedule-report", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallbackScheduleReport(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

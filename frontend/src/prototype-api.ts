@@ -84,6 +84,11 @@ import {
   renderCallbackDueQueueFailure,
   type CallbackDueQueueResponse
 } from "./callback-due-queue";
+import {
+  callbackScheduleReportQuery,
+  renderCallbackScheduleReport,
+  type CallbackScheduleReportResponse
+} from "./callback-schedule-report";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
 import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
@@ -12774,6 +12779,16 @@ function paintCallbackDueQueueAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardCallbackDueTeam");
   if (team) team.hidden = !canViewCallbackDueQueueTeam();
+  paintCallbackScheduleReportAccess();
+}
+
+function canViewCallbackScheduleReport(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintCallbackScheduleReportAccess() {
+  const section = qs<HTMLElement>("#dashboardCallbackScheduleReport");
+  if (section) section.hidden = !canViewCallbackScheduleReport();
 }
 
 function callTagReportFilterInput() {
@@ -19346,6 +19361,61 @@ async function saveOutboundOwnerFromList(form: HTMLFormElement) {
     toast(error instanceof Error ? error.message : "外呼负责坐席没有保存", "error");
   } finally {
     outboundOwnerPending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+function callbackScheduleReportFilterInput() {
+  return {
+    from: qs<HTMLInputElement>("#dashboardCallbackScheduleReportFrom")?.value || "",
+    to: qs<HTMLInputElement>("#dashboardCallbackScheduleReportTo")?.value || ""
+  };
+}
+
+async function loadCallbackScheduleReport() {
+  const list = qs<HTMLElement>("#dashboardCallbackScheduleReportList");
+  const message = qs<HTMLElement>("#dashboardCallbackScheduleReportMessage");
+  if (!canViewCallbackScheduleReport() || !list) return;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<CallbackScheduleReportResponse>(`/api/callback-schedule-report${callbackScheduleReportQuery(callbackScheduleReportFilterInput())}`);
+    list.innerHTML = renderCallbackScheduleReport(data);
+  } catch (error) {
+    list.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "没有读到回拨预约报表")}</div>`;
+  }
+}
+
+async function exportCallbackScheduleReport() {
+  const message = qs<HTMLElement>("#dashboardCallbackScheduleReportMessage");
+  const button = qs<HTMLButtonElement>("#dashboardCallbackScheduleReportExport");
+  if (!canViewCallbackScheduleReport()) return;
+  if (message) message.textContent = "";
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`/api/callback-schedule-report/export${callbackScheduleReportQuery(callbackScheduleReportFilterInput())}`, {
+      credentials: "same-origin"
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: "导出没有完成" })) as { message?: string };
+      const text = body.message || "导出没有完成";
+      if (message) message.textContent = text;
+      toast(text, "error");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "回拨预约报表.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "导出没有完成";
+    if (message) message.textContent = text;
+    toast(text, "error");
+  } finally {
     if (button) button.disabled = false;
   }
 }
@@ -57741,6 +57811,13 @@ function installEvents() {
   });
   qs<HTMLButtonElement>("#dashboardCallbackDueExport")?.addEventListener("click", () => {
     void exportCallbackDueQueue();
+  });
+  qs<HTMLFormElement>("#dashboardCallbackScheduleReportFilters")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadCallbackScheduleReport();
+  });
+  qs<HTMLButtonElement>("#dashboardCallbackScheduleReportExport")?.addEventListener("click", () => {
+    void exportCallbackScheduleReport();
   });
   qs<HTMLElement>("#dashboardCallbackDueQueue")?.addEventListener("click", (event) => {
     const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-callback-due-open]");
