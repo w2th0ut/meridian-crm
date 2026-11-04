@@ -34,12 +34,14 @@ export function renderOutcomeNotePhraseShell() {
   return `<div data-outcome-note-phrases="1"><p data-outcome-note-phrase-hint="1">常用短语只插入备注，不会自动保存标注。</p><button class="btn" type="button" data-outcome-note-phrase-load="1">常用短语</button><div data-outcome-note-phrase-body="1"><p data-outcome-note-phrase-idle="1">点常用短语后才读取。</p></div></div>`;
 }
 
-export function renderOutcomeNotePhrases(phrases: OutcomeNotePhraseView[] | undefined) {
+export function renderOutcomeNotePhrases(phrases: OutcomeNotePhraseView[] | undefined, options?: { shortcut?: boolean }) {
   const rows = (phrases || []).filter((item) => item.enabled !== false && (item.text || "").trim());
-  const buttons = rows.map((item) => {
+  const buttons = rows.map((item, index) => {
     const text = item.text.trim();
     const scope = item.scope === "team" ? "团队" : "自己";
-    return `<button class="btn" type="button" data-outcome-note-phrase="1" data-outcome-note-phrase-text="${escapeHtml(text)}">${escapeHtml(text)}<small>${scope}</small></button>`;
+    const key = options?.shortcut && index < 9 ? String(index + 1) : "";
+    const hint = key ? `<kbd data-outcome-note-phrase-key="${key}">Alt+${key}</kbd>` : "";
+    return `<button class="btn" type="button" data-outcome-note-phrase="1" data-outcome-note-phrase-text="${escapeHtml(text)}">${hint}${escapeHtml(text)}<small>${scope}</small></button>`;
   }).join("");
   const disables = (phrases || []).filter((item) => item.enabled !== false && item.canDisable && item.id).map((item) => {
     return `<button class="btn" type="button" data-outcome-note-phrase-disable="${escapeHtml(item.id)}">停用 ${escapeHtml(item.text.trim())}</button>`;

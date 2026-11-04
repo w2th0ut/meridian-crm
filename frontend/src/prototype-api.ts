@@ -134,6 +134,7 @@ import {
   renderOutcomeNotePhrases,
   type OutcomeNotePhraseView
 } from "./call-outcome-note-phrase";
+import { planCallOutcomeShortcut } from "./call-outcome-keys";
 import {
   renderTodayFollowNext,
   renderTodayFollowNextFailure,
@@ -20280,7 +20281,9 @@ async function loadOutcomeNotePhrases(shell: HTMLElement) {
   if (!body) return;
   try {
     const data = await api<{ phrases?: OutcomeNotePhraseView[] }>("/api/call-outcome-note-phrases");
-    body.innerHTML = renderOutcomeNotePhrases(data.phrases || []);
+    body.innerHTML = renderOutcomeNotePhrases(data.phrases || [], {
+      shortcut: Boolean(shell.closest("[data-call-outcome-form]"))
+    });
   } catch (error) {
     body.innerHTML = `<p data-outcome-note-phrase-error="1">${escapeHtml(error instanceof Error ? error.message : "常用短语没有加载")}</p>`;
   }
@@ -20297,6 +20300,43 @@ function insertOutcomeNotePhrase(button: HTMLButtonElement) {
     return;
   }
   input.value = next.value;
+}
+
+function applyCallOutcomeShortcut(event: KeyboardEvent) {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  const form = target?.closest<HTMLFormElement>("[data-call-outcome-form]");
+  if (!target || !form) return;
+  const tag = target.tagName;
+  const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+  const plan = planCallOutcomeShortcut({
+    key: event.key,
+    code: event.code,
+    altKey: event.altKey,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    shiftKey: event.shiftKey,
+    isComposing: event.isComposing,
+    repeat: event.repeat,
+    insideForm: true,
+    typing,
+    activateOnEnter: tag !== "BUTTON" && tag !== "A"
+  });
+  if (plan.action === "none") return;
+  if (plan.action === "select") {
+    event.preventDefault();
+    const select = form.querySelector<HTMLSelectElement>("[data-call-outcome]");
+    if (select) select.value = plan.outcome;
+    return;
+  }
+  if (plan.action === "insert-phrase") {
+    const button = form.querySelectorAll<HTMLButtonElement>("[data-outcome-note-phrase=\"1\"]")[plan.index];
+    if (!button) return;
+    event.preventDefault();
+    insertOutcomeNotePhrase(button);
+    return;
+  }
+  event.preventDefault();
+  form.requestSubmit();
 }
 
 async function saveOutcomeNotePhrase(shell: HTMLElement) {
@@ -58980,6 +59020,7 @@ function installEvents() {
     if (disable?.dataset.outcomeNotePhraseDisable) void disableOutcomeNotePhrase(shell, disable.dataset.outcomeNotePhraseDisable);
   });
   document.addEventListener("keydown", (event) => {
+    applyCallOutcomeShortcut(event);
     const target = event.target as HTMLElement | null;
     if (event.key !== "Enter" || !target?.closest("[data-outcome-note-phrases]")) return;
     event.preventDefault();
