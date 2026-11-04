@@ -336,6 +336,7 @@ import { listUnansweredPendingQueue } from "./unanswered-pending-queue.js";
 import { clearNegativeOutcomeFollowup, listNegativeOutcomeFollowups } from "./negative-outcome-followup.js";
 import { listOtherOutcomeFollowups, scheduleOtherOutcomeFollowup } from "./other-outcome-followup.js";
 import { listUnlabeledConnectedFollowups, scheduleUnlabeledConnectedFollowup } from "./unlabeled-connected-followup.js";
+import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip } from "./same-day-call-skip.js";
 import { listProspectCallNotes } from "./prospect-call-notes.js";
 import { listFollowUpOutcomeNotes } from "./follow-up-outcome-notes.js";
 import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
@@ -9524,6 +9525,21 @@ app.get("/api/follow-up-outcome-notes", requireAuth, asyncRoute(async (req, res)
 
 app.post("/api/unlabeled-connected-followups/schedule", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await scheduleUnlabeledConnectedFollowup(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/same-day-call-skips", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listSameDayCallSkips(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/same-day-call-skips", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await setSameDayCallSkip(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/same-day-call-skips/clear", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await clearSameDayCallSkip(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
