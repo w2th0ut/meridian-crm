@@ -338,6 +338,7 @@ import { clearNegativeOutcomeFollowup, listNegativeOutcomeFollowups } from "./ne
 import { listOtherOutcomeFollowups, scheduleOtherOutcomeFollowup } from "./other-outcome-followup.js";
 import { listUnlabeledConnectedFollowups, scheduleUnlabeledConnectedFollowup } from "./unlabeled-connected-followup.js";
 import { scheduleMissingNextFollowups } from "./missing-next-followup-batch.js";
+import { reassignQueueOwners } from "./queue-owner-reassign.js";
 import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip } from "./same-day-call-skip.js";
 import { listTodayFollowNext } from "./today-follow-advance.js";
 import { labelUnlabeledConnectedCalls, listUnlabeledConnectedCalls } from "./call-outcome-batch.js";
@@ -9541,6 +9542,11 @@ app.get("/api/follow-up-outcome-notes", requireAuth, asyncRoute(async (req, res)
 
 app.post("/api/missing-next-followups/schedule", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await scheduleMissingNextFollowups(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/queue-owner-reassign", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await reassignQueueOwners(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
