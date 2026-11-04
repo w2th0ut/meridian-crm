@@ -5184,6 +5184,24 @@ export interface CallbackScheduleReportAudit {
 }
 
 /**
+ * 一次未接通待处理队列的查看，或一次被拒绝的团队查看。
+ * 只记范围、日龄筛选和行数。不记号码、对象名或密钥。
+ * 生成下次跟进和设置回拨预约不写这张表。
+ */
+export interface UnansweredPendingQueueAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read";
+  scope: "mine" | "team";
+  age: "" | "within7" | "over7";
+  rowCount: number;
+  result: "read" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。
