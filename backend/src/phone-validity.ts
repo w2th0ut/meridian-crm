@@ -126,7 +126,11 @@ function objectOwner(store: CrmStore, teamId: string, targetType: string, target
   return { ownerId: candidate.ownerId, publicPool: false };
 }
 
-async function applyValidity(
+/**
+ * 写入号码有效性。调用方负责持久化。
+ * 值没有变化时不写审计。标成无效且它仍是首选时，按原来的方式清掉首选。
+ */
+export function applyPhoneInvalidChange(
   store: CrmStore,
   user: SessionUser,
   input: {
@@ -139,22 +143,7 @@ async function applyValidity(
 ) {
   const previous: PhoneValidityValue = isPhoneMarkedInvalid(store, user.teamId, input.phoneId) ? "invalid" : "valid";
   const next: PhoneValidityValue = input.invalid ? "invalid" : "valid";
-  if (previous === next) {
-    return {
-      status: 200,
-      body: {
-        result: "unchanged" as const,
-        message: next === "invalid" ? "该号码已经标记无效" : "该号码本来就是有效的",
-        targetType: input.targetType,
-        targetId: input.targetId,
-        phoneId: input.phoneId,
-        invalid: input.invalid,
-        previousValue: previous,
-        nextValue: next,
-        sourceCallRecordId: input.sourceCallRecordId
-      }
-    };
-  }
+  if (previous === next) return { changed: false as const, previous, next, auditId: "" };
   const at = new Date().toISOString();
   if (next === "invalid") {
     const existing = store.phoneValidities.find((item) => item.teamId === user.teamId && item.phoneId === input.phoneId);
@@ -193,20 +182,51 @@ async function applyValidity(
   };
   store.phoneValidityAudits.unshift(audit);
   if (next === "invalid") releasePreferredPhonesMarkedInvalid(store, user, input.phoneId);
+  return { changed: true as const, previous, next, auditId: audit.id };
+}
+
+async function applyValidity(
+  store: CrmStore,
+  user: SessionUser,
+  input: {
+    targetType: TargetType;
+    targetId: string;
+    phoneId: string;
+    invalid: boolean;
+    sourceCallRecordId: string;
+  }
+) {
+  const applied = applyPhoneInvalidChange(store, user, input);
+  if (!applied.changed) {
+    return {
+      status: 200,
+      body: {
+        result: "unchanged" as const,
+        message: applied.next === "invalid" ? "该号码已经标记无效" : "该号码本来就是有效的",
+        targetType: input.targetType,
+        targetId: input.targetId,
+        phoneId: input.phoneId,
+        invalid: input.invalid,
+        previousValue: applied.previous,
+        nextValue: applied.next,
+        sourceCallRecordId: input.sourceCallRecordId
+      }
+    };
+  }
   await store.persist();
   return {
     status: 200,
     body: {
       result: "updated" as const,
-      message: next === "invalid" ? "已标记该号码无效" : "已取消号码无效标记",
+      message: applied.next === "invalid" ? "已标记该号码无效" : "已取消号码无效标记",
       targetType: input.targetType,
       targetId: input.targetId,
       phoneId: input.phoneId,
       invalid: input.invalid,
-      previousValue: previous,
-      nextValue: next,
+      previousValue: applied.previous,
+      nextValue: applied.next,
       sourceCallRecordId: input.sourceCallRecordId,
-      auditId: audit.id
+      auditId: applied.auditId
     }
   };
 }

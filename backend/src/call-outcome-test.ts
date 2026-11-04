@@ -21,15 +21,17 @@ assert.deepEqual(parseCallOutcomeRequest({ outcome: " 需回访 ", note: "  回�
   ok: true,
   outcome: "需回访",
   note: "回访",
-  nextFollowChoice: "none"
+  nextFollowChoice: "none",
+  markNumberInvalid: false
 });
-assert.deepEqual(parseCallOutcomeRequest({ outcome: "其他" }), { ok: true, outcome: "其他", note: "", nextFollowChoice: "none" });
-assert.deepEqual(parseCallOutcomeRequest({ outcome: "其他", note: null }), { ok: true, outcome: "其他", note: "", nextFollowChoice: "none" });
+assert.deepEqual(parseCallOutcomeRequest({ outcome: "其他" }), { ok: true, outcome: "其他", note: "", nextFollowChoice: "none", markNumberInvalid: false });
+assert.deepEqual(parseCallOutcomeRequest({ outcome: "其他", note: null }), { ok: true, outcome: "其他", note: "", nextFollowChoice: "none", markNumberInvalid: false });
 assert.deepEqual(parseCallOutcomeRequest({ outcome: "有意向", nextFollowChoice: "tomorrow" }), {
   ok: true,
   outcome: "有意向",
   note: "",
-  nextFollowChoice: "tomorrow"
+  nextFollowChoice: "tomorrow",
+  markNumberInvalid: false
 });
 assert.equal(parseCallOutcomeRequest({ outcome: "成交" }).ok, false);
 assert.equal(parseCallOutcomeRequest({ outcome: "" }).ok, false);

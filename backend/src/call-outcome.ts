@@ -4,6 +4,12 @@ import {
   parseCallOutcomeNextFollowChoice,
   type CallOutcomeNextFollowChoice
 } from "./call-outcome-next-follow.js";
+import {
+  appendWrongNumberRejection,
+  parseMarkNumberInvalid,
+  planWrongNumberInvalid,
+  type WrongNumberEffect
+} from "./call-outcome-wrong-number.js";
 import { appendNextFollowUpAudit } from "./next-follow-up-audit.js";
 import {
   CALL_OUTCOME_NOTE_MAX,
@@ -21,11 +27,12 @@ import type { CallOutcomeAudit, SessionUser } from "./types.js";
 /**
  * 给一条通话记录标注结果。
  * 可以同时按明天、3 天后、1 周后写下关联对象的下次跟进。不设则不改下次跟进。
- * 只改本条的 callOutcome 和 callOutcomeNote，以及该对象已有的下次跟进字段。
+ * 号码错误可以同时把这一通对上的号码标为无效，并在首选正是它时改到另一个有效号码。
+ * 只改本条的 callOutcome 和 callOutcomeNote，以及该对象已有的下次跟进、无效号和首选。
  * 不拨号，不发信，不推进序列，不解除抑制，不转线索。
  */
 
-const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "outcomes"] as const;
+const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "outcomes", "phones", "phoneIds"] as const;
 
 export function normalizeCallOutcomeNote(value: unknown):
   | { ok: true; note: string }
@@ -38,8 +45,8 @@ export function normalizeCallOutcomeNote(value: unknown):
 }
 
 export function parseCallOutcomeRequest(body: unknown):
-  | { ok: true; outcome: CallOutcome; note: string; nextFollowChoice: CallOutcomeNextFollowChoice }
-  | { ok: false; reason: "invalid_request" | "invalid_outcome" | "invalid_note" | "note_too_long" | "invalid_next_follow" } {
+  | { ok: true; outcome: CallOutcome; note: string; nextFollowChoice: CallOutcomeNextFollowChoice; markNumberInvalid: boolean }
+  | { ok: false; reason: "invalid_request" | "invalid_outcome" | "invalid_note" | "note_too_long" | "invalid_next_follow" | "invalid_mark" } {
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, reason: "invalid_request" };
   }
@@ -52,7 +59,16 @@ export function parseCallOutcomeRequest(body: unknown):
   if (!note.ok) return note;
   const choice = parseCallOutcomeNextFollowChoice(record.nextFollowChoice);
   if (!choice.ok) return { ok: false, reason: "invalid_next_follow" };
-  return { ok: true, outcome: record.outcome.trim() as CallOutcome, note: note.note, nextFollowChoice: choice.choice };
+  const outcome = record.outcome.trim();
+  const mark = parseMarkNumberInvalid(outcome, record.markNumberInvalid);
+  if (!mark.ok) return { ok: false, reason: mark.reason };
+  return {
+    ok: true,
+    outcome: outcome as CallOutcome,
+    note: note.note,
+    nextFollowChoice: choice.choice,
+    markNumberInvalid: mark.mark
+  };
 }
 
 function reject(reason: string, message: string, status = 400) {
@@ -88,7 +104,9 @@ export async function labelCallOutcome(
           ? "备注格式不正确"
           : parsed.reason === "invalid_next_follow"
             ? "下次跟进只能选明天、3 天后、1 周后或不设"
-            : "一次只能为一条通话记录标注结果";
+            : parsed.reason === "invalid_mark"
+              ? "只有号码错误可以同时把号码标为无效"
+              : "一次只能为一条通话记录标注结果";
     return reject(parsed.reason, message);
   }
   const resolved = await resolveOutboundCallRecordAccess(store, user);
@@ -115,6 +133,16 @@ export async function labelCallOutcome(
     }
     return reject(follow.reason, follow.message, follow.status);
   }
+  const wrong = parsed.markNumberInvalid
+    ? await planWrongNumberInvalid(store, user, record)
+    : { ok: true as const, kind: "skip" as const };
+  if (!wrong.ok) {
+    if (wrong.audit) {
+      appendWrongNumberRejection(store, user, record.id, wrong.audit);
+      await store.persist();
+    }
+    return reject(wrong.reason, wrong.message, wrong.status);
+  }
   const previousOutcome = record.callOutcome || "";
   const previousNote = record.callOutcomeNote || "";
   const outcomeChanged = previousOutcome !== parsed.outcome || previousNote !== parsed.note;
@@ -122,7 +150,18 @@ export async function labelCallOutcome(
   const nextFollowAt = follow.kind === "write" ? follow.next : "";
   const nextFollowResult = follow.kind === "skip" ? "skipped" as const : followChanged ? "updated" as const : "unchanged" as const;
   const notice = follow.kind === "write" ? follow.notice : "";
-  if (!outcomeChanged && !followChanged) {
+  const markPreview: WrongNumberEffect | null = wrong.kind === "apply" ? wrong.preview() : null;
+  const phoneInvalidResult = markPreview?.validity ?? "skipped" as const;
+  const preferredSwitchResult = markPreview?.preferred ?? "skipped" as const;
+  const validityChanged = phoneInvalidResult === "updated";
+  const preferredChanged = preferredSwitchResult === "updated" || preferredSwitchResult === "cleared";
+  const markFields = {
+    markNumberInvalid: parsed.markNumberInvalid,
+    phoneInvalidResult,
+    preferredSwitchResult,
+    ...(wrong.kind === "apply" ? { phoneId: wrong.phoneId } : {})
+  };
+  if (!outcomeChanged && !followChanged && !validityChanged && !preferredChanged) {
     return {
       status: 200,
       body: {
@@ -134,11 +173,13 @@ export async function labelCallOutcome(
         nextFollowChoice: parsed.nextFollowChoice,
         nextFollowAt,
         nextFollowResult,
+        ...markFields,
         ...(notice ? { suppressionNotice: notice } : {})
       }
     };
   }
   if (followChanged && follow.kind === "write") follow.apply();
+  if (wrong.kind === "apply" && (validityChanged || preferredChanged)) wrong.apply();
   let auditId = "";
   if (outcomeChanged) {
     record.callOutcome = parsed.outcome;
@@ -166,11 +207,19 @@ export async function labelCallOutcome(
     });
   }
   await store.persist();
-  const message = outcomeChanged && followChanged
-    ? "已保存通话结果，并记下下次跟进"
-    : followChanged
-      ? "已记下下次跟进"
-      : "已保存通话结果";
+  const message = !validityChanged && preferredSwitchResult !== "updated" && preferredSwitchResult !== "cleared"
+    ? outcomeChanged && followChanged
+      ? "已保存通话结果，并记下下次跟进"
+      : followChanged
+        ? "已记下下次跟进"
+        : "已保存通话结果"
+    : [
+      outcomeChanged ? "已保存通话结果" : "",
+      followChanged ? "已记下下次跟进" : "",
+      validityChanged ? "已把这个号码标为无效" : "",
+      preferredSwitchResult === "updated" ? "已把首选改到另一个号码" : "",
+      preferredSwitchResult === "cleared" ? "这个号码不再是首选" : ""
+    ].filter(Boolean).join("，");
   return {
     status: 200,
     body: {
@@ -183,6 +232,7 @@ export async function labelCallOutcome(
       nextFollowChoice: parsed.nextFollowChoice,
       nextFollowAt,
       nextFollowResult,
+      ...markFields,
       ...(notice ? { suppressionNotice: notice } : {}),
       record: presentOutboundCallRecord(record, resolved.access.timeZone, resolved.access.labels)
     }

@@ -6936,10 +6936,14 @@ async function ensureSchema(pool: mysql.Pool) {
     previous_value VARCHAR(16) NOT NULL,
     next_value VARCHAR(16) NOT NULL,
     source_call_record_id VARCHAR(64) NOT NULL DEFAULT '',
+    result_code VARCHAR(32) NULL,
+    reason_code VARCHAR(64) NULL,
     INDEX idx_phone_validity_audits_team(team_id, occurred_at),
     INDEX idx_phone_validity_audits_phone(team_id, phone_id),
     INDEX idx_phone_validity_audits_actor(actor_id, occurred_at)
   )`);
+  await ensureColumn(pool, "phone_validity_audits", "result_code", "VARCHAR(32) NULL");
+  await ensureColumn(pool, "phone_validity_audits", "reason_code", "VARCHAR(64) NULL");
   await pool.query(`CREATE TABLE IF NOT EXISTS callback_schedules (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -14489,7 +14493,9 @@ async function loadPhoneValidityAudits(pool: mysql.Pool): Promise<PhoneValidityA
       phoneId: row.phone_id || "",
       previousValue,
       nextValue,
-      sourceCallRecordId: row.source_call_record_id || ""
+      sourceCallRecordId: row.source_call_record_id || "",
+      result: row.result_code === "rejected" ? "rejected" as const : "",
+      reason: row.reason_code || ""
     };
   });
 }
@@ -15552,7 +15558,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "intent_followup_ignores", store.intentFollowupIgnores, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.callRecordId, item.active ? 1 : 0], "(id,team_id,actor_id,occurred_at,target_type,target_id,call_record_id,active)");
 	    await replaceRows(connection, "intent_followup_queue_audits", store.intentFollowupQueueAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType, item.targetId, item.callRecordId, item.activityId, item.nextFollowAt, item.result, item.reason, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,call_record_id,activity_id,next_follow_at,result_code,reason_code,suppressed)");
 	    await replaceRows(connection, "phone_validities", store.phoneValidities, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.phoneId, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,target_type,target_id,phone_id,updated_by,updated_at)");
-	    await replaceRows(connection, "phone_validity_audits", store.phoneValidityAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.phoneId, item.previousValue, item.nextValue, item.sourceCallRecordId || ""], "(id,team_id,actor_id,occurred_at,target_type,target_id,phone_id,previous_value,next_value,source_call_record_id)");
+	    await replaceRows(connection, "phone_validity_audits", store.phoneValidityAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.targetType, item.targetId, item.phoneId, item.previousValue, item.nextValue, item.sourceCallRecordId || "", item.result || null, item.reason || null], "(id,team_id,actor_id,occurred_at,target_type,target_id,phone_id,previous_value,next_value,source_call_record_id,result_code,reason_code)");
 	    await replaceRows(connection, "callback_schedules", store.callbackSchedules, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.scheduledAt, item.note || "", item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null, item.sourceCallRecordId || ""], "(id,team_id,target_type,target_id,scheduled_at,note,updated_by,updated_at,source_call_record_id)");
 	    await replaceRows(connection, "callback_schedule_audits", store.callbackScheduleAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType, item.targetId, item.previousScheduledAt || "", item.nextScheduledAt || "", item.previousNote || "", item.nextNote || "", item.result, item.reason || "", item.sourceCallRecordId || ""], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,previous_scheduled_at,next_scheduled_at,previous_note,next_note,result_code,reason_code,source_call_record_id)");
 	    await replaceRows(connection, "callback_due_queue_audits", store.callbackDueQueueAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.scope, item.overdueOnly ? 1 : 0, Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,scope_code,overdue_only,row_count,result_code,reason_code)");
