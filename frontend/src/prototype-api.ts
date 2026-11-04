@@ -96,6 +96,12 @@ import {
   type UnansweredPendingQueueResponse
 } from "./unanswered-pending-queue";
 import {
+  negativeOutcomeFollowupQuery,
+  renderNegativeOutcomeFollowup,
+  renderNegativeOutcomeFollowupFailure,
+  type NegativeOutcomeFollowupResponse
+} from "./negative-outcome-followup";
+import {
   agentWorkStatusReportQuery,
   renderAgentWorkStatusReport,
   type AgentWorkStatusReportResponse
@@ -12824,6 +12830,18 @@ function paintUnansweredPendingQueueAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardUnansweredPendingTeam");
   if (team) team.hidden = !canViewUnansweredPendingTeam();
+  paintNegativeOutcomeFollowupAccess();
+}
+
+function canViewNegativeOutcomeFollowupTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintNegativeOutcomeFollowupAccess() {
+  const section = qs<HTMLElement>("#dashboardNegativeOutcomeFollowup");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardNegativeOutcomeFollowupTeam");
+  if (team) team.hidden = !canViewNegativeOutcomeFollowupTeam();
   paintAgentWorkStatusReportAccess();
 }
 
@@ -19760,6 +19778,59 @@ async function scheduleUnansweredPendingCallback(form: HTMLFormElement) {
     toast(error instanceof Error ? error.message : "回拨预约没有保存", "error");
   } finally {
     unansweredPendingBusy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+let negativeOutcomeFollowupScope: "mine" | "team" = "mine";
+let negativeOutcomeFollowupBusy = false;
+
+function negativeOutcomeFollowupOutcome(): "" | "无意向" | "号码错误" {
+  const outcome = qs<HTMLSelectElement>("#dashboardNegativeOutcomeFollowupOutcome")?.value || "";
+  if (outcome === "无意向" || outcome === "号码错误") return outcome;
+  return "";
+}
+
+function negativeOutcomeFollowupFilter() {
+  return {
+    scope: negativeOutcomeFollowupScope,
+    outcome: negativeOutcomeFollowupOutcome()
+  };
+}
+
+async function loadNegativeOutcomeFollowups(scope: "mine" | "team") {
+  const list = qs<HTMLElement>("#dashboardNegativeOutcomeFollowupList");
+  if (!list) return;
+  if (scope === "team" && !canViewNegativeOutcomeFollowupTeam()) return;
+  negativeOutcomeFollowupScope = scope;
+  const message = qs<HTMLElement>("#dashboardNegativeOutcomeFollowupMessage");
+  if (message) message.textContent = "";
+  try {
+    const data = await api<NegativeOutcomeFollowupResponse>(`/api/negative-outcome-followups${negativeOutcomeFollowupQuery(negativeOutcomeFollowupFilter())}`);
+    list.innerHTML = renderNegativeOutcomeFollowup(data);
+  } catch (error) {
+    list.innerHTML = renderNegativeOutcomeFollowupFailure(error instanceof Error ? error.message : "负向结果跟进没有加载");
+  }
+}
+
+async function clearNegativeOutcomeFollowup(form: HTMLFormElement) {
+  if (negativeOutcomeFollowupBusy) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  negativeOutcomeFollowupBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/negative-outcome-followups/clear", {
+      method: "POST",
+      body: JSON.stringify({ targetType, targetId })
+    });
+    toast(result.message || "已清除下次跟进");
+    await loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "下次跟进没有清除", "error");
+  } finally {
+    negativeOutcomeFollowupBusy = false;
     if (button) button.disabled = false;
   }
 }
@@ -58210,6 +58281,26 @@ function installEvents() {
     if (!callback) return;
     event.preventDefault();
     void scheduleUnansweredPendingCallback(callback);
+  });
+  qs<HTMLButtonElement>("#dashboardNegativeOutcomeFollowupMine")?.addEventListener("click", () => {
+    void loadNegativeOutcomeFollowups("mine");
+  });
+  qs<HTMLButtonElement>("#dashboardNegativeOutcomeFollowupTeam")?.addEventListener("click", () => {
+    void loadNegativeOutcomeFollowups("team");
+  });
+  qs<HTMLElement>("#dashboardNegativeOutcomeFollowup")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-negative-outcome-followup-open]");
+    if (!opener) return;
+    const row = opener.closest<HTMLElement>("[data-negative-outcome-followup-row]");
+    if (!row) return;
+    event.preventDefault();
+    openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
+  });
+  qs<HTMLElement>("#dashboardNegativeOutcomeFollowup")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-negative-outcome-followup-clear]");
+    if (!form) return;
+    event.preventDefault();
+    void clearNegativeOutcomeFollowup(form);
   });
   qs<HTMLButtonElement>("#dashboardNextFollowDueRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);

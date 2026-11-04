@@ -333,6 +333,7 @@ import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, 
 import { completeCallbackDueQueue, exportCallbackDueQueue, listCallbackDueQueue } from "./callback-due-queue.js";
 import { exportCallbackScheduleReport, listCallbackScheduleReport } from "./callback-schedule-report.js";
 import { listUnansweredPendingQueue } from "./unanswered-pending-queue.js";
+import { clearNegativeOutcomeFollowup, listNegativeOutcomeFollowups } from "./negative-outcome-followup.js";
 import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
 import { createContactPhone, deleteContactPhone, readContactPhones, updateContactPhone } from "./contact-phone.js";
 import {
@@ -9479,6 +9480,16 @@ app.get("/api/callback-due-queue", requireAuth, asyncRoute(async (req, res) => {
 
 app.get("/api/unanswered-pending-queue", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listUnansweredPendingQueue(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/negative-outcome-followups", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listNegativeOutcomeFollowups(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/negative-outcome-followups/clear", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await clearNegativeOutcomeFollowup(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
