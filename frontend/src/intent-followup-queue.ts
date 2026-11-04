@@ -1,5 +1,6 @@
 import { renderCallbackScheduleForm } from "./callback-schedule";
 import { missingNextFollowupBatchForm, missingNextFollowupPick } from "./missing-next-followup-batch";
+import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReassignView } from "./queue-owner-reassign";
 
 /**
  * 意向回访队列。
@@ -97,7 +98,7 @@ function rowActions(row: IntentFollowupQueueRow, suggested: string) {
   return `<form class="intent-followup-actions" data-intent-followup-form="1" ${identity(row)}><label>下次跟进<input type="datetime-local" data-intent-follow-at value="${escapeHtml(suggested)}"></label><button class="btn" type="submit">安排跟进</button><button class="btn" type="button" data-intent-ignore="1">忽略</button></form>`;
 }
 
-export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefined, suggestedNextFollowAt: string) {
+export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefined, suggestedNextFollowAt: string, view?: QueueOwnerReassignView) {
   if (!rows?.length) return "";
   const suggested = toDateTimeLocal(suggestedNextFollowAt);
   const body = rows.map((row) => {
@@ -110,13 +111,13 @@ export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefi
       due: row.callbackDue || ""
     });
     const ownerLabel = row.ownerAgentId ? (row.ownerAgentLabel || row.ownerAgentId) : "未指派";
-    const pick = row.ignored ? "" : missingNextFollowupPick(row.targetType, row.targetId);
+    const pick = row.ignored ? "" : `${missingNextFollowupPick(row.targetType, row.targetId)}${queueOwnerReassignPick(row.targetType, row.targetId, view)}`;
     return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td>${pick}<b>${escapeHtml(row.name || row.targetId)}</b><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td data-owner-agent="${escapeHtml(row.ownerAgentId || "")}">${escapeHtml(ownerLabel)}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}${callback}</td></tr>`;
   }).join("");
   return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>对象</th><th>通话结果</th><th>标注时间</th><th>坐席</th><th>负责坐席</th><th>号码</th><th>操作</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
-export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse) {
+export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse, view?: QueueOwnerReassignView) {
   const items = input.items || [];
   const active = items.filter((item) => !item.ignored);
   const ignored = items.filter((item) => item.ignored);
@@ -131,10 +132,10 @@ export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse) {
   }
   const suggested = input.suggestedNextFollowAt || "";
   const activeHtml = active.length
-    ? `${missingNextFollowupBatchForm()}${renderIntentFollowupRows(active, suggested)}`
+    ? `${missingNextFollowupBatchForm()}${queueOwnerReassignFormFor(active, view)}${renderIntentFollowupRows(active, suggested, view)}`
     : "";
   const ignoredHtml = ignored.length
-    ? `<section data-intent-followup-ignored="1"><h2>已忽略</h2>${renderIntentFollowupRows(ignored, suggested)}</section>`
+    ? `<section data-intent-followup-ignored="1"><h2>已忽略</h2>${renderIntentFollowupRows(ignored, suggested, view)}</section>`
     : "";
   return `${activeHtml}${ignoredHtml}`;
 }

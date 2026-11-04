@@ -205,6 +205,12 @@ async function listRows(store: CrmStore, user: SessionUser, scope: "mine" | "tea
   return rows;
 }
 
+export async function collectTodayFollowRows(store: CrmStore, user: SessionUser, scope: "mine" | "team") {
+  const timeZone = await tenantTimeZoneFor(store, user.teamId);
+  const date = zonedDateKey(outboundInstant(), timeZone);
+  return listRows(store, user, scope, date);
+}
+
 export async function listTodayFollowNext(store: CrmStore, user: SessionUser | undefined, query: Record<string, unknown>) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
   const parsed = parseTodayFollowNextQuery(query);

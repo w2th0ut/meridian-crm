@@ -6078,10 +6078,12 @@ async function ensureSchema(pool: mysql.Pool) {
     previous_owner_id VARCHAR(64) NOT NULL,
     next_owner_id VARCHAR(64) NOT NULL,
     call_record_id VARCHAR(64) NULL,
+    batch_id VARCHAR(64) NULL,
     INDEX idx_owner_reassign_audits_object(object_type, object_id),
     INDEX idx_owner_reassign_audits_actor(actor_id, occurred_at)
   )`);
   await ensureColumn(pool, "owner_reassign_audits", "call_record_id", "VARCHAR(64) NULL");
+  await ensureColumn(pool, "owner_reassign_audits", "batch_id", "VARCHAR(64) NULL");
   await pool.query(`CREATE TABLE IF NOT EXISTS prospect_tag_audits (
     id VARCHAR(64) PRIMARY KEY,
     actor_id VARCHAR(64) NOT NULL,
@@ -15133,7 +15135,8 @@ async function loadOwnerReassignAudits(pool: mysql.Pool): Promise<OwnerReassignA
     action: ownerReassignAction(String(row.action_code || "")),
     previousOwnerId: row.previous_owner_id || "",
     nextOwnerId: row.next_owner_id || "",
-    callRecordId: row.call_record_id || ""
+    callRecordId: row.call_record_id || "",
+    batchId: row.batch_id || ""
   }));
 }
 
@@ -15524,7 +15527,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "monthly_sales_records", store.monthlySalesRecords, (item) => [item.id, item.month, item.ownerId, item.teamId, item.customerId, item.customerName, item.dealId, item.productId, item.productName, item.quantity, item.unitPrice, item.salesAmount, item.currency, item.exchangeRate, item.exchangeRateDate, item.exchangeRateSource, item.settlementCurrency, item.settlementAmount, item.basisType, item.basisDate, item.dealArchivedAt, item.sourceType, item.status, item.edited, item.editNote, item.lastEditedBy, item.lastEditedAt ? mysqlDate(item.lastEditedAt) : null, mysqlDate(item.createdAt), mysqlDate(item.updatedAt)], "(id,month_value,owner_id,team_id,customer_id,customer_name,deal_id,product_id,product_name,quantity,unit_price,sales_amount,currency,exchange_rate,exchange_rate_date,exchange_rate_source,settlement_currency,settlement_amount,basis_type,basis_date,deal_archived_at,source_type,status,edited,edit_note,last_edited_by,last_edited_at,created_at,updated_at)");
 	    await replaceRows(connection, "sales_record_audits", store.salesRecordAudits, (item) => [item.id, item.recordId, item.fieldName, item.oldValue, item.newValue, item.reason, item.operatorId, item.operatorName, mysqlDate(item.createdAt)], "(id,record_id,field_name,old_value,new_value,reason,operator_id,operator_name,created_at)");
 	    await replaceRows(connection, "follow_up_audits", store.followUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.activityId], "(id,actor_id,occurred_at,object_type,object_id,action_code,activity_id)");
-	    await replaceRows(connection, "owner_reassign_audits", store.ownerReassignAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.previousOwnerId, item.nextOwnerId, item.callRecordId || null], "(id,actor_id,occurred_at,object_type,object_id,action_code,previous_owner_id,next_owner_id,call_record_id)");
+	    await replaceRows(connection, "owner_reassign_audits", store.ownerReassignAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.previousOwnerId, item.nextOwnerId, item.callRecordId || null, item.batchId || null], "(id,actor_id,occurred_at,object_type,object_id,action_code,previous_owner_id,next_owner_id,call_record_id,batch_id)");
 	    await replaceRows(connection, "prospect_tag_audits", store.prospectTagAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, JSON.stringify(item.tags || [])], "(id,actor_id,occurred_at,object_type,object_id,action_code,tags_json)");
 	    await replaceRows(connection, "next_follow_up_audits", store.nextFollowUpAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.oldValue, item.newValue, item.batchId || null, item.callRecordId || null], "(id,actor_id,occurred_at,object_type,object_id,action_code,old_value,new_value,batch_id,call_record_id)");
 	    await replaceRows(connection, "prospect_note_audits", store.prospectNoteAudits, (item) => [item.id, item.actorId, mysqlDate(item.at), item.objectType, item.objectId, item.action, item.note || ""], "(id,actor_id,occurred_at,object_type,object_id,action_code,note)");

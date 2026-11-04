@@ -110,6 +110,7 @@ import {
   type OtherOutcomeFollowupResponse
 } from "./other-outcome-followup";
 import { missingNextFollowupBatchBody } from "./missing-next-followup-batch";
+import { queueOwnerReassignBody } from "./queue-owner-reassign";
 import {
   renderUnlabeledConnectedFollowup,
   renderUnlabeledConnectedFollowupFailure,
@@ -19210,8 +19211,10 @@ async function submitCallOutcome(form: HTMLFormElement) {
 }
 
 let todayFollowNextPending = false;
+let todayFollowNextScope: "mine" | "team" = "mine";
 
 async function openNextTodayFollow(afterType: string, afterId: string, scope: "mine" | "team" = "mine") {
+  todayFollowNextScope = scope;
   const list = qs<HTMLElement>("#dashboardTodayFollowNextList");
   const message = qs<HTMLElement>("#dashboardTodayFollowNextMessage");
   if (todayFollowNextPending) return;
@@ -19219,7 +19222,7 @@ async function openNextTodayFollow(afterType: string, afterId: string, scope: "m
   if (message) message.textContent = "";
   try {
     const data = await api<TodayFollowNextResponse>(`/api/today-follow-next${todayFollowNextQuery({ scope, afterType, afterId })}`);
-    if (list) list.innerHTML = renderTodayFollowNext(data);
+    if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView());
     const next = data.next;
     if (next?.targetType && next.targetId) openCallbackDueObject(next.targetType, next.targetId);
   } catch (error) {
@@ -19251,7 +19254,7 @@ async function loadIntentFollowupQueue() {
       });
       agentSelect.disabled = result.scope !== "team";
     }
-    root.innerHTML = renderIntentFollowupQueue(result);
+    root.innerHTML = renderIntentFollowupQueue(result, callOutcomeTransferView());
   } catch (error) {
     root.innerHTML = renderIntentFollowupFailure(error instanceof Error ? error.message : "意向回访队列没有加载");
   }
@@ -20016,7 +20019,7 @@ async function loadUnansweredPendingQueue(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<UnansweredPendingQueueResponse>(`/api/unanswered-pending-queue${unansweredPendingQueueQuery(unansweredPendingFilter())}`);
-    list.innerHTML = renderUnansweredPendingQueue(data);
+    list.innerHTML = renderUnansweredPendingQueue(data, callOutcomeTransferView());
   } catch (error) {
     list.innerHTML = renderUnansweredPendingQueueFailure(error instanceof Error ? error.message : "未接通待处理队列没有加载");
   }
@@ -20101,7 +20104,7 @@ async function loadNegativeOutcomeFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<NegativeOutcomeFollowupResponse>(`/api/negative-outcome-followups${negativeOutcomeFollowupQuery(negativeOutcomeFollowupFilter())}`);
-    list.innerHTML = renderNegativeOutcomeFollowup(data);
+    list.innerHTML = renderNegativeOutcomeFollowup(data, callOutcomeTransferView());
   } catch (error) {
     list.innerHTML = renderNegativeOutcomeFollowupFailure(error instanceof Error ? error.message : "负向结果跟进没有加载");
   }
@@ -20168,6 +20171,59 @@ async function submitMissingNextFollowupBatch(form: HTMLFormElement, reload: () 
   }
 }
 
+async function submitQueueOwnerReassign(form: HTMLFormElement, reload: () => Promise<void>) {
+  const root = form.parentElement;
+  const picked = [...(root?.querySelectorAll<HTMLInputElement>("[data-queue-owner-reassign-pick]:checked") || [])];
+  const targets = picked.flatMap((box) => {
+    const value = box.value || "";
+    const splitAt = value.indexOf(":");
+    if (splitAt <= 0) return [];
+    const targetType = value.slice(0, splitAt);
+    const targetId = value.slice(splitAt + 1);
+    if (!targetType || !targetId) return [];
+    return [{ targetType, targetId }];
+  });
+  if (!targets.length) {
+    toast("先选择对象", "error");
+    return;
+  }
+  const transferTo = form.querySelector<HTMLSelectElement>("[data-queue-owner-reassign-to]")?.value.trim() || "";
+  if (!transferTo) {
+    toast("请选择同事", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("[data-queue-owner-reassign-submit]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/queue-owner-reassign", {
+      method: "POST",
+      body: JSON.stringify(queueOwnerReassignBody({ targets, transferTo }))
+    });
+    toast(result.message || "已转交负责人");
+    await reload();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "负责人没有转交", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function bindQueueOwnerReassign(root: HTMLElement | null, reload: () => Promise<void>) {
+  root?.addEventListener("click", (event) => {
+    const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-queue-owner-reassign-all]");
+    if (!all || !root.contains(all)) return;
+    root.querySelectorAll<HTMLInputElement>("[data-queue-owner-reassign-pick]").forEach((box) => {
+      box.checked = all.checked;
+    });
+  });
+  root?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-queue-owner-reassign]");
+    if (!form || !root.contains(form)) return;
+    event.preventDefault();
+    void submitQueueOwnerReassign(form, reload);
+  });
+}
+
 function bindMissingNextFollowupBatch(root: HTMLElement | null, reload: () => Promise<void>) {
   root?.addEventListener("click", (event) => {
     const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-missing-next-followup-all]");
@@ -20196,7 +20252,7 @@ async function loadOtherOutcomeFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<OtherOutcomeFollowupResponse>(`/api/other-outcome-followups${otherOutcomeFollowupQuery({ scope })}`);
-    list.innerHTML = renderOtherOutcomeFollowup(data);
+    list.innerHTML = renderOtherOutcomeFollowup(data, callOutcomeTransferView());
   } catch (error) {
     list.innerHTML = renderOtherOutcomeFollowupFailure(error instanceof Error ? error.message : "其他结果跟进没有加载");
   }
@@ -20242,7 +20298,7 @@ async function loadUnlabeledConnectedFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<UnlabeledConnectedFollowupResponse>(`/api/unlabeled-connected-followups${unlabeledConnectedFollowupQuery({ scope })}`);
-    list.innerHTML = renderUnlabeledConnectedFollowup(data);
+    list.innerHTML = renderUnlabeledConnectedFollowup(data, callOutcomeTransferView());
   } catch (error) {
     list.innerHTML = renderUnlabeledConnectedFollowupFailure(error instanceof Error ? error.message : "已接通未标注跟进没有加载");
   }
@@ -59048,6 +59104,12 @@ function installEvents() {
   bindMissingNextFollowupBatch(qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup"), () => loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope));
   bindMissingNextFollowupBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
   bindMissingNextFollowupBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
+  bindQueueOwnerReassign(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
+  bindQueueOwnerReassign(qs<HTMLElement>("#dashboardOtherOutcomeFollowup"), () => loadOtherOutcomeFollowups(otherOutcomeFollowupScope));
+  bindQueueOwnerReassign(qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup"), () => loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope));
+  bindQueueOwnerReassign(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
+  bindQueueOwnerReassign(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
+  bindQueueOwnerReassign(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
   qs<HTMLButtonElement>("#dashboardUnlabeledConnectedFollowupMine")?.addEventListener("click", () => {
     void loadUnlabeledConnectedFollowups("mine");
   });

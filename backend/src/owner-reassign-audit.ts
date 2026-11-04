@@ -17,6 +17,7 @@ export function appendOwnerReassignAudit(
     objectType?: OwnerReassignAuditEvent["objectType"];
     action?: OwnerReassignAuditEvent["action"];
     callRecordId?: string;
+    batchId?: string;
   }
 ) {
   const event: OwnerReassignAuditEvent = {
@@ -28,7 +29,8 @@ export function appendOwnerReassignAudit(
     action: input.action || "reassign_owner",
     previousOwnerId: input.previousOwnerId,
     nextOwnerId: input.nextOwnerId,
-    callRecordId: input.callRecordId || ""
+    callRecordId: input.callRecordId || "",
+    batchId: input.batchId || ""
   };
   store.ownerReassignAudits.unshift(event);
   return event;

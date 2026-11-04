@@ -1,7 +1,9 @@
 /**
  * 负向通话结果仍有下次跟进。只渲染接口返回的对象、通话结果、标注时间、下次跟进和已经脱敏的号码。
- * 清除下次跟进是单条提交。没有外呼按钮。
+ * 清除下次跟进是单条提交。有分配权限时可以勾选后一次转交负责人。没有外呼按钮。
  */
+
+import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReassignView } from "./queue-owner-reassign";
 
 export interface NegativeOutcomeFollowupItem {
   targetType: string;
@@ -53,7 +55,7 @@ function textOrDash(value: string | undefined) {
   return text || "—";
 }
 
-export function renderNegativeOutcomeFollowup(data: NegativeOutcomeFollowupResponse | undefined) {
+export function renderNegativeOutcomeFollowup(data: NegativeOutcomeFollowupResponse | undefined, view?: QueueOwnerReassignView) {
   const rows = data?.items || [];
   if (!rows.length) return renderNegativeOutcomeFollowupEmpty();
   const body = rows.map((item) => {
@@ -61,9 +63,9 @@ export function renderNegativeOutcomeFollowup(data: NegativeOutcomeFollowupRespo
     const noticeHtml = notice
       ? `<p data-negative-outcome-followup-notice="1">${escapeHtml(notice)}</p>`
       : "";
-    return `<li data-negative-outcome-followup-row="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}" data-call-record-id="${escapeHtml(item.callRecordId)}"><button type="button" class="btn" data-negative-outcome-followup-open="1">${escapeHtml(item.name || item.targetId)}</button><span>${escapeHtml(item.targetLabel || item.targetType)}</span><span data-negative-outcome-followup-outcome="1">${escapeHtml(textOrDash(item.outcome))}</span><time data-negative-outcome-followup-at="1">${escapeHtml(textOrDash(item.labeledAt))}</time><span data-negative-outcome-followup-next="1">${escapeHtml(textOrDash(item.nextFollowAt))}</span><span data-negative-outcome-followup-agent="1">通话坐席 ${escapeHtml(textOrDash(item.agentLabel))}</span><span data-negative-outcome-followup-number="1">${escapeHtml(textOrDash(item.maskedNumber))}</span>${noticeHtml}<form data-negative-outcome-followup-clear="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}"><button class="btn" type="submit">清除下次跟进</button></form></li>`;
+    return `<li data-negative-outcome-followup-row="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}" data-call-record-id="${escapeHtml(item.callRecordId)}">${queueOwnerReassignPick(item.targetType, item.targetId, view)}<button type="button" class="btn" data-negative-outcome-followup-open="1">${escapeHtml(item.name || item.targetId)}</button><span>${escapeHtml(item.targetLabel || item.targetType)}</span><span data-negative-outcome-followup-outcome="1">${escapeHtml(textOrDash(item.outcome))}</span><time data-negative-outcome-followup-at="1">${escapeHtml(textOrDash(item.labeledAt))}</time><span data-negative-outcome-followup-next="1">${escapeHtml(textOrDash(item.nextFollowAt))}</span><span data-negative-outcome-followup-agent="1">通话坐席 ${escapeHtml(textOrDash(item.agentLabel))}</span><span data-negative-outcome-followup-number="1">${escapeHtml(textOrDash(item.maskedNumber))}</span>${noticeHtml}<form data-negative-outcome-followup-clear="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}"><button class="btn" type="submit">清除下次跟进</button></form></li>`;
   }).join("");
   const scope = data?.scope === "team" ? "团队" : "我的";
   const outcome = data?.outcome === "无意向" || data?.outcome === "号码错误" ? data.outcome : "全部负向结果";
-  return `<div data-negative-outcome-followup="1"><p data-negative-outcome-followup-scope="${escapeHtml(data?.scope || "mine")}">${escapeHtml(scope)} · ${escapeHtml(outcome)}</p><ul>${body}</ul></div>`;
+  return `<div data-negative-outcome-followup="1"><p data-negative-outcome-followup-scope="${escapeHtml(data?.scope || "mine")}">${escapeHtml(scope)} · ${escapeHtml(outcome)}</p>${queueOwnerReassignFormFor(rows, view)}<ul>${body}</ul></div>`;
 }
