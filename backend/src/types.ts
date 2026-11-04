@@ -5770,6 +5770,35 @@ export interface AgentWorkStatusReportAudit {
 }
 
 /**
+ * 一个租户、一种状态的单次超时阈值。
+ * 只给小休和忙碌。没有这一行就是没有阈值，不写成 0。
+ */
+export interface AgentWorkStatusTimeout {
+  id: string;
+  teamId: string;
+  status: "break" | "busy";
+  thresholdSeconds: number;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/**
+ * 一次坐席状态超时的查看、设置或清除，或一次被拒绝的尝试。
+ * 筛选只记状态和设置时的秒数。不记原因、坐席名或密钥。
+ */
+export interface AgentWorkStatusTimeoutAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "set" | "clear";
+  filters: string;
+  rowCount: number;
+  result: "read" | "updated" | "cleared" | "rejected";
+  reason: string;
+}
+
+/**
  * 一条未接通通话已经生成过的下次跟进。
  * 通话记录 ID 唯一，用来保证同一条不重复生成。
  */
