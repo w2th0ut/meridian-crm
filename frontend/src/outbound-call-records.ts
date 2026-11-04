@@ -168,7 +168,7 @@ export function renderCallOutcomeOptions(selected: string) {
 }
 
 export function renderCallOutcomeForm(
-  record: { id: string; callOutcome?: string; callOutcomeNote?: string; targetType?: string; targetId?: string },
+  record: { id: string; callOutcome?: string; callOutcomeNote?: string; targetType?: string; targetId?: string; established?: boolean },
   transfer?: CallOutcomeTransferView
 ) {
   const targetType = (record.targetType || "").trim();
@@ -176,7 +176,7 @@ export function renderCallOutcomeForm(
   const target = targetType && targetId
     ? ` data-target-type="${escapeHtml(targetType)}" data-target-id="${escapeHtml(targetId)}"`
     : "";
-  return `<form class="outbound-record-outcome-form" data-call-outcome-form="1" data-record-id="${escapeHtml(record.id)}"${target}>${renderCallOutcomeKeyHint()}<label>通话结果<select data-call-outcome>${renderCallOutcomeOptions(record.callOutcome || "")}</select></label>${renderCallOutcomeMarkInvalid(record.callOutcome || "")}${renderCallOutcomeNextFollow(record.callOutcome || "")}${renderCallOutcomeTransfer(record, transfer)}<label>备注<input data-call-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label>${renderOutcomeNotePhraseShell()}<button class="btn" type="submit">保存标注</button></form>`;
+  return `<form class="outbound-record-outcome-form" data-call-outcome-form="1" data-record-id="${escapeHtml(record.id)}"${target}>${renderCallOutcomeKeyHint()}<label>通话结果<select data-call-outcome>${renderCallOutcomeOptions(record.callOutcome || "")}</select></label>${renderCallOutcomeMarkInvalid(record.callOutcome || "")}${renderCallOutcomeNextFollow(record.callOutcome || "", record.established === false)}${renderCallOutcomeTransfer(record, transfer)}<label>备注<input data-call-outcome-note maxlength="${CALL_OUTCOME_NOTE_MAX}" value="${escapeHtml(record.callOutcomeNote || "")}"></label>${renderOutcomeNotePhraseShell()}<button class="btn" type="submit">保存标注</button></form>`;
 }
 
 /** 只在这一条被标成号码错误、并且对得上现在的号码时出现。已经无效就只提示，不在这里取消。 */

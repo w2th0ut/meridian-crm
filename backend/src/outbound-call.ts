@@ -181,6 +181,18 @@ export function zonedDateKey(at: Date, timeZone: string) {
   return zonedClock(at, timeZone).dateKey;
 }
 
+/** 租户当地的日期和分钟。秒被丢掉。和拨号时段用的是同一套时区。 */
+export function zonedWallMinute(at: Date, timeZone: string) {
+  const clock = zonedClock(at, timeZone);
+  const hour = Math.floor(clock.minutes / 60);
+  const minute = clock.minutes % 60;
+  return {
+    dateKey: clock.dateKey,
+    minutes: clock.minutes,
+    hhmm: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
+  };
+}
+
 export async function tenantTimeZoneFor(store: CrmStore, teamId: string) {
   return resolveTenantTimezone(store, teamId);
 }

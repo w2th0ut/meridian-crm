@@ -1,7 +1,7 @@
 import { hasIamPermission } from "./auth.js";
-import { outboundCallingPolicy } from "./aliyun-outbound-config.js";
+import { callWindowMinutes, outboundCallingPolicy } from "./aliyun-outbound-config.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
-import { tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
+import { tenantTimeZoneFor, zonedDateKey, zonedWallMinute } from "./outbound-call.js";
 import { describeProspectComplianceNotices } from "./prospect-compliance-notice.js";
 import {
   prospectFollowUpWriteAllowed,
@@ -14,20 +14,27 @@ import type { NextFollowUpAuditEvent, OutboundCallRecord, SessionUser } from "./
  * 单条通话结果保存时顺手定下次跟进。
  * 只写客户 nextReminder、线索和搜客 nextFollowAt。
  * 明天、3 天后、1 周后是租户当地日历日，时刻用允许拨打时段的开始。
- * 不设不改已有时间。不写跟进注记，不拨号，不改抑制。
+ * 2 小时后、4 小时后只给未接通的通话，从现在算起；落在时段外就顶到下一个允许时段的开始。
+ * 不设不改已有时间。不写跟进注记，不拨号，不改抑制，也不改暂停。
  */
 
-export const CALL_OUTCOME_NEXT_FOLLOW_CHOICES = ["tomorrow", "plus3", "plus7", "none"] as const;
+export const CALL_OUTCOME_NEXT_FOLLOW_CHOICES = ["tomorrow", "plus3", "plus7", "plus2h", "plus4h", "none"] as const;
 
 export type CallOutcomeNextFollowChoice = (typeof CALL_OUTCOME_NEXT_FOLLOW_CHOICES)[number];
 
 export const CALL_OUTCOME_NEXT_FOLLOW_NOTICE = "该对象在抑制或退订名单中。这次只记下下次跟进，不改变抑制状态。";
 
-const OFFSET: Record<Exclude<CallOutcomeNextFollowChoice, "none">, number> = {
+const DAY_OFFSET: Record<"tomorrow" | "plus3" | "plus7", number> = {
   tomorrow: 1,
   plus3: 3,
   plus7: 7
 };
+
+const HOUR_OFFSET = { plus2h: 2, plus4h: 4 } as const;
+
+export function isSameDayFollowChoice(choice: CallOutcomeNextFollowChoice): choice is "plus2h" | "plus4h" {
+  return choice === "plus2h" || choice === "plus4h";
+}
 
 export function parseCallOutcomeNextFollowChoice(value: unknown):
   | { ok: true; choice: CallOutcomeNextFollowChoice }
@@ -39,6 +46,8 @@ export function parseCallOutcomeNextFollowChoice(value: unknown):
   if (text === "tomorrow" || text === "明天") return { ok: true, choice: "tomorrow" };
   if (text === "plus3" || text === "3天后" || text === "3 天后") return { ok: true, choice: "plus3" };
   if (text === "plus7" || text === "1周后" || text === "1 周后") return { ok: true, choice: "plus7" };
+  if (text === "plus2h" || text === "2小时后" || text === "2 小时后") return { ok: true, choice: "plus2h" };
+  if (text === "plus4h" || text === "4小时后" || text === "4 小时后") return { ok: true, choice: "plus4h" };
   return { ok: false };
 }
 
@@ -51,7 +60,11 @@ export function addCalendarDays(dateKey: string, days: number) {
   return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 
-/** 租户当地日加上 1、3 或 7 天，时刻是允许拨打的开始。不跳过周末。 */
+/**
+ * 明天、3 天后、1 周后是租户当地日历日，时刻是允许拨打的开始，不跳过周末。
+ * 2 小时后、4 小时后是从现在起的实际小时。落到允许拨打时段内就用当地的这一分钟。
+ * 早于开始，顶到当天开始；晚于结束，顶到下一天的开始。结束这一分钟仍算在时段内。
+ */
 export async function callOutcomeNextFollowAt(
   store: CrmStore,
   teamId: string,
@@ -60,7 +73,16 @@ export async function callOutcomeNextFollowAt(
 ) {
   const timeZone = await tenantTimeZoneFor(store, teamId);
   const policy = outboundCallingPolicy(store.aliyunOutboundConfigs.find((item) => item.teamId === teamId));
-  return `${addCalendarDays(zonedDateKey(now, timeZone), OFFSET[choice])} ${policy.callWindowStart}`;
+  if (isSameDayFollowChoice(choice)) {
+    const shifted = new Date(now.getTime() + HOUR_OFFSET[choice] * 3_600_000);
+    const wall = zonedWallMinute(shifted, timeZone);
+    const start = callWindowMinutes(policy.callWindowStart);
+    const end = callWindowMinutes(policy.callWindowEnd);
+    if (wall.minutes >= start && wall.minutes <= end) return `${wall.dateKey} ${wall.hhmm}`;
+    if (wall.minutes < start) return `${wall.dateKey} ${policy.callWindowStart}`;
+    return `${addCalendarDays(wall.dateKey, 1)} ${policy.callWindowStart}`;
+  }
+  return `${addCalendarDays(zonedDateKey(now, timeZone), DAY_OFFSET[choice])} ${policy.callWindowStart}`;
 }
 
 type FollowObjectType = NextFollowUpAuditEvent["objectType"];
