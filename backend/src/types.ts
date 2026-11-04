@@ -5335,6 +5335,42 @@ export interface SameDayCallSkipAudit {
 }
 
 /**
+ * 一个客户、线索或搜客对象在恢复日之前不再接受人工外呼。
+ * 同一租户、同一对象只保留一行。active 且 untilOn 晚于当地今天时才挡住拨打。
+ * untilOn 是恢复拨打的当地日。不记号码。
+ */
+export interface OutboundCallHold {
+  id: string;
+  teamId: string;
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  untilOn: string;
+  reason: "asked_later" | "other_channel" | "colleague" | "other";
+  note: string;
+  active: boolean;
+  actorId: string;
+  updatedAt: string;
+}
+
+/** 暂停外呼的设置、撤销或查看。拒绝时不记备注。不记号码、录音地址或密钥。 */
+export interface OutboundCallHoldAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "set" | "clear" | "read";
+  scope: "" | "mine" | "team";
+  targetType: "" | "customer" | "lead" | "prospect";
+  targetId: string;
+  untilOn: string;
+  holdReason: "" | "asked_later" | "other_channel" | "colleague" | "other";
+  note: string;
+  rowCount: number;
+  result: "updated" | "read" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。

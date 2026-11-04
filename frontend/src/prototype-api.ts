@@ -121,6 +121,13 @@ import {
   type SameDayCallSkipResponse
 } from "./same-day-call-skip";
 import {
+  outboundCallHoldQuery,
+  renderOutboundCallHoldControl,
+  renderOutboundCallHoldFailure,
+  renderOutboundCallHolds,
+  type OutboundCallHoldResponse
+} from "./outbound-call-hold";
+import {
   agentWorkStatusReportQuery,
   renderAgentWorkStatusReport,
   type AgentWorkStatusReportResponse
@@ -12909,6 +12916,18 @@ function paintSameDayCallSkipAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardSameDayCallSkipTeam");
   if (team) team.hidden = !canViewSameDayCallSkipTeam();
+  paintOutboundCallHoldAccess();
+}
+
+function canViewOutboundCallHoldTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintOutboundCallHoldAccess() {
+  const section = qs<HTMLElement>("#dashboardOutboundCallHold");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardOutboundCallHoldTeam");
+  if (team) team.hidden = !canViewOutboundCallHoldTeam();
   paintAgentWorkStatusReportAccess();
 }
 
@@ -16037,7 +16056,7 @@ function preferredOutboundHtml(targets: Array<OutboundCallTarget & { choiceLabel
     dialButtonHtml,
     validityHtml,
     invalidHintHtml
-  })}${renderSameDayCallSkipControl(first.targetType, first.targetId)}${renderCallScriptAside(callScriptPickerTemplates(), "first_call", callScriptListOptions(false))}`;
+  })}${renderSameDayCallSkipControl(first.targetType, first.targetId)}${renderOutboundCallHoldControl(first.targetType, first.targetId)}${renderCallScriptAside(callScriptPickerTemplates(), "first_call", callScriptListOptions(false))}`;
 }
 
 function redrawPreferredPhone(targetType: string, targetId: string) {
@@ -16256,6 +16275,12 @@ function bindOutboundCallButtons(root: ParentNode) {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       void submitSameDayCallSkip(form);
+    });
+  });
+  qsa<HTMLFormElement>("[data-call-hold]", root).forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submitOutboundCallHold(form);
     });
   });
   qsa<HTMLElement>("[data-contact-phone-editor]", root).forEach((editor) => {
@@ -20050,6 +20075,77 @@ async function submitSameDayCallSkip(form: HTMLFormElement) {
     if (button) button.disabled = false;
   } finally {
     sameDayCallSkipBusy = false;
+  }
+}
+
+let outboundCallHoldScope: "mine" | "team" = "mine";
+let outboundCallHoldBusy = false;
+
+async function loadOutboundCallHolds(scope: "mine" | "team") {
+  const list = qs<HTMLElement>("#dashboardOutboundCallHoldList");
+  if (!list) return;
+  if (scope === "team" && !canViewOutboundCallHoldTeam()) return;
+  outboundCallHoldScope = scope;
+  const message = qs<HTMLElement>("#dashboardOutboundCallHoldMessage");
+  if (message) message.textContent = "";
+  try {
+    const data = await api<OutboundCallHoldResponse>(`/api/outbound-call-holds${outboundCallHoldQuery({ scope })}`);
+    list.innerHTML = renderOutboundCallHolds(data);
+  } catch (error) {
+    list.innerHTML = renderOutboundCallHoldFailure(error instanceof Error ? error.message : "暂停外呼没有加载");
+  }
+}
+
+function markOutboundCallHeld(targetType: string, targetId: string, untilOn: string) {
+  const message = untilOn ? `这个对象已暂停外呼，要到 ${untilOn} 才可再拨` : "这个对象已暂停外呼";
+  qsa<HTMLButtonElement>("[data-outbound-call]").forEach((button) => {
+    if (button.dataset.outboundType !== targetType || button.dataset.outboundId !== targetId) return;
+    button.disabled = true;
+    showOutboundCallStatus(button, { tone: "error", message });
+  });
+}
+
+async function submitOutboundCallHold(form: HTMLFormElement) {
+  if (outboundCallHoldBusy) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  const untilOn = form.querySelector<HTMLInputElement>("[data-call-hold-until]")?.value.trim() || "";
+  const reason = form.querySelector<HTMLSelectElement>("[data-call-hold-reason]")?.value || "";
+  const note = form.querySelector<HTMLInputElement>("[data-call-hold-note]")?.value.trim() || "";
+  const button = form.querySelector<HTMLButtonElement>("[data-call-hold-set]");
+  outboundCallHoldBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; untilOn?: string }>("/api/outbound-call-holds", {
+      method: "POST",
+      body: JSON.stringify(note ? { targetType, targetId, untilOn, reason, note } : { targetType, targetId, untilOn, reason })
+    });
+    toast(result.message || "已记下暂停外呼");
+    markOutboundCallHeld(targetType, targetId, result.untilOn || untilOn);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "暂停外呼没有记下", "error");
+    if (button) button.disabled = false;
+  } finally {
+    outboundCallHoldBusy = false;
+  }
+}
+
+async function clearOutboundCallHold(targetType: string, targetId: string, button: HTMLButtonElement | null) {
+  if (outboundCallHoldBusy) return;
+  outboundCallHoldBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/outbound-call-holds/clear", {
+      method: "POST",
+      body: JSON.stringify({ targetType, targetId })
+    });
+    toast(result.message || "已撤销暂停外呼");
+    await loadOutboundCallHolds(outboundCallHoldScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "暂停外呼没有撤销", "error");
+    if (button) button.disabled = false;
+  } finally {
+    outboundCallHoldBusy = false;
   }
 }
 
@@ -58652,6 +58748,26 @@ function installEvents() {
     const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-same-day-call-skip-open]");
     if (!opener) return;
     const row = opener.closest<HTMLElement>("[data-same-day-call-skip-row]");
+    if (!row) return;
+    event.preventDefault();
+    openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
+  });
+  qs<HTMLButtonElement>("#dashboardOutboundCallHoldMine")?.addEventListener("click", () => {
+    void loadOutboundCallHolds("mine");
+  });
+  qs<HTMLButtonElement>("#dashboardOutboundCallHoldTeam")?.addEventListener("click", () => {
+    void loadOutboundCallHolds("team");
+  });
+  qs<HTMLElement>("#dashboardOutboundCallHold")?.addEventListener("click", (event) => {
+    const clear = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-hold-clear]");
+    if (clear) {
+      event.preventDefault();
+      void clearOutboundCallHold(clear.dataset.targetType || "", clear.dataset.targetId || "", clear);
+      return;
+    }
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-call-hold-open]");
+    if (!opener) return;
+    const row = opener.closest<HTMLElement>("[data-call-hold-row]");
     if (!row) return;
     event.preventDefault();
     openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");

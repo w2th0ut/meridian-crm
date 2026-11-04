@@ -29078,6 +29078,19 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardSameDayCallSkipList"><p data-same-day-call-skip-empty="1">点查看后才读取今日不再拨。</p></div>
           </section>
 
+          <section class="panel section" id="dashboardOutboundCallHold" aria-label="暂停外呼直到指定日" hidden>
+            <div class="section-head">
+              <div class="section-title"><div><h2>暂停外呼直到指定日</h2><p id="dashboardOutboundCallHoldScope">已经记下恢复日、还没到那一天的对象</p></div></div>
+            </div>
+            <p id="dashboardOutboundCallHoldNote" class="dashboard-outbound-call-hold-note">这一块列出租户当地今天还没到恢复日的暂停。对象是客户、线索或搜客。我的只看归属人是自己的。主管可以看团队里自己读得到的。每一行有对象、恢复日、原因、备注、时间和记下的人。点名称打开这个对象。撤销一次只恢复这一个对象，之后才可以再从号码旁人工确认拨打。要人工点查看，打开工作台本身不拉这一份。这里没有拨号按钮，不会自动拨号，也不会批量拨号。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <div class="head-actions">
+              <button class="btn" type="button" id="dashboardOutboundCallHoldMine">查看我的</button>
+              <button class="btn" type="button" id="dashboardOutboundCallHoldTeam" hidden>查看团队</button>
+            </div>
+            <p id="dashboardOutboundCallHoldMessage"></p>
+            <div id="dashboardOutboundCallHoldList"><p data-call-hold-empty="1">点查看后才读取暂停外呼。</p></div>
+          </section>
+
           <section class="panel section" id="dashboardAgentWorkStatusReport" aria-label="坐席工作状态时长" hidden>
             <div class="section-head">
               <div class="section-title"><div><h2>坐席工作状态时长</h2><p id="dashboardAgentWorkStatusReportScope">主管按日期查看可接听、忙碌和小休</p></div></div>

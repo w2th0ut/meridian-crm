@@ -50,6 +50,7 @@ export type OutboundCallReason =
   | "min_interval"
   | "invalid_number"
   | "skipped_today"
+  | "held_until"
   | "dial_failed";
 
 export function customerPhoneId(customerId: string) {
@@ -83,11 +84,12 @@ const MESSAGES: Record<OutboundCallReason, string> = {
   min_interval: "距上次拨打未满最小间隔",
   invalid_number: "该号码已标记无效",
   skipped_today: "这个对象今天已标记不再拨打",
+  held_until: "这个对象已暂停外呼",
   dial_failed: "外呼没有发出"
 };
 
 function statusFor(reason: OutboundCallReason) {
-  if (reason === "invalid_request" || reason === "outside_window" || reason === "daily_limit" || reason === "min_interval" || reason === "invalid_number" || reason === "skipped_today") return 400;
+  if (reason === "invalid_request" || reason === "outside_window" || reason === "daily_limit" || reason === "min_interval" || reason === "invalid_number" || reason === "skipped_today" || reason === "held_until") return 400;
   if (reason === "forbidden" || reason === "disabled" || reason === "unmapped") return 403;
   if (reason === "not_found") return 404;
   if (reason === "dial_failed") return 502;
@@ -235,6 +237,23 @@ export function sameDaySkipActive(store: CrmStore, teamId: string, targetType: s
     && item.active
     && item.skipOn === dateKey
   );
+}
+
+/** 恢复日还没到的暂停外呼。返回恢复日；没有则空字符串。不看号码。 */
+export function outboundHoldUntil(store: CrmStore, teamId: string, targetType: string, targetId: string, dateKey: string) {
+  if (!teamId || !targetType || !targetId || !dateKey) return "";
+  const row = (store.outboundCallHolds || []).find((item) =>
+    item.teamId === teamId
+    && item.targetType === targetType
+    && item.targetId === targetId
+    && item.active
+    && item.untilOn > dateKey
+  );
+  return row?.untilOn || "";
+}
+
+export function outboundHoldMessage(untilOn: string) {
+  return `这个对象已暂停外呼，要到 ${untilOn} 才可再拨`;
 }
 
 function dialerFor(region: string) {
@@ -607,11 +626,16 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
   }
   // 原有门禁都通过之后才拒绝无效号码。不改前面的原因，也不放宽它们。
   if (!reason && isPhoneMarkedInvalid(store, user.teamId, parsed.phoneId)) reason = "invalid_number";
-  // 无效号码之后才看今日不再拨。抑制、时段、频次和无权限仍保持原来的原因。
+  // 无效号码之后才看今日不再拨，再看暂停到指定日。抑制、时段、频次和无权限仍保持原来的原因。
+  let heldUntil = "";
   if (!reason) {
     const timeZone = await resolveTenantTimezone(store, user.teamId);
     const dateKey = zonedDateKey(outboundNow(), timeZone);
     if (sameDaySkipActive(store, user.teamId, parsed.targetType, parsed.targetId, dateKey)) reason = "skipped_today";
+    else {
+      heldUntil = outboundHoldUntil(store, user.teamId, parsed.targetType, parsed.targetId, dateKey);
+      if (heldUntil) reason = "held_until";
+    }
   }
 
   if (reason) {
@@ -632,6 +656,8 @@ export async function requestOutboundCall(store: CrmStore, user: SessionUser | u
       outcome.body.message = "没有外呼权限";
     } else if (reason === "forbidden") {
       outcome.body.message = "外呼对象不在当前账号的租户或归属范围内";
+    } else if (reason === "held_until" && heldUntil) {
+      outcome.body.message = outboundHoldMessage(heldUntil);
     }
     return outcome;
   }
@@ -724,6 +750,24 @@ export async function previewWorkbenchCallee(store: CrmStore, user: SessionUser 
         jobId: ""
       });
       const outcome = rejected("skipped_today");
+      return { status: outcome.status, body: { allowed: false, ...outcome.body } };
+    }
+    const untilOn = outboundHoldUntil(store, user.teamId, resolved.match.targetType, resolved.match.targetId, dateKey);
+    if (untilOn) {
+      await writeAudit(store, {
+        teamId: user.teamId,
+        actorId: user.id,
+        targetType: resolved.match.targetType,
+        targetId: resolved.match.targetId,
+        phoneId: resolved.match.phoneId,
+        maskedNumber: resolved.masked,
+        numberKey: outboundNumberKey(resolved.match.phone),
+        result: "rejected",
+        reason: "held_until",
+        jobId: ""
+      });
+      const outcome = rejected("held_until");
+      outcome.body.message = outboundHoldMessage(untilOn);
       return { status: outcome.status, body: { allowed: false, ...outcome.body } };
     }
   }
