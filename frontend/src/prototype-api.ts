@@ -136,6 +136,7 @@ import {
 } from "./call-outcome-note-phrase";
 import { planCallOutcomeShortcut } from "./call-outcome-keys";
 import { bindCallOutcomeNextFollowDefaults, syncCallOutcomeNextFollow } from "./call-outcome-next-follow";
+import { bindCallOutcomeMarkInvalid, syncCallOutcomeMarkInvalid } from "./call-outcome-wrong-number";
 import {
   renderTodayFollowNext,
   renderTodayFollowNextFailure,
@@ -19073,6 +19074,7 @@ async function submitCallOutcome(form: HTMLFormElement) {
   const outcome = form.querySelector<HTMLSelectElement>("[data-call-outcome]")?.value.trim() || "";
   const note = form.querySelector<HTMLInputElement>("[data-call-outcome-note]")?.value ?? "";
   const nextFollowChoice = form.querySelector<HTMLSelectElement>("[data-call-outcome-next-follow]")?.value.trim() || "none";
+  const markNumberInvalid = form.querySelector<HTMLInputElement>("[data-call-outcome-mark-invalid]")?.checked === true;
   if (!CALL_OUTCOMES.includes(outcome as typeof CALL_OUTCOMES[number])) {
     toast("请选择通话结果", "error");
     return;
@@ -19083,7 +19085,7 @@ async function submitCallOutcome(form: HTMLFormElement) {
   try {
     const result = await api<{ message?: string; result?: string }>(
       `/api/outbound-call-records/${encodeURIComponent(recordId)}/outcome`,
-      { method: "POST", body: JSON.stringify({ outcome, note, nextFollowChoice }) }
+      { method: "POST", body: JSON.stringify({ outcome, note, nextFollowChoice, markNumberInvalid }) }
     );
     toast(result.message || "已保存通话结果");
     await loadOutboundCallRecords();
@@ -20329,6 +20331,7 @@ function applyCallOutcomeShortcut(event: KeyboardEvent) {
     const select = form.querySelector<HTMLSelectElement>("[data-call-outcome]");
     if (select) select.value = plan.outcome;
     syncCallOutcomeNextFollow(form);
+    syncCallOutcomeMarkInvalid(form);
     return;
   }
   if (plan.action === "insert-phrase") {
@@ -58061,6 +58064,8 @@ function installEvents() {
   const outcomeDetailRoot = qs<HTMLElement>("#outboundCallRecordDetail");
   if (outcomeListRoot) bindCallOutcomeNextFollowDefaults(outcomeListRoot);
   if (outcomeDetailRoot) bindCallOutcomeNextFollowDefaults(outcomeDetailRoot);
+  if (outcomeListRoot) bindCallOutcomeMarkInvalid(outcomeListRoot);
+  if (outcomeDetailRoot) bindCallOutcomeMarkInvalid(outcomeDetailRoot);
   qs<HTMLButtonElement>("#cccSoftphoneToggle")?.addEventListener("click", () => {
     const panel = qs<HTMLElement>("#cccSoftphonePanel");
     const button = qs<HTMLButtonElement>("#cccSoftphoneToggle");

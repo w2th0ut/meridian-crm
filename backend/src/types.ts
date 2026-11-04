@@ -5119,6 +5119,7 @@ export interface PhoneValidity {
 /**
  * 一次号码有效性的修改。前值和后值是 valid 或 invalid。
  * 来源通话只在从通话记录标记时有值。不记完整号码。
+ * 从通话结果里拒绝标无效时，result 是 rejected，reason 是原因，前值和后值保持原状。
  */
 export interface PhoneValidityAudit {
   id: string;
@@ -5131,6 +5132,8 @@ export interface PhoneValidityAudit {
   previousValue: "valid" | "invalid";
   nextValue: "valid" | "invalid";
   sourceCallRecordId: string;
+  result?: "" | "rejected";
+  reason?: string;
 }
 
 /**
@@ -5376,6 +5379,7 @@ export interface PreferredPhone {
 /**
  * 一次首选号码的设置、更换、清除，或一次被拒绝的尝试。
  * 旧值和新值是号码 ID。号码被标成无效而自动失去首选时，原因是 marked_invalid。
+ * 号码错误保存时把首选改到另一个有效号码，原因是 wrong_number_alternate。
  * 不记完整号码，也不记密钥。
  */
 export interface PreferredPhoneAudit {

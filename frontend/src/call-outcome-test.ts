@@ -100,7 +100,7 @@ const submitEnd = api.indexOf("async function loadOutboundCallRecords");
 assert.ok(submitStart > 0 && submitEnd > submitStart);
 const submit = api.slice(submitStart, submitEnd);
 assert.match(submit, /\/api\/outbound-call-records\/\$\{encodeURIComponent\(recordId\)\}\/outcome/);
-assert.match(submit, /JSON\.stringify\(\{ outcome, note, nextFollowChoice \}\)/);
+assert.match(submit, /JSON\.stringify\(\{ outcome, note, nextFollowChoice, markNumberInvalid \}\)/);
 assert.doesNotMatch(submit, /MakeCall|aliyuncs|callRecordIds|records":|ids":/);
 assert.match(api, /data-call-outcome-form/);
 assert.match(api, /outboundCallRecordOutcome/);
