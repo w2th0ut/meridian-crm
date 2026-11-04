@@ -5,7 +5,7 @@ type AuditStore = {
   ownerReassignAudits: OwnerReassignAuditEvent[];
 };
 
-/** 每次成功改掉负责人时记一条。未改、无权和参数错误不记。 */
+/** 成功改掉负责人时记一条。通话结果里的拒绝也记在这张表。参数错误不记。 */
 export function appendOwnerReassignAudit(
   store: AuditStore,
   input: {
@@ -14,17 +14,21 @@ export function appendOwnerReassignAudit(
     previousOwnerId: string;
     nextOwnerId: string;
     at?: string;
+    objectType?: OwnerReassignAuditEvent["objectType"];
+    action?: OwnerReassignAuditEvent["action"];
+    callRecordId?: string;
   }
 ) {
   const event: OwnerReassignAuditEvent = {
     id: `ora_${randomUUID()}`,
     actorId: input.actorId,
     at: input.at || new Date().toISOString(),
-    objectType: "prospect_candidate",
+    objectType: input.objectType || "prospect_candidate",
     objectId: input.objectId,
-    action: "reassign_owner",
+    action: input.action || "reassign_owner",
     previousOwnerId: input.previousOwnerId,
-    nextOwnerId: input.nextOwnerId
+    nextOwnerId: input.nextOwnerId,
+    callRecordId: input.callRecordId || ""
   };
   store.ownerReassignAudits.unshift(event);
   return event;

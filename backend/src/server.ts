@@ -19656,7 +19656,7 @@ app.get("/api/tools/website-opportunities", requireAuth, asyncRoute(async (req, 
 }));
 
 app.get("/api/prospect-list/assignees", requireAuth, (req, res) => {
-  if (!canManageProspectAssignments(req.user)) {
+  if (!canManageProspectAssignments(req.user) && !hasIamPermission(req.user, "customer.assign")) {
     res.json({ assignees: [] });
     return;
   }

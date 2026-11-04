@@ -4,6 +4,7 @@ import {
   parseCallOutcomeNextFollowChoice,
   type CallOutcomeNextFollowChoice
 } from "./call-outcome-next-follow.js";
+import { parseCallOutcomeTransfer, planCallOutcomeTransfer } from "./call-outcome-transfer.js";
 import {
   appendWrongNumberRejection,
   parseMarkNumberInvalid,
@@ -11,6 +12,7 @@ import {
   type WrongNumberEffect
 } from "./call-outcome-wrong-number.js";
 import { appendNextFollowUpAudit } from "./next-follow-up-audit.js";
+import { appendOwnerReassignAudit } from "./owner-reassign-audit.js";
 import {
   CALL_OUTCOME_NOTE_MAX,
   callOutcomeNoteLength,
@@ -28,11 +30,12 @@ import type { CallOutcomeAudit, SessionUser } from "./types.js";
  * 给一条通话记录标注结果。
  * 可以同时按明天、3 天后、1 周后写下关联对象的下次跟进。不设则不改下次跟进。
  * 号码错误可以同时把这一通对上的号码标为无效，并在首选正是它时改到另一个有效号码。
- * 只改本条的 callOutcome 和 callOutcomeNote，以及该对象已有的下次跟进、无效号和首选。
+ * 可以同时把关联对象的负责人转给同租户的另一位同事。不选则不改负责人。
+ * 只改本条的 callOutcome 和 callOutcomeNote，以及该对象已有的下次跟进、无效号、首选和 ownerId。
  * 不拨号，不发信，不推进序列，不解除抑制，不转线索。
  */
 
-const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "outcomes", "phones", "phoneIds"] as const;
+const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "outcomes", "phones", "phoneIds", "ownerIds", "assignees", "users"] as const;
 
 export function normalizeCallOutcomeNote(value: unknown):
   | { ok: true; note: string }
@@ -45,7 +48,7 @@ export function normalizeCallOutcomeNote(value: unknown):
 }
 
 export function parseCallOutcomeRequest(body: unknown):
-  | { ok: true; outcome: CallOutcome; note: string; nextFollowChoice: CallOutcomeNextFollowChoice; markNumberInvalid: boolean }
+  | { ok: true; outcome: CallOutcome; note: string; nextFollowChoice: CallOutcomeNextFollowChoice; markNumberInvalid: boolean; transferTo: string }
   | { ok: false; reason: "invalid_request" | "invalid_outcome" | "invalid_note" | "note_too_long" | "invalid_next_follow" | "invalid_mark" } {
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, reason: "invalid_request" };
@@ -62,12 +65,15 @@ export function parseCallOutcomeRequest(body: unknown):
   const outcome = record.outcome.trim();
   const mark = parseMarkNumberInvalid(outcome, record.markNumberInvalid);
   if (!mark.ok) return { ok: false, reason: mark.reason };
+  const transfer = parseCallOutcomeTransfer(record.transferTo);
+  if (!transfer.ok) return { ok: false, reason: transfer.reason };
   return {
     ok: true,
     outcome: outcome as CallOutcome,
     note: note.note,
     nextFollowChoice: choice.choice,
-    markNumberInvalid: mark.mark
+    markNumberInvalid: mark.mark,
+    transferTo: transfer.transferTo
   };
 }
 
@@ -143,6 +149,23 @@ export async function labelCallOutcome(
     }
     return reject(wrong.reason, wrong.message, wrong.status);
   }
+  const transfer = planCallOutcomeTransfer(store, user, record, parsed.transferTo);
+  if (!transfer.ok) {
+    if (transfer.audit) {
+      appendOwnerReassignAudit(store, {
+        actorId: user.id,
+        objectType: transfer.audit.objectType,
+        objectId: transfer.audit.objectId,
+        action: transfer.audit.action,
+        previousOwnerId: transfer.audit.previousOwnerId,
+        nextOwnerId: transfer.audit.nextOwnerId,
+        callRecordId: record.id,
+        at: now.toISOString()
+      });
+      await store.persist();
+    }
+    return reject(transfer.reason, transfer.message, transfer.status);
+  }
   const previousOutcome = record.callOutcome || "";
   const previousNote = record.callOutcomeNote || "";
   const outcomeChanged = previousOutcome !== parsed.outcome || previousNote !== parsed.note;
@@ -155,13 +178,20 @@ export async function labelCallOutcome(
   const preferredSwitchResult = markPreview?.preferred ?? "skipped" as const;
   const validityChanged = phoneInvalidResult === "updated";
   const preferredChanged = preferredSwitchResult === "updated" || preferredSwitchResult === "cleared";
+  const ownerChanged = transfer.kind === "write" && transfer.previous !== transfer.next;
+  const ownerResult = transfer.kind === "skip" ? "skipped" as const : ownerChanged ? "updated" as const : "unchanged" as const;
   const markFields = {
     markNumberInvalid: parsed.markNumberInvalid,
     phoneInvalidResult,
     preferredSwitchResult,
     ...(wrong.kind === "apply" ? { phoneId: wrong.phoneId } : {})
   };
-  if (!outcomeChanged && !followChanged && !validityChanged && !preferredChanged) {
+  const transferFields = {
+    transferTo: parsed.transferTo,
+    ownerResult,
+    ...(transfer.kind === "write" ? { previousOwnerId: transfer.previous, ownerId: transfer.next } : {})
+  };
+  if (!outcomeChanged && !followChanged && !validityChanged && !preferredChanged && !ownerChanged) {
     return {
       status: 200,
       body: {
@@ -174,12 +204,14 @@ export async function labelCallOutcome(
         nextFollowAt,
         nextFollowResult,
         ...markFields,
+        ...transferFields,
         ...(notice ? { suppressionNotice: notice } : {})
       }
     };
   }
   if (followChanged && follow.kind === "write") follow.apply();
   if (wrong.kind === "apply" && (validityChanged || preferredChanged)) wrong.apply();
+  if (ownerChanged && transfer.kind === "write") transfer.apply();
   let auditId = "";
   if (outcomeChanged) {
     record.callOutcome = parsed.outcome;
@@ -206,8 +238,20 @@ export async function labelCallOutcome(
       at: now.toISOString()
     });
   }
+  if (ownerChanged && transfer.kind === "write") {
+    appendOwnerReassignAudit(store, {
+      actorId: user.id,
+      objectType: transfer.objectType,
+      objectId: transfer.objectId,
+      action: "reassign_owner",
+      previousOwnerId: transfer.previous,
+      nextOwnerId: transfer.next,
+      callRecordId: record.id,
+      at: now.toISOString()
+    });
+  }
   await store.persist();
-  const message = !validityChanged && preferredSwitchResult !== "updated" && preferredSwitchResult !== "cleared"
+  const baseMessage = !validityChanged && preferredSwitchResult !== "updated" && preferredSwitchResult !== "cleared"
     ? outcomeChanged && followChanged
       ? "已保存通话结果，并记下下次跟进"
       : followChanged
@@ -220,6 +264,13 @@ export async function labelCallOutcome(
       preferredSwitchResult === "updated" ? "已把首选改到另一个号码" : "",
       preferredSwitchResult === "cleared" ? "这个号码不再是首选" : ""
     ].filter(Boolean).join("，");
+  const message = ownerChanged
+    ? baseMessage && baseMessage !== "已保存通话结果"
+      ? `${baseMessage}，已转交负责人`
+      : outcomeChanged
+        ? "已保存通话结果，已转交负责人"
+        : "已转交负责人"
+    : baseMessage;
   return {
     status: 200,
     body: {
@@ -233,6 +284,7 @@ export async function labelCallOutcome(
       nextFollowAt,
       nextFollowResult,
       ...markFields,
+      ...transferFields,
       ...(notice ? { suppressionNotice: notice } : {}),
       record: presentOutboundCallRecord(record, resolved.access.timeZone, resolved.access.labels)
     }

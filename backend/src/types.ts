@@ -4784,16 +4784,18 @@ export interface FollowUpAuditEvent {
   activityId: string;
 }
 
-/** 批量改负责人的最小审计。操作人、时间、对象、动作、原负责人到新负责人。 */
+/** 改负责人的最小审计。操作人、时间、对象、动作、原负责人到新负责人。 */
 export interface OwnerReassignAuditEvent {
   id: string;
   actorId: string;
   at: string;
-  objectType: "prospect_candidate";
+  objectType: "prospect_candidate" | "customer" | "lead";
   objectId: string;
-  action: "reassign_owner";
+  action: "reassign_owner" | "reject_forbidden" | "reject_public_pool" | "reject_not_found";
   previousOwnerId: string;
   nextOwnerId: string;
+  /** 从单条通话结果顺手转交时指向那一通。清单上的批量改负责人为空。 */
+  callRecordId?: string;
 }
 
 /** 批量打标签或移除标签的最小审计。操作人、时间、对象、动作、这次写下的标签。 */

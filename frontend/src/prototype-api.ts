@@ -137,6 +137,7 @@ import {
 } from "./call-outcome-note-phrase";
 import { planCallOutcomeShortcut } from "./call-outcome-keys";
 import { bindCallOutcomeNextFollowDefaults, syncCallOutcomeNextFollow } from "./call-outcome-next-follow";
+import { type CallOutcomeTransferView } from "./call-outcome-transfer";
 import { bindCallOutcomeMarkInvalid, syncCallOutcomeMarkInvalid } from "./call-outcome-wrong-number";
 import {
   renderTodayFollowNext,
@@ -18777,7 +18778,7 @@ async function openOutboundCallRecord(recordId: string) {
         phoneId: record.phoneId
       });
     }
-    panel.innerHTML = renderOutboundCallRecordDetail(result);
+    panel.innerHTML = renderOutboundCallRecordDetail(result, callOutcomeTransferView());
   } catch (error) {
     panel.innerHTML = renderOutboundCallRecordFailure(error instanceof Error ? error.message : "通话记录没有加载");
   }
@@ -19153,6 +19154,14 @@ function rememberCallNote(record: OutboundCallRecordRow | undefined) {
 
 let callOutcomePending = false;
 
+function callOutcomeTransferView(): CallOutcomeTransferView {
+  return {
+    assignees: state.prospectAssignees.map((item) => ({ id: item.id, name: item.name })),
+    customer: hasIamCapability("customer.assign"),
+    lead: hasIamCapability("lead.assign")
+  };
+}
+
 async function submitCallOutcome(form: HTMLFormElement) {
   const recordId = form.dataset.recordId || "";
   if (!recordId || callOutcomePending) return;
@@ -19160,6 +19169,7 @@ async function submitCallOutcome(form: HTMLFormElement) {
   const note = form.querySelector<HTMLInputElement>("[data-call-outcome-note]")?.value ?? "";
   const nextFollowChoice = form.querySelector<HTMLSelectElement>("[data-call-outcome-next-follow]")?.value.trim() || "none";
   const markNumberInvalid = form.querySelector<HTMLInputElement>("[data-call-outcome-mark-invalid]")?.checked === true;
+  const transferTo = form.querySelector<HTMLSelectElement>("[data-call-outcome-transfer]")?.value.trim() || "";
   if (!CALL_OUTCOMES.includes(outcome as typeof CALL_OUTCOMES[number])) {
     toast("请选择通话结果", "error");
     return;
@@ -19168,9 +19178,16 @@ async function submitCallOutcome(form: HTMLFormElement) {
   callOutcomePending = true;
   if (button) button.disabled = true;
   try {
+    const body: { outcome: string; note: string; nextFollowChoice: string; markNumberInvalid: boolean; transferTo?: string } = {
+      outcome,
+      note,
+      nextFollowChoice,
+      markNumberInvalid
+    };
+    if (transferTo) body.transferTo = transferTo;
     const result = await api<{ message?: string; result?: string; phoneId?: string; phoneInvalidResult?: string; markNumberInvalid?: boolean }>(
       `/api/outbound-call-records/${encodeURIComponent(recordId)}/outcome`,
-      { method: "POST", body: JSON.stringify({ outcome, note, nextFollowChoice, markNumberInvalid }) }
+      { method: "POST", body: JSON.stringify(body) }
     );
     const linkedType = form.dataset.targetType || "";
     const linkedId = form.dataset.targetId || "";
@@ -19409,7 +19426,7 @@ async function loadOutboundCallRecords() {
       return count > 0 ? { ...record, sameNumberCount: count } : record;
     });
     list.innerHTML = records.length
-      ? renderOutboundCallRecordList(records)
+      ? renderOutboundCallRecordList(records, callOutcomeTransferView())
       : targetType && targetId && tag && !result.empty
         ? renderOutboundCallTargetFilterEmpty()
       : tag && !result.empty

@@ -18,7 +18,8 @@ assert.deepEqual(parseCallOutcomeRequest({ outcome: "号码错误", markNumberIn
   outcome: "号码错误",
   note: "",
   nextFollowChoice: "none",
-  markNumberInvalid: true
+  markNumberInvalid: true,
+  transferTo: ""
 });
 assert.equal(parseCallOutcomeRequest({ outcome: "有意向", markNumberInvalid: true }).ok, false);
 const markedElsewhere = parseCallOutcomeRequest({ outcome: "无意向", markNumberInvalid: true });

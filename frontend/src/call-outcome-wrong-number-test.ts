@@ -34,7 +34,7 @@ assert.ok(submitStart > 0 && submitEnd > submitStart);
 const submit = api.slice(submitStart, submitEnd);
 assert.match(submit, /data-call-outcome-mark-invalid/);
 assert.match(submit, /markNumberInvalid/);
-assert.match(submit, /JSON\.stringify\(\{ outcome, note, nextFollowChoice, markNumberInvalid \}\)/);
+assert.match(submit, /JSON\.stringify\(body\)/);
 assert.match(submit, /\/api\/outbound-call-records\/\$\{encodeURIComponent\(recordId\)\}\/outcome/);
 assert.equal(submit.includes("MakeCall"), false);
 assert.equal(submit.includes("/api/outbound-calls"), false);

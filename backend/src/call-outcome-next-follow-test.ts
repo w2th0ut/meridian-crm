@@ -26,7 +26,8 @@ assert.deepEqual(parseCallOutcomeRequest({ outcome: "无意向", nextFollowChoic
   outcome: "无意向",
   note: "",
   nextFollowChoice: "none",
-  markNumberInvalid: false
+  markNumberInvalid: false,
+  transferTo: ""
 });
 assert.equal(parseCallOutcomeRequest({ outcome: "有意向", nextFollowChoice: "下周" }).ok, false);
 assert.equal(parseCallOutcomeRequest({ outcome: "有意向", nextFollowAt: "2026-11-07 09:00" }).ok, false);
