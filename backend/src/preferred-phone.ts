@@ -266,7 +266,14 @@ export function releasePreferredPhonesMarkedInvalid(
 async function apply(
   store: CrmStore,
   user: SessionUser,
-  input: { clear: true; targetType: TargetType; targetId: string } | { clear: false; targetType: TargetType; targetId: string; phoneId: string }
+  input: { clear: true; targetType: TargetType; targetId: string } | {
+    clear: false;
+    targetType: TargetType;
+    targetId: string;
+    phoneId: string;
+    successReason?: string;
+    successMessage?: string;
+  }
 ) {
   const located = locate(store, user.teamId, input.targetType, input.targetId);
   const nextPhoneId = input.clear ? "" : input.phoneId;
@@ -361,12 +368,12 @@ async function apply(
       previousPhoneId,
       nextPhoneId: input.phoneId,
       result: "updated",
-      reason: action
+      reason: input.successReason || action
     });
     return successBody({
       result: "updated",
       action,
-      message: action === "set" ? "已设置首选拨打号码" : "已更换首选拨打号码",
+      message: input.successMessage || (action === "set" ? "已设置首选拨打号码" : "已更换首选拨打号码"),
       targetType: located.targetType,
       targetId: located.targetId,
       phoneId: input.phoneId,
@@ -470,4 +477,90 @@ export async function clearPreferredPhone(store: CrmStore, user: SessionUser | u
   const parsed = parsePreferredPhoneClearRequest(body);
   if (!parsed.ok) return reject(parsed.reason, "一次只能为一个对象清除首选号码");
   return apply(store, user, { clear: true, targetType: parsed.targetType, targetId: parsed.targetId });
+}
+
+/**
+ * 未接通后改首选之前，先确认对象存在并且当前用户能改。
+ * 失败时写入 preferred_phone_audits。不读通话，也不拨号。
+ */
+export async function loadPreferredPhoneWriteTarget(
+  store: CrmStore,
+  user: SessionUser,
+  targetType: TargetType,
+  targetId: string
+) {
+  const located = locate(store, user.teamId, targetType, targetId);
+  if (!located.ok) {
+    const rejected = await rejectWithAudit(store, user, {
+      action: "set",
+      targetType,
+      targetId,
+      previousPhoneId: "",
+      nextPhoneId: "",
+      reason: located.reason,
+      status: located.status,
+      message: located.message
+    });
+    return { ok: false as const, status: rejected.status, body: rejected.body };
+  }
+  const previousPhoneId = currentPhoneId(store, user.teamId, located.targetType, located.targetId);
+  const denied = await accessFailure(store, user, located);
+  if (denied) {
+    const rejected = await rejectWithAudit(store, user, {
+      action: previousPhoneId ? "update" as const : "set" as const,
+      targetType: located.targetType,
+      targetId: located.targetId,
+      previousPhoneId,
+      nextPhoneId: "",
+      reason: denied.reason,
+      status: denied.status,
+      message: denied.message
+    });
+    return { ok: false as const, status: rejected.status, body: rejected.body };
+  }
+  return {
+    ok: true as const,
+    targetType: located.targetType,
+    targetId: located.targetId,
+    previousPhoneId
+  };
+}
+
+export async function recordPreferredPhoneRejection(
+  store: CrmStore,
+  user: SessionUser,
+  input: {
+    action: "set" | "update" | "clear";
+    targetType: TargetType | "";
+    targetId: string;
+    previousPhoneId: string;
+    nextPhoneId: string;
+    reason: string;
+    status: number;
+    message: string;
+  }
+) {
+  return rejectWithAudit(store, user, input);
+}
+
+/** 把首选写成指定号码 ID。成功原因由调用方传入，手工设置仍用 set / update。 */
+export async function assignPreferredPhone(
+  store: CrmStore,
+  user: SessionUser,
+  input: {
+    targetType: TargetType;
+    targetId: string;
+    phoneId: string;
+    successReason: string;
+    successMessage: string;
+  }
+) {
+  return apply(store, user, {
+    clear: false,
+    targetType: input.targetType,
+    targetId: input.targetId,
+    phoneId: input.phoneId,
+    successReason: input.successReason,
+    successMessage: input.successMessage
+  });
 }

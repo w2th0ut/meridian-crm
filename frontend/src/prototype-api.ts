@@ -32,6 +32,7 @@ import {
   renderPreferredPhoneChooser,
   selectPreferredPhoneId
 } from "./preferred-phone";
+import { missedNumberSwitchBody } from "./missed-number-switch";
 import {
   contactPhoneChoiceLabel,
   contactPhoneCreateBody,
@@ -16118,6 +16119,33 @@ async function submitPreferredPhone(chooser: HTMLElement, clear: boolean) {
   }
 }
 
+async function submitMissedNumberSwitch(chooser: HTMLElement) {
+  if (preferredPhonePending) return;
+  const targetType = chooser.dataset.preferredType || "";
+  const targetId = chooser.dataset.preferredId || "";
+  if (targetType !== "customer" && targetType !== "lead" && targetType !== "prospect") return;
+  if (!targetId) return;
+  preferredPhonePending = true;
+  try {
+    const result = await api<{ result?: string; message?: string; phoneId?: string }>(
+      "/api/preferred-phones/switch-after-miss",
+      {
+        method: "POST",
+        body: JSON.stringify(missedNumberSwitchBody({ targetType, targetId }))
+      }
+    );
+    const key = preferredPhoneKey(targetType, targetId);
+    const phoneId = (result.phoneId || "").trim();
+    if (phoneId) preferredPhoneByTarget.set(key, phoneId);
+    toast(result.message || "已把首选改到另一个号码");
+    redrawPreferredPhone(targetType, targetId);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "首选号码没有改", "error");
+  } finally {
+    preferredPhonePending = false;
+  }
+}
+
 function redrawPhoneValidity(targetType: string, targetId: string) {
   if (targetType === "customer" && state.selectedCustomerId === targetId) renderCustomerDetailPage();
   if (targetType === "lead" && leadDrawerSnapshot?.lead.id === targetId && qs("#leadDrawer")?.classList.contains("open")) {
@@ -16250,6 +16278,9 @@ function bindOutboundCallButtons(root: ParentNode) {
     });
     chooser.querySelector<HTMLButtonElement>("[data-preferred-phone-clear]")?.addEventListener("click", () => {
       void submitPreferredPhone(chooser, true);
+    });
+    chooser.querySelector<HTMLButtonElement>("[data-missed-number-switch]")?.addEventListener("click", () => {
+      void submitMissedNumberSwitch(chooser);
     });
   });
   qsa<HTMLFormElement>("[data-same-day-call-skip]", root).forEach((form) => {
