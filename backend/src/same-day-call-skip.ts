@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { hasIamPermission } from "./auth.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
-import { OUTBOUND_CALL_PERMISSION, outboundInstant, sameDaySkipActive, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
+import { OUTBOUND_CALL_PERMISSION, addCalendarDays, isCalendarDateKey, outboundInstant, sameDaySkipActive, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
 import { resolveOutboundCallRecordAccess } from "./outbound-call-records.js";
 import type { CrmStore } from "./store.js";
 import type { SameDayCallSkip, SameDayCallSkipAudit, SessionUser } from "./types.js";
@@ -9,7 +9,7 @@ import type { SameDayCallSkip, SameDayCallSkipAudit, SessionUser } from "./types
 /**
  * 同一对象今日不再拨。
  * 坐席或主管把一个客户、线索或搜客对象标成租户当地今天不再人工外呼。
- * 之后的一键外呼和工作台拨出在原有门禁都通过之后返回 skipped_today，不调用拨号器。
+ * 恢复日为空或等于当地明天时，只挡今天。更晚的恢复日最远 30 天，到这一天之前返回 skipped_today，不调用拨号器。
  * 当前值在 same_day_call_skips，一行一个对象。查看、设置和撤销写入 same_day_call_skip_audits。
  * 不拨号，不发信，不调用外部接口，不碰抑制或合规。
  */
@@ -76,29 +76,36 @@ export function parseSameDayCallSkipQuery(query: Record<string, unknown>): { sco
 }
 
 function parseTargetBody(body: unknown, allowNote: boolean):
-  | { ok: true; targetType: SameDaySkipTargetType; targetId: string; reason: SameDaySkipReason; note: string }
-  | { ok: false; reason: "invalid_request" | "note_too_long" } {
+  | { ok: true; targetType: SameDaySkipTargetType; targetId: string; reason: SameDaySkipReason; note: string; resumeOn: string }
+  | { ok: false; reason: "invalid_request" | "note_too_long" | "resume_invalid" } {
   if (body === null || typeof body !== "object" || Array.isArray(body)) return { ok: false, reason: "invalid_request" };
   const record = body as Record<string, unknown>;
   if (BATCH_KEYS.some((key) => key in record)) return { ok: false, reason: "invalid_request" };
-  const allowed = new Set(allowNote ? ["targetType", "targetId", "reason", "note"] : ["targetType", "targetId"]);
+  const allowed = new Set(allowNote ? ["targetType", "targetId", "reason", "note", "resumeOn"] : ["targetType", "targetId"]);
   if (Object.keys(record).some((key) => !allowed.has(key))) return { ok: false, reason: "invalid_request" };
   if (typeof record.targetType !== "string" || !isTargetType(record.targetType.trim())) return { ok: false, reason: "invalid_request" };
   if (typeof record.targetId !== "string" || !TARGET_ID_PATTERN.test(record.targetId.trim())) return { ok: false, reason: "invalid_request" };
   if (!allowNote) {
-    return { ok: true, targetType: record.targetType.trim() as SameDaySkipTargetType, targetId: record.targetId.trim(), reason: "other", note: "" };
+    return { ok: true, targetType: record.targetType.trim() as SameDaySkipTargetType, targetId: record.targetId.trim(), reason: "other", note: "", resumeOn: "" };
   }
   if (typeof record.reason !== "string" || !isReason(record.reason.trim())) return { ok: false, reason: "invalid_request" };
   const rawNote = record.note;
   if (rawNote !== undefined && rawNote !== null && typeof rawNote !== "string") return { ok: false, reason: "invalid_request" };
   const note = typeof rawNote === "string" ? rawNote.trim() : "";
   if (textLength(note) > NOTE_MAX) return { ok: false, reason: "note_too_long" };
+  let resumeOn = "";
+  if (record.resumeOn !== undefined && record.resumeOn !== null) {
+    if (typeof record.resumeOn !== "string") return { ok: false, reason: "invalid_request" };
+    resumeOn = record.resumeOn.trim();
+    if (resumeOn && !isCalendarDateKey(resumeOn)) return { ok: false, reason: "resume_invalid" };
+  }
   return {
     ok: true,
     targetType: record.targetType.trim() as SameDaySkipTargetType,
     targetId: record.targetId.trim(),
     reason: record.reason.trim() as SameDaySkipReason,
-    note
+    note,
+    resumeOn
   };
 }
 
@@ -121,11 +128,18 @@ function skips(store: CrmStore) {
   return store.sameDayCallSkips;
 }
 
-async function writeAudit(store: CrmStore, input: Omit<SameDayCallSkipAudit, "id" | "at">) {
+function stillBlocking(item: { skipOn?: string; resumeOn?: string }, dateKey: string) {
+  const explicit = isCalendarDateKey(item.resumeOn || "") ? (item.resumeOn || "").trim() : "";
+  const resume = explicit || addCalendarDays(item.skipOn || "", 1);
+  return Boolean(resume) && dateKey < resume;
+}
+
+async function writeAudit(store: CrmStore, input: Omit<SameDayCallSkipAudit, "id" | "at" | "resumeOn"> & { resumeOn?: string }) {
   const audit: SameDayCallSkipAudit = {
     id: `sdcsa_${randomUUID()}`,
     at: outboundInstant().toISOString(),
     ...input,
+    resumeOn: input.result === "rejected" ? "" : (input.resumeOn || ""),
     note: input.result === "rejected" ? "" : input.note
   };
   if (!store.sameDayCallSkipAudits) store.sameDayCallSkipAudits = [];
@@ -213,6 +227,7 @@ interface ListedSkip {
   reasonLabel: string;
   note: string;
   skipOn: string;
+  resumeOn: string;
   actorId: string;
   actorLabel: string;
   updatedAt: string;
@@ -221,7 +236,7 @@ interface ListedSkip {
 async function listRows(store: CrmStore, user: SessionUser, scope: "mine" | "team", dateKey: string) {
   const rows: ListedSkip[] = [];
   for (const item of skips(store)) {
-    if (item.teamId !== user.teamId || !item.active || item.skipOn !== dateKey) continue;
+    if (item.teamId !== user.teamId || !item.active || !stillBlocking(item, dateKey)) continue;
     if (!isTargetType(item.targetType) || !isReason(item.reason)) continue;
     const located = locateObject(store, user, item.targetType, item.targetId);
     if (!located.ok) continue;
@@ -236,6 +251,7 @@ async function listRows(store: CrmStore, user: SessionUser, scope: "mine" | "tea
       reasonLabel: REASON_LABEL[item.reason],
       note: item.note || "",
       skipOn: item.skipOn,
+      resumeOn: (item.resumeOn || "").trim(),
       actorId: item.actorId,
       actorLabel: actorLabel(store, user.teamId, item.actorId),
       updatedAt: item.updatedAt || ""
@@ -353,21 +369,32 @@ export async function setSameDayCallSkip(store: CrmStore, user: SessionUser | un
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
   const parsed = parseSameDayCallSkipSet(body);
   if (!parsed.ok) {
-    return reject("invalid_request", parsed.reason === "note_too_long" ? "备注不能超过 200 字" : "一次只能为一个对象记下今日不再拨");
+    const message = parsed.reason === "note_too_long"
+      ? "备注不能超过 200 字"
+      : parsed.reason === "resume_invalid"
+        ? "恢复日必须是合法的日期"
+        : "一次只能为一个对象记下暂停外呼";
+    return reject("invalid_request", message);
+  }
+  const dateKey = await todayKey(store, user.teamId);
+  if (parsed.resumeOn) {
+    const latest = addCalendarDays(dateKey, 30);
+    if (parsed.resumeOn <= dateKey) return reject("invalid_request", "恢复日必须晚于租户当地今天");
+    if (!latest || parsed.resumeOn > latest) return reject("invalid_request", "恢复日不能晚于当地今天之后的 30 天");
   }
   const guarded = await guardTarget(store, user, "set", parsed.targetType, parsed.targetId);
   if (!guarded.ok) return guarded.outcome;
-  const dateKey = await todayKey(store, user.teamId);
   const matches = skips(store).filter((item) =>
     item.teamId === user.teamId && item.targetType === parsed.targetType && item.targetId === parsed.targetId
   );
   const current = matches[0];
-  if (current && current.active && current.skipOn === dateKey && current.reason === parsed.reason && (current.note || "") === parsed.note && matches.every((item) => item === current || !item.active)) {
+  const currentResume = (current?.resumeOn || "").trim();
+  if (current && current.active && stillBlocking(current, dateKey) && current.reason === parsed.reason && (current.note || "") === parsed.note && currentResume === parsed.resumeOn && matches.every((item) => item === current || !item.active)) {
     return {
       status: 200,
       body: {
         result: "unchanged" as const,
-        message: "今天的不再拨没有变化",
+        message: parsed.resumeOn && parsed.resumeOn !== addCalendarDays(dateKey, 1) ? "这次暂停没有变化" : "今天的不再拨没有变化",
         targetType: parsed.targetType,
         targetId: parsed.targetId,
         skipOn: dateKey
@@ -377,6 +404,7 @@ export async function setSameDayCallSkip(store: CrmStore, user: SessionUser | un
   const now = outboundInstant().toISOString();
   if (current) {
     current.skipOn = dateKey;
+    current.resumeOn = parsed.resumeOn;
     current.reason = parsed.reason;
     current.note = parsed.note;
     current.active = true;
@@ -390,6 +418,7 @@ export async function setSameDayCallSkip(store: CrmStore, user: SessionUser | un
       targetType: parsed.targetType,
       targetId: parsed.targetId,
       skipOn: dateKey,
+      resumeOn: parsed.resumeOn,
       reason: parsed.reason,
       note: parsed.note,
       active: true,
@@ -406,6 +435,7 @@ export async function setSameDayCallSkip(store: CrmStore, user: SessionUser | un
     targetType: parsed.targetType,
     targetId: parsed.targetId,
     skipOn: dateKey,
+    resumeOn: parsed.resumeOn,
     skipReason: parsed.reason,
     note: parsed.note,
     rowCount: 0,
@@ -416,10 +446,13 @@ export async function setSameDayCallSkip(store: CrmStore, user: SessionUser | un
     status: 200,
     body: {
       result: "updated" as const,
-      message: "已记下今日不再拨，今天不会再拨这个对象",
+      message: parsed.resumeOn && parsed.resumeOn !== addCalendarDays(dateKey, 1)
+        ? `已记下暂停外呼，要到 ${parsed.resumeOn} 才可再拨`
+        : "已记下今日不再拨，今天不会再拨这个对象",
       targetType: parsed.targetType,
       targetId: parsed.targetId,
       skipOn: dateKey,
+      resumeOn: parsed.resumeOn,
       reason: parsed.reason,
       reasonLabel: REASON_LABEL[parsed.reason]
     }
@@ -438,7 +471,7 @@ export async function clearSameDayCallSkip(store: CrmStore, user: SessionUser | 
     && item.targetType === parsed.targetType
     && item.targetId === parsed.targetId
     && item.active
-    && item.skipOn === dateKey
+    && stillBlocking(item, dateKey)
   );
   if (!active.length) {
     return {
@@ -460,6 +493,7 @@ export async function clearSameDayCallSkip(store: CrmStore, user: SessionUser | 
     targetType: parsed.targetType,
     targetId: parsed.targetId,
     skipOn: dateKey,
+    resumeOn: (active[0].resumeOn || "").trim(),
     skipReason: active[0].reason,
     note: active[0].note || "",
     rowCount: 0,
