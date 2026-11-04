@@ -327,6 +327,7 @@ import { listCallWrapupCounts, listCallWrapupQueue, restoreCallWrapup, skipCallW
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
 import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
+import { completeCallbackDueQueue, exportCallbackDueQueue, listCallbackDueQueue } from "./callback-due-queue.js";
 import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
 import { createContactPhone, deleteContactPhone, readContactPhones, updateContactPhone } from "./contact-phone.js";
 import {
@@ -9394,6 +9395,29 @@ app.post("/api/phone-validity", requireAuth, asyncRoute(async (req, res) => {
 
 app.get("/api/callback-schedules", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await listCallbackSchedules(getStore(), req.user, req.query as { due?: unknown });
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/callback-due-queue/export", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await exportCallbackDueQueue(getStore(), req.user, req.query as Record<string, unknown>);
+  if ("csv" in outcome) {
+    res.status(200);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", `attachment; filename="callback-due-queue.csv"; filename*=UTF-8''${encodeURIComponent(outcome.filename)}`);
+    res.send(outcome.csv);
+    return;
+  }
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/callback-due-queue", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listCallbackDueQueue(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/callback-due-queue/complete", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await completeCallbackDueQueue(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

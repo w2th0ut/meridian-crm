@@ -78,6 +78,12 @@ import {
   renderCallbackReminderList,
   type CallbackReminderResponse
 } from "./callback-schedule";
+import {
+  callbackDueQueueQuery,
+  renderCallbackDueQueue,
+  renderCallbackDueQueueFailure,
+  type CallbackDueQueueResponse
+} from "./callback-due-queue";
 import { renderCallNoteTimeline, renderOutboundCallNoteFilterEmpty, type CallNoteTimelineEntry } from "./call-note";
 import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
@@ -12756,6 +12762,18 @@ function paintCallWorkloadAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardCallWorkloadTeam");
   if (team) team.hidden = !canViewCallWorkloadTeam();
+  paintCallbackDueQueueAccess();
+}
+
+function canViewCallbackDueQueueTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintCallbackDueQueueAccess() {
+  const section = qs<HTMLElement>("#dashboardCallbackDueQueue");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardCallbackDueTeam");
+  if (team) team.hidden = !canViewCallbackDueQueueTeam();
 }
 
 function callTagReportFilterInput() {
@@ -19343,6 +19361,190 @@ async function loadCallbackReminders() {
     list.innerHTML = renderCallbackReminderList(result.items);
   } catch (error) {
     list.innerHTML = renderCallbackReminderFailure(error instanceof Error ? error.message : "回拨预约没有加载");
+  }
+}
+
+let callbackDueQueueScope: "mine" | "team" = "mine";
+let callbackDueQueuePending = false;
+
+function callbackDueQueueFilter() {
+  return {
+    scope: callbackDueQueueScope,
+    overdueOnly: qs<HTMLInputElement>("#dashboardCallbackDueOverdueOnly")?.checked === true
+  };
+}
+
+async function loadCallbackDueQueue(scope: "mine" | "team") {
+  const list = qs<HTMLElement>("#dashboardCallbackDueQueueList");
+  if (!list) return;
+  if (scope === "team" && !canViewCallbackDueQueueTeam()) return;
+  callbackDueQueueScope = scope;
+  const message = qs<HTMLElement>("#dashboardCallbackDueQueueMessage");
+  if (message) message.textContent = "";
+  try {
+    const data = await api<CallbackDueQueueResponse>(`/api/callback-due-queue${callbackDueQueueQuery(callbackDueQueueFilter())}`);
+    list.innerHTML = renderCallbackDueQueue(data);
+  } catch (error) {
+    list.innerHTML = renderCallbackDueQueueFailure(error instanceof Error ? error.message : "回拨到期队列没有加载");
+  }
+}
+
+async function exportCallbackDueQueue() {
+  const message = qs<HTMLElement>("#dashboardCallbackDueQueueMessage");
+  const button = qs<HTMLButtonElement>("#dashboardCallbackDueExport");
+  if (callbackDueQueueScope === "team" && !canViewCallbackDueQueueTeam()) return;
+  if (message) message.textContent = "";
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`/api/callback-due-queue/export${callbackDueQueueQuery(callbackDueQueueFilter())}`, {
+      credentials: "same-origin"
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: "导出没有完成" })) as { message?: string };
+      const text = body.message || "导出没有完成";
+      if (message) message.textContent = text;
+      toast(text, "error");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "回拨到期队列.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "导出没有完成";
+    if (message) message.textContent = text;
+    toast(text, "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function openCallbackDueObject(targetType: string, targetId: string) {
+  if (targetType === "customer") {
+    const customer = state.customers.find((item) => item.id === targetId);
+    if (!customer) {
+      toast("当前列表里还没有这个客户。不会拨号。", "error");
+      return;
+    }
+    activateNavView("customers", () => {
+      state.selectedCustomerId = customer.id;
+      renderCustomers(state.customers);
+      renderCustomerDrawer(customer);
+      openCustomerDrawer();
+    });
+    return;
+  }
+  if (targetType === "lead") {
+    activateNavView("leads", () => {
+      void openLead(targetId);
+    });
+    return;
+  }
+  const item = state.websiteOpportunities.find((row) => row.id === targetId);
+  if (!item) {
+    toast("当前列表里还没有这个搜客对象。不会拨号。", "error");
+    return;
+  }
+  const search = qs<HTMLInputElement>("#prospectSearchInput");
+  if (search) search.value = "";
+  state.prospectFilter = "all";
+  state.prospectStageFilter = "all";
+  state.prospectCoverageFilter = "all";
+  state.prospectCollisionFilter = "all";
+  state.prospectOutreachFailureFilter = "all";
+  state.prospectOutreachEngagementFilter = "all";
+  state.prospectOutreachReplyFilter = "all";
+  state.prospectOutreachSequenceFilter = "all";
+  state.prospectOutreachDraftBacklogFilter = "all";
+  state.prospectNextFollowDueFilter = "all";
+  state.prospectStageStuckFilter = "all";
+  state.prospectFollowUpGapFilter = "all";
+  state.prospectContactGapFilter = "all";
+  state.prospectJoinAgeFilter = "all";
+  state.prospectSilentAgeFilter = "all";
+  state.prospectOutreachActionGapFilter = "all";
+  state.prospectSequenceNextDueFilter = "all";
+  state.prospectReplyBacklogFilter = "all";
+  state.prospectReleaseBatchAgeFilter = "all";
+  state.prospectSuppressListAgeFilter = "all";
+  state.prospectFailureBounceAgeFilter = "all";
+  state.prospectOpenClickAgeFilter = "all";
+  state.prospectReplyAgeFilter = "all";
+  state.prospectSequenceLastStepAgeFilter = "all";
+  state.prospectIntakeAgeFilter = "all";
+  state.prospectStatusChangeAgeFilter = "all";
+  state.prospectTouchpointAgeFilter = "all";
+  state.prospectJoinedRange = "all";
+  state.selectedProspectId = item.id;
+  const index = prospectFilteredRows().findIndex((row) => row.id === item.id);
+  state.prospectPage = index >= 0 ? Math.floor(index / PROSPECT_PAGE_SIZE) + 1 : 1;
+  prospectMobileDetailOpen = true;
+  document.body.classList.add("prospect-mobile-detail-open");
+  closeLeadFinderVerificationDrawer();
+  activateNavView("prospect-list", () => {
+    renderProspectList();
+  });
+}
+
+async function completeCallbackDue(form: HTMLFormElement) {
+  if (callbackDueQueuePending) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  const reason = form.querySelector<HTMLSelectElement>("[data-callback-due-reason]")?.value || "";
+  if (!reason) {
+    toast("请选择完成原因", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  callbackDueQueuePending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/callback-due-queue/complete", {
+      method: "POST",
+      body: JSON.stringify({ targetType, targetId, reason })
+    });
+    toast(result.message || "已完成回拨");
+    void loadCallbackReminders();
+    await loadCallbackDueQueue(callbackDueQueueScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "没有标成已完成", "error");
+  } finally {
+    callbackDueQueuePending = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function rescheduleCallbackDue(form: HTMLFormElement) {
+  if (callbackDueQueuePending) return;
+  const targetType = form.dataset.targetType || "";
+  const targetId = form.dataset.targetId || "";
+  const scheduledAt = fromDateTimeLocal(form.querySelector<HTMLInputElement>("[data-callback-at]")?.value || "");
+  const note = form.querySelector<HTMLInputElement>("[data-callback-note]")?.value ?? "";
+  if (!scheduledAt) {
+    toast("请填写回拨预约时间", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  callbackDueQueuePending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/callback-schedules", {
+      method: "POST",
+      body: JSON.stringify({ targetType, targetId, scheduledAt, note })
+    });
+    toast(result.message || "已修改回拨预约");
+    void loadCallbackReminders();
+    await loadCallbackDueQueue(callbackDueQueueScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "回拨预约没有保存", "error");
+  } finally {
+    callbackDueQueuePending = false;
+    if (button) button.disabled = false;
   }
 }
 
@@ -57530,6 +57732,35 @@ function installEvents() {
     if (!opener) return;
     event.preventDefault();
     activateNavView(opener.dataset.callbackOpen || "intent-followup-queue");
+  });
+  qs<HTMLButtonElement>("#dashboardCallbackDueMine")?.addEventListener("click", () => {
+    void loadCallbackDueQueue("mine");
+  });
+  qs<HTMLButtonElement>("#dashboardCallbackDueTeam")?.addEventListener("click", () => {
+    void loadCallbackDueQueue("team");
+  });
+  qs<HTMLButtonElement>("#dashboardCallbackDueExport")?.addEventListener("click", () => {
+    void exportCallbackDueQueue();
+  });
+  qs<HTMLElement>("#dashboardCallbackDueQueue")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-callback-due-open]");
+    if (!opener) return;
+    const row = opener.closest<HTMLElement>("[data-callback-due-row]");
+    if (!row) return;
+    event.preventDefault();
+    openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
+  });
+  qs<HTMLElement>("#dashboardCallbackDueQueue")?.addEventListener("submit", (event) => {
+    const completeForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-callback-due-complete]");
+    if (completeForm) {
+      event.preventDefault();
+      void completeCallbackDue(completeForm);
+      return;
+    }
+    const rescheduleForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-callback-due-reschedule]");
+    if (!rescheduleForm) return;
+    event.preventDefault();
+    void rescheduleCallbackDue(rescheduleForm);
   });
   qs<HTMLButtonElement>("#dashboardNextFollowDueRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);

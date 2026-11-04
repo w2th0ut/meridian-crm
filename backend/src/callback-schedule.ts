@@ -285,8 +285,14 @@ function successBody(input: {
 async function apply(
   store: CrmStore,
   user: SessionUser,
-  input: { cancel: true; targetType: CallbackTargetType; targetId: string; sourceCallRecordId: string }
-    | ({ cancel: false } & ScheduleInput)
+  input: {
+    cancel: true;
+    targetType: CallbackTargetType;
+    targetId: string;
+    sourceCallRecordId: string;
+    cancelReason?: string;
+    requireDue?: boolean;
+  } | ({ cancel: false } & ScheduleInput)
 ) {
   const located = locate(store, user.teamId, input.targetType, input.targetId);
   const nextScheduledAt = input.cancel ? "" : input.scheduledAt;
@@ -324,6 +330,14 @@ async function apply(
       message: denied.message
     });
   }
+  if (input.cancel && input.requireDue) {
+    const timeZone = await tenantTimeZoneFor(store, user.teamId);
+    const today = zonedDateKey(outboundInstant(), timeZone);
+    const kind = callbackScheduleDue(previous.scheduledAt, today);
+    if (kind !== "today" && kind !== "overdue") {
+      return reject("not_due", "这条预约不是今日到期或已逾期", 400);
+    }
+  }
   if (input.cancel) {
     if (!previous.scheduledAt && !previous.note) {
       return successBody({
@@ -354,7 +368,7 @@ async function apply(
       previousNote: previous.note,
       nextNote: "",
       result: "updated",
-      reason: "",
+      reason: input.cancelReason || "",
       sourceCallRecordId: input.sourceCallRecordId
     });
     return successBody({
@@ -459,6 +473,25 @@ export async function cancelCallbackSchedule(store: CrmStore, user: SessionUser 
     targetType: parsed.targetType,
     targetId: parsed.targetId,
     sourceCallRecordId: ""
+  });
+}
+
+/** 队列里标完成。仍走取消写入，成功时 reason 是所选原因。不是今日到期或已逾期时不改预约，也不写审计。 */
+export async function cancelDueCallback(
+  store: CrmStore,
+  user: SessionUser | undefined,
+  targetType: CallbackTargetType,
+  targetId: string,
+  reason: string
+) {
+  if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
+  return apply(store, user, {
+    cancel: true,
+    targetType,
+    targetId,
+    sourceCallRecordId: "",
+    cancelReason: reason,
+    requireDue: true
   });
 }
 
