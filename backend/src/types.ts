@@ -5266,6 +5266,22 @@ export interface UnlabeledConnectedFollowupAudit {
 }
 
 /**
+ * 一次查看某个搜客对象上已经写下的通话纪要，或一次被拒绝的查看。
+ * 只记候选 ID 和行数。不记纪要正文、要点、号码、录音地址或密钥。
+ */
+export interface ProspectCallNoteViewAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read";
+  candidateId: string;
+  rowCount: number;
+  result: "read" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。
