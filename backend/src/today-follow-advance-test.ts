@@ -113,8 +113,9 @@ function storeFor(input: {
       { id: "u1", teamId: "europe", name: "Seat", status: "active" },
       { id: "u2", teamId: "europe", name: "Other", status: "active" }
     ],
-    todayFollowAdvanceAudits: [],
-    persist: async () => {}
+    persist: async () => {
+      throw new Error("打开下一位不能写入");
+    }
   };
   return store as unknown as CrmStore;
 }
@@ -271,31 +272,21 @@ try {
     assert.equal(mineBody.includes(skipped), false);
   }
 
-  const before = store.todayFollowAdvanceAudits.length;
   const again = await listTodayFollowNext(store, seat, { scope: "mine", afterType: "customer", afterId: "c_early" });
   assert.equal(again.body.next?.targetId, "p_today");
-  assert.equal(store.todayFollowAdvanceAudits.length, before + 1);
   assert.equal(store.customers.find((item) => item.id === "c_early")?.nextReminder, "2026-11-04 09:00");
 
   const forbidden = await listTodayFollowNext(store, seat, { scope: "team" });
   assert.equal(forbidden.status, 403);
   assert.equal(forbidden.body.reason, "forbidden");
-  assert.equal(store.todayFollowAdvanceAudits[0]?.result, "rejected");
-  assert.equal(store.todayFollowAdvanceAudits[0]?.reason, "forbidden");
-  assert.equal(store.todayFollowAdvanceAudits[0]?.targetId, "");
-  assert.equal(store.todayFollowAdvanceAudits[0]?.rowCount, 0);
+  assert.equal("next" in forbidden.body, false);
 
-  const auditsBeforeNoRead = store.todayFollowAdvanceAudits.length;
   const denied = await listTodayFollowNext(store, noRead, { scope: "mine" });
   assert.equal(denied.status, 403);
-  assert.equal(store.todayFollowAdvanceAudits.length, auditsBeforeNoRead);
-  const auditsBeforeBad = store.todayFollowAdvanceAudits.length;
   const bad = await listTodayFollowNext(store, seat, { scope: "mine", targets: ["c_early"] });
   assert.equal(bad.status, 400);
-  assert.equal(store.todayFollowAdvanceAudits.length, auditsBeforeBad);
   const anon = await listTodayFollowNext(store, undefined, { scope: "mine" });
   assert.equal(anon.status, 401);
-  assert.equal(store.todayFollowAdvanceAudits.length, auditsBeforeBad);
 
   const otherMine = await listTodayFollowNext(store, other, { scope: "mine" });
   assert.equal(otherMine.body.next?.targetId, "c_other_owner");
@@ -319,11 +310,8 @@ try {
   assert.equal(teamOther.body.next?.targetId, "c_other_owner");
 
   const schema = readFileSync(new URL("./mysql-store.ts", import.meta.url), "utf8");
-  assert.equal((schema.match(/CREATE TABLE IF NOT EXISTS today_follow_advance_audits \(/g) || []).length, 1);
-  assert.match(schema, /INSERT INTO today_follow_advance_audits/);
-  assert.match(schema, /WHERE team_id <> '' AND team_id <> 'all' AND team_id = ''/);
-  assert.equal(schema.includes("DROP TABLE today_follow_advance_audits"), false);
-  assert.equal(schema.includes("DROP TABLE IF EXISTS today_follow_advance_audits"), false);
+  assert.equal(schema.includes("today_follow_advance_audits"), false);
+  assert.equal(schema.includes("advanced_to_ref"), false);
   assert.equal(schema.includes("today_follow_queue"), false);
   const source = readFileSync(new URL("./today-follow-advance.ts", import.meta.url), "utf8");
   assert.equal(source.includes("MakeCall"), false);
@@ -331,7 +319,9 @@ try {
   assert.equal(source.includes("convert_to_lead"), false);
   assert.equal(source.includes("approved_contactable"), false);
   assert.equal(source.includes("/api/outbound-calls"), false);
+  assert.equal(source.includes("persist("), false);
   assert.equal(source.includes("ensureColumn"), false);
+  assert.equal(source.includes("todayFollowAdvanceAudits"), false);
 
   console.log("today follow advance tests passed");
 } finally {

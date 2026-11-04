@@ -190,20 +190,17 @@ try {
 
   const anon = await request("/api/today-follow-next?scope=mine");
   assert.equal(anon.response.status, 401);
-  assert.equal(store.todayFollowAdvanceAudits.some((item) => item.actorId === ""), false);
 
   const bad = await request("/api/today-follow-next?scope=mine&note=x", shirley);
   assert.equal(bad.response.status, 400);
-  assert.equal(store.todayFollowAdvanceAudits.some((item) => item.actorId === shirleyUser.id), false);
 
   const denied = await request("/api/today-follow-next?scope=mine", noComm);
   assert.equal(denied.response.status, 403);
-  assert.equal(store.todayFollowAdvanceAudits.some((item) => item.actorId === "u_tfa_no_comm"), false);
 
   const teamDenied = await request("/api/today-follow-next?scope=team", shirley);
   assert.equal(teamDenied.response.status, 403);
   assert.equal(teamDenied.json.reason, "forbidden");
-  assert.equal(store.todayFollowAdvanceAudits.some((item) => item.actorId === shirleyUser.id && item.result === "rejected" && item.reason === "forbidden" && item.rowCount === 0 && item.targetId === ""), true);
+  assert.equal(store.callOutcomeAudits.length, outcomesBefore);
 
   const first = await request("/api/today-follow-next?scope=mine", shirley);
   assert.equal(first.response.status, 200);
@@ -213,7 +210,6 @@ try {
   assert.match(String(first.json.next?.maskedNumber), /8000$/);
   assert.equal(JSON.stringify(first.json).includes("13800138000"), false);
   assert.equal(JSON.stringify(first.json).includes("暂停备注不要出现"), false);
-  assert.equal(store.todayFollowAdvanceAudits.filter((item) => item.actorId === shirleyUser.id && item.result === "read" && item.targetId === "c_tfa_early" && item.rowCount === 1).length, 1);
 
   const second = await request("/api/today-follow-next?scope=mine&afterType=customer&afterId=c_tfa_early", shirley);
   assert.equal(second.json.next?.targetId, "l_tfa_today");
@@ -227,10 +223,9 @@ try {
   for (const skipped of ["c_tfa_paused", "c_tfa_invalid", "c_tfa_other"]) {
     assert.equal(body.includes(skipped), false);
   }
-  assert.equal(store.todayFollowAdvanceAudits.filter((item) => item.actorId === shirleyUser.id && item.result === "read" && item.afterId === "c_tfa_early").length, 1);
   const again = await request("/api/today-follow-next?scope=mine&afterType=customer&afterId=c_tfa_early", shirley);
   assert.equal(again.json.next?.targetId, "l_tfa_today");
-  assert.equal(store.todayFollowAdvanceAudits.filter((item) => item.actorId === shirleyUser.id && item.result === "read" && item.afterId === "c_tfa_early").length, 2);
+  assert.equal(store.callOutcomeAudits.length, outcomesBefore);
 
   const team = await request("/api/today-follow-next?scope=team", admin);
   assert.equal(team.response.status, 200);
@@ -267,9 +262,6 @@ try {
   assert.equal(store.customers.length, customersBefore);
   assert.equal(store.aliyunOutboundConfigs.some((item) => item.aliyunOutboundEnabled === true), false);
   assert.equal(aliyunHits, 0);
-  const auditText = JSON.stringify(store.todayFollowAdvanceAudits);
-  assert.equal(auditText.includes("13800138000"), false);
-  assert.equal(auditText.includes("暂停备注不要出现"), false);
   console.log("today follow advance http tests passed");
 } finally {
   setOutboundNowForTests(undefined);

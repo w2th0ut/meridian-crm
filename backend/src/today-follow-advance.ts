@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { hasIamPermission } from "./auth.js";
 import { displayMaskedNumber } from "./call-wrapup-queue.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
@@ -6,14 +5,14 @@ import { outboundInstant, sameDaySkipActive, tenantTimeZoneFor, zonedDateKey } f
 import { activePreferredPhoneId } from "./preferred-phone.js";
 import { isPhoneMarkedInvalid, listObjectPhones } from "./phone-validity-state.js";
 import type { CrmStore } from "./store.js";
-import type { SessionUser, TodayFollowAdvanceAudit } from "./types.js";
+import type { SessionUser } from "./types.js";
 
 /**
- * 保存一通通话结果之后，从已经写下的下次跟进里找出租户当地今天的下一位。
- * 客户看 nextReminder，线索和搜客看 nextFollowAt。不另建队列表。
+ * 保存一通通话结果之后，从已经写下的下次跟进里找出下一位，供页面打开。
+ * 客户看 nextReminder，线索和搜客看 nextFollowAt。不另建表，也不写审计。
  * 暂停外呼（§100/§101）、没有仍有效号码、以及当前账号读不到的对象都不进入。
  * 号码默认用仍有效的首选；没有首选时用第一个仍有效的号码。只返回脱敏号码。
- * 查看写入 today_follow_advance_audits。不拨号，不发信，不调用外部接口。
+ * 这一次只读。不拨号，不改通话结果，不调用 persist。
  */
 
 export type TodayFollowTargetType = "customer" | "lead" | "prospect";
@@ -106,22 +105,6 @@ export function parseTodayFollowNextQuery(query: Record<string, unknown>):
 
 function reject(reason: string, message: string, status = 400) {
   return { status, body: { result: "rejected" as const, reason, message } };
-}
-
-function audits(store: CrmStore) {
-  if (!store.todayFollowAdvanceAudits) store.todayFollowAdvanceAudits = [];
-  return store.todayFollowAdvanceAudits;
-}
-
-async function writeAudit(store: CrmStore, input: Omit<TodayFollowAdvanceAudit, "id" | "at">) {
-  const audit: TodayFollowAdvanceAudit = {
-    id: `tfna_${randomUUID()}`,
-    at: outboundInstant().toISOString(),
-    ...input
-  };
-  audits(store).unshift(audit);
-  await store.persist();
-  return audit;
 }
 
 async function canReadOwner(store: CrmStore, user: SessionUser, permission: string, ownerId: string, teamId: string) {
@@ -230,38 +213,12 @@ export async function listTodayFollowNext(store: CrmStore, user: SessionUser | u
     return reject("forbidden", "没有查看通话记录的权限", 403);
   }
   if (parsed.scope === "team" && !canViewTeamTodayFollow(user)) {
-    await writeAudit(store, {
-      teamId: user.teamId,
-      actorId: user.id,
-      action: "read",
-      scope: "team",
-      afterType: "",
-      afterId: "",
-      targetType: "",
-      targetId: "",
-      rowCount: 0,
-      result: "rejected",
-      reason: "forbidden"
-    });
     return reject("forbidden", "只有主管可以查看团队的下一位", 403);
   }
   const timeZone = await tenantTimeZoneFor(store, user.teamId);
   const date = zonedDateKey(outboundInstant(), timeZone);
   const rows = await listRows(store, user, parsed.scope, date);
   const next = pickNextTodayFollow(rows, parsed.after);
-  await writeAudit(store, {
-    teamId: user.teamId,
-    actorId: user.id,
-    action: "read",
-    scope: parsed.scope,
-    afterType: parsed.after?.targetType || "",
-    afterId: parsed.after?.targetId || "",
-    targetType: next?.targetType || "",
-    targetId: next?.targetId || "",
-    rowCount: next ? 1 : 0,
-    result: "read",
-    reason: ""
-  });
   return {
     status: 200,
     body: {

@@ -133,7 +133,7 @@ import {
 } from "./credential-security.js";
 import { agentJobIdempotencyAliases, agentJobs, aiModelConfigs, caseStudies, commissionCalculations, commissionExports, commissionItems, commissionProducts, commissionRules, competitors, customerActivities, customerIntelligenceSuggestions, customers, dailyReportComments, dailyReports, dealEvents, deals, documentLetterheads, documentStamps, examAssignments, examAttempts, examQuestionLinks, examQuestions, examSnapshots, exams, importExportJobs, internalMessages, knowledgeAssets, leadActivities, leadSourceConfigs, leadSourceEvents, leads, marketOpportunityBatches, marketOpportunityCalculationEvents, marketOpportunitySnapshots, marketTradeObservations, memos, monthlySalesRecords, ocrJobs, planTasks, planTemplates, problems, prospectCampaignEvents, prospectCampaigns, prospectCampaignVersions, prospectRunQueueChildBindings, prospectRunQueueParentBindings, prospectTouchpoints, providerCatalog as defaultProviderCatalog, providerConnections, providerRequestLogs, providerResponseCache, reminders, salesRecordAudits, skillResources, todos, tradeDocuments, users, wecomCommandEndpoints, wecomCommandReceipts, wecomMemberBindings, wecomMessages, websiteOpportunities, whatsappBindings, whatsappMessages } from "./data.js";
 import { companyProfiles, followUpAudits, nextFollowUpAudits, ownerReassignAudits, prospectIndustryAudits, prospectNoteAudits, prospectPriorityAudits, prospectTagAudits } from "./data.js";
-import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallExportAudit, CallNoteAudit, CallOutcomeAudit, CallScriptAudit, CallScriptScenario, CallScriptTemplate, CallScriptUsageAudit, CallScriptFavorite, CallScriptFavoriteAudit, CallScriptReportAudit, CallRecordTag, CallTag, CallTagAudit, CallTagReportAudit, CallWrapupAudit, CallWrapupSkip, CallWrapupSkipAudit, CallWrapupEditAudit, CallWrapupEditWindow, CallWrapupEditReportAudit, CallWorkloadViewAudit, AgentWorkStatusAudit, AgentWorkStatusLog, AgentWorkStatusReportAudit, AgentWorkStatusTimeout, AgentWorkStatusTimeoutAudit, AgentWorkStatusTimeoutDispositionAudit, CallTagViewAudit, CallScriptScenarioAudit, CallScriptScenarioRow, CallScriptVersion, CallbackSchedule, CallbackScheduleAudit, CallbackDueQueueAudit, CallbackScheduleReportAudit, UnansweredPendingQueueAudit, NegativeOutcomeFollowupAudit, OtherOutcomeFollowupAudit, UnlabeledConnectedFollowupAudit, ProspectCallNoteViewAudit, FollowUpOutcomeNoteViewAudit, TodayFollowAdvanceAudit, SameDayCallSkip, SameDayCallSkipAudit, ContactPhone, ContactPhoneAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OutboundOwner, OutboundOwnerAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
+import type { AgentCallTarget, AgentCallTargetAudit, AgentMappingAudit, AliyunAgentMapping, AliyunCampaignReadSetting, AliyunCampaignSnapshot, AliyunCampaignSyncAudit, AliyunCccEventAudit, AliyunOutboundConfig, AliyunOutboundConfigAudit, AliyunOutboundConnectivityAudit, AliyunScreenPop, CallExportAudit, CallNoteAudit, CallOutcomeAudit, CallScriptAudit, CallScriptScenario, CallScriptTemplate, CallScriptUsageAudit, CallScriptFavorite, CallScriptFavoriteAudit, CallScriptReportAudit, CallRecordTag, CallTag, CallTagAudit, CallTagReportAudit, CallWrapupAudit, CallWrapupSkip, CallWrapupSkipAudit, CallWrapupEditAudit, CallWrapupEditWindow, CallWrapupEditReportAudit, CallWorkloadViewAudit, AgentWorkStatusAudit, AgentWorkStatusLog, AgentWorkStatusReportAudit, AgentWorkStatusTimeout, AgentWorkStatusTimeoutAudit, AgentWorkStatusTimeoutDispositionAudit, CallTagViewAudit, CallScriptScenarioAudit, CallScriptScenarioRow, CallScriptVersion, CallbackSchedule, CallbackScheduleAudit, CallbackDueQueueAudit, CallbackScheduleReportAudit, UnansweredPendingQueueAudit, NegativeOutcomeFollowupAudit, OtherOutcomeFollowupAudit, UnlabeledConnectedFollowupAudit, ProspectCallNoteViewAudit, FollowUpOutcomeNoteViewAudit, SameDayCallSkip, SameDayCallSkipAudit, ContactPhone, ContactPhoneAudit, FollowUpAuditEvent, IntentFollowupArrangement, IntentFollowupIgnore, IntentFollowupQueueAudit, NextFollowUpAuditEvent, OutboundCallAudit, OutboundCallRecord, OutboundMissedFollowUp, OutboundMissedFollowUpAudit, OutboundOwner, OutboundOwnerAudit, OwnerReassignAuditEvent, PhoneValidity, PhoneValidityAudit, PreferredPhone, PreferredPhoneAudit, ProspectIndustryAuditEvent, ProspectNoteAuditEvent, ProspectPriorityAuditEvent, ProspectTagAuditEvent } from "./types.js";
 import { readProspectIndustry } from "./prospect-industry.js";
 import type { CrmStore, PersistedStoreMutation } from "./store.js";
 import type { LogEntry, OutboundEmailLog, WhatsAppBinding, WhatsAppMessage } from "./types.js";
@@ -1913,7 +1913,6 @@ export async function createMysqlStore(
 		    unlabeledConnectedFollowupAudits: await loadUnlabeledConnectedFollowupAudits(pool),
 		    prospectCallNoteViewAudits: await loadProspectCallNoteViewAudits(pool),
 		    followUpOutcomeNoteViewAudits: await loadFollowUpOutcomeNoteViewAudits(pool),
-		    todayFollowAdvanceAudits: await loadTodayFollowAdvanceAudits(pool),
 		    sameDayCallSkips: await loadSameDayCallSkips(pool),
 		    sameDayCallSkipAudits: await loadSameDayCallSkipAudits(pool),
 		    preferredPhones: await loadPreferredPhones(pool),
@@ -7194,37 +7193,6 @@ async function ensureSchema(pool: mysql.Pool) {
     WHERE NOT EXISTS (
       SELECT 1 FROM (
         SELECT team_id FROM follow_up_outcome_note_view_audits
-      ) AS saved
-      WHERE saved.team_id = existing.team_id
-    )`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS today_follow_advance_audits (
-    id VARCHAR(64) PRIMARY KEY,
-    team_id VARCHAR(64) NOT NULL,
-    actor_id VARCHAR(64) NOT NULL,
-    occurred_at DATETIME NULL,
-    action_code VARCHAR(16) NOT NULL DEFAULT '',
-    scope_code VARCHAR(16) NOT NULL DEFAULT '',
-    after_type VARCHAR(20) NOT NULL DEFAULT '',
-    after_id VARCHAR(64) NOT NULL DEFAULT '',
-    target_type VARCHAR(20) NOT NULL DEFAULT '',
-    target_id VARCHAR(64) NOT NULL DEFAULT '',
-    row_count INT NOT NULL DEFAULT 0,
-    result_code VARCHAR(16) NOT NULL DEFAULT '',
-    reason_code VARCHAR(64) NOT NULL DEFAULT '',
-    INDEX idx_today_follow_advance_audits_team(team_id, occurred_at),
-    INDEX idx_today_follow_advance_audits_actor(actor_id, occurred_at),
-    INDEX idx_today_follow_advance_audits_target(target_type, target_id)
-  )`);
-  await pool.query(`INSERT INTO today_follow_advance_audits (id, team_id, actor_id, occurred_at, action_code, scope_code, after_type, after_id, target_type, target_id, row_count, result_code, reason_code)
-    SELECT 'tfna_seed_absent', existing.team_id, '', UTC_TIMESTAMP(), 'read', '', '', '', '', '', 0, 'read', ''
-    FROM (
-      SELECT DISTINCT team_id
-      FROM users
-      WHERE team_id <> '' AND team_id <> 'all' AND team_id = ''
-    ) AS existing
-    WHERE NOT EXISTS (
-      SELECT 1 FROM (
-        SELECT team_id FROM today_follow_advance_audits
       ) AS saved
       WHERE saved.team_id = existing.team_id
     )`);
@@ -14696,39 +14664,6 @@ function followUpOutcomeNoteViewTarget(value: unknown): FollowUpOutcomeNoteViewA
   return "";
 }
 
-function todayFollowAdvanceTarget(value: unknown): TodayFollowAdvanceAudit["targetType"] {
-  if (value === "customer" || value === "lead" || value === "prospect") return value;
-  return "";
-}
-
-function todayFollowAdvanceResult(value: unknown): TodayFollowAdvanceAudit["result"] {
-  if (value === "rejected") return "rejected";
-  return "read";
-}
-
-function todayFollowAdvanceScope(value: unknown): TodayFollowAdvanceAudit["scope"] {
-  if (value === "mine" || value === "team") return value;
-  return "";
-}
-
-async function loadTodayFollowAdvanceAudits(pool: mysql.Pool): Promise<TodayFollowAdvanceAudit[]> {
-  return (await rows<Record<string, any>>(pool, "SELECT * FROM today_follow_advance_audits ORDER BY occurred_at DESC")).map((row) => ({
-    id: row.id,
-    teamId: row.team_id || "",
-    actorId: row.actor_id || "",
-    at: storedIso(row.occurred_at),
-    action: "read" as const,
-    scope: todayFollowAdvanceScope(row.scope_code),
-    afterType: todayFollowAdvanceTarget(row.after_type),
-    afterId: row.after_id || "",
-    targetType: todayFollowAdvanceTarget(row.target_type),
-    targetId: row.target_id || "",
-    rowCount: Number.isFinite(Number(row.row_count)) ? Number(row.row_count) : 0,
-    result: todayFollowAdvanceResult(row.result_code),
-    reason: row.reason_code || ""
-  }));
-}
-
 async function loadFollowUpOutcomeNoteViewAudits(pool: mysql.Pool): Promise<FollowUpOutcomeNoteViewAudit[]> {
   return (await rows<Record<string, any>>(pool, "SELECT * FROM follow_up_outcome_note_view_audits ORDER BY occurred_at DESC")).map((row) => ({
     id: row.id,
@@ -15621,7 +15556,6 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "unlabeled_connected_followup_audits", store.unlabeledConnectedFollowupAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.scope || "", item.targetType || "", item.targetId || "", item.callRecordId || "", item.nextFollowAt || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,scope_code,target_type,target_id,call_record_id,next_follow_at,row_count,result_code,reason_code)");
 	    await replaceRows(connection, "prospect_call_note_view_audits", store.prospectCallNoteViewAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.candidateId || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,candidate_id,row_count,result_code,reason_code)");
 	    await replaceRows(connection, "follow_up_outcome_note_view_audits", store.followUpOutcomeNoteViewAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType || "", item.targetId || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,row_count,result_code,reason_code)");
-	    await replaceRows(connection, "today_follow_advance_audits", store.todayFollowAdvanceAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.scope || "", item.afterType || "", item.afterId || "", item.targetType || "", item.targetId || "", Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,scope_code,after_type,after_id,target_type,target_id,row_count,result_code,reason_code)");
 	    await replaceRows(connection, "same_day_call_skips", store.sameDayCallSkips, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.skipOn || "", item.reason || "", (item.note || "").slice(0, 200), item.resumeOn || null, item.active ? 1 : 0, item.actorId || "", item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,target_type,target_id,skip_on,reason_code,note_text,resume_on,active,actor_id,updated_at)");
 	    await replaceRows(connection, "same_day_call_skip_audits", store.sameDayCallSkipAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.scope || "", item.targetType || "", item.targetId || "", item.skipOn || "", item.skipReason || "", item.resumeOn || null, (item.note || "").slice(0, 200), Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,scope_code,target_type,target_id,skip_on,skip_reason,resume_on,note_text,row_count,result_code,reason_code)");
 	    await replaceRows(connection, "preferred_phones", store.preferredPhones, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.phoneId, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,target_type,target_id,phone_id,updated_by,updated_at)");
