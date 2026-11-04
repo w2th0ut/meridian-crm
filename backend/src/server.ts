@@ -338,6 +338,7 @@ import { listOtherOutcomeFollowups, scheduleOtherOutcomeFollowup } from "./other
 import { listUnlabeledConnectedFollowups, scheduleUnlabeledConnectedFollowup } from "./unlabeled-connected-followup.js";
 import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip } from "./same-day-call-skip.js";
 import { labelUnlabeledConnectedCalls, listUnlabeledConnectedCalls } from "./call-outcome-batch.js";
+import { createOutcomeNotePhrase, disableOutcomeNotePhrase, listOutcomeNotePhrases } from "./call-outcome-note-phrase.js";
 import { listProspectCallNotes } from "./prospect-call-notes.js";
 import { listFollowUpOutcomeNotes } from "./follow-up-outcome-notes.js";
 import { clearPreferredPhone, readPreferredPhones, setPreferredPhone } from "./preferred-phone.js";
@@ -9552,6 +9553,21 @@ app.get("/api/unlabeled-connected-calls", requireAuth, asyncRoute(async (req, re
 
 app.post("/api/unlabeled-connected-calls/label", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await labelUnlabeledConnectedCalls(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/call-outcome-note-phrases", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listOutcomeNotePhrases(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-outcome-note-phrases/disable", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await disableOutcomeNotePhrase(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-outcome-note-phrases", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await createOutcomeNotePhrase(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

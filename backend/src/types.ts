@@ -5560,6 +5560,10 @@ export interface CallScriptTemplate {
   createdAt: string;
   updatedAt: string;
   disabledAt: string;
+  /** 缺省是话术。通话结果备注常用短语是 outcome_note，仍写在这张表上。 */
+  usageKind?: "script" | "outcome_note";
+  /** 短语的归属人。空是团队短语。话术保持空。 */
+  ownerId?: string;
 }
 
 /**
@@ -5573,7 +5577,7 @@ export interface CallScriptAudit {
   actorId: string;
   at: string;
   templateId: string;
-  action: "create" | "update" | "disable" | "read" | "restore" | "versions" | "version";
+  action: "create" | "update" | "disable" | "read" | "restore" | "versions" | "version" | "phrase_create" | "phrase_disable" | "phrase_read";
   previousValue: string;
   nextValue: string;
   result: "updated" | "rejected";

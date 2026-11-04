@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { escapeCsvCell } from "./call-export.js";
-import { CALL_SCRIPT_SCENARIOS, canManageCallScripts } from "./call-script.js";
+import { CALL_SCRIPT_SCENARIOS, canManageCallScripts, isSpokenCallScript } from "./call-script.js";
 import { callScriptScenarioChoices, knownScenarioCodes, scenarioLabelFor } from "./call-script-scenario.js";
 import { outboundInstant, tenantTimeZoneFor } from "./outbound-call.js";
 import {
@@ -235,7 +235,7 @@ export function buildCallScriptReport(input: {
     timeZone: input.timeZone
   });
   const templates = input.store.callScriptTemplates
-    .filter((item) => item.teamId === input.teamId && (!input.query.scenario || item.scenario === input.query.scenario))
+    .filter((item) => item.teamId === input.teamId && isSpokenCallScript(item) && (!input.query.scenario || item.scenario === input.query.scenario))
     .slice()
     .sort((left, right) => left.title.localeCompare(right.title, "zh") || left.id.localeCompare(right.id));
   const buckets = new Map<string, OutboundCallRecord[]>(templates.map((item) => [item.id, []]));

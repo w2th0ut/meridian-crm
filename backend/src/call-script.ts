@@ -26,6 +26,12 @@ export const CALL_SCRIPT_BODY_MAX = 2000;
 export const CALL_SCRIPT_LANGUAGE_MAX = 16;
 export const CALL_SCRIPT_PERMISSION = "communication.read";
 
+/** 缺省、空和 script 都是外呼话术。通话结果备注常用短语不是。 */
+export function isSpokenCallScript(template: { usageKind?: string | null }) {
+  const kind = String(template.usageKind ?? "script").trim();
+  return kind === "" || kind === "script";
+}
+
 const SCENARIO_IDS = new Set(CALL_SCRIPT_SCENARIOS.map((item) => item.id));
 const LANGUAGE_PATTERN = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8}){0,2}$/;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -248,7 +254,9 @@ async function rejectWithAudit(
 }
 
 function findTemplate(store: CrmStore, id: string) {
-  return store.callScriptTemplates.find((item) => item.id === id) || null;
+  const found = store.callScriptTemplates.find((item) => item.id === id) || null;
+  if (!found || !isSpokenCallScript(found)) return null;
+  return found;
 }
 
 function presentTemplate(store: CrmStore, template: CallScriptTemplate) {
@@ -266,7 +274,7 @@ function presentTemplate(store: CrmStore, template: CallScriptTemplate) {
 
 function visibleTemplates(store: CrmStore, teamId: string, scenario: CallScriptScenario | null, includeDisabled: boolean) {
   return store.callScriptTemplates
-    .filter((item) => item.teamId === teamId)
+    .filter((item) => item.teamId === teamId && isSpokenCallScript(item))
     .filter((item) => includeDisabled || item.enabled)
     .filter((item) => !scenario || item.scenario === scenario)
     .slice()
@@ -345,7 +353,9 @@ export async function createCallScript(store: CrmStore, user: SessionUser | unde
     updatedBy: user.id,
     createdAt: now,
     updatedAt: now,
-    disabledAt: ""
+    disabledAt: "",
+    usageKind: "script",
+    ownerId: ""
   };
   store.callScriptTemplates.unshift(saved);
   await writeAudit(store, {

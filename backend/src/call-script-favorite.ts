@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { hasIamPermission, type IamActor } from "./auth.js";
-import { CALL_SCRIPT_PERMISSION, canManageCallScripts } from "./call-script.js";
+import { CALL_SCRIPT_PERMISSION, canManageCallScripts, isSpokenCallScript } from "./call-script.js";
 import { scenarioLabelFor } from "./call-script-scenario.js";
 import { outboundInstant } from "./outbound-call.js";
 import type { CrmStore } from "./store.js";
@@ -126,6 +126,10 @@ async function rejectWithAudit(
 function ownFavorites(store: Pick<CrmStore, "callScriptFavorites" | "callScriptTemplates">, teamId: string, actorId: string) {
   return store.callScriptFavorites
     .filter((item) => item.teamId === teamId && item.actorId === actorId)
+    .filter((item) => {
+      const template = findTemplate(store, teamId, item.templateId);
+      return !template || isSpokenCallScript(template);
+    })
     .slice()
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || left.templateId.localeCompare(right.templateId))
     .map((item) => presentFavorite(store, item));
@@ -142,12 +146,13 @@ export function callScriptPickerChoices(
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || left.templateId.localeCompare(right.templateId));
   const favoriteIds = favorites.map((item) => item.templateId);
   const favoriteSet = new Set(favoriteIds);
-  const favoriteRows = favoriteIds.map((templateId) => {
+  const favoriteRows = favoriteIds.flatMap((templateId) => {
     const template = findTemplate(store, teamId, templateId);
-    return presentChoice(store, teamId, template, templateId, true);
+    if (template && !isSpokenCallScript(template)) return [];
+    return [presentChoice(store, teamId, template, templateId, true)];
   });
   const rest = store.callScriptTemplates
-    .filter((item) => item.teamId === teamId && item.enabled && !favoriteSet.has(item.id))
+    .filter((item) => item.teamId === teamId && item.enabled && isSpokenCallScript(item) && !favoriteSet.has(item.id))
     .slice()
     .sort((left, right) => left.title.localeCompare(right.title, "zh") || left.id.localeCompare(right.id))
     .map((template) => presentChoice(store, teamId, template, template.id, false));
@@ -232,7 +237,7 @@ export async function favoriteCallScript(store: CrmStore, user: SessionUser | un
   const denied = await guardOwn(store, user, parsed, "favorite");
   if (denied) return denied;
   const template = findTemplate(store, user.teamId, parsed.templateId);
-  if (!template) {
+  if (!template || !isSpokenCallScript(template)) {
     return rejectWithAudit(store, user, {
       templateId: parsed.templateId,
       ownerId: user.id,
@@ -274,7 +279,7 @@ export async function unfavoriteCallScript(store: CrmStore, user: SessionUser | 
   const denied = await guardOwn(store, user, parsed, "unfavorite");
   if (denied) return denied;
   const template = findTemplate(store, user.teamId, parsed.templateId);
-  if (!template) {
+  if (!template || !isSpokenCallScript(template)) {
     return rejectWithAudit(store, user, {
       templateId: parsed.templateId,
       ownerId: user.id,
