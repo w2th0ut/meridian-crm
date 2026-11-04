@@ -5282,6 +5282,23 @@ export interface ProspectCallNoteViewAudit {
 }
 
 /**
+ * 一次查看某个客户或某条线索上已经写下的通话结果备注，或一次被拒绝的查看。
+ * 只记对象类型、对象 ID 和行数。不记备注正文、号码、录音地址或密钥。
+ */
+export interface FollowUpOutcomeNoteViewAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read";
+  targetType: "" | "customer" | "lead";
+  targetId: string;
+  rowCount: number;
+  result: "read" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。

@@ -137,6 +137,12 @@ import {
   renderProspectCallNotesShell,
   type ProspectCallNotesResponse
 } from "./prospect-call-notes";
+import {
+  renderFollowUpOutcomeNotes,
+  renderFollowUpOutcomeNotesFailure,
+  renderFollowUpOutcomeNotesShell,
+  type FollowUpOutcomeNotesResponse
+} from "./follow-up-outcome-notes";
 import { CALL_WRAPUP_TAG_LIMIT, callWrapupBody } from "./call-wrapup";
 import {
   renderCallWrapupCounts,
@@ -16379,9 +16385,12 @@ function renderLeadDrawer(
     <div class="timeline">
       ${activities.length ? activities.map((activity) => `<div class="timeline-item"><b>${LEAD_ACTIVITY_LABEL[activity.type] || activity.type}</b><span>${escapeHtml(activity.content)}</span><small>${new Date(activity.createdAt).toLocaleString("zh-CN")}${activity.nextFollowAt ? " · 下次：" + escapeHtml(activity.nextFollowAt) : ""}</small></div>`).join("") : (callNotes?.length ? "" : `<div class="timeline-item"><span>暂无跟进记录</span></div>`)}
       ${renderCallNoteTimeline(callNotes)}
-    </div></section>`;
+    </div>
+    ${inTrash ? "" : renderFollowUpOutcomeNotesShell("lead", lead.id)}
+    </section>`;
 
   qs("#leadDrawerClose", drawer)?.addEventListener("click", closeLeadDrawer);
+  bindFollowUpOutcomeNotes(drawer);
   bindOutboundCallButtons(drawer);
   void mountOutboundOwner(drawer);
   void loadObjectCallTags(drawer, "lead", lead.id);
@@ -21003,9 +21012,11 @@ function renderCustomerDetailPage(customer?: Customer) {
             ${activityHasTranscript(activity) && activity.id ? `<button class="btn" type="button" data-activity-transcript="${escapeHtml(activity.id)}" data-activity-name="${escapeHtml(current.contact || current.company)}" title="查看当天对话记录">${customerContactIcon("whatsapp")} 对话</button>` : ""}
           </article>`).join("") : (current.callNotes?.length ? "" : `<div class="customer-page-empty">暂无跟进记录。新增首条联系记录后会在这里形成时间线。</div>`)}
           ${renderCallNoteTimeline(current.callNotes)}</div>
+        ${renderFollowUpOutcomeNotesShell("customer", current.id)}
       </section>
     </div>
   `;
+  bindFollowUpOutcomeNotes(box);
   qs<HTMLButtonElement>("[data-customer-page-back]", box)?.addEventListener("click", () => activateNavView("customers"));
   qsa<HTMLButtonElement>("[data-customer-page-edit]", box).forEach((button) => button.addEventListener("click", () => openCustomerModal(current)));
   qs<HTMLButtonElement>("[data-customer-page-whatsapp]", box)?.addEventListener("click", () => {
@@ -21604,6 +21615,7 @@ function renderCustomerDrawer(customer?: Customer) {
         ${(customer.activities || []).length ? (customer.activities || []).map((activity) => `<div class="timeline-item"><b>${escapeHtml(customerActivityLabel(activity.type))}</b><span>${escapeHtml(activity.content)}</span><small>${escapeHtml(activity.operatorName || "未知操作人")} · ${escapeHtml(formatDateTime(activity.createdAt))}${activity.nextReminder ? ` · 下次：${escapeHtml(activity.nextReminder)}` : ""}</small></div>`).join("") : (customer.callNotes?.length ? "" : `<div class="timeline-item"><b>暂无跟进记录</b></div>`)}
         ${renderCallNoteTimeline(customer.callNotes)}
       </div>
+      ${renderFollowUpOutcomeNotesShell("customer", customer.id)}
     </details>
     ${renderCustomerDealProgress(customer)}
   `;
@@ -21612,6 +21624,7 @@ function renderCustomerDrawer(customer?: Customer) {
   customerClockTimer = window.setInterval(() => renderCustomerWorldClock(customer), 1000);
   void renderCustomerJourney(customer);
   void loadCustomerCommunicationDrawerInsights(customer);
+  bindFollowUpOutcomeNotes(drawer);
   qs("#customerDrawerClose", drawer)?.addEventListener("click", closeCustomerDrawer);
   bindOutboundCallButtons(drawer);
   void mountOutboundOwner(drawer);
@@ -41534,6 +41547,35 @@ function bindProspectFollowUpEntry(
     activateNavView("outbound-call-records");
     void openOutboundCallRecord(recordId);
   });
+}
+
+function bindFollowUpOutcomeNotes(root: ParentNode) {
+  const section = root.querySelector<HTMLElement>("[data-follow-up-outcome-notes]");
+  if (!section) return;
+  const targetType = section.getAttribute("data-target-type") || "";
+  const targetId = section.getAttribute("data-target-id") || "";
+  section.querySelector<HTMLButtonElement>("[data-follow-up-outcome-notes-load]")?.addEventListener("click", () => {
+    void loadFollowUpOutcomeNotes(targetType, targetId, section);
+  });
+  section.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-follow-up-outcome-note-open]");
+    if (!opener) return;
+    const recordId = opener.getAttribute("data-call-record-id") || "";
+    if (!recordId) return;
+    activateNavView("outbound-call-records");
+    void openOutboundCallRecord(recordId);
+  });
+}
+
+async function loadFollowUpOutcomeNotes(targetType: string, targetId: string, root: ParentNode) {
+  const body = root.querySelector<HTMLElement>("[data-follow-up-outcome-notes-body]");
+  if (!body || !targetType || !targetId) return;
+  try {
+    const data = await api<FollowUpOutcomeNotesResponse>(`/api/follow-up-outcome-notes?targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`);
+    body.innerHTML = renderFollowUpOutcomeNotes(data);
+  } catch (error) {
+    body.innerHTML = renderFollowUpOutcomeNotesFailure(error instanceof Error ? error.message : "通话结果备注没有加载");
+  }
 }
 
 async function loadProspectCallNotes(candidateId: string, root: ParentNode) {
