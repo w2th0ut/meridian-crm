@@ -1,0 +1,65 @@
+/**
+ * 保存通话结果后，工作台打开今日待跟进队列里的下一位。
+ * 这里只展示对象和脱敏的首选号码。没有外呼按钮，也不会自己拨号。
+ */
+
+export interface TodayFollowNextRow {
+  targetType: "customer" | "lead" | "prospect";
+  targetId: string;
+  targetLabel?: string;
+  name?: string;
+  nextFollowAt?: string;
+  phoneId?: string;
+  preferred?: boolean;
+  maskedNumber?: string;
+}
+
+export interface TodayFollowNextResponse {
+  scope?: "mine" | "team";
+  date?: string;
+  empty?: boolean;
+  message?: string;
+  next?: TodayFollowNextRow | null;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function textOrDash(value: string | undefined) {
+  const text = (value || "").trim();
+  return text || "—";
+}
+
+export function todayFollowNextQuery(input: { scope: "mine" | "team"; afterType?: string; afterId?: string }) {
+  const params = new URLSearchParams();
+  params.set("scope", input.scope);
+  const afterType = (input.afterType || "").trim();
+  const afterId = (input.afterId || "").trim();
+  if (afterType && afterId) {
+    params.set("afterType", afterType);
+    params.set("afterId", afterId);
+  }
+  return `?${params.toString()}`;
+}
+
+export function renderTodayFollowNextEmpty() {
+  return `<p data-today-follow-next-empty="1">今天没有下一位待跟进。</p>`;
+}
+
+export function renderTodayFollowNextFailure(message: string) {
+  const text = message.trim() || "下一位待跟进没有打开";
+  return `<p data-today-follow-next-error="1">${escapeHtml(text)}</p>`;
+}
+
+export function renderTodayFollowNext(data: TodayFollowNextResponse | undefined) {
+  const next = data?.next;
+  if (!next?.targetId) return renderTodayFollowNextEmpty();
+  const phoneLabel = next.preferred ? "首选" : "号码";
+  const phone = (next.maskedNumber || "").trim();
+  return `<div data-today-follow-next="1" data-target-type="${escapeHtml(next.targetType)}" data-target-id="${escapeHtml(next.targetId)}"><p data-today-follow-next-hint="1">下一位待跟进。外呼仍要自己点，不会自动拨号。</p><button type="button" class="btn" data-today-follow-next-open="1">${escapeHtml(next.name || next.targetId)}</button><span>${escapeHtml(next.targetLabel || next.targetType)}</span><time data-today-follow-next-at="1">${escapeHtml(textOrDash(next.nextFollowAt))}</time><span data-today-follow-next-phone="1" data-preferred="${next.preferred ? "1" : "0"}">${escapeHtml(phoneLabel)} ${escapeHtml(textOrDash(phone))}</span></div>`;
+}

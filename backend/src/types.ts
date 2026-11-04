@@ -5353,6 +5353,26 @@ export interface SameDayCallSkipAudit {
 }
 
 /**
+ * 保存通话结果后，查看今日待跟进队列里的下一位。
+ * 队列本身不落库。只记范围、上一对象、下一位对象和行数。不记号码、备注或密钥。
+ */
+export interface TodayFollowAdvanceAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read";
+  scope: "" | "mine" | "team";
+  afterType: "" | "customer" | "lead" | "prospect";
+  afterId: string;
+  targetType: "" | "customer" | "lead" | "prospect";
+  targetId: string;
+  rowCount: number;
+  result: "read" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。

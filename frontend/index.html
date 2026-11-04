@@ -29097,6 +29097,19 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardCallOutcomeBatchList"><p data-call-outcome-batch-empty="1">点查看后才读取已接通未标注通话。</p></div>
           </section>
 
+          <section class="panel section" id="dashboardTodayFollowNext" aria-label="标完即到下一位" hidden>
+            <div class="section-head">
+              <div class="section-title"><div><h2>标完即到下一位</h2><p id="dashboardTodayFollowNextScope">保存通话结果后打开今天还要跟的下一位</p></div></div>
+            </div>
+            <p id="dashboardTodayFollowNextNote" class="dashboard-today-follow-next-note">这一块只读已经写下的下次跟进。客户看下次提醒，线索和搜客看下次跟进，日期正好是租户当地今天的才进入。暂停外呼至还挡着的、号码都已无效或没有仍有效号码的、以及当前账号读不到的对象都会跳过。默认显示仍有效的首选号码；没有首选时显示第一个仍有效的号码，号码只留脱敏结果。保存一通通话结果之后，工作台打开队列里的下一位，不再停在刚标完的这一位。我的只看归属人是自己的。主管可以查看团队里自己读得到的。要人工点查看，打开工作台本身不拉这一份。这里没有外呼按钮，不会自动拨号，也不会批量拨号。要拨打仍须在打开的对象上自己点现有的一键外呼。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <div class="head-actions">
+              <button class="btn" type="button" id="dashboardTodayFollowNextMine">查看我的</button>
+              <button class="btn" type="button" id="dashboardTodayFollowNextTeam" hidden>查看团队</button>
+            </div>
+            <p id="dashboardTodayFollowNextMessage"></p>
+            <div id="dashboardTodayFollowNextList"><p data-today-follow-next-idle="1">保存通话结果后才会打开下一位。点查看也可以读取，打开工作台本身不请求。</p></div>
+          </section>
+
           <section class="panel section" id="dashboardAgentWorkStatusReport" aria-label="坐席工作状态时长" hidden>
             <div class="section-head">
               <div class="section-title"><div><h2>坐席工作状态时长</h2><p id="dashboardAgentWorkStatusReportScope">主管按日期查看可接听、忙碌和小休</p></div></div>

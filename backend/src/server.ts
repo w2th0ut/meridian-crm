@@ -338,6 +338,7 @@ import { listOtherOutcomeFollowups, scheduleOtherOutcomeFollowup } from "./other
 import { listUnlabeledConnectedFollowups, scheduleUnlabeledConnectedFollowup } from "./unlabeled-connected-followup.js";
 import { scheduleMissingNextFollowups } from "./missing-next-followup-batch.js";
 import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip } from "./same-day-call-skip.js";
+import { listTodayFollowNext } from "./today-follow-advance.js";
 import { labelUnlabeledConnectedCalls, listUnlabeledConnectedCalls } from "./call-outcome-batch.js";
 import { createOutcomeNotePhrase, disableOutcomeNotePhrase, listOutcomeNotePhrases } from "./call-outcome-note-phrase.js";
 import { listProspectCallNotes } from "./prospect-call-notes.js";
@@ -9534,6 +9535,11 @@ app.post("/api/missing-next-followups/schedule", requireAuth, asyncRoute(async (
 
 app.post("/api/unlabeled-connected-followups/schedule", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await scheduleUnlabeledConnectedFollowup(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/today-follow-next", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await listTodayFollowNext(getStore(), req.user, req.query as Record<string, unknown>);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

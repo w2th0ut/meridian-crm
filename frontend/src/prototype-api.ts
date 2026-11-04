@@ -135,6 +135,12 @@ import {
   type OutcomeNotePhraseView
 } from "./call-outcome-note-phrase";
 import {
+  renderTodayFollowNext,
+  renderTodayFollowNextFailure,
+  todayFollowNextQuery,
+  type TodayFollowNextResponse
+} from "./today-follow-advance";
+import {
   agentWorkStatusReportQuery,
   renderAgentWorkStatusReport,
   type AgentWorkStatusReportResponse
@@ -12935,6 +12941,18 @@ function paintCallOutcomeBatchAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardCallOutcomeBatchTeam");
   if (team) team.hidden = !canViewCallOutcomeBatchTeam();
+  paintTodayFollowNextAccess();
+}
+
+function canViewTodayFollowNextTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintTodayFollowNextAccess() {
+  const section = qs<HTMLElement>("#dashboardTodayFollowNext");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardTodayFollowNextTeam");
+  if (team) team.hidden = !canViewTodayFollowNextTeam();
   paintAgentWorkStatusReportAccess();
 }
 
@@ -19060,7 +19078,7 @@ async function submitCallOutcome(form: HTMLFormElement) {
   callOutcomePending = true;
   if (button) button.disabled = true;
   try {
-    const result = await api<{ message?: string }>(
+    const result = await api<{ message?: string; result?: string }>(
       `/api/outbound-call-records/${encodeURIComponent(recordId)}/outcome`,
       { method: "POST", body: JSON.stringify({ outcome, note }) }
     );
@@ -19068,11 +19086,34 @@ async function submitCallOutcome(form: HTMLFormElement) {
     await loadOutboundCallRecords();
     const panel = qs<HTMLElement>("#outboundCallRecordDetail");
     if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
+    if (result.result === "updated" || result.result === "unchanged") {
+      await openNextTodayFollow(form.dataset.targetType || "", form.dataset.targetId || "");
+    }
   } catch (error) {
     toast(error instanceof Error ? error.message : "通话结果没有保存", "error");
   } finally {
     callOutcomePending = false;
     if (button) button.disabled = false;
+  }
+}
+
+let todayFollowNextPending = false;
+
+async function openNextTodayFollow(afterType: string, afterId: string, scope: "mine" | "team" = "mine") {
+  const list = qs<HTMLElement>("#dashboardTodayFollowNextList");
+  const message = qs<HTMLElement>("#dashboardTodayFollowNextMessage");
+  if (todayFollowNextPending) return;
+  todayFollowNextPending = true;
+  if (message) message.textContent = "";
+  try {
+    const data = await api<TodayFollowNextResponse>(`/api/today-follow-next${todayFollowNextQuery({ scope, afterType, afterId })}`);
+    if (list) list.innerHTML = renderTodayFollowNext(data);
+    const next = data.next;
+    if (next?.targetType && next.targetId) openCallbackDueObject(next.targetType, next.targetId);
+  } catch (error) {
+    if (list) list.innerHTML = renderTodayFollowNextFailure(error instanceof Error ? error.message : "下一位待跟进没有打开");
+  } finally {
+    todayFollowNextPending = false;
   }
 }
 
@@ -58898,6 +58939,20 @@ function installEvents() {
   qs<HTMLFormElement>("#dashboardCallOutcomeBatchForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     void submitCallOutcomeBatch();
+  });
+  qs<HTMLButtonElement>("#dashboardTodayFollowNextMine")?.addEventListener("click", () => {
+    void openNextTodayFollow("", "", "mine");
+  });
+  qs<HTMLButtonElement>("#dashboardTodayFollowNextTeam")?.addEventListener("click", () => {
+    void openNextTodayFollow("", "", "team");
+  });
+  qs<HTMLElement>("#dashboardTodayFollowNext")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-today-follow-next-open]");
+    if (!opener) return;
+    const row = opener.closest<HTMLElement>("[data-today-follow-next]");
+    if (!row) return;
+    event.preventDefault();
+    openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
   });
   document.addEventListener("click", (event) => {
     const target = event.target as HTMLElement | null;
