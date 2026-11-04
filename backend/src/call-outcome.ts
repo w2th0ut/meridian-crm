@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  isSameDayFollowChoice,
   planCallOutcomeNextFollow,
   parseCallOutcomeNextFollowChoice,
   type CallOutcomeNextFollowChoice
@@ -17,6 +18,7 @@ import {
   CALL_OUTCOME_NOTE_MAX,
   callOutcomeNoteLength,
   isCallOutcome,
+  isEstablishedCall,
   outboundCallRecordVisible,
   presentOutboundCallRecord,
   resolveOutboundCallRecordAccess,
@@ -29,6 +31,7 @@ import type { CallOutcomeAudit, SessionUser } from "./types.js";
 /**
  * 给一条通话记录标注结果。
  * 可以同时按明天、3 天后、1 周后写下关联对象的下次跟进。不设则不改下次跟进。
+ * 未接通还可以选 2 小时后或 4 小时后。已接通不能选。不撤销暂停，也不拨号。
  * 号码错误可以同时把这一通对上的号码标为无效，并在首选正是它时改到另一个有效号码。
  * 可以同时把关联对象的负责人转给同租户的另一位同事。不选则不改负责人。
  * 只改本条的 callOutcome 和 callOutcomeNote，以及该对象已有的下次跟进、无效号、首选和 ownerId。
@@ -109,7 +112,7 @@ export async function labelCallOutcome(
         : parsed.reason === "invalid_note"
           ? "备注格式不正确"
           : parsed.reason === "invalid_next_follow"
-            ? "下次跟进只能选明天、3 天后、1 周后或不设"
+            ? "下次跟进只能选明天、3 天后、1 周后、2 小时后、4 小时后或不设"
             : parsed.reason === "invalid_mark"
               ? "只有号码错误可以同时把号码标为无效"
               : "一次只能为一条通话记录标注结果";
@@ -120,6 +123,9 @@ export async function labelCallOutcome(
   const record = store.outboundCallRecords.find((item) => item.id === callRecordId);
   if (!record || !outboundCallRecordVisible(record, user.teamId, resolved.access)) {
     return reject("not_found", "通话记录不存在", 404);
+  }
+  if (isSameDayFollowChoice(parsed.nextFollowChoice) && isEstablishedCall(record.establishedTimeRaw)) {
+    return reject("not_unanswered", "只有未接通的通话可以选 2 小时后或 4 小时后");
   }
   const now = outboundInstant();
   const follow = await planCallOutcomeNextFollow(store, user, record, parsed.nextFollowChoice, now);
