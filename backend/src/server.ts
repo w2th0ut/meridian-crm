@@ -329,6 +329,7 @@ import { editCallWrapup, presentCallWrapupEdit, setCallWrapupEditWindow } from "
 import { listCallWrapupCounts, listCallWrapupQueue, restoreCallWrapup, skipCallWrapup } from "./call-wrapup-queue.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
+import { linkSameNumberInvalid, readSameNumberInvalid } from "./same-number-invalid.js";
 import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
 import { completeCallbackDueQueue, exportCallbackDueQueue, listCallbackDueQueue } from "./callback-due-queue.js";
 import { exportCallbackScheduleReport, listCallbackScheduleReport } from "./callback-schedule-report.js";
@@ -9434,6 +9435,16 @@ app.post("/api/outbound-call-records/:id/phone-validity", requireAuth, asyncRout
   await enforceIamTenantPermission(req, res, () => { allowed = true; }, OUTBOUND_CALL_RECORD_PERMISSION);
   if (!allowed || res.headersSent) return;
   const outcome = await markPhoneInvalidFromCall(getStore(), req.user, req.params.id, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.get("/api/phone-validity/same-number", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await readSameNumberInvalid(getStore(), req.user, req.query as Record<string, unknown>);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/phone-validity/same-number", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await linkSameNumberInvalid(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 
