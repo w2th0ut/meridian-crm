@@ -5202,6 +5202,28 @@ export interface UnansweredPendingQueueAudit {
 }
 
 /**
+ * 一次负向通话结果仍有下次跟进的查看或清除，或一次被拒绝的操作。
+ * 查看只记范围、结果筛选和行数。清除记下对象、通话记录和清除前的下次跟进，最长 200 字。
+ * 不记号码、对象名、录音地址或密钥。拒绝的清除不记原来的下次跟进。
+ */
+export interface NegativeOutcomeFollowupAudit {
+  id: string;
+  teamId: string;
+  actorId: string;
+  at: string;
+  action: "read" | "clear";
+  scope: "" | "mine" | "team";
+  outcome: "" | "无意向" | "号码错误";
+  targetType: "" | "customer" | "lead" | "prospect";
+  targetId: string;
+  callRecordId: string;
+  previousNextFollowAt: string;
+  rowCount: number;
+  result: "read" | "updated" | "rejected";
+  reason: string;
+}
+
+/**
  * 一个客户、线索或搜客对象当前的首选拨打号码。
  * 租户、对象类型和对象 ID 唯一。只记号码 ID，不记完整号码。
  * 没有行就是没有首选。设置本身不拨号。
