@@ -5007,6 +5007,14 @@ export interface CallOutcomeAudit {
   nextOutcome: string;
   previousNote: string;
   nextNote: string;
+  /** 同一次批量标注共用。单条标注和查看审计为空。 */
+  batchId?: string;
+  /** 空是 §60 的单条标注。batch 是批量标注。read 是待标注列表的查看。 */
+  action?: "" | "batch" | "read";
+  scope?: "" | "mine" | "team";
+  rowCount?: number;
+  result?: "" | "updated" | "rejected" | "read";
+  reason?: string;
 }
 
 /**

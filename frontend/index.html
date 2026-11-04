@@ -29078,6 +29078,24 @@ body.platform-mode .workspace-tabs { display:none !important; }
             <div id="dashboardSameDayCallSkipList"><p data-same-day-call-skip-empty="1">点查看后才读取暂停外呼。</p></div>
           </section>
 
+          <section class="panel section" id="dashboardCallOutcomeBatch" aria-label="已接通未标注通话" hidden>
+            <div class="section-head">
+              <div class="section-title"><div><h2>已接通未标注通话</h2><p id="dashboardCallOutcomeBatchScope">勾选多通，一次标成同一个结果</p></div></div>
+            </div>
+            <p id="dashboardCallOutcomeBatchNote" class="dashboard-call-outcome-batch-note">这一块按通话列出已经接通、人工标注去掉首尾空白后还不是有意向、需回访、无意向、号码错误、其他这五项的记录。未接通不进入。话单上的结果不算成人工标注。同一对象更早的未标注通话也在这里，不要求下次跟进是空的。我的只看通话坐席对得上自己映射的。主管可以看团队里自己看得到的通话。没有坐席的通话仍只有整个租户范围能看。每一行写未标注，不把原文或话单枚举抄上来。点名称打开这一通通话详情。勾选多通后，标注所选才把它们标成同一个结果。备注不填就写成没有备注。一次最多 100 通。要人工点查看，打开工作台本身不拉这一份。这里没有外呼按钮，不会自动拨号，也不会批量拨号。不发信，不调用外部接口，不碰抑制，也不改 convert_to_lead 或 approved_contactable。</p>
+            <div class="head-actions">
+              <button class="btn" type="button" id="dashboardCallOutcomeBatchMine">查看我的</button>
+              <button class="btn" type="button" id="dashboardCallOutcomeBatchTeam" hidden>查看团队</button>
+            </div>
+            <form id="dashboardCallOutcomeBatchForm">
+              <label>通话结果<select data-call-outcome-batch-outcome="1"><option value="有意向">有意向</option><option value="需回访">需回访</option><option value="无意向">无意向</option><option value="号码错误">号码错误</option><option value="其他">其他</option></select></label>
+              <label>备注<input data-call-outcome-batch-note="1" maxlength="200" placeholder="不填就写成没有备注"></label>
+              <button class="btn" type="submit" data-call-outcome-batch-submit="1">标注所选</button>
+            </form>
+            <p id="dashboardCallOutcomeBatchMessage"></p>
+            <div id="dashboardCallOutcomeBatchList"><p data-call-outcome-batch-empty="1">点查看后才读取已接通未标注通话。</p></div>
+          </section>
+
           <section class="panel section" id="dashboardAgentWorkStatusReport" aria-label="坐席工作状态时长" hidden>
             <div class="section-head">
               <div class="section-title"><div><h2>坐席工作状态时长</h2><p id="dashboardAgentWorkStatusReportScope">主管按日期查看可接听、忙碌和小休</p></div></div>

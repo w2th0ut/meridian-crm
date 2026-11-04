@@ -96,6 +96,7 @@ export function intentFollowupLabeledAt(record: OutboundCallRecord, audits: Call
   const outcome = record.callOutcome || "";
   let latest = "";
   for (const audit of audits) {
+    if (audit.action === "read") continue;
     if (audit.teamId !== record.teamId || audit.callRecordId !== record.id) continue;
     if (audit.nextOutcome !== outcome || !audit.at) continue;
     if (!latest || audit.at > latest) latest = audit.at;

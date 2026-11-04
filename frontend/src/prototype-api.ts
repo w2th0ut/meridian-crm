@@ -122,6 +122,13 @@ import {
   type SameDayCallSkipResponse
 } from "./same-day-call-skip";
 import {
+  callOutcomeBatchBody,
+  renderUnlabeledConnectedCallFailure,
+  renderUnlabeledConnectedCalls,
+  unlabeledConnectedCallQuery,
+  type UnlabeledConnectedCallResponse
+} from "./call-outcome-batch";
+import {
   agentWorkStatusReportQuery,
   renderAgentWorkStatusReport,
   type AgentWorkStatusReportResponse
@@ -12910,6 +12917,18 @@ function paintSameDayCallSkipAccess() {
   if (section) section.hidden = !state.user;
   const team = qs<HTMLButtonElement>("#dashboardSameDayCallSkipTeam");
   if (team) team.hidden = !canViewSameDayCallSkipTeam();
+  paintCallOutcomeBatchAccess();
+}
+
+function canViewCallOutcomeBatchTeam(user = state.user) {
+  return user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin";
+}
+
+function paintCallOutcomeBatchAccess() {
+  const section = qs<HTMLElement>("#dashboardCallOutcomeBatch");
+  if (section) section.hidden = !state.user;
+  const team = qs<HTMLButtonElement>("#dashboardCallOutcomeBatchTeam");
+  if (team) team.hidden = !canViewCallOutcomeBatchTeam();
   paintAgentWorkStatusReportAccess();
 }
 
@@ -20104,6 +20123,53 @@ async function clearSameDayCallSkip(targetType: string, targetId: string, button
     if (button) button.disabled = false;
   } finally {
     sameDayCallSkipBusy = false;
+  }
+}
+
+let unlabeledConnectedCallScope: "mine" | "team" = "mine";
+let unlabeledConnectedCallBusy = false;
+
+async function loadUnlabeledConnectedCalls(scope: "mine" | "team") {
+  const list = qs<HTMLElement>("#dashboardCallOutcomeBatchList");
+  if (!list) return;
+  if (scope === "team" && !canViewCallOutcomeBatchTeam()) return;
+  unlabeledConnectedCallScope = scope;
+  const message = qs<HTMLElement>("#dashboardCallOutcomeBatchMessage");
+  if (message) message.textContent = "";
+  try {
+    const data = await api<UnlabeledConnectedCallResponse>(`/api/unlabeled-connected-calls${unlabeledConnectedCallQuery({ scope })}`);
+    list.innerHTML = renderUnlabeledConnectedCalls(data);
+  } catch (error) {
+    list.innerHTML = renderUnlabeledConnectedCallFailure(error instanceof Error ? error.message : "已接通未标注通话没有加载");
+  }
+}
+
+async function submitCallOutcomeBatch() {
+  if (unlabeledConnectedCallBusy) return;
+  const ids = qsa<HTMLInputElement>("#dashboardCallOutcomeBatchList [data-call-outcome-batch-id]:checked")
+    .map((box) => box.value)
+    .filter(Boolean);
+  if (!ids.length) {
+    toast("先勾选要标注的通话", "error");
+    return;
+  }
+  const outcome = qs<HTMLSelectElement>("[data-call-outcome-batch-outcome]")?.value || "";
+  const note = qs<HTMLInputElement>("[data-call-outcome-batch-note]")?.value || "";
+  const button = qs<HTMLButtonElement>("[data-call-outcome-batch-submit]");
+  unlabeledConnectedCallBusy = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/unlabeled-connected-calls/label", {
+      method: "POST",
+      body: JSON.stringify(callOutcomeBatchBody({ callRecordIds: ids, outcome, note }))
+    });
+    toast(result.message || "已标注所选通话");
+    await loadUnlabeledConnectedCalls(unlabeledConnectedCallScope);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "通话结果没有标注", "error");
+  } finally {
+    unlabeledConnectedCallBusy = false;
+    if (button) button.disabled = false;
   }
 }
 
@@ -58690,6 +58756,31 @@ function installEvents() {
     if (!row) return;
     event.preventDefault();
     openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
+  });
+  qs<HTMLButtonElement>("#dashboardCallOutcomeBatchMine")?.addEventListener("click", () => {
+    void loadUnlabeledConnectedCalls("mine");
+  });
+  qs<HTMLButtonElement>("#dashboardCallOutcomeBatchTeam")?.addEventListener("click", () => {
+    void loadUnlabeledConnectedCalls("team");
+  });
+  qs<HTMLElement>("#dashboardCallOutcomeBatch")?.addEventListener("change", (event) => {
+    const target = event.target as HTMLInputElement | null;
+    if (!target?.matches("[data-call-outcome-batch-all]")) return;
+    qsa<HTMLInputElement>("#dashboardCallOutcomeBatchList [data-call-outcome-batch-id]").forEach((box) => {
+      box.checked = target.checked;
+    });
+  });
+  qs<HTMLElement>("#dashboardCallOutcomeBatch")?.addEventListener("click", (event) => {
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-call-outcome-batch-open]");
+    if (!opener) return;
+    const row = opener.closest<HTMLElement>("[data-call-outcome-batch-row]");
+    if (!row) return;
+    event.preventDefault();
+    void openOutboundCallRecord(row.dataset.callRecordId || "");
+  });
+  qs<HTMLFormElement>("#dashboardCallOutcomeBatchForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitCallOutcomeBatch();
   });
   qs<HTMLButtonElement>("#dashboardNextFollowDueRefresh")?.addEventListener("click", (event) => {
     void refreshDashboardPendingEmails(event.currentTarget as HTMLButtonElement);
