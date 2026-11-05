@@ -339,7 +339,7 @@ import { listOtherOutcomeFollowups, scheduleOtherOutcomeFollowup } from "./other
 import { listUnlabeledConnectedFollowups, scheduleUnlabeledConnectedFollowup } from "./unlabeled-connected-followup.js";
 import { scheduleMissingNextFollowups } from "./missing-next-followup-batch.js";
 import { reassignQueueOwners } from "./queue-owner-reassign.js";
-import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip } from "./same-day-call-skip.js";
+import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip, setSameDayCallSkipBatch } from "./same-day-call-skip.js";
 import { listTodayFollowNext } from "./today-follow-advance.js";
 import { labelUnlabeledConnectedCalls, listUnlabeledConnectedCalls } from "./call-outcome-batch.js";
 import { createOutcomeNotePhrase, disableOutcomeNotePhrase, listOutcomeNotePhrases } from "./call-outcome-note-phrase.js";
@@ -9567,6 +9567,11 @@ app.get("/api/same-day-call-skips", requireAuth, asyncRoute(async (req, res) => 
 
 app.post("/api/same-day-call-skips", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await setSameDayCallSkip(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/same-day-call-skips/batch", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await setSameDayCallSkipBatch(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

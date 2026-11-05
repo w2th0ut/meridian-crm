@@ -111,6 +111,7 @@ import {
 } from "./other-outcome-followup";
 import { missingNextFollowupBatchBody } from "./missing-next-followup-batch";
 import { queueOwnerReassignBody } from "./queue-owner-reassign";
+import { sameDaySkipBatchBody } from "./same-day-skip-batch";
 import {
   renderUnlabeledConnectedFollowup,
   renderUnlabeledConnectedFollowupFailure,
@@ -19222,7 +19223,7 @@ async function openNextTodayFollow(afterType: string, afterId: string, scope: "m
   if (message) message.textContent = "";
   try {
     const data = await api<TodayFollowNextResponse>(`/api/today-follow-next${todayFollowNextQuery({ scope, afterType, afterId })}`);
-    if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView());
+    if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
     const next = data.next;
     if (next?.targetType && next.targetId) openCallbackDueObject(next.targetType, next.targetId);
   } catch (error) {
@@ -19254,7 +19255,7 @@ async function loadIntentFollowupQueue() {
       });
       agentSelect.disabled = result.scope !== "team";
     }
-    root.innerHTML = renderIntentFollowupQueue(result, callOutcomeTransferView());
+    root.innerHTML = renderIntentFollowupQueue(result, callOutcomeTransferView(), hasIamCapability("communication.send"));
   } catch (error) {
     root.innerHTML = renderIntentFollowupFailure(error instanceof Error ? error.message : "意向回访队列没有加载");
   }
@@ -20019,7 +20020,7 @@ async function loadUnansweredPendingQueue(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<UnansweredPendingQueueResponse>(`/api/unanswered-pending-queue${unansweredPendingQueueQuery(unansweredPendingFilter())}`);
-    list.innerHTML = renderUnansweredPendingQueue(data, callOutcomeTransferView());
+    list.innerHTML = renderUnansweredPendingQueue(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
   } catch (error) {
     list.innerHTML = renderUnansweredPendingQueueFailure(error instanceof Error ? error.message : "未接通待处理队列没有加载");
   }
@@ -20104,7 +20105,7 @@ async function loadNegativeOutcomeFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<NegativeOutcomeFollowupResponse>(`/api/negative-outcome-followups${negativeOutcomeFollowupQuery(negativeOutcomeFollowupFilter())}`);
-    list.innerHTML = renderNegativeOutcomeFollowup(data, callOutcomeTransferView());
+    list.innerHTML = renderNegativeOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
   } catch (error) {
     list.innerHTML = renderNegativeOutcomeFollowupFailure(error instanceof Error ? error.message : "负向结果跟进没有加载");
   }
@@ -20224,6 +20225,61 @@ function bindQueueOwnerReassign(root: HTMLElement | null, reload: () => Promise<
   });
 }
 
+async function submitSameDaySkipBatch(form: HTMLFormElement, reload: () => Promise<void>) {
+  const root = form.parentElement;
+  const picked = [...(root?.querySelectorAll<HTMLInputElement>("[data-same-day-skip-batch-pick]:checked") || [])];
+  const targets = picked.flatMap((box) => {
+    const value = box.value || "";
+    const splitAt = value.indexOf(":");
+    if (splitAt <= 0) return [];
+    const targetType = value.slice(0, splitAt);
+    const targetId = value.slice(splitAt + 1);
+    if (!targetType || !targetId) return [];
+    return [{ targetType, targetId }];
+  });
+  if (!targets.length) {
+    toast("先选择对象", "error");
+    return;
+  }
+  const reason = form.querySelector<HTMLSelectElement>("[data-same-day-skip-batch-reason]")?.value.trim() || "";
+  if (!reason) {
+    toast("请选择原因", "error");
+    return;
+  }
+  const note = form.querySelector<HTMLInputElement>("[data-same-day-skip-batch-note]")?.value || "";
+  const resumeOn = form.querySelector<HTMLInputElement>("[data-same-day-skip-batch-resume]")?.value.trim() || "";
+  const button = form.querySelector<HTMLButtonElement>("[data-same-day-skip-batch-submit]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/same-day-call-skips/batch", {
+      method: "POST",
+      body: JSON.stringify(sameDaySkipBatchBody({ targets, reason, note, resumeOn }))
+    });
+    toast(result.message || "已记下今日不再拨");
+    await reload();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "今日不再拨没有记下", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function bindSameDaySkipBatch(root: HTMLElement | null, reload: () => Promise<void>) {
+  root?.addEventListener("click", (event) => {
+    const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-same-day-skip-batch-all]");
+    if (!all || !root.contains(all)) return;
+    root.querySelectorAll<HTMLInputElement>("[data-same-day-skip-batch-pick]").forEach((box) => {
+      box.checked = all.checked;
+    });
+  });
+  root?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-same-day-skip-batch]");
+    if (!form || !root.contains(form)) return;
+    event.preventDefault();
+    void submitSameDaySkipBatch(form, reload);
+  });
+}
+
 function bindMissingNextFollowupBatch(root: HTMLElement | null, reload: () => Promise<void>) {
   root?.addEventListener("click", (event) => {
     const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-missing-next-followup-all]");
@@ -20252,7 +20308,7 @@ async function loadOtherOutcomeFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<OtherOutcomeFollowupResponse>(`/api/other-outcome-followups${otherOutcomeFollowupQuery({ scope })}`);
-    list.innerHTML = renderOtherOutcomeFollowup(data, callOutcomeTransferView());
+    list.innerHTML = renderOtherOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
   } catch (error) {
     list.innerHTML = renderOtherOutcomeFollowupFailure(error instanceof Error ? error.message : "其他结果跟进没有加载");
   }
@@ -20298,7 +20354,7 @@ async function loadUnlabeledConnectedFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<UnlabeledConnectedFollowupResponse>(`/api/unlabeled-connected-followups${unlabeledConnectedFollowupQuery({ scope })}`);
-    list.innerHTML = renderUnlabeledConnectedFollowup(data, callOutcomeTransferView());
+    list.innerHTML = renderUnlabeledConnectedFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
   } catch (error) {
     list.innerHTML = renderUnlabeledConnectedFollowupFailure(error instanceof Error ? error.message : "已接通未标注跟进没有加载");
   }
@@ -59110,6 +59166,12 @@ function installEvents() {
   bindQueueOwnerReassign(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
   bindQueueOwnerReassign(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
   bindQueueOwnerReassign(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
+  bindSameDaySkipBatch(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
+  bindSameDaySkipBatch(qs<HTMLElement>("#dashboardOtherOutcomeFollowup"), () => loadOtherOutcomeFollowups(otherOutcomeFollowupScope));
+  bindSameDaySkipBatch(qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup"), () => loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope));
+  bindSameDaySkipBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
+  bindSameDaySkipBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
+  bindSameDaySkipBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
   qs<HTMLButtonElement>("#dashboardUnlabeledConnectedFollowupMine")?.addEventListener("click", () => {
     void loadUnlabeledConnectedFollowups("mine");
   });
