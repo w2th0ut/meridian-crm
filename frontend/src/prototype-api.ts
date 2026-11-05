@@ -111,6 +111,7 @@ import {
 } from "./other-outcome-followup";
 import { missingNextFollowupBatchBody } from "./missing-next-followup-batch";
 import { backupNumberBatchBody, renderBackupNumberPreview, type BackupNumberPreviewItem } from "./backup-number-batch";
+import { endFollowBatchBody, renderEndFollowPreview, type EndFollowPreviewItem } from "./end-follow-batch";
 import { phoneInvalidBatchBody, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { queueOwnerReassignBody } from "./queue-owner-reassign";
 import { sameDaySkipBatchBody } from "./same-day-skip-batch";
@@ -19233,7 +19234,7 @@ async function openNextTodayFollow(afterType: string, afterId: string, scope: "m
   if (message) message.textContent = "";
   try {
     const data = await api<TodayFollowNextResponse>(`/api/today-follow-next${todayFollowNextQuery({ scope, afterType, afterId })}`);
-    if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
+    if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView(), phoneInvalidBatchView());
     const next = data.next;
     if (next?.targetType && next.targetId) openCallbackDueObject(next.targetType, next.targetId);
   } catch (error) {
@@ -20115,7 +20116,7 @@ async function loadNegativeOutcomeFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<NegativeOutcomeFollowupResponse>(`/api/negative-outcome-followups${negativeOutcomeFollowupQuery(negativeOutcomeFollowupFilter())}`);
-    list.innerHTML = renderNegativeOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
+    list.innerHTML = renderNegativeOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView(), phoneInvalidBatchView());
   } catch (error) {
     list.innerHTML = renderNegativeOutcomeFollowupFailure(error instanceof Error ? error.message : "负向结果跟进没有加载");
   }
@@ -20401,6 +20402,127 @@ async function submitBackupNumberBatch(form: HTMLFormElement, reload: () => Prom
     toast(error instanceof Error ? error.message : "备用号没有切换", "error");
     if (button) button.disabled = false;
   }
+}
+
+function endFollowTargets(root: ParentNode | null) {
+  const picked = [...(root?.querySelectorAll<HTMLInputElement>("[data-end-follow-batch-pick]:checked") || [])];
+  return picked.flatMap((box) => {
+    const value = box.value || "";
+    const splitAt = value.indexOf(":");
+    if (splitAt <= 0) return [];
+    const targetType = value.slice(0, splitAt);
+    const targetId = value.slice(splitAt + 1);
+    if (!targetType || !targetId) return [];
+    return [{ targetType, targetId }];
+  });
+}
+
+function endFollowKey(targets: Array<{ targetType: string; targetId: string }>, reason: string) {
+  return `${reason}\n${targets.map((item) => `${item.targetType}:${item.targetId}`).join("|")}`;
+}
+
+function endFollowReason(form: HTMLFormElement) {
+  return form.querySelector<HTMLInputElement>("[data-end-follow-reason]")?.value.trim() || "";
+}
+
+function resetEndFollowPreview(form: HTMLFormElement) {
+  delete form.dataset.endFollowPreview;
+  const button = form.querySelector<HTMLButtonElement>("[data-end-follow-batch-submit]");
+  if (button) button.disabled = true;
+  const box = form.querySelector<HTMLElement>("[data-end-follow-batch-preview-box]");
+  if (box) box.innerHTML = "";
+}
+
+async function previewEndFollowBatch(form: HTMLFormElement) {
+  const targets = endFollowTargets(form.parentElement);
+  if (!targets.length) {
+    toast("先选择对象", "error");
+    return;
+  }
+  const reason = endFollowReason(form);
+  const button = form.querySelector<HTMLButtonElement>("[data-end-follow-batch-preview]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; items?: EndFollowPreviewItem[] }>("/api/next-follow-ups/batch-clear/preview", {
+      method: "POST",
+      body: JSON.stringify(endFollowBatchBody({ targets, reason }))
+    });
+    const box = form.querySelector<HTMLElement>("[data-end-follow-batch-preview-box]");
+    if (box) box.innerHTML = renderEndFollowPreview(result.items);
+    form.dataset.endFollowPreview = endFollowKey(targets, reason);
+    const submit = form.querySelector<HTMLButtonElement>("[data-end-follow-batch-submit]");
+    if (submit) submit.disabled = false;
+  } catch (error) {
+    resetEndFollowPreview(form);
+    toast(error instanceof Error ? error.message : "结束跟进没有列出来", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function submitEndFollowBatch(form: HTMLFormElement, reload: () => Promise<void>) {
+  const targets = endFollowTargets(form.parentElement);
+  if (!targets.length) {
+    toast("先选择对象", "error");
+    return;
+  }
+  const reason = endFollowReason(form);
+  if (form.dataset.endFollowPreview !== endFollowKey(targets, reason)) {
+    toast("请先预览结束跟进", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("[data-end-follow-batch-submit]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/next-follow-ups/batch-clear", {
+      method: "POST",
+      body: JSON.stringify(endFollowBatchBody({ targets, reason }))
+    });
+    toast(result.message || "已清空下次跟进");
+    await reload();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "下次跟进没有清空", "error");
+    if (button) button.disabled = false;
+  }
+}
+
+function bindEndFollowBatch(root: HTMLElement | null, reload: () => Promise<void>) {
+  root?.addEventListener("click", (event) => {
+    const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-end-follow-batch-all]");
+    if (all && root.contains(all)) {
+      root.querySelectorAll<HTMLInputElement>("[data-end-follow-batch-pick]").forEach((box) => {
+        box.checked = all.checked;
+      });
+      const form = all.closest<HTMLFormElement>("[data-end-follow-batch]");
+      if (form) resetEndFollowPreview(form);
+      return;
+    }
+    const preview = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-end-follow-batch-preview]");
+    if (!preview || !root.contains(preview)) return;
+    const form = preview.closest<HTMLFormElement>("[data-end-follow-batch]");
+    if (!form) return;
+    event.preventDefault();
+    void previewEndFollowBatch(form);
+  });
+  root?.addEventListener("change", (event) => {
+    const pick = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-end-follow-batch-pick]");
+    if (!pick || !root.contains(pick)) return;
+    const form = pick.closest<HTMLFormElement>("[data-end-follow-batch]")
+      || root.querySelector<HTMLFormElement>("[data-end-follow-batch]");
+    if (form) resetEndFollowPreview(form);
+  });
+  root?.addEventListener("input", (event) => {
+    const reason = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-end-follow-reason]");
+    if (!reason || !root.contains(reason)) return;
+    const form = reason.closest<HTMLFormElement>("[data-end-follow-batch]");
+    if (form) resetEndFollowPreview(form);
+  });
+  root?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-end-follow-batch]");
+    if (!form || !root.contains(form)) return;
+    event.preventDefault();
+    void submitEndFollowBatch(form, reload);
+  });
 }
 
 function bindBackupNumberBatch(root: HTMLElement | null, reload: () => Promise<void>) {
@@ -59351,11 +59473,13 @@ function installEvents() {
   bindPhoneInvalidBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
   bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
+  bindEndFollowBatch(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardOtherOutcomeFollowup"), () => loadOtherOutcomeFollowups(otherOutcomeFollowupScope));
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup"), () => loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope));
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
   bindBackupNumberBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
+  bindEndFollowBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
   qs<HTMLButtonElement>("#dashboardUnlabeledConnectedFollowupMine")?.addEventListener("click", () => {
     void loadUnlabeledConnectedFollowups("mine");
   });
