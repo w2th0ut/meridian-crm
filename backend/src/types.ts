@@ -5030,8 +5030,8 @@ export interface CallOutcomeAudit {
   nextNote: string;
   /** 同一次批量标注共用。单条标注和查看审计为空。 */
   batchId?: string;
-  /** 空是 §60 的单条标注。batch 是批量标注。read 是待标注列表的查看。 */
-  action?: "" | "batch" | "read";
+  /** 空是 §60 的单条标注。batch 是批量标注。read 是待标注列表的查看。append 是批量追加备注。 */
+  action?: "" | "batch" | "read" | "append";
   scope?: "" | "mine" | "team";
   rowCount?: number;
   result?: "" | "updated" | "rejected" | "read";

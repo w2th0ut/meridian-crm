@@ -341,6 +341,7 @@ import { listOtherOutcomeFollowups, scheduleOtherOutcomeFollowup } from "./other
 import { listUnlabeledConnectedFollowups, scheduleUnlabeledConnectedFollowup } from "./unlabeled-connected-followup.js";
 import { scheduleMissingNextFollowups } from "./missing-next-followup-batch.js";
 import { applyEndFollowBatch, previewEndFollowBatch } from "./end-follow-batch.js";
+import { applyCallNoteAppendBatch, previewCallNoteAppendBatch } from "./call-note-append-batch.js";
 import { reassignQueueOwners } from "./queue-owner-reassign.js";
 import { clearSameDayCallSkip, listSameDayCallSkips, setSameDayCallSkip, setSameDayCallSkipBatch } from "./same-day-call-skip.js";
 import { listTodayFollowNext } from "./today-follow-advance.js";
@@ -9560,6 +9561,16 @@ app.post("/api/next-follow-ups/batch-clear/preview", requireAuth, asyncRoute(asy
 
 app.post("/api/next-follow-ups/batch-clear", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await applyEndFollowBatch(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-outcome-notes/batch-append/preview", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await previewCallNoteAppendBatch(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/call-outcome-notes/batch-append", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await applyCallNoteAppendBatch(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

@@ -112,6 +112,7 @@ import {
 import { missingNextFollowupBatchBody } from "./missing-next-followup-batch";
 import { backupNumberBatchBody, renderBackupNumberPreview, type BackupNumberPreviewItem } from "./backup-number-batch";
 import { endFollowBatchBody, renderEndFollowPreview, type EndFollowPreviewItem } from "./end-follow-batch";
+import { callNoteAppendBody, renderCallNoteAppendPreview, type CallNoteAppendPreviewItem } from "./call-note-append-batch";
 import { phoneInvalidBatchBody, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { queueOwnerReassignBody } from "./queue-owner-reassign";
 import { sameDaySkipBatchBody } from "./same-day-skip-batch";
@@ -20486,6 +20487,124 @@ async function submitEndFollowBatch(form: HTMLFormElement, reload: () => Promise
   }
 }
 
+function callNoteAppendIds(root: ParentNode | null) {
+  return [...(root?.querySelectorAll<HTMLInputElement>("[data-call-note-append-pick]:checked") || [])]
+    .map((box) => box.value.trim())
+    .filter(Boolean);
+}
+
+function callNoteAppendKey(ids: string[], note: string) {
+  return `${note}\n${ids.join("|")}`;
+}
+
+function callNoteAppendText(form: HTMLFormElement) {
+  return form.querySelector<HTMLInputElement>("[data-call-note-append-note]")?.value.trim() || "";
+}
+
+function resetCallNoteAppendPreview(form: HTMLFormElement) {
+  delete form.dataset.callNoteAppendPreview;
+  const button = form.querySelector<HTMLButtonElement>("[data-call-note-append-submit]");
+  if (button) button.disabled = true;
+  const box = form.querySelector<HTMLElement>("[data-call-note-append-preview-box]");
+  if (box) box.innerHTML = "";
+}
+
+async function previewCallNoteAppend(form: HTMLFormElement) {
+  const callRecordIds = callNoteAppendIds(form.parentElement);
+  if (!callRecordIds.length) {
+    toast("先选择通话", "error");
+    return;
+  }
+  const note = callNoteAppendText(form);
+  if (!note) {
+    toast("先写上一句备注", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("[data-call-note-append-preview]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; items?: CallNoteAppendPreviewItem[] }>("/api/call-outcome-notes/batch-append/preview", {
+      method: "POST",
+      body: JSON.stringify(callNoteAppendBody({ callRecordIds, note }))
+    });
+    const box = form.querySelector<HTMLElement>("[data-call-note-append-preview-box]");
+    if (box) box.innerHTML = renderCallNoteAppendPreview(result.items);
+    form.dataset.callNoteAppendPreview = callNoteAppendKey(callRecordIds, note);
+    const submit = form.querySelector<HTMLButtonElement>("[data-call-note-append-submit]");
+    if (submit) submit.disabled = false;
+  } catch (error) {
+    resetCallNoteAppendPreview(form);
+    toast(error instanceof Error ? error.message : "备注没有列出来", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function submitCallNoteAppend(form: HTMLFormElement, reload: () => Promise<void>) {
+  const callRecordIds = callNoteAppendIds(form.parentElement);
+  if (!callRecordIds.length) {
+    toast("先选择通话", "error");
+    return;
+  }
+  const note = callNoteAppendText(form);
+  if (form.dataset.callNoteAppendPreview !== callNoteAppendKey(callRecordIds, note)) {
+    toast("请先预览补备注", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("[data-call-note-append-submit]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/call-outcome-notes/batch-append", {
+      method: "POST",
+      body: JSON.stringify(callNoteAppendBody({ callRecordIds, note }))
+    });
+    toast(result.message || "已追加备注");
+    await reload();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "备注没有追加", "error");
+    if (button) button.disabled = false;
+  }
+}
+
+function bindCallNoteAppend(root: HTMLElement | null, reload: () => Promise<void>) {
+  root?.addEventListener("click", (event) => {
+    const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-call-note-append-all]");
+    if (all && root.contains(all)) {
+      root.querySelectorAll<HTMLInputElement>("[data-call-note-append-pick]").forEach((box) => {
+        box.checked = all.checked;
+      });
+      const form = all.closest<HTMLFormElement>("[data-call-note-append]");
+      if (form) resetCallNoteAppendPreview(form);
+      return;
+    }
+    const preview = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-call-note-append-preview]");
+    if (!preview || !root.contains(preview)) return;
+    const form = preview.closest<HTMLFormElement>("[data-call-note-append]");
+    if (!form) return;
+    event.preventDefault();
+    void previewCallNoteAppend(form);
+  });
+  root?.addEventListener("change", (event) => {
+    const pick = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-call-note-append-pick]");
+    if (!pick || !root.contains(pick)) return;
+    const form = pick.closest<HTMLFormElement>("[data-call-note-append]")
+      || root.querySelector<HTMLFormElement>("[data-call-note-append]");
+    if (form) resetCallNoteAppendPreview(form);
+  });
+  root?.addEventListener("input", (event) => {
+    const note = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-call-note-append-note]");
+    if (!note || !root.contains(note)) return;
+    const form = note.closest<HTMLFormElement>("[data-call-note-append]");
+    if (form) resetCallNoteAppendPreview(form);
+  });
+  root?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-call-note-append]");
+    if (!form || !root.contains(form)) return;
+    event.preventDefault();
+    void submitCallNoteAppend(form, reload);
+  });
+}
+
 function bindEndFollowBatch(root: HTMLElement | null, reload: () => Promise<void>) {
   root?.addEventListener("click", (event) => {
     const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-end-follow-batch-all]");
@@ -20818,7 +20937,7 @@ async function loadOutcomeNotePhrases(shell: HTMLElement) {
 function insertOutcomeNotePhrase(button: HTMLButtonElement) {
   const shell = button.closest<HTMLElement>("[data-outcome-note-phrases]");
   const form = shell?.closest("form");
-  const input = form?.querySelector<HTMLInputElement>("[data-call-outcome-note], [data-call-outcome-batch-note]");
+  const input = form?.querySelector<HTMLInputElement>("[data-call-outcome-note], [data-call-outcome-batch-note], [data-call-note-append-note]");
   if (!input) return;
   const next = applyOutcomeNotePhrase(input.value, button.dataset.outcomeNotePhraseText || "");
   if (!next.inserted) {
@@ -20826,6 +20945,7 @@ function insertOutcomeNotePhrase(button: HTMLButtonElement) {
     return;
   }
   input.value = next.value;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function applyCallOutcomeShortcut(event: KeyboardEvent) {
@@ -59474,6 +59594,10 @@ function installEvents() {
   bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
   bindEndFollowBatch(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
+  bindCallNoteAppend(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
+  bindCallNoteAppend(qs<HTMLElement>("#dashboardOtherOutcomeFollowup"), () => loadOtherOutcomeFollowups(otherOutcomeFollowupScope));
+  bindCallNoteAppend(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
+  bindCallNoteAppend(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardOtherOutcomeFollowup"), () => loadOtherOutcomeFollowups(otherOutcomeFollowupScope));
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup"), () => loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope));
   bindBackupNumberBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
