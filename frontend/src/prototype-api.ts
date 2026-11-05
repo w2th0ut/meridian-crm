@@ -110,6 +110,7 @@ import {
   type OtherOutcomeFollowupResponse
 } from "./other-outcome-followup";
 import { missingNextFollowupBatchBody } from "./missing-next-followup-batch";
+import { backupNumberBatchBody, renderBackupNumberPreview, type BackupNumberPreviewItem } from "./backup-number-batch";
 import { phoneInvalidBatchBody, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { queueOwnerReassignBody } from "./queue-owner-reassign";
 import { sameDaySkipBatchBody } from "./same-day-skip-batch";
@@ -20323,6 +20324,115 @@ function bindPhoneInvalidBatch(root: HTMLElement | null, reload: () => Promise<v
     if (!form || !root.contains(form)) return;
     event.preventDefault();
     void submitPhoneInvalidBatch(form, reload);
+  });
+}
+
+function backupNumberTargets(root: ParentNode | null) {
+  const picked = [...(root?.querySelectorAll<HTMLInputElement>("[data-backup-number-batch-pick]:checked") || [])];
+  return picked.flatMap((box) => {
+    const value = box.value || "";
+    const splitAt = value.indexOf(":");
+    if (splitAt <= 0) return [];
+    const targetType = value.slice(0, splitAt);
+    const targetId = value.slice(splitAt + 1);
+    if (!targetType || !targetId) return [];
+    return [{ targetType, targetId }];
+  });
+}
+
+function backupNumberKey(targets: Array<{ targetType: string; targetId: string }>) {
+  return targets.map((item) => `${item.targetType}:${item.targetId}`).join("|");
+}
+
+function resetBackupNumberPreview(form: HTMLFormElement) {
+  delete form.dataset.backupPreview;
+  const button = form.querySelector<HTMLButtonElement>("[data-backup-number-batch-submit]");
+  if (button) button.disabled = true;
+  const box = form.querySelector<HTMLElement>("[data-backup-number-batch-preview-box]");
+  if (box) box.innerHTML = "";
+}
+
+async function previewBackupNumberBatch(form: HTMLFormElement) {
+  const targets = backupNumberTargets(form.parentElement);
+  if (!targets.length) {
+    toast("先选择对象", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("[data-backup-number-batch-preview]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; items?: BackupNumberPreviewItem[] }>("/api/preferred-phones/batch-backup/preview", {
+      method: "POST",
+      body: JSON.stringify(backupNumberBatchBody({ targets }))
+    });
+    const box = form.querySelector<HTMLElement>("[data-backup-number-batch-preview-box]");
+    if (box) box.innerHTML = renderBackupNumberPreview(result.items);
+    form.dataset.backupPreview = backupNumberKey(targets);
+    const submit = form.querySelector<HTMLButtonElement>("[data-backup-number-batch-submit]");
+    if (submit) submit.disabled = false;
+  } catch (error) {
+    resetBackupNumberPreview(form);
+    toast(error instanceof Error ? error.message : "备用号没有列出来", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function submitBackupNumberBatch(form: HTMLFormElement, reload: () => Promise<void>) {
+  const targets = backupNumberTargets(form.parentElement);
+  if (!targets.length) {
+    toast("先选择对象", "error");
+    return;
+  }
+  if (form.dataset.backupPreview !== backupNumberKey(targets)) {
+    toast("请先预览备用号", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("[data-backup-number-batch-submit]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/preferred-phones/batch-backup", {
+      method: "POST",
+      body: JSON.stringify(backupNumberBatchBody({ targets }))
+    });
+    toast(result.message || "已换成备用号");
+    await reload();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "备用号没有切换", "error");
+    if (button) button.disabled = false;
+  }
+}
+
+function bindBackupNumberBatch(root: HTMLElement | null, reload: () => Promise<void>) {
+  root?.addEventListener("click", (event) => {
+    const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-backup-number-batch-all]");
+    if (all && root.contains(all)) {
+      root.querySelectorAll<HTMLInputElement>("[data-backup-number-batch-pick]").forEach((box) => {
+        box.checked = all.checked;
+      });
+      const form = all.closest<HTMLFormElement>("[data-backup-number-batch]");
+      if (form) resetBackupNumberPreview(form);
+      return;
+    }
+    const preview = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-backup-number-batch-preview]");
+    if (!preview || !root.contains(preview)) return;
+    const form = preview.closest<HTMLFormElement>("[data-backup-number-batch]");
+    if (!form) return;
+    event.preventDefault();
+    void previewBackupNumberBatch(form);
+  });
+  root?.addEventListener("change", (event) => {
+    const pick = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-backup-number-batch-pick]");
+    if (!pick || !root.contains(pick)) return;
+    const form = pick.closest<HTMLFormElement>("[data-backup-number-batch]")
+      || root.querySelector<HTMLFormElement>("[data-backup-number-batch]");
+    if (form) resetBackupNumberPreview(form);
+  });
+  root?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-backup-number-batch]");
+    if (!form || !root.contains(form)) return;
+    event.preventDefault();
+    void submitBackupNumberBatch(form, reload);
   });
 }
 
@@ -59240,6 +59350,12 @@ function installEvents() {
   bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
   bindPhoneInvalidBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
   bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
+  bindBackupNumberBatch(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
+  bindBackupNumberBatch(qs<HTMLElement>("#dashboardOtherOutcomeFollowup"), () => loadOtherOutcomeFollowups(otherOutcomeFollowupScope));
+  bindBackupNumberBatch(qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup"), () => loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope));
+  bindBackupNumberBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
+  bindBackupNumberBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
+  bindBackupNumberBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
   qs<HTMLButtonElement>("#dashboardUnlabeledConnectedFollowupMine")?.addEventListener("click", () => {
     void loadUnlabeledConnectedFollowups("mine");
   });
