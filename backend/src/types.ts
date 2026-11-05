@@ -5348,13 +5348,13 @@ export interface SameDayCallSkip {
   updatedAt: string;
 }
 
-/** 今日不再拨的设置、撤销或查看。拒绝时不记备注。不记号码、录音地址或密钥。 */
+/** 今日不再拨的设置、撤销、查看，或工作台名单上的一次批量设置。拒绝时不记备注。不记号码、录音地址或密钥。 */
 export interface SameDayCallSkipAudit {
   id: string;
   teamId: string;
   actorId: string;
   at: string;
-  action: "set" | "clear" | "read";
+  action: "set" | "clear" | "read" | "batch";
   scope: "" | "mine" | "team";
   targetType: "" | "customer" | "lead" | "prospect";
   targetId: string;
@@ -5365,6 +5365,8 @@ export interface SameDayCallSkipAudit {
   rowCount: number;
   result: "updated" | "read" | "rejected";
   reason: string;
+  /** 工作台一次批量设置共用。单条设置、撤销和查看为空。 */
+  batchId?: string;
 }
 
 /**
