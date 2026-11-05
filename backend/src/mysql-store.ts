@@ -7299,10 +7299,12 @@ async function ensureSchema(pool: mysql.Pool) {
     next_phone_id VARCHAR(128) NOT NULL DEFAULT '',
     result_code VARCHAR(20) NOT NULL,
     reason_code VARCHAR(64) NOT NULL DEFAULT '',
+    batch_id VARCHAR(64) NULL,
     INDEX idx_preferred_phone_audits_team(team_id, occurred_at),
     INDEX idx_preferred_phone_audits_target(team_id, target_type, target_id),
     INDEX idx_preferred_phone_audits_actor(actor_id, occurred_at)
   )`);
+  await ensureColumn(pool, "preferred_phone_audits", "batch_id", "VARCHAR(64) NULL");
   await pool.query(`CREATE TABLE IF NOT EXISTS aliyun_agent_mappings (
     id VARCHAR(64) PRIMARY KEY,
     team_id VARCHAR(64) NOT NULL,
@@ -14906,7 +14908,8 @@ async function loadPreferredPhoneAudits(pool: mysql.Pool): Promise<PreferredPhon
     previousPhoneId: row.previous_phone_id || "",
     nextPhoneId: row.next_phone_id || "",
     result: row.result_code === "rejected" ? "rejected" as const : "updated" as const,
-    reason: row.reason_code || ""
+    reason: row.reason_code || "",
+    batchId: row.batch_id || ""
   }));
 }
 
@@ -15594,7 +15597,7 @@ async function persistAll(pool: mysql.Pool, store: CrmStore) {
 	    await replaceRows(connection, "same_day_call_skips", store.sameDayCallSkips, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.skipOn || "", item.reason || "", (item.note || "").slice(0, 200), item.resumeOn || null, item.active ? 1 : 0, item.actorId || "", item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,target_type,target_id,skip_on,reason_code,note_text,resume_on,active,actor_id,updated_at)");
 	    await replaceRows(connection, "same_day_call_skip_audits", store.sameDayCallSkipAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.scope || "", item.targetType || "", item.targetId || "", item.skipOn || "", item.skipReason || "", item.resumeOn || null, (item.note || "").slice(0, 200), Number.isFinite(item.rowCount) ? item.rowCount : 0, item.result, item.reason || "", item.batchId || null], "(id,team_id,actor_id,occurred_at,action_code,scope_code,target_type,target_id,skip_on,skip_reason,resume_on,note_text,row_count,result_code,reason_code,batch_id)");
 	    await replaceRows(connection, "preferred_phones", store.preferredPhones, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.phoneId, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,target_type,target_id,phone_id,updated_by,updated_at)");
-	    await replaceRows(connection, "preferred_phone_audits", store.preferredPhoneAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType, item.targetId, item.previousPhoneId || "", item.nextPhoneId || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,previous_phone_id,next_phone_id,result_code,reason_code)");
+	    await replaceRows(connection, "preferred_phone_audits", store.preferredPhoneAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType, item.targetId, item.previousPhoneId || "", item.nextPhoneId || "", item.result, item.reason || "", item.batchId || null], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,previous_phone_id,next_phone_id,result_code,reason_code,batch_id)");
 	    await replaceRows(connection, "contact_phones", store.contactPhones, (item) => [item.id, item.teamId, item.targetType, item.targetId, item.phoneId, item.label || "", item.phone, item.phoneDigits, item.origin, item.updatedBy, item.updatedAt ? mysqlDate(item.updatedAt) : null], "(id,team_id,target_type,target_id,phone_id,label,phone,phone_digits,origin,updated_by,updated_at)");
 	    await replaceRows(connection, "contact_phone_audits", store.contactPhoneAudits, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.action, item.targetType, item.targetId, item.phoneId, item.previousValue || "", item.nextValue || "", item.result, item.reason || ""], "(id,team_id,actor_id,occurred_at,action_code,target_type,target_id,phone_id,previous_value,next_value,result_code,reason_code)");
 	    await replaceRows(connection, "outbound_missed_follow_ups", store.outboundMissedFollowUps, (item) => [item.id, item.teamId, item.actorId, mysqlDate(item.at), item.callRecordId, item.targetType, item.targetId, item.activityId, item.nextFollowAt, item.suppressed ? 1 : 0], "(id,team_id,actor_id,occurred_at,call_record_id,target_type,target_id,activity_id,next_follow_at,suppressed)");

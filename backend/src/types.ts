@@ -5389,6 +5389,7 @@ export interface PreferredPhone {
  * 一次首选号码的设置、更换、清除，或一次被拒绝的尝试。
  * 旧值和新值是号码 ID。号码被标成无效而自动失去首选时，原因是 marked_invalid。
  * 号码错误保存时把首选改到另一个有效号码，原因是 wrong_number_alternate。
+ * 工作台一次换成下一个有效备用号时，原因是 next_backup，这几行共用 batchId。单条设置为空。
  * 不记完整号码，也不记密钥。
  */
 export interface PreferredPhoneAudit {
@@ -5403,6 +5404,8 @@ export interface PreferredPhoneAudit {
   nextPhoneId: string;
   result: "updated" | "rejected";
   reason: string;
+  /** 工作台一次批量换备用号共用。单条设置、更换和清除为空。 */
+  batchId?: string;
 }
 
 /**
