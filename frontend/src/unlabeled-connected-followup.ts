@@ -5,6 +5,7 @@
 
 import { missingNextFollowupBatchForm, missingNextFollowupPick } from "./missing-next-followup-batch";
 import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReassignView } from "./queue-owner-reassign";
+import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
 export interface UnlabeledConnectedFollowupItem {
@@ -55,7 +56,7 @@ function textOrDash(value: string | undefined) {
   return text || "—";
 }
 
-export function renderUnlabeledConnectedFollowup(data: UnlabeledConnectedFollowupResponse | undefined, view?: QueueOwnerReassignView, canSkip = false) {
+export function renderUnlabeledConnectedFollowup(data: UnlabeledConnectedFollowupResponse | undefined, view?: QueueOwnerReassignView, canSkip = false, markView?: PhoneInvalidBatchView) {
   const rows = data?.items || [];
   if (!rows.length) return renderUnlabeledConnectedFollowupEmpty();
   const body = rows.map((item) => {
@@ -63,8 +64,8 @@ export function renderUnlabeledConnectedFollowup(data: UnlabeledConnectedFollowu
     const noticeHtml = notice
       ? `<p data-unlabeled-connected-followup-notice="1">${escapeHtml(notice)}</p>`
       : "";
-    return `<li data-unlabeled-connected-followup-row="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}" data-call-record-id="${escapeHtml(item.callRecordId)}">${missingNextFollowupPick(item.targetType, item.targetId)}${queueOwnerReassignPick(item.targetType, item.targetId, view)}${sameDaySkipBatchPick(item.targetType, item.targetId, canSkip)}<button type="button" class="btn" data-unlabeled-connected-followup-open="1">${escapeHtml(item.name || item.targetId)}</button><span>${escapeHtml(item.targetLabel || item.targetType)}</span><span data-unlabeled-connected-followup-outcome="1">${escapeHtml(textOrDash(item.outcome))}</span><time data-unlabeled-connected-followup-at="1">${escapeHtml(textOrDash(item.labeledAt))}</time><span data-unlabeled-connected-followup-next="1">${escapeHtml(textOrDash(item.nextFollowAt))}</span><span data-unlabeled-connected-followup-agent="1">通话坐席 ${escapeHtml(textOrDash(item.agentLabel))}</span><span data-unlabeled-connected-followup-number="1">${escapeHtml(textOrDash(item.maskedNumber))}</span>${noticeHtml}<form data-unlabeled-connected-followup-schedule="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}"><label>下次跟进<input type="datetime-local" data-unlabeled-connected-follow-at></label><button class="btn" type="submit">记下下次跟进</button></form></li>`;
+    return `<li data-unlabeled-connected-followup-row="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}" data-call-record-id="${escapeHtml(item.callRecordId)}">${missingNextFollowupPick(item.targetType, item.targetId)}${queueOwnerReassignPick(item.targetType, item.targetId, view)}${sameDaySkipBatchPick(item.targetType, item.targetId, canSkip)}${phoneInvalidBatchPick(item.targetType, item.targetId, markView)}<button type="button" class="btn" data-unlabeled-connected-followup-open="1">${escapeHtml(item.name || item.targetId)}</button><span>${escapeHtml(item.targetLabel || item.targetType)}</span><span data-unlabeled-connected-followup-outcome="1">${escapeHtml(textOrDash(item.outcome))}</span><time data-unlabeled-connected-followup-at="1">${escapeHtml(textOrDash(item.labeledAt))}</time><span data-unlabeled-connected-followup-next="1">${escapeHtml(textOrDash(item.nextFollowAt))}</span><span data-unlabeled-connected-followup-agent="1">通话坐席 ${escapeHtml(textOrDash(item.agentLabel))}</span><span data-unlabeled-connected-followup-number="1">${escapeHtml(textOrDash(item.maskedNumber))}</span>${noticeHtml}<form data-unlabeled-connected-followup-schedule="1" data-target-type="${escapeHtml(item.targetType)}" data-target-id="${escapeHtml(item.targetId)}"><label>下次跟进<input type="datetime-local" data-unlabeled-connected-follow-at></label><button class="btn" type="submit">记下下次跟进</button></form></li>`;
   }).join("");
   const scope = data?.scope === "team" ? "团队" : "我的";
-  return `<div data-unlabeled-connected-followup="1"><p data-unlabeled-connected-followup-scope="${escapeHtml(data?.scope || "mine")}">${escapeHtml(scope)}</p>${missingNextFollowupBatchForm()}${queueOwnerReassignFormFor(rows, view)}${sameDaySkipBatchFormFor(rows, canSkip)}<ul>${body}</ul></div>`;
+  return `<div data-unlabeled-connected-followup="1"><p data-unlabeled-connected-followup-scope="${escapeHtml(data?.scope || "mine")}">${escapeHtml(scope)}</p>${missingNextFollowupBatchForm()}${queueOwnerReassignFormFor(rows, view)}${sameDaySkipBatchFormFor(rows, canSkip)}${phoneInvalidBatchFormFor(rows, markView)}<ul>${body}</ul></div>`;
 }
