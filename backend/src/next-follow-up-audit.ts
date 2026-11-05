@@ -18,6 +18,7 @@ export function appendNextFollowUpAudit(
     objectType?: NextFollowUpAuditEvent["objectType"];
     batchId?: string;
     callRecordId?: string;
+    reason?: string;
   }
 ) {
   const event: NextFollowUpAuditEvent = {
@@ -30,7 +31,8 @@ export function appendNextFollowUpAudit(
     oldValue: input.oldValue,
     newValue: input.newValue,
     batchId: input.batchId || "",
-    callRecordId: input.callRecordId || ""
+    callRecordId: input.callRecordId || "",
+    reason: input.reason || ""
   };
   store.nextFollowUpAudits.unshift(event);
   return event;
