@@ -110,6 +110,7 @@ import {
   type OtherOutcomeFollowupResponse
 } from "./other-outcome-followup";
 import { missingNextFollowupBatchBody } from "./missing-next-followup-batch";
+import { phoneInvalidBatchBody, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { queueOwnerReassignBody } from "./queue-owner-reassign";
 import { sameDaySkipBatchBody } from "./same-day-skip-batch";
 import {
@@ -19164,6 +19165,14 @@ function callOutcomeTransferView(): CallOutcomeTransferView {
   };
 }
 
+function phoneInvalidBatchView(): PhoneInvalidBatchView {
+  return {
+    customer: hasIamCapability("customer.update"),
+    lead: hasIamCapability("lead.update"),
+    prospect: hasIamCapability("prospect.execute")
+  };
+}
+
 async function submitCallOutcome(form: HTMLFormElement) {
   const recordId = form.dataset.recordId || "";
   if (!recordId || callOutcomePending) return;
@@ -19223,7 +19232,7 @@ async function openNextTodayFollow(afterType: string, afterId: string, scope: "m
   if (message) message.textContent = "";
   try {
     const data = await api<TodayFollowNextResponse>(`/api/today-follow-next${todayFollowNextQuery({ scope, afterType, afterId })}`);
-    if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
+    if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
     const next = data.next;
     if (next?.targetType && next.targetId) openCallbackDueObject(next.targetType, next.targetId);
   } catch (error) {
@@ -19255,7 +19264,7 @@ async function loadIntentFollowupQueue() {
       });
       agentSelect.disabled = result.scope !== "team";
     }
-    root.innerHTML = renderIntentFollowupQueue(result, callOutcomeTransferView(), hasIamCapability("communication.send"));
+    root.innerHTML = renderIntentFollowupQueue(result, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
   } catch (error) {
     root.innerHTML = renderIntentFollowupFailure(error instanceof Error ? error.message : "意向回访队列没有加载");
   }
@@ -20020,7 +20029,7 @@ async function loadUnansweredPendingQueue(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<UnansweredPendingQueueResponse>(`/api/unanswered-pending-queue${unansweredPendingQueueQuery(unansweredPendingFilter())}`);
-    list.innerHTML = renderUnansweredPendingQueue(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
+    list.innerHTML = renderUnansweredPendingQueue(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
   } catch (error) {
     list.innerHTML = renderUnansweredPendingQueueFailure(error instanceof Error ? error.message : "未接通待处理队列没有加载");
   }
@@ -20105,7 +20114,7 @@ async function loadNegativeOutcomeFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<NegativeOutcomeFollowupResponse>(`/api/negative-outcome-followups${negativeOutcomeFollowupQuery(negativeOutcomeFollowupFilter())}`);
-    list.innerHTML = renderNegativeOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
+    list.innerHTML = renderNegativeOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
   } catch (error) {
     list.innerHTML = renderNegativeOutcomeFollowupFailure(error instanceof Error ? error.message : "负向结果跟进没有加载");
   }
@@ -20264,6 +20273,59 @@ async function submitSameDaySkipBatch(form: HTMLFormElement, reload: () => Promi
   }
 }
 
+async function submitPhoneInvalidBatch(form: HTMLFormElement, reload: () => Promise<void>) {
+  const root = form.parentElement;
+  const picked = [...(root?.querySelectorAll<HTMLInputElement>("[data-phone-invalid-batch-pick]:checked") || [])];
+  const targets = picked.flatMap((box) => {
+    const value = box.value || "";
+    const splitAt = value.indexOf(":");
+    if (splitAt <= 0) return [];
+    const targetType = value.slice(0, splitAt);
+    const targetId = value.slice(splitAt + 1);
+    if (!targetType || !targetId) return [];
+    return [{ targetType, targetId }];
+  });
+  if (!targets.length) {
+    toast("先选择对象", "error");
+    return;
+  }
+  const reason = form.querySelector<HTMLSelectElement>("[data-phone-invalid-batch-reason]")?.value.trim() || "";
+  if (!reason) {
+    toast("请选择原因", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("[data-phone-invalid-batch-submit]");
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string }>("/api/phone-validity/batch", {
+      method: "POST",
+      body: JSON.stringify(phoneInvalidBatchBody({ targets, reason }))
+    });
+    toast(result.message || "已标号码无效");
+    await reload();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "号码没有标为无效", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function bindPhoneInvalidBatch(root: HTMLElement | null, reload: () => Promise<void>) {
+  root?.addEventListener("click", (event) => {
+    const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-phone-invalid-batch-all]");
+    if (!all || !root.contains(all)) return;
+    root.querySelectorAll<HTMLInputElement>("[data-phone-invalid-batch-pick]").forEach((box) => {
+      box.checked = all.checked;
+    });
+  });
+  root?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-phone-invalid-batch]");
+    if (!form || !root.contains(form)) return;
+    event.preventDefault();
+    void submitPhoneInvalidBatch(form, reload);
+  });
+}
+
 function bindSameDaySkipBatch(root: HTMLElement | null, reload: () => Promise<void>) {
   root?.addEventListener("click", (event) => {
     const all = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("[data-same-day-skip-batch-all]");
@@ -20308,7 +20370,7 @@ async function loadOtherOutcomeFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<OtherOutcomeFollowupResponse>(`/api/other-outcome-followups${otherOutcomeFollowupQuery({ scope })}`);
-    list.innerHTML = renderOtherOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
+    list.innerHTML = renderOtherOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
   } catch (error) {
     list.innerHTML = renderOtherOutcomeFollowupFailure(error instanceof Error ? error.message : "其他结果跟进没有加载");
   }
@@ -20354,7 +20416,7 @@ async function loadUnlabeledConnectedFollowups(scope: "mine" | "team") {
   if (message) message.textContent = "";
   try {
     const data = await api<UnlabeledConnectedFollowupResponse>(`/api/unlabeled-connected-followups${unlabeledConnectedFollowupQuery({ scope })}`);
-    list.innerHTML = renderUnlabeledConnectedFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"));
+    list.innerHTML = renderUnlabeledConnectedFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
   } catch (error) {
     list.innerHTML = renderUnlabeledConnectedFollowupFailure(error instanceof Error ? error.message : "已接通未标注跟进没有加载");
   }
@@ -59172,6 +59234,12 @@ function installEvents() {
   bindSameDaySkipBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
   bindSameDaySkipBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
   bindSameDaySkipBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
+  bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardNegativeOutcomeFollowup"), () => loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope));
+  bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardOtherOutcomeFollowup"), () => loadOtherOutcomeFollowups(otherOutcomeFollowupScope));
+  bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup"), () => loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope));
+  bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardUnansweredPendingQueue"), () => loadUnansweredPendingQueue(unansweredPendingScope));
+  bindPhoneInvalidBatch(qs<HTMLElement>("#intentFollowupQueue"), () => loadIntentFollowupQueue());
+  bindPhoneInvalidBatch(qs<HTMLElement>("#dashboardTodayFollowNext"), () => openNextTodayFollow("", "", todayFollowNextScope));
   qs<HTMLButtonElement>("#dashboardUnlabeledConnectedFollowupMine")?.addEventListener("click", () => {
     void loadUnlabeledConnectedFollowups("mine");
   });

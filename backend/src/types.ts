@@ -5125,6 +5125,7 @@ export interface PhoneValidity {
  * 来源通话只在从通话记录标记时有值。不记完整号码。
  * 从通话结果里拒绝标无效时，result 是 rejected，reason 是原因，前值和后值保持原状。
  * 同一次同号联动的成功行共用 batchId。单条标记留空。
+ * 工作台批量标无效的成功行也共用 batchId，reason 是 bad_number、out_of_service 或 wrong_number。
  */
 export interface PhoneValidityAudit {
   id: string;

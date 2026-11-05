@@ -329,6 +329,7 @@ import { editCallWrapup, presentCallWrapupEdit, setCallWrapupEditWindow } from "
 import { listCallWrapupCounts, listCallWrapupQueue, restoreCallWrapup, skipCallWrapup } from "./call-wrapup-queue.js";
 import { ignoreIntentFollowup, listIntentFollowupQueue, restoreIntentFollowup, scheduleIntentFollowup } from "./intent-followup-queue.js";
 import { markPhoneInvalidFromCall, readPhoneValidity, setPhoneValidity } from "./phone-validity.js";
+import { markPhoneInvalidBatch } from "./phone-invalid-batch.js";
 import { linkSameNumberInvalid, readSameNumberInvalid } from "./same-number-invalid.js";
 import { cancelCallbackSchedule, listCallbackSchedules, scheduleCallbackOnCall, setCallbackSchedule } from "./callback-schedule.js";
 import { completeCallbackDueQueue, exportCallbackDueQueue, listCallbackDueQueue } from "./callback-due-queue.js";
@@ -9446,6 +9447,11 @@ app.get("/api/phone-validity/same-number", requireAuth, asyncRoute(async (req, r
 
 app.post("/api/phone-validity/same-number", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await linkSameNumberInvalid(getStore(), req.user, req.body);
+  if (!res.headersSent) res.status(outcome.status).json(outcome.body);
+}));
+
+app.post("/api/phone-validity/batch", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await markPhoneInvalidBatch(getStore(), req.user, req.body);
   if (!res.headersSent) res.status(outcome.status).json(outcome.body);
 }));
 

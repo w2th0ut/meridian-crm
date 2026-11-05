@@ -140,6 +140,7 @@ export function applyPhoneInvalidChange(
     invalid: boolean;
     sourceCallRecordId: string;
     batchId?: string;
+    reason?: string;
   }
 ) {
   const previous: PhoneValidityValue = isPhoneMarkedInvalid(store, user.teamId, input.phoneId) ? "invalid" : "valid";
@@ -182,6 +183,7 @@ export function applyPhoneInvalidChange(
     sourceCallRecordId: input.sourceCallRecordId,
     batchId: input.batchId || ""
   };
+  if (input.reason) audit.reason = input.reason;
   store.phoneValidityAudits.unshift(audit);
   if (next === "invalid") releasePreferredPhonesMarkedInvalid(store, user, input.phoneId);
   return { changed: true as const, previous, next, auditId: audit.id };
