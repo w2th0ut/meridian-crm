@@ -21,6 +21,7 @@ export interface TodayFollowNextRow {
   maskedNumber?: string;
   todayCallCount?: number;
   lastCallOutcome?: string;
+  lastCallAt?: string;
 }
 
 export interface TodayFollowNextResponse extends QueueCallGlanceQuery {

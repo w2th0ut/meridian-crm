@@ -168,11 +168,13 @@ try {
   const denied = await request("/api/unanswered-pending-queue?scope=mine", noRead);
   assert.equal(denied.response.status, 403);
   assert.equal(denied.text.includes("todayCallCount"), false);
+  assert.equal(denied.text.includes("lastCallAt"), false);
   assert.equal(denied.text.includes("c_glance_own"), false);
 
   const teamDenied = await request("/api/unanswered-pending-queue?scope=team", shirley);
   assert.equal(teamDenied.response.status, 403);
   assert.equal(teamDenied.text.includes("todayCallCount"), false);
+  assert.equal(teamDenied.text.includes("lastCallAt"), false);
 
   const mine = await request("/api/unanswered-pending-queue?scope=mine", shirley);
   assert.equal(mine.response.status, 200, JSON.stringify(mine.json));
@@ -182,8 +184,11 @@ try {
   assert.equal(own.callRecordId, "ocr_glance_old");
   assert.equal(own.todayCallCount, 2);
   assert.equal(own.lastCallOutcome, "需回访");
+  assert.equal(own.lastCallAt, "2026-11-04 16:00");
+  assert.equal(own.unansweredAt, "2026-11-02 10:00");
   assert.equal("todayCallCount" in other, false);
   assert.equal("lastCallOutcome" in other, false);
+  assert.equal("lastCallAt" in other, false);
   assert.equal(mine.text.includes("号码错误"), false);
   assert.equal(mine.text.includes("13800138800"), false);
   assert.equal((store.unansweredPendingQueueAudits || []).length, queueAuditsBefore + 2);
@@ -195,14 +200,17 @@ try {
   assert.ok(teamOwn && teamOther);
   assert.equal(teamOwn.todayCallCount, 3);
   assert.equal(teamOwn.lastCallOutcome, "需回访");
+  assert.equal(teamOwn.lastCallAt, "2026-11-04 16:00");
   assert.equal(teamOther.todayCallCount, 0);
   assert.equal(teamOther.lastCallOutcome, "无意向");
+  assert.equal(teamOther.lastCallAt, "2026-11-02 10:00");
 
   setTenantTimezoneOverride(store, "europe", "America/New_York");
   const ny = await request("/api/unanswered-pending-queue?scope=mine", shirley);
   const nyOwn = ny.json.items.find((item: { targetId: string }) => item.targetId === "c_glance_own");
   assert.equal(nyOwn.todayCallCount, 1);
   assert.equal(nyOwn.lastCallOutcome, "需回访");
+  assert.equal(nyOwn.lastCallAt, "2026-11-04 03:00");
   setTenantTimezoneOverride(store, "europe", "Asia/Shanghai");
 
   const today = await request("/api/today-follow-next?scope=mine", shirley);
@@ -210,10 +218,12 @@ try {
   assert.equal(today.json.next?.targetId, "c_glance_today");
   assert.equal(today.json.next?.todayCallCount, 1);
   assert.equal(today.json.next?.lastCallOutcome, "有意向");
+  assert.equal(today.json.next?.lastCallAt, "2026-11-04 09:00");
   assert.equal(String(today.json.next?.maskedNumber).includes("13800138822"), false);
   const todayDenied = await request("/api/today-follow-next?scope=mine", noRead);
   assert.equal(todayDenied.response.status, 403);
   assert.equal(todayDenied.text.includes("todayCallCount"), false);
+  assert.equal(todayDenied.text.includes("lastCallAt"), false);
 
   assert.equal(JSON.stringify(store.outboundCallRecords.map((item) => [item.id, item.callOutcome, item.establishedTimeRaw])), callsBefore);
   assert.equal(store.outboundCallAudits.length, auditsBefore);
@@ -224,6 +234,9 @@ try {
   assert.equal(store.customers.find((item) => item.id === "c_glance_own")?.nextReminder, "");
   assert.equal(store.customers.find((item) => item.id === "c_glance_today")?.nextReminder, "2026-11-04 09:00");
   assert.equal((store.unansweredPendingQueueAudits || []).length, queueAuditsBefore + 4);
+  const addedAudits = JSON.stringify((store.unansweredPendingQueueAudits || []).slice(0, 4));
+  assert.equal(addedAudits.includes("lastCallAt"), false);
+  assert.equal(addedAudits.includes("16:00"), false);
   assert.equal(store.aliyunOutboundConfigs.some((item) => item.aliyunOutboundEnabled === true), false);
   assert.equal(aliyunHits, 0);
   assert.equal(outboundInstant().toISOString(), instant.toISOString());

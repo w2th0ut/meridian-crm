@@ -12,14 +12,17 @@ import type { CrmStore } from "./store.js";
 import type { OutboundCallRecord, SessionUser } from "./types.js";
 
 /**
- * 工作台现有名单上只读的今日已拨次数和最近一次通话结果。
+ * 工作台现有名单上只读的今日已拨次数、最近一次通话结果和最近一次通话开始时间。
  * 只读 outbound_call_records。不写审计，不建表，不加列，不改外呼门禁。
  * 今日按租户时区，用话单 startTimeRaw 的当地日。解析不出的不计入今日。
  * 最近一次的比较与 §61 相同。结果只认已有五项，否则写「未标注」。
- * 看不见的通话不参与。对象本身读不到时不带这两格，名单行仍按原来的规则。
+ * 开始时间只格式化这一通的 startTimeRaw，按租户时区写成 YYYY-MM-DD HH:mm。
+ * 没有看得到的通话，或开始时间解析不了，写成「—」，不用 createdAt 代替。
+ * 看不见的通话不参与。对象本身读不到时不带这三格，名单行仍按原来的规则。
  */
 
 export const QUEUE_CALL_GLANCE_UNLABELED = "未标注";
+export const QUEUE_CALL_GLANCE_NO_TIME = "—";
 
 const OBJECT_PERMISSION: Record<string, string> = {
   customer: "customer.read",
@@ -30,6 +33,8 @@ const OBJECT_PERMISSION: Record<string, string> = {
 export interface QueueCallGlance {
   todayCallCount: number;
   lastCallOutcome: string;
+  /** 最近一次看得到的通话的开始时间。没有或解析不了时是「—」。 */
+  lastCallAt: string;
 }
 
 type GlanceRow = { targetType: string; targetId: string };
@@ -67,6 +72,42 @@ export function isMoreRecentQueueCall(
   return left.id > right.id;
 }
 
+/** startTimeRaw 只接受正整数毫秒。解析不了不用 createdAt 代替。 */
+export function queueCallStartMs(startTimeRaw: string) {
+  const text = (startTimeRaw || "").trim();
+  if (!/^\d+$/.test(text)) return null;
+  const value = Number(text);
+  if (!Number.isSafeInteger(value) || value <= 0) return null;
+  return value;
+}
+
+/**
+ * 话单开始时间在租户时区里的 YYYY-MM-DD HH:mm。
+ * 与未接通待处理行上的时间格式相同。解析不了或时区无效时是空字符串。
+ */
+export function formatQueueCallStartedAt(startTimeRaw: string, timeZone: string) {
+  const epoch = queueCallStartMs(startTimeRaw);
+  if (epoch === null) return "";
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(new Date(epoch));
+    const pick = (type: string) => parts.find((part) => part.type === type)?.value || "";
+    let hour = pick("hour");
+    if (hour === "24") hour = "00";
+    if (!pick("year") || !pick("month") || !pick("day") || !hour || !pick("minute")) return "";
+    return `${pick("year")}-${pick("month")}-${pick("day")} ${hour}:${pick("minute")}`;
+  } catch {
+    return "";
+  }
+}
+
 export function summarizeQueueCallGlance(input: {
   teamId: string;
   targetType: string;
@@ -86,9 +127,11 @@ export function summarizeQueueCallGlance(input: {
     if (local && local === input.today) todayCallCount += 1;
     if (!latest || isMoreRecentQueueCall(record, latest)) latest = record;
   }
+  const started = latest ? formatQueueCallStartedAt(latest.startTimeRaw || "", input.timeZone) : "";
   return {
     todayCallCount,
-    lastCallOutcome: latest ? queueCallOutcomeLabel(latest.callOutcome || "") : QUEUE_CALL_GLANCE_UNLABELED
+    lastCallOutcome: latest ? queueCallOutcomeLabel(latest.callOutcome || "") : QUEUE_CALL_GLANCE_UNLABELED,
+    lastCallAt: started || QUEUE_CALL_GLANCE_NO_TIME
   };
 }
 
@@ -180,11 +223,12 @@ function withoutGlance<T extends GlanceRow>(row: T): T {
   const copy = { ...row } as T & Partial<QueueCallGlance>;
   delete copy.todayCallCount;
   delete copy.lastCallOutcome;
+  delete copy.lastCallAt;
   return copy;
 }
 
 /**
- * 给已经列出来的行补上只读两格。读不到对象或读不到通话记录时不补。
+ * 给已经列出来的行补上只读三格。读不到对象或读不到通话记录时不补。
  * 不调用 persist，不写审计。
  */
 export async function attachQueueCallGlance<T extends GlanceRow>(
@@ -221,7 +265,12 @@ export async function attachQueueCallGlance<T extends GlanceRow>(
       const glance = cache.get(key);
       const copy = withoutGlance(row);
       if (!glance) return copy;
-      return { ...copy, todayCallCount: glance.todayCallCount, lastCallOutcome: glance.lastCallOutcome };
+      return {
+        ...copy,
+        todayCallCount: glance.todayCallCount,
+        lastCallOutcome: glance.lastCallOutcome,
+        lastCallAt: glance.lastCallAt
+      };
     });
   } finally {
     user.iamDataScope = saved;

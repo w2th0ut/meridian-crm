@@ -33,6 +33,7 @@ export interface IntentFollowupQueueRow {
   ownerAgentLabel?: string;
   todayCallCount?: number;
   lastCallOutcome?: string;
+  lastCallAt?: string;
 }
 
 export interface IntentFollowupAgentOption {

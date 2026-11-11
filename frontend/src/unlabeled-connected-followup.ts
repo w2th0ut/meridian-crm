@@ -24,6 +24,7 @@ export interface UnlabeledConnectedFollowupItem {
   suppressionNotice?: string;
   todayCallCount?: number;
   lastCallOutcome?: string;
+  lastCallAt?: string;
 }
 
 export interface UnlabeledConnectedFollowupResponse extends QueueCallGlanceQuery {

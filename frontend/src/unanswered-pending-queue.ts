@@ -26,6 +26,7 @@ export interface UnansweredPendingQueueItem {
   maskedNumber?: string;
   todayCallCount?: number;
   lastCallOutcome?: string;
+  lastCallAt?: string;
 }
 
 export interface UnansweredPendingQueueResponse extends QueueCallGlanceQuery {

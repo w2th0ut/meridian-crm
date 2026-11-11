@@ -25,6 +25,7 @@ export interface NegativeOutcomeFollowupItem {
   suppressionNotice?: string;
   todayCallCount?: number;
   lastCallOutcome?: string;
+  lastCallAt?: string;
 }
 
 export interface NegativeOutcomeFollowupResponse extends QueueCallGlanceQuery {

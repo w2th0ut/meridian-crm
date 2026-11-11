@@ -1,6 +1,7 @@
 /**
- * 工作台现有名单每一行上的今日已拨次数和最近一次通话结果。
- * 接口没有这两格时不画，也不把次数写成 0。筛选和排序只把已经带出的两格交给原来的名单。没有外呼按钮。
+ * 工作台现有名单每一行上的今日已拨次数、最近一次通话结果和最近一次通话开始时间。
+ * 接口没有这几格时不画，也不把次数写成 0，也不把时间写成「—」。
+ * 筛选和排序只把已经带出的次数和结果交给原来的名单。没有外呼按钮。
  */
 
 export type QueueCallTodayCalls = "" | "0" | "1" | "2+";
@@ -39,10 +40,11 @@ export function queueCallGlanceFilterEmpty(attr: string) {
   return `<p ${attr} data-queue-call-filter-empty="1">这个筛选下没有对得上今日已拨或最近一次通话结果的对象。</p>`;
 }
 
-export function queueCallGlanceMarkup(row: { todayCallCount?: number; lastCallOutcome?: string } | null | undefined) {
+export function queueCallGlanceMarkup(row: { todayCallCount?: number; lastCallOutcome?: string; lastCallAt?: string } | null | undefined) {
   if (!row || typeof row.todayCallCount !== "number" || !Number.isInteger(row.todayCallCount) || row.todayCallCount < 0) return "";
   const outcome = (row.lastCallOutcome || "").trim() || "未标注";
-  return `<span data-queue-call-glance="1">今日已拨 ${escapeHtml(String(row.todayCallCount))} 次</span><span data-queue-call-last-outcome="1">${escapeHtml(outcome)}</span>`;
+  const when = (row.lastCallAt || "").trim() || "—";
+  return `<span data-queue-call-glance="1">今日已拨 ${escapeHtml(String(row.todayCallCount))} 次</span><span data-queue-call-last-outcome="1">${escapeHtml(outcome)}</span><span data-queue-call-last-at="1">最近一次通话 ${escapeHtml(when)}</span>`;
 }
 
 function escapeHtml(value: string) {
