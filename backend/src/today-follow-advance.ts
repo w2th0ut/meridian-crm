@@ -2,6 +2,7 @@ import { hasIamPermission } from "./auth.js";
 import { displayMaskedNumber } from "./call-wrapup-queue.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
 import { outboundInstant, sameDaySkipActive, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
+import { attachQueueCallGlance } from "./queue-call-glance.js";
 import { activePreferredPhoneId } from "./preferred-phone.js";
 import { isPhoneMarkedInvalid, listObjectPhones } from "./phone-validity-state.js";
 import type { CrmStore } from "./store.js";
@@ -225,6 +226,7 @@ export async function listTodayFollowNext(store: CrmStore, user: SessionUser | u
   const date = zonedDateKey(outboundInstant(), timeZone);
   const rows = await listRows(store, user, parsed.scope, date);
   const next = pickNextTodayFollow(rows, parsed.after);
+  const glanced = next ? (await attachQueueCallGlance(store, user, [next]))[0] || null : null;
   return {
     status: 200,
     body: {
@@ -233,7 +235,7 @@ export async function listTodayFollowNext(store: CrmStore, user: SessionUser | u
       timeZone,
       date,
       empty: !next,
-      next: next || null,
+      next: glanced,
       message: next ? "已打开下一位。外呼仍要自己点。" : "今天没有下一位待跟进"
     }
   };

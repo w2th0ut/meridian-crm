@@ -6,6 +6,7 @@ import { suggestedMissedFollowAt, SUPPRESSION_FOLLOW_UP_NOTICE } from "./outboun
 import { callbackScheduleView } from "./callback-schedule-state.js";
 import { outboundOwnerView, parseOwnerMineFilter, userOwnsOutboundTarget } from "./outbound-owner.js";
 import { outboundInstant, zonedDateKey } from "./outbound-call.js";
+import { attachQueueCallGlance } from "./queue-call-glance.js";
 import {
   outboundCallRecordVisible,
   resolveOutboundCallRecordAccess,
@@ -364,9 +365,10 @@ export async function listIntentFollowupQueue(
     ...item,
     ...outboundOwnerView(store, user.teamId, item.targetType, item.targetId)
   }));
-  const items = parsed.owner === "mine"
+  const ownedItems = parsed.owner === "mine"
     ? owned.filter((item) => userOwnsOutboundTarget(store, user, item.targetType, item.targetId))
     : owned;
+  const items = await attachQueueCallGlance(store, user, ownedItems);
   return {
     status: 200,
     body: {

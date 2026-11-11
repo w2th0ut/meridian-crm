@@ -7,6 +7,7 @@ import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReass
 import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number-batch";
 import { endFollowBatchFormFor, endFollowBatchPick, type EndFollowBatchView } from "./end-follow-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
+import { queueCallGlanceMarkup } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
 export interface TodayFollowNextRow {
@@ -18,6 +19,8 @@ export interface TodayFollowNextRow {
   phoneId?: string;
   preferred?: boolean;
   maskedNumber?: string;
+  todayCallCount?: number;
+  lastCallOutcome?: string;
 }
 
 export interface TodayFollowNextResponse {
@@ -72,5 +75,5 @@ export function renderTodayFollowNext(data: TodayFollowNextResponse | undefined,
   const markPick = phoneInvalidBatchPick(next.targetType, next.targetId, markView);
   const backupPick = backupNumberBatchPick(next.targetType, next.targetId, markView);
   const endPick = endFollowBatchPick(next.targetType, next.targetId, endView);
-  return `<div data-today-follow-next="1" data-target-type="${escapeHtml(next.targetType)}" data-target-id="${escapeHtml(next.targetId)}"><p data-today-follow-next-hint="1">下一位待跟进。外呼仍要自己点，不会自动拨号。</p>${queueOwnerReassignFormFor(pick ? [next] : [], view)}${sameDaySkipBatchFormFor(skipPick ? [next] : [], canSkip)}${phoneInvalidBatchFormFor(markPick ? [next] : [], markView)}${backupNumberBatchFormFor(backupPick ? [next] : [], markView)}${endFollowBatchFormFor(endPick ? [next] : [], endView)}${pick}${skipPick}${markPick}${backupPick}${endPick}<button type="button" class="btn" data-today-follow-next-open="1">${escapeHtml(next.name || next.targetId)}</button><span>${escapeHtml(next.targetLabel || next.targetType)}</span><time data-today-follow-next-at="1">${escapeHtml(textOrDash(next.nextFollowAt))}</time><span data-today-follow-next-phone="1" data-preferred="${next.preferred ? "1" : "0"}">${escapeHtml(phoneLabel)} ${escapeHtml(textOrDash(phone))}</span></div>`;
+  return `<div data-today-follow-next="1" data-target-type="${escapeHtml(next.targetType)}" data-target-id="${escapeHtml(next.targetId)}"><p data-today-follow-next-hint="1">下一位待跟进。外呼仍要自己点，不会自动拨号。</p>${queueOwnerReassignFormFor(pick ? [next] : [], view)}${sameDaySkipBatchFormFor(skipPick ? [next] : [], canSkip)}${phoneInvalidBatchFormFor(markPick ? [next] : [], markView)}${backupNumberBatchFormFor(backupPick ? [next] : [], markView)}${endFollowBatchFormFor(endPick ? [next] : [], endView)}${pick}${skipPick}${markPick}${backupPick}${endPick}<button type="button" class="btn" data-today-follow-next-open="1">${escapeHtml(next.name || next.targetId)}</button>${queueCallGlanceMarkup(next)}<span>${escapeHtml(next.targetLabel || next.targetType)}</span><time data-today-follow-next-at="1">${escapeHtml(textOrDash(next.nextFollowAt))}</time><span data-today-follow-next-phone="1" data-preferred="${next.preferred ? "1" : "0"}">${escapeHtml(phoneLabel)} ${escapeHtml(textOrDash(phone))}</span></div>`;
 }
