@@ -9,6 +9,7 @@ import {
 } from "./intent-followup-queue.js";
 import { suggestedMissedFollowAt } from "./outbound-missed-follow-up.js";
 import { outboundInstant } from "./outbound-call.js";
+import { attachQueueCallGlance } from "./queue-call-glance.js";
 import {
   isCallOutcome,
   isEstablishedCall,
@@ -323,12 +324,13 @@ export async function listUnlabeledConnectedFollowups(store: CrmStore, user: Ses
     result: "read",
     reason: ""
   });
+  const glanced = await attachQueueCallGlance(store, user, items);
   return {
     status: 200,
     body: {
       scope: parsed.scope,
       empty: items.length === 0,
-      items
+      items: glanced
     }
   };
 }

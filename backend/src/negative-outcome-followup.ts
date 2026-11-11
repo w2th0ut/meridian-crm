@@ -8,6 +8,7 @@ import {
   isMoreRecentCall
 } from "./intent-followup-queue.js";
 import { outboundInstant } from "./outbound-call.js";
+import { attachQueueCallGlance } from "./queue-call-glance.js";
 import {
   outboundCallRecordVisible,
   resolveOutboundCallRecordAccess,
@@ -328,13 +329,14 @@ export async function listNegativeOutcomeFollowups(store: CrmStore, user: Sessio
     result: "read",
     reason: ""
   });
+  const glanced = await attachQueueCallGlance(store, user, items);
   return {
     status: 200,
     body: {
       scope: parsed.scope,
       outcome: parsed.outcome,
       empty: items.length === 0,
-      items
+      items: glanced
     }
   };
 }

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { displayMaskedNumber, formatEndedAgo } from "./call-wrapup-queue.js";
 import { hasOpenNextFollowUp, isMoreRecentCall } from "./intent-followup-queue.js";
 import { outboundInstant, tenantTimeZoneFor } from "./outbound-call.js";
+import { attachQueueCallGlance } from "./queue-call-glance.js";
 import {
   isEstablishedCall,
   outboundCallRecordVisible,
@@ -326,6 +327,7 @@ export async function listUnansweredPendingQueue(store: CrmStore, user: SessionU
     result: "read",
     reason: ""
   });
+  const glanced = await attachQueueCallGlance(store, user, items, now);
   return {
     status: 200,
     body: {
@@ -333,7 +335,7 @@ export async function listUnansweredPendingQueue(store: CrmStore, user: SessionU
       age: parsed.age,
       timeZone: resolved.access.timeZone || await tenantTimeZoneFor(store, user.teamId),
       empty: items.length === 0,
-      items
+      items: glanced
     }
   };
 }
