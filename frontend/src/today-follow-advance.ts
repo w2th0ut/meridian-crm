@@ -7,7 +7,7 @@ import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReass
 import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number-batch";
 import { endFollowBatchFormFor, endFollowBatchPick, type EndFollowBatchView } from "./end-follow-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
-import { queueCallGlanceMarkup } from "./queue-call-glance";
+import { appendQueueCallGlanceQuery, queueCallGlanceFilterActive, queueCallGlanceFilterEmpty, queueCallGlanceMarkup, type QueueCallGlanceQuery } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
 export interface TodayFollowNextRow {
@@ -23,7 +23,7 @@ export interface TodayFollowNextRow {
   lastCallOutcome?: string;
 }
 
-export interface TodayFollowNextResponse {
+export interface TodayFollowNextResponse extends QueueCallGlanceQuery {
   scope?: "mine" | "team";
   date?: string;
   empty?: boolean;
@@ -44,7 +44,7 @@ function textOrDash(value: string | undefined) {
   return text || "—";
 }
 
-export function todayFollowNextQuery(input: { scope: "mine" | "team"; afterType?: string; afterId?: string }) {
+export function todayFollowNextQuery(input: { scope: "mine" | "team"; afterType?: string; afterId?: string } & QueueCallGlanceQuery) {
   const params = new URLSearchParams();
   params.set("scope", input.scope);
   const afterType = (input.afterType || "").trim();
@@ -53,6 +53,7 @@ export function todayFollowNextQuery(input: { scope: "mine" | "team"; afterType?
     params.set("afterType", afterType);
     params.set("afterId", afterId);
   }
+  appendQueueCallGlanceQuery(params, input);
   return `?${params.toString()}`;
 }
 
@@ -67,7 +68,10 @@ export function renderTodayFollowNextFailure(message: string) {
 
 export function renderTodayFollowNext(data: TodayFollowNextResponse | undefined, view?: QueueOwnerReassignView, canSkip = false, markView?: PhoneInvalidBatchView, endView?: EndFollowBatchView) {
   const next = data?.next;
-  if (!next?.targetId) return renderTodayFollowNextEmpty();
+  if (!next?.targetId) {
+    if (queueCallGlanceFilterActive(data)) return queueCallGlanceFilterEmpty('data-today-follow-next-empty="1"');
+    return renderTodayFollowNextEmpty();
+  }
   const phoneLabel = next.preferred ? "首选" : "号码";
   const phone = (next.maskedNumber || "").trim();
   const pick = queueOwnerReassignPick(next.targetType, next.targetId, view);

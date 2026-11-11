@@ -3,6 +3,7 @@ import { displayMaskedNumber, formatEndedAgo } from "./call-wrapup-queue.js";
 import { hasOpenNextFollowUp, isMoreRecentCall } from "./intent-followup-queue.js";
 import { outboundInstant, tenantTimeZoneFor } from "./outbound-call.js";
 import { attachQueueCallGlance } from "./queue-call-glance.js";
+import { applyQueueCallGlanceView, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import {
   isEstablishedCall,
   outboundCallRecordVisible,
@@ -298,7 +299,9 @@ async function writeAudit(store: CrmStore, input: Omit<UnansweredPendingQueueAud
 
 export async function listUnansweredPendingQueue(store: CrmStore, user: SessionUser | undefined, query: Record<string, unknown>) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
-  const parsed = parseUnansweredPendingQueueQuery(query);
+  const glance = takeQueueCallGlanceView(query);
+  if (!glance.ok) return reject("invalid_request", QUEUE_CALL_GLANCE_VIEW_INVALID);
+  const parsed = parseUnansweredPendingQueueQuery(glance.rest);
   if (!parsed) return reject("invalid_request", "未接通待处理队列只接受我的或团队，以及日龄");
   if (parsed.scope === "team" && !canViewTeamUnansweredPendingQueue(user)) {
     await writeAudit(store, {
@@ -328,14 +331,16 @@ export async function listUnansweredPendingQueue(store: CrmStore, user: SessionU
     reason: ""
   });
   const glanced = await attachQueueCallGlance(store, user, items, now);
+  const viewed = applyQueueCallGlanceView(glanced, glance.view);
   return {
     status: 200,
     body: {
       scope: parsed.scope,
       age: parsed.age,
       timeZone: resolved.access.timeZone || await tenantTimeZoneFor(store, user.teamId),
-      empty: items.length === 0,
-      items: glanced
+      ...queueCallGlanceViewFields(glance.view),
+      empty: viewed.length === 0,
+      items: viewed
     }
   };
 }

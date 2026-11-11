@@ -8,7 +8,7 @@ import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReass
 import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { callNoteAppendFormFor, callNoteAppendPick } from "./call-note-append-batch";
-import { queueCallGlanceMarkup } from "./queue-call-glance";
+import { appendQueueCallGlanceQuery, queueCallGlanceFilterActive, queueCallGlanceFilterEmpty, queueCallGlanceMarkup, type QueueCallGlanceQuery } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
 export interface OtherOutcomeFollowupItem {
@@ -27,7 +27,7 @@ export interface OtherOutcomeFollowupItem {
   lastCallOutcome?: string;
 }
 
-export interface OtherOutcomeFollowupResponse {
+export interface OtherOutcomeFollowupResponse extends QueueCallGlanceQuery {
   scope?: "mine" | "team";
   empty?: boolean;
   items?: OtherOutcomeFollowupItem[];
@@ -41,9 +41,10 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function otherOutcomeFollowupQuery(input: { scope: "mine" | "team" }) {
+export function otherOutcomeFollowupQuery(input: { scope: "mine" | "team" } & QueueCallGlanceQuery) {
   const params = new URLSearchParams();
   params.set("scope", input.scope);
+  appendQueueCallGlanceQuery(params, input);
   return `?${params.toString()}`;
 }
 
@@ -63,7 +64,10 @@ function textOrDash(value: string | undefined) {
 
 export function renderOtherOutcomeFollowup(data: OtherOutcomeFollowupResponse | undefined, view?: QueueOwnerReassignView, canSkip = false, markView?: PhoneInvalidBatchView) {
   const rows = data?.items || [];
-  if (!rows.length) return renderOtherOutcomeFollowupEmpty();
+  if (!rows.length) {
+    if (queueCallGlanceFilterActive(data)) return queueCallGlanceFilterEmpty('data-other-outcome-followup-empty="1"');
+    return renderOtherOutcomeFollowupEmpty();
+  }
   const body = rows.map((item) => {
     const notice = (item.suppressionNotice || "").trim();
     const noticeHtml = notice

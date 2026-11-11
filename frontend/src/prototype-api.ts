@@ -69,6 +69,7 @@ import {
   type OutboundCallRecordListResponse,
   type OutboundCallRecordRow
 } from "./outbound-call-records";
+import { queueCallGlanceQueryFromValues } from "./queue-call-glance";
 import {
   intentFollowupQuery,
   renderIntentFollowupFailure,
@@ -19234,7 +19235,7 @@ async function openNextTodayFollow(afterType: string, afterId: string, scope: "m
   todayFollowNextPending = true;
   if (message) message.textContent = "";
   try {
-    const data = await api<TodayFollowNextResponse>(`/api/today-follow-next${todayFollowNextQuery({ scope, afterType, afterId })}`);
+    const data = await api<TodayFollowNextResponse>(`/api/today-follow-next${todayFollowNextQuery({ scope, afterType, afterId, ...queueCallGlanceControls("dashboardTodayFollowNext") })}`);
     if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView(), phoneInvalidBatchView());
     const next = data.next;
     if (next?.targetType && next.targetId) openCallbackDueObject(next.targetType, next.targetId);
@@ -19256,7 +19257,7 @@ async function loadIntentFollowupQueue() {
   try {
     const callbackDue = qs<HTMLSelectElement>("#intentFollowupCallbackDue")?.value || "";
     const owner = qs<HTMLSelectElement>("#intentFollowupOwner")?.value || "";
-    const result = await api<IntentFollowupQueueResponse>(`/api/intent-followup-queue${intentFollowupQuery({ agentId: agent, outcome, includeIgnored, callbackDue, owner })}`);
+    const result = await api<IntentFollowupQueueResponse>(`/api/intent-followup-queue${intentFollowupQuery({ agentId: agent, outcome, includeIgnored, callbackDue, owner, ...queueCallGlanceControls("intentFollowup") })}`);
     const agentSelect = qs<HTMLSelectElement>("#intentFollowupAgent");
     if (agentSelect) {
       const selected = result.scope === "self" ? (result.agents?.[0]?.cccUserId || "") : agent;
@@ -20010,6 +20011,14 @@ async function rescheduleCallbackDue(form: HTMLFormElement) {
 let unansweredPendingScope: "mine" | "team" = "mine";
 let unansweredPendingBusy = false;
 
+function queueCallGlanceControls(prefix: string) {
+  return queueCallGlanceQueryFromValues(
+    qs<HTMLSelectElement>(`#${prefix}TodayCalls`)?.value || "",
+    qs<HTMLSelectElement>(`#${prefix}LastOutcome`)?.value || "",
+    qs<HTMLSelectElement>(`#${prefix}TodayCallSort`)?.value || ""
+  );
+}
+
 function unansweredPendingAge(): "" | "within7" | "over7" {
   const age = qs<HTMLSelectElement>("#dashboardUnansweredPendingAge")?.value || "";
   if (age === "within7" || age === "over7") return age;
@@ -20019,7 +20028,8 @@ function unansweredPendingAge(): "" | "within7" | "over7" {
 function unansweredPendingFilter() {
   return {
     scope: unansweredPendingScope,
-    age: unansweredPendingAge()
+    age: unansweredPendingAge(),
+    ...queueCallGlanceControls("dashboardUnansweredPending")
   };
 }
 
@@ -20104,7 +20114,8 @@ function negativeOutcomeFollowupOutcome(): "" | "无意向" | "号码错误" {
 function negativeOutcomeFollowupFilter() {
   return {
     scope: negativeOutcomeFollowupScope,
-    outcome: negativeOutcomeFollowupOutcome()
+    outcome: negativeOutcomeFollowupOutcome(),
+    ...queueCallGlanceControls("dashboardNegativeOutcomeFollowup")
   };
 }
 
@@ -20720,7 +20731,7 @@ async function loadOtherOutcomeFollowups(scope: "mine" | "team") {
   const message = qs<HTMLElement>("#dashboardOtherOutcomeFollowupMessage");
   if (message) message.textContent = "";
   try {
-    const data = await api<OtherOutcomeFollowupResponse>(`/api/other-outcome-followups${otherOutcomeFollowupQuery({ scope })}`);
+    const data = await api<OtherOutcomeFollowupResponse>(`/api/other-outcome-followups${otherOutcomeFollowupQuery({ scope, ...queueCallGlanceControls("dashboardOtherOutcomeFollowup") })}`);
     list.innerHTML = renderOtherOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
   } catch (error) {
     list.innerHTML = renderOtherOutcomeFollowupFailure(error instanceof Error ? error.message : "其他结果跟进没有加载");
@@ -20766,7 +20777,7 @@ async function loadUnlabeledConnectedFollowups(scope: "mine" | "team") {
   const message = qs<HTMLElement>("#dashboardUnlabeledConnectedFollowupMessage");
   if (message) message.textContent = "";
   try {
-    const data = await api<UnlabeledConnectedFollowupResponse>(`/api/unlabeled-connected-followups${unlabeledConnectedFollowupQuery({ scope })}`);
+    const data = await api<UnlabeledConnectedFollowupResponse>(`/api/unlabeled-connected-followups${unlabeledConnectedFollowupQuery({ scope, ...queueCallGlanceControls("dashboardUnlabeledConnectedFollowup") })}`);
     list.innerHTML = renderUnlabeledConnectedFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
   } catch (error) {
     list.innerHTML = renderUnlabeledConnectedFollowupFailure(error instanceof Error ? error.message : "已接通未标注跟进没有加载");

@@ -10,6 +10,7 @@ import {
 import { suggestedMissedFollowAt } from "./outbound-missed-follow-up.js";
 import { outboundInstant } from "./outbound-call.js";
 import { attachQueueCallGlance } from "./queue-call-glance.js";
+import { applyQueueCallGlanceView, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import {
   isEstablishedCall,
   outboundCallRecordVisible,
@@ -283,7 +284,9 @@ async function writeAudit(store: CrmStore, input: Omit<OtherOutcomeFollowupAudit
 
 export async function listOtherOutcomeFollowups(store: CrmStore, user: SessionUser | undefined, query: Record<string, unknown>) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
-  const parsed = parseOtherFollowupQuery(query);
+  const glance = takeQueueCallGlanceView(query);
+  if (!glance.ok) return reject("invalid_request", QUEUE_CALL_GLANCE_VIEW_INVALID);
+  const parsed = parseOtherFollowupQuery(glance.rest);
   if (!parsed) return reject("invalid_request", "其他结果跟进只接受我的或团队");
   if (parsed.scope === "team" && !canViewTeamOtherFollowup(user)) {
     await writeAudit(store, {
@@ -319,12 +322,14 @@ export async function listOtherOutcomeFollowups(store: CrmStore, user: SessionUs
     reason: ""
   });
   const glanced = await attachQueueCallGlance(store, user, items);
+  const viewed = applyQueueCallGlanceView(glanced, glance.view);
   return {
     status: 200,
     body: {
       scope: parsed.scope,
-      empty: items.length === 0,
-      items: glanced
+      ...queueCallGlanceViewFields(glance.view),
+      empty: viewed.length === 0,
+      items: viewed
     }
   };
 }
