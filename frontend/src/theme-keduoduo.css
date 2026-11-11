@@ -1718,3 +1718,8 @@ html[data-ui="trade"] .kd-contact-filter button {
   margin-left: auto; padding: 2px 8px; border: 1px solid var(--rule); border-radius: 2px;
   color: var(--ink); background: var(--leaf); font-size: 10.5px; cursor: pointer;
 }
+
+[data-queue-undialed-focus="1"] {
+  background: rgba(22, 25, 27, 0.06);
+  box-shadow: inset 3px 0 0 rgba(22, 25, 27, 0.45);
+}

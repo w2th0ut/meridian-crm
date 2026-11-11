@@ -77,8 +77,15 @@ import {
   queueCallGlanceQueryFromValues,
   readQueueCallGlancePreference,
   writeQueueCallGlancePreference,
+  type QueueCallGlanceListId,
   type QueueCallGlancePreference
 } from "./queue-call-glance";
+import {
+  chooseQueueUndialedFocus,
+  queueUndialedKey,
+  readQueueTodayCallCount,
+  type QueueUndialedAnchor
+} from "./queue-next-undialed";
 import {
   intentFollowupQuery,
   renderIntentFollowupFailure,
@@ -19227,6 +19234,7 @@ async function submitCallOutcome(form: HTMLFormElement) {
     const panel = qs<HTMLElement>("#outboundCallRecordDetail");
     if (panel && !panel.hidden && panel.dataset.recordId === recordId) await openOutboundCallRecord(recordId);
     if (result.result === "updated" || result.result === "unchanged") {
+      armQueueUndialedFromOutcome(form.dataset.targetType || "", form.dataset.targetId || "");
       await openNextTodayFollow(form.dataset.targetType || "", form.dataset.targetId || "");
     }
   } catch (error) {
@@ -19240,7 +19248,7 @@ async function submitCallOutcome(form: HTMLFormElement) {
 let todayFollowNextPending = false;
 let todayFollowNextScope: "mine" | "team" = "mine";
 
-async function openNextTodayFollow(afterType: string, afterId: string, scope: "mine" | "team" = "mine") {
+async function openNextTodayFollow(afterType: string, afterId: string, scope: "mine" | "team" = "mine", openDetail = true) {
   todayFollowNextScope = scope;
   const list = qs<HTMLElement>("#dashboardTodayFollowNextList");
   const message = qs<HTMLElement>("#dashboardTodayFollowNextMessage");
@@ -19250,20 +19258,28 @@ async function openNextTodayFollow(afterType: string, afterId: string, scope: "m
   try {
     const data = await api<TodayFollowNextResponse>(`/api/today-follow-next${todayFollowNextQuery({ scope, afterType, afterId, ...queueCallGlanceControls("dashboardTodayFollowNext") })}`);
     if (list) list.innerHTML = renderTodayFollowNext(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView(), phoneInvalidBatchView());
+    markQueueUndialedLoaded("dashboardTodayFollowNext");
     const next = data.next;
-    if (next?.targetType && next.targetId) openCallbackDueObject(next.targetType, next.targetId);
+    if (openDetail !== false && next?.targetType && next.targetId) {
+      if (!afterType && !afterId) armQueueUndialed("dashboardTodayFollowNext", next.targetType, next.targetId);
+      openCallbackDueObject(next.targetType, next.targetId);
+    }
   } catch (error) {
     if (list) list.innerHTML = renderTodayFollowNextFailure(error instanceof Error ? error.message : "下一位待跟进没有打开");
   } finally {
     todayFollowNextPending = false;
   }
+  applyQueueUndialedFocus("dashboardTodayFollowNext");
 }
 
 let intentFollowupPending = false;
 
 async function loadIntentFollowupQueue() {
   const root = qs<HTMLElement>("#intentFollowupQueue");
-  if (!root) return;
+  if (!root) {
+    applyQueueUndialedFocus("intentFollowup");
+    return;
+  }
   const agent = qs<HTMLSelectElement>("#intentFollowupAgent")?.value || "";
   const outcome = qs<HTMLSelectElement>("#intentFollowupOutcome")?.value || "";
   const includeIgnored = qs<HTMLInputElement>("#intentFollowupIncludeIgnored")?.checked === true;
@@ -19282,9 +19298,11 @@ async function loadIntentFollowupQueue() {
       agentSelect.disabled = result.scope !== "team";
     }
     root.innerHTML = renderIntentFollowupQueue(result, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
+    markQueueUndialedLoaded("intentFollowup");
   } catch (error) {
     root.innerHTML = renderIntentFollowupFailure(error instanceof Error ? error.message : "意向回访队列没有加载");
   }
+  applyQueueUndialedFocus("intentFollowup");
 }
 
 async function submitIntentFollowup(form: HTMLFormElement) {
@@ -20106,6 +20124,108 @@ function queueCallGlanceControls(prefix: string) {
   );
 }
 
+const QUEUE_UNDIALED_FOCUS: Record<QueueCallGlanceListId, { root: string; row: string; view: string }> = {
+  intentFollowup: { root: "#intentFollowupQueue", row: "[data-intent-followup-row]", view: "intent-followup-queue" },
+  dashboardUnansweredPending: { root: "#dashboardUnansweredPendingList", row: "[data-unanswered-pending-row]", view: "dashboard" },
+  dashboardNegativeOutcomeFollowup: { root: "#dashboardNegativeOutcomeFollowupList", row: "[data-negative-outcome-followup-row]", view: "dashboard" },
+  dashboardOtherOutcomeFollowup: { root: "#dashboardOtherOutcomeFollowupList", row: "[data-other-outcome-followup-row]", view: "dashboard" },
+  dashboardUnlabeledConnectedFollowup: { root: "#dashboardUnlabeledConnectedFollowupList", row: "[data-unlabeled-connected-followup-row]", view: "dashboard" },
+  dashboardTodayFollowNext: { root: "#dashboardTodayFollowNextList", row: "[data-today-follow-next]", view: "dashboard" }
+};
+
+type QueueUndialedJob = {
+  anchor: QueueUndialedAnchor;
+  afterKeys: string[];
+  knownKeys: string[];
+};
+
+const queueUndialedLoaded = new Set<QueueCallGlanceListId>();
+const queueUndialedArmed = new Map<QueueCallGlanceListId, QueueUndialedJob>();
+const queueUndialedFocus = new Map<QueueCallGlanceListId, QueueUndialedJob>();
+
+function markQueueUndialedLoaded(listId: QueueCallGlanceListId) {
+  queueUndialedLoaded.add(listId);
+}
+
+function captureQueueUndialedJob(listId: QueueCallGlanceListId, anchorType: string, anchorId: string): QueueUndialedJob | null {
+  const spec = QUEUE_UNDIALED_FOCUS[listId];
+  const root = qs<HTMLElement>(spec.root);
+  if (!root) return null;
+  const rows = [...root.querySelectorAll<HTMLElement>(spec.row)];
+  const keys = rows.map((row) => queueUndialedKey({
+    targetType: row.dataset.targetType || "",
+    targetId: row.dataset.targetId || ""
+  }));
+  const anchorKey = queueUndialedKey({ targetType: anchorType, targetId: anchorId });
+  const index = keys.indexOf(anchorKey);
+  if (index < 0) return null;
+  return {
+    anchor: { targetType: anchorType, targetId: anchorId },
+    afterKeys: keys.slice(index + 1),
+    knownKeys: keys
+  };
+}
+
+function armQueueUndialed(listId: QueueCallGlanceListId, anchorType: string, anchorId: string) {
+  if (!anchorType || !anchorId || !queueUndialedLoaded.has(listId)) return;
+  const job = captureQueueUndialedJob(listId, anchorType, anchorId);
+  if (!job) return;
+  queueUndialedArmed.set(listId, job);
+}
+
+function armQueueUndialedFromOutcome(anchorType: string, anchorId: string) {
+  for (const listId of QUEUE_CALL_GLANCE_LISTS) armQueueUndialed(listId, anchorType, anchorId);
+}
+
+function promoteQueueUndialedFocus(view: string) {
+  for (const listId of QUEUE_CALL_GLANCE_LISTS) {
+    if (QUEUE_UNDIALED_FOCUS[listId].view !== view) continue;
+    const job = queueUndialedArmed.get(listId);
+    if (!job) continue;
+    queueUndialedFocus.set(listId, job);
+    queueUndialedArmed.delete(listId);
+  }
+}
+
+function applyQueueUndialedFocus(listId: QueueCallGlanceListId) {
+  const job = queueUndialedFocus.get(listId);
+  if (!job) return;
+  queueUndialedFocus.delete(listId);
+  const spec = QUEUE_UNDIALED_FOCUS[listId];
+  const root = qs<HTMLElement>(spec.root);
+  if (!root) return;
+  const elements = [...root.querySelectorAll<HTMLElement>(spec.row)];
+  root.querySelectorAll<HTMLElement>("[data-queue-undialed-focus]").forEach((node) => {
+    node.removeAttribute("data-queue-undialed-focus");
+    node.removeAttribute("aria-selected");
+    node.classList.remove("queue-undialed-focus");
+  });
+  const rows = elements.map((element) => ({
+    targetType: element.dataset.targetType || "",
+    targetId: element.dataset.targetId || "",
+    todayCallCount: readQueueTodayCallCount(element.querySelector("[data-queue-call-glance]")?.textContent)
+  }));
+  const index = chooseQueueUndialedFocus(rows, job.anchor, job.afterKeys, job.knownKeys);
+  const target = index >= 0 ? elements[index] : undefined;
+  if (!target) return;
+  target.setAttribute("data-queue-undialed-focus", "1");
+  target.setAttribute("aria-selected", "true");
+  target.classList.add("queue-undialed-focus");
+  try {
+    target.scrollIntoView({ block: "nearest" });
+  } catch {
+    // 容器滚不到时仍保持选中，不提示。
+  }
+}
+
+function reloadPromotedDashboardQueues() {
+  if (queueUndialedFocus.has("dashboardUnansweredPending")) void loadUnansweredPendingQueue(unansweredPendingScope);
+  if (queueUndialedFocus.has("dashboardNegativeOutcomeFollowup")) void loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope);
+  if (queueUndialedFocus.has("dashboardOtherOutcomeFollowup")) void loadOtherOutcomeFollowups(otherOutcomeFollowupScope);
+  if (queueUndialedFocus.has("dashboardUnlabeledConnectedFollowup")) void loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope);
+  if (queueUndialedFocus.has("dashboardTodayFollowNext")) void openNextTodayFollow("", "", todayFollowNextScope, false);
+}
+
 function unansweredPendingAge(): "" | "within7" | "over7" {
   const age = qs<HTMLSelectElement>("#dashboardUnansweredPendingAge")?.value || "";
   if (age === "within7" || age === "over7") return age;
@@ -20122,17 +20242,21 @@ function unansweredPendingFilter() {
 
 async function loadUnansweredPendingQueue(scope: "mine" | "team") {
   const list = qs<HTMLElement>("#dashboardUnansweredPendingList");
-  if (!list) return;
-  if (scope === "team" && !canViewUnansweredPendingTeam()) return;
+  if (!list || (scope === "team" && !canViewUnansweredPendingTeam())) {
+    applyQueueUndialedFocus("dashboardUnansweredPending");
+    return;
+  }
   unansweredPendingScope = scope;
   const message = qs<HTMLElement>("#dashboardUnansweredPendingMessage");
   if (message) message.textContent = "";
   try {
     const data = await api<UnansweredPendingQueueResponse>(`/api/unanswered-pending-queue${unansweredPendingQueueQuery(unansweredPendingFilter())}`);
     list.innerHTML = renderUnansweredPendingQueue(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
+    markQueueUndialedLoaded("dashboardUnansweredPending");
   } catch (error) {
     list.innerHTML = renderUnansweredPendingQueueFailure(error instanceof Error ? error.message : "未接通待处理队列没有加载");
   }
+  applyQueueUndialedFocus("dashboardUnansweredPending");
 }
 
 async function generateUnansweredPendingFollowUp(form: HTMLFormElement) {
@@ -20208,17 +20332,21 @@ function negativeOutcomeFollowupFilter() {
 
 async function loadNegativeOutcomeFollowups(scope: "mine" | "team") {
   const list = qs<HTMLElement>("#dashboardNegativeOutcomeFollowupList");
-  if (!list) return;
-  if (scope === "team" && !canViewNegativeOutcomeFollowupTeam()) return;
+  if (!list || (scope === "team" && !canViewNegativeOutcomeFollowupTeam())) {
+    applyQueueUndialedFocus("dashboardNegativeOutcomeFollowup");
+    return;
+  }
   negativeOutcomeFollowupScope = scope;
   const message = qs<HTMLElement>("#dashboardNegativeOutcomeFollowupMessage");
   if (message) message.textContent = "";
   try {
     const data = await api<NegativeOutcomeFollowupResponse>(`/api/negative-outcome-followups${negativeOutcomeFollowupQuery(negativeOutcomeFollowupFilter())}`);
     list.innerHTML = renderNegativeOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView(), phoneInvalidBatchView());
+    markQueueUndialedLoaded("dashboardNegativeOutcomeFollowup");
   } catch (error) {
     list.innerHTML = renderNegativeOutcomeFollowupFailure(error instanceof Error ? error.message : "负向结果跟进没有加载");
   }
+  applyQueueUndialedFocus("dashboardNegativeOutcomeFollowup");
 }
 
 async function clearNegativeOutcomeFollowup(form: HTMLFormElement) {
@@ -20812,17 +20940,21 @@ let otherOutcomeFollowupBusy = false;
 
 async function loadOtherOutcomeFollowups(scope: "mine" | "team") {
   const list = qs<HTMLElement>("#dashboardOtherOutcomeFollowupList");
-  if (!list) return;
-  if (scope === "team" && !canViewOtherOutcomeFollowupTeam()) return;
+  if (!list || (scope === "team" && !canViewOtherOutcomeFollowupTeam())) {
+    applyQueueUndialedFocus("dashboardOtherOutcomeFollowup");
+    return;
+  }
   otherOutcomeFollowupScope = scope;
   const message = qs<HTMLElement>("#dashboardOtherOutcomeFollowupMessage");
   if (message) message.textContent = "";
   try {
     const data = await api<OtherOutcomeFollowupResponse>(`/api/other-outcome-followups${otherOutcomeFollowupQuery({ scope, ...queueCallGlanceControls("dashboardOtherOutcomeFollowup") })}`);
     list.innerHTML = renderOtherOutcomeFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
+    markQueueUndialedLoaded("dashboardOtherOutcomeFollowup");
   } catch (error) {
     list.innerHTML = renderOtherOutcomeFollowupFailure(error instanceof Error ? error.message : "其他结果跟进没有加载");
   }
+  applyQueueUndialedFocus("dashboardOtherOutcomeFollowup");
 }
 
 async function scheduleOtherOutcomeFollowup(form: HTMLFormElement) {
@@ -20858,17 +20990,21 @@ let unlabeledConnectedFollowupBusy = false;
 
 async function loadUnlabeledConnectedFollowups(scope: "mine" | "team") {
   const list = qs<HTMLElement>("#dashboardUnlabeledConnectedFollowupList");
-  if (!list) return;
-  if (scope === "team" && !canViewUnlabeledConnectedFollowupTeam()) return;
+  if (!list || (scope === "team" && !canViewUnlabeledConnectedFollowupTeam())) {
+    applyQueueUndialedFocus("dashboardUnlabeledConnectedFollowup");
+    return;
+  }
   unlabeledConnectedFollowupScope = scope;
   const message = qs<HTMLElement>("#dashboardUnlabeledConnectedFollowupMessage");
   if (message) message.textContent = "";
   try {
     const data = await api<UnlabeledConnectedFollowupResponse>(`/api/unlabeled-connected-followups${unlabeledConnectedFollowupQuery({ scope, ...queueCallGlanceControls("dashboardUnlabeledConnectedFollowup") })}`);
     list.innerHTML = renderUnlabeledConnectedFollowup(data, callOutcomeTransferView(), hasIamCapability("communication.send"), phoneInvalidBatchView());
+    markQueueUndialedLoaded("dashboardUnlabeledConnectedFollowup");
   } catch (error) {
     list.innerHTML = renderUnlabeledConnectedFollowupFailure(error instanceof Error ? error.message : "已接通未标注跟进没有加载");
   }
+  applyQueueUndialedFocus("dashboardUnlabeledConnectedFollowup");
 }
 
 async function scheduleUnlabeledConnectedFollowup(form: HTMLFormElement) {
@@ -58698,6 +58834,15 @@ function installEvents() {
       void submitCallbackSchedule(cancelForm, true);
       return;
     }
+    const opener = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-intent-followup-open]");
+    if (opener) {
+      const opened = opener.closest<HTMLElement>("[data-intent-followup-row]");
+      if (!opened) return;
+      event.preventDefault();
+      armQueueUndialed("intentFollowup", opened.dataset.targetType || "", opened.dataset.targetId || "");
+      openCallbackDueObject(opened.dataset.targetType || "", opened.dataset.targetId || "");
+      return;
+    }
     const button = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-intent-ignore], [data-intent-restore]");
     if (!button) return;
     const row = button.closest<HTMLElement>("[data-target-type]");
@@ -59626,6 +59771,7 @@ function installEvents() {
     const row = opener.closest<HTMLElement>("[data-unanswered-pending-row]");
     if (!row) return;
     event.preventDefault();
+    armQueueUndialed("dashboardUnansweredPending", row.dataset.targetType || "", row.dataset.targetId || "");
     openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
   });
   qs<HTMLElement>("#dashboardUnansweredPendingQueue")?.addEventListener("submit", (event) => {
@@ -59652,6 +59798,7 @@ function installEvents() {
     const row = opener.closest<HTMLElement>("[data-negative-outcome-followup-row]");
     if (!row) return;
     event.preventDefault();
+    armQueueUndialed("dashboardNegativeOutcomeFollowup", row.dataset.targetType || "", row.dataset.targetId || "");
     openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
   });
   qs<HTMLElement>("#dashboardNegativeOutcomeFollowup")?.addEventListener("submit", (event) => {
@@ -59672,6 +59819,7 @@ function installEvents() {
     const row = opener.closest<HTMLElement>("[data-other-outcome-followup-row]");
     if (!row) return;
     event.preventDefault();
+    armQueueUndialed("dashboardOtherOutcomeFollowup", row.dataset.targetType || "", row.dataset.targetId || "");
     openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
   });
   qs<HTMLElement>("#dashboardOtherOutcomeFollowup")?.addEventListener("submit", (event) => {
@@ -59726,6 +59874,7 @@ function installEvents() {
     const row = opener.closest<HTMLElement>("[data-unlabeled-connected-followup-row]");
     if (!row) return;
     event.preventDefault();
+    armQueueUndialed("dashboardUnlabeledConnectedFollowup", row.dataset.targetType || "", row.dataset.targetId || "");
     openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
   });
   qs<HTMLElement>("#dashboardUnlabeledConnectedFollowup")?.addEventListener("submit", (event) => {
@@ -59791,6 +59940,7 @@ function installEvents() {
     const row = opener.closest<HTMLElement>("[data-today-follow-next]");
     if (!row) return;
     event.preventDefault();
+    armQueueUndialed("dashboardTodayFollowNext", row.dataset.targetType || "", row.dataset.targetId || "");
     openCallbackDueObject(row.dataset.targetType || "", row.dataset.targetId || "");
   });
   document.addEventListener("click", (event) => {
@@ -62403,6 +62553,7 @@ function activateNavView(view: string, after?: () => void) {
     void loadCallTagAdmin();
     void loadDashboardCallScripts();
   }
+  promoteQueueUndialedFocus(view);
   if (view === "intent-followup-queue") {
     void loadIntentFollowupQueue();
   }
@@ -62422,7 +62573,10 @@ function activateNavView(view: string, after?: () => void) {
   if (view === "exchange") {
     void loadExchangeData();
   }
-  if (view === "dashboard") requestDashboardRefresh();
+  if (view === "dashboard") {
+    requestDashboardRefresh();
+    reloadPromotedDashboardQueues();
+  }
   if (view === "todo") {
     if (state.summary) renderTodoInsights(state.summary);
     renderTodos(state.todos);
