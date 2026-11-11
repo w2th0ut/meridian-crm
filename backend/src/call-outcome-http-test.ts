@@ -374,6 +374,72 @@ try {
   assert.equal(detail.response.status, 200);
   assert.equal(detail.json.record.callOutcome, "无意向");
   assert.equal(detail.json.record.callOutcomeNote, "改备注");
+
+  const kept = await request("/api/outbound-call-records/ocr_out_a1/outcome", shirley, "POST", {
+    outcome: "需回访",
+    preserveNote: true
+  });
+  assert.equal(kept.response.status, 200);
+  assert.equal(kept.json.result, "updated");
+  assert.equal(kept.json.outcome, "需回访");
+  assert.equal(kept.json.note, "改备注");
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_out_a1")?.callOutcomeNote, "改备注");
+  assert.equal(store.customers.find((item) => item.id === "c1")?.nextReminder, reminderBefore);
+
+  const clearedOutcome = await request("/api/outbound-call-records/ocr_out_a1/outcome", shirley, "POST", {
+    outcome: "未标注",
+    preserveNote: true
+  });
+  assert.equal(clearedOutcome.response.status, 200);
+  assert.equal(clearedOutcome.json.result, "updated");
+  assert.equal(clearedOutcome.json.outcome, "");
+  assert.equal(clearedOutcome.json.note, "改备注");
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_out_a1")?.callOutcome, "");
+  const clearedAudit = store.callOutcomeAudits.find((item) => item.callRecordId === "ocr_out_a1" && item.nextOutcome === "");
+  assert.equal(clearedAudit?.previousOutcome, "需回访");
+  assert.equal(clearedAudit?.nextNote, "改备注");
+  assert.equal(store.customers.find((item) => item.id === "c1")?.nextReminder, reminderBefore);
+
+  const clearAgain = await request("/api/outbound-call-records/ocr_out_a1/outcome", shirley, "POST", {
+    outcome: "未标注",
+    preserveNote: true
+  });
+  assert.equal(clearAgain.response.status, 200);
+  assert.equal(clearAgain.json.result, "unchanged");
+
+  const stillBlank = await request("/api/outbound-call-records/ocr_out_a1/outcome", shirley, "POST", {
+    outcome: "",
+    preserveNote: true
+  });
+  assert.equal(stillBlank.response.status, 400);
+  assert.equal(stillBlank.json.reason, "invalid_outcome");
+  const badPreserve = await request("/api/outbound-call-records/ocr_out_a1/outcome", shirley, "POST", {
+    outcome: "未标注",
+    preserveNote: "yes"
+  });
+  assert.equal(badPreserve.response.status, 400);
+  assert.equal(badPreserve.json.reason, "invalid_request");
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_out_a1")?.callOutcome, "");
+  const markWhileClear = await request("/api/outbound-call-records/ocr_out_a1/outcome", shirley, "POST", {
+    outcome: "未标注",
+    preserveNote: true,
+    markNumberInvalid: true
+  });
+  assert.equal(markWhileClear.response.status, 400);
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_out_a1")?.callOutcome, "");
+  const hiddenClear = await request("/api/outbound-call-records/ocr_out_mia/outcome", shirley, "POST", {
+    outcome: "未标注",
+    preserveNote: true
+  });
+  assert.equal(hiddenClear.response.status, 404);
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_out_mia")?.callOutcome, "号码错误");
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_out_mia")?.callOutcomeNote, "空号");
+  const deniedClear = await request("/api/outbound-call-records/ocr_out_a1/outcome", noRead, "POST", {
+    outcome: "有意向",
+    preserveNote: true
+  });
+  assert.equal(deniedClear.response.status, 403);
+  assert.equal(store.outboundCallRecords.find((item) => item.id === "ocr_out_a1")?.callOutcome, "");
   assert.equal(JSON.stringify(detail.json).includes("do-not-leak-outcome"), false);
   const foreignDetail = await request("/api/outbound-call-records/ocr_out_asia", shirley);
   assert.equal(foreignDetail.response.status, 404);

@@ -35,6 +35,8 @@ export interface QueueCallGlance {
   lastCallOutcome: string;
   /** 最近一次看得到的通话的开始时间。没有或解析不了时是「—」。 */
   lastCallAt: string;
+  /** 最近一次看得到的通话。没有时是空，不把看不见的记录 id 带出来。 */
+  latestCallRecordId: string;
 }
 
 type GlanceRow = { targetType: string; targetId: string };
@@ -173,7 +175,8 @@ export function summarizeQueueCallGlance(input: {
   return {
     todayCallCount,
     lastCallOutcome: latest ? queueCallOutcomeLabel(latest.callOutcome || "") : QUEUE_CALL_GLANCE_UNLABELED,
-    lastCallAt: started || QUEUE_CALL_GLANCE_NO_TIME
+    lastCallAt: started || QUEUE_CALL_GLANCE_NO_TIME,
+    latestCallRecordId: latest?.id || ""
   };
 }
 
@@ -307,12 +310,15 @@ export async function attachQueueCallGlance<T extends GlanceRow>(
       const glance = cache.get(key);
       const copy = withoutGlance(row);
       if (!glance) return copy;
-      return {
+      const withGlance = {
         ...copy,
         todayCallCount: glance.todayCallCount,
         lastCallOutcome: glance.lastCallOutcome,
         lastCallAt: glance.lastCallAt
       };
+      const existingCallId = String((copy as { callRecordId?: string }).callRecordId || "").trim();
+      if (existingCallId || !glance.latestCallRecordId) return withGlance;
+      return { ...withGlance, callRecordId: glance.latestCallRecordId };
     });
   } finally {
     user.iamDataScope = saved;

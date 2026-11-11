@@ -4,6 +4,7 @@ import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReass
 import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { callNoteAppendFormFor, callNoteAppendPick } from "./call-note-append-batch";
+import { renderQueueCallOutcomeForm } from "./queue-call-outcome";
 import { appendQueueCallGlanceQuery, queueCallGlanceFilterActive, queueCallGlanceFilterEmpty, queueCallGlanceMarkup, type QueueCallGlanceQuery } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
@@ -121,7 +122,8 @@ export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefi
     });
     const ownerLabel = row.ownerAgentId ? (row.ownerAgentLabel || row.ownerAgentId) : "未指派";
     const pick = row.ignored ? "" : `${missingNextFollowupPick(row.targetType, row.targetId)}${queueOwnerReassignPick(row.targetType, row.targetId, view)}${sameDaySkipBatchPick(row.targetType, row.targetId, canSkip)}${phoneInvalidBatchPick(row.targetType, row.targetId, markView)}${backupNumberBatchPick(row.targetType, row.targetId, markView)}${callNoteAppendPick(row.targetType, row.callRecordId || "", markView)}`;
-    return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td>${pick}<button type="button" class="btn" data-intent-followup-open="1">${escapeHtml(row.name || row.targetId)}</button><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}${queueCallGlanceMarkup(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td data-owner-agent="${escapeHtml(row.ownerAgentId || "")}">${escapeHtml(ownerLabel)}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}${callback}</td></tr>`;
+    const outcomeForm = renderQueueCallOutcomeForm(row);
+    return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td>${pick}<button type="button" class="btn" data-intent-followup-open="1">${escapeHtml(row.name || row.targetId)}</button><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}${queueCallGlanceMarkup(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td data-owner-agent="${escapeHtml(row.ownerAgentId || "")}">${escapeHtml(ownerLabel)}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}${callback}${outcomeForm}</td></tr>`;
   }).join("");
   return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>对象</th><th>通话结果</th><th>标注时间</th><th>坐席</th><th>负责坐席</th><th>号码</th><th>操作</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { displayMaskedNumber, formatEndedAgo } from "./call-wrapup-queue.js";
 import { hasOpenNextFollowUp, isMoreRecentCall } from "./intent-followup-queue.js";
 import { outboundInstant, tenantTimeZoneFor } from "./outbound-call.js";
-import { attachQueueCallGlance } from "./queue-call-glance.js";
+import { attachQueueCallGlance, queueCallOutcomeLabel } from "./queue-call-glance.js";
 import { applyQueueCallGlanceView, queueCallGlanceClock, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import {
   isEstablishedCall,
@@ -54,6 +54,7 @@ export interface UnansweredPendingQueueItem {
   targetLabel: string;
   name: string;
   callRecordId: string;
+  outcome: string;
   unansweredAt: string;
   ageSeconds: number | null;
   ageLabel: string;
@@ -196,6 +197,7 @@ export function buildUnansweredPendingQueue(input: {
       targetLabel: TARGET_LABEL[object.targetType],
       name: object.name || object.targetId,
       callRecordId: record.id,
+      outcome: queueCallOutcomeLabel(record.callOutcome || ""),
       unansweredAt: formatUnansweredAt(record.startTimeRaw || "", input.timeZone),
       ageSeconds,
       ageLabel: formatUnansweredAge(ageSeconds),
