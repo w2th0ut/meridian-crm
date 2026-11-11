@@ -7,6 +7,7 @@ import { callbackScheduleView } from "./callback-schedule-state.js";
 import { outboundOwnerView, parseOwnerMineFilter, userOwnsOutboundTarget } from "./outbound-owner.js";
 import { outboundInstant, zonedDateKey } from "./outbound-call.js";
 import { attachQueueCallGlance } from "./queue-call-glance.js";
+import { applyQueueCallGlanceView, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import {
   outboundCallRecordVisible,
   resolveOutboundCallRecordAccess,
@@ -344,9 +345,13 @@ export async function listIntentFollowupQueue(
   query: Record<string, unknown> = {}
 ) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
+  const glance = takeQueueCallGlanceView(query);
+  if (!glance.ok) {
+    return { status: 400, body: { result: "rejected" as const, reason: "invalid_request", message: QUEUE_CALL_GLANCE_VIEW_INVALID } };
+  }
   const resolved = await resolveOutboundCallRecordAccess(store, user);
   if (!resolved.ok) return { status: resolved.status, body: resolved.body };
-  const parsed = parseIntentFollowupListQuery(query);
+  const parsed = parseIntentFollowupListQuery(glance.rest);
   if (!parsed) {
     return { status: 400, body: { result: "rejected" as const, reason: "invalid_request", message: "参数格式错误" } };
   }
@@ -368,7 +373,8 @@ export async function listIntentFollowupQueue(
   const ownedItems = parsed.owner === "mine"
     ? owned.filter((item) => userOwnsOutboundTarget(store, user, item.targetType, item.targetId))
     : owned;
-  const items = await attachQueueCallGlance(store, user, ownedItems);
+  const glanced = await attachQueueCallGlance(store, user, ownedItems);
+  const items = applyQueueCallGlanceView(glanced, glance.view);
   return {
     status: 200,
     body: {
@@ -382,6 +388,7 @@ export async function listIntentFollowupQueue(
         callbackDue: parsed.callbackDue,
         owner: parsed.owner
       },
+      ...queueCallGlanceViewFields(glance.view),
       suggestedNextFollowAt: await suggestedMissedFollowAt(store, user.teamId, outboundInstant()),
       empty: items.length === 0,
       items

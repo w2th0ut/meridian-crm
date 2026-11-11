@@ -9,7 +9,7 @@ import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReass
 import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { callNoteAppendFormFor, callNoteAppendPick } from "./call-note-append-batch";
-import { queueCallGlanceMarkup } from "./queue-call-glance";
+import { appendQueueCallGlanceQuery, queueCallGlanceFilterActive, queueCallGlanceFilterEmpty, queueCallGlanceMarkup, type QueueCallGlanceQuery } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
 export interface UnansweredPendingQueueItem {
@@ -28,7 +28,7 @@ export interface UnansweredPendingQueueItem {
   lastCallOutcome?: string;
 }
 
-export interface UnansweredPendingQueueResponse {
+export interface UnansweredPendingQueueResponse extends QueueCallGlanceQuery {
   scope?: "mine" | "team";
   age?: "" | "within7" | "over7";
   timeZone?: string;
@@ -44,10 +44,11 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function unansweredPendingQueueQuery(input: { scope: "mine" | "team"; age?: "" | "within7" | "over7" }) {
+export function unansweredPendingQueueQuery(input: { scope: "mine" | "team"; age?: "" | "within7" | "over7" } & QueueCallGlanceQuery) {
   const params = new URLSearchParams();
   params.set("scope", input.scope);
   if (input.age) params.set("age", input.age);
+  appendQueueCallGlanceQuery(params, input);
   return `?${params.toString()}`;
 }
 
@@ -67,7 +68,10 @@ function ageText(item: UnansweredPendingQueueItem) {
 
 export function renderUnansweredPendingQueue(data: UnansweredPendingQueueResponse | undefined, view?: QueueOwnerReassignView, canSkip = false, markView?: PhoneInvalidBatchView) {
   const rows = data?.items || [];
-  if (!rows.length) return renderUnansweredPendingQueueEmpty();
+  if (!rows.length) {
+    if (queueCallGlanceFilterActive(data)) return queueCallGlanceFilterEmpty('data-unanswered-pending-empty="1"');
+    return renderUnansweredPendingQueueEmpty();
+  }
   const body = rows.map((item) => {
     const when = (item.unansweredAt || "").trim() || "—";
     const agent = (item.agentLabel || "").trim() || "—";

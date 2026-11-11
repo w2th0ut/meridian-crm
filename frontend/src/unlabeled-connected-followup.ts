@@ -7,7 +7,7 @@ import { missingNextFollowupBatchForm, missingNextFollowupPick } from "./missing
 import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReassignView } from "./queue-owner-reassign";
 import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
-import { queueCallGlanceMarkup } from "./queue-call-glance";
+import { appendQueueCallGlanceQuery, queueCallGlanceFilterActive, queueCallGlanceFilterEmpty, queueCallGlanceMarkup, type QueueCallGlanceQuery } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
 export interface UnlabeledConnectedFollowupItem {
@@ -26,7 +26,7 @@ export interface UnlabeledConnectedFollowupItem {
   lastCallOutcome?: string;
 }
 
-export interface UnlabeledConnectedFollowupResponse {
+export interface UnlabeledConnectedFollowupResponse extends QueueCallGlanceQuery {
   scope?: "mine" | "team";
   empty?: boolean;
   items?: UnlabeledConnectedFollowupItem[];
@@ -40,9 +40,10 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function unlabeledConnectedFollowupQuery(input: { scope: "mine" | "team" }) {
+export function unlabeledConnectedFollowupQuery(input: { scope: "mine" | "team" } & QueueCallGlanceQuery) {
   const params = new URLSearchParams();
   params.set("scope", input.scope);
+  appendQueueCallGlanceQuery(params, input);
   return `?${params.toString()}`;
 }
 
@@ -62,7 +63,10 @@ function textOrDash(value: string | undefined) {
 
 export function renderUnlabeledConnectedFollowup(data: UnlabeledConnectedFollowupResponse | undefined, view?: QueueOwnerReassignView, canSkip = false, markView?: PhoneInvalidBatchView) {
   const rows = data?.items || [];
-  if (!rows.length) return renderUnlabeledConnectedFollowupEmpty();
+  if (!rows.length) {
+    if (queueCallGlanceFilterActive(data)) return queueCallGlanceFilterEmpty('data-unlabeled-connected-followup-empty="1"');
+    return renderUnlabeledConnectedFollowupEmpty();
+  }
   const body = rows.map((item) => {
     const notice = (item.suppressionNotice || "").trim();
     const noticeHtml = notice

@@ -8,7 +8,7 @@ import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number
 import { endFollowBatchFormFor, endFollowBatchPick, type EndFollowBatchView } from "./end-follow-batch";
 import { callNoteAppendFormFor, callNoteAppendPick } from "./call-note-append-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
-import { queueCallGlanceMarkup } from "./queue-call-glance";
+import { appendQueueCallGlanceQuery, queueCallGlanceFilterActive, queueCallGlanceFilterEmpty, queueCallGlanceMarkup, type QueueCallGlanceQuery } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
 export interface NegativeOutcomeFollowupItem {
@@ -27,7 +27,7 @@ export interface NegativeOutcomeFollowupItem {
   lastCallOutcome?: string;
 }
 
-export interface NegativeOutcomeFollowupResponse {
+export interface NegativeOutcomeFollowupResponse extends QueueCallGlanceQuery {
   scope?: "mine" | "team";
   outcome?: "" | "无意向" | "号码错误";
   empty?: boolean;
@@ -42,10 +42,11 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function negativeOutcomeFollowupQuery(input: { scope: "mine" | "team"; outcome?: "" | "无意向" | "号码错误" }) {
+export function negativeOutcomeFollowupQuery(input: { scope: "mine" | "team"; outcome?: "" | "无意向" | "号码错误" } & QueueCallGlanceQuery) {
   const params = new URLSearchParams();
   params.set("scope", input.scope);
   if (input.outcome) params.set("outcome", input.outcome);
+  appendQueueCallGlanceQuery(params, input);
   return `?${params.toString()}`;
 }
 
@@ -65,7 +66,10 @@ function textOrDash(value: string | undefined) {
 
 export function renderNegativeOutcomeFollowup(data: NegativeOutcomeFollowupResponse | undefined, view?: QueueOwnerReassignView, canSkip = false, markView?: PhoneInvalidBatchView, endView?: EndFollowBatchView) {
   const rows = data?.items || [];
-  if (!rows.length) return renderNegativeOutcomeFollowupEmpty();
+  if (!rows.length) {
+    if (queueCallGlanceFilterActive(data)) return queueCallGlanceFilterEmpty('data-negative-outcome-followup-empty="1"');
+    return renderNegativeOutcomeFollowupEmpty();
+  }
   const body = rows.map((item) => {
     const notice = (item.suppressionNotice || "").trim();
     const noticeHtml = notice

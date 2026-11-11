@@ -4,7 +4,7 @@ import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReass
 import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { callNoteAppendFormFor, callNoteAppendPick } from "./call-note-append-batch";
-import { queueCallGlanceMarkup } from "./queue-call-glance";
+import { appendQueueCallGlanceQuery, queueCallGlanceFilterActive, queueCallGlanceFilterEmpty, queueCallGlanceMarkup, type QueueCallGlanceQuery } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
 /**
@@ -40,7 +40,7 @@ export interface IntentFollowupAgentOption {
   label: string;
 }
 
-export interface IntentFollowupQueueResponse {
+export interface IntentFollowupQueueResponse extends QueueCallGlanceQuery {
   scope?: "self" | "team";
   timeZone?: string;
   agents?: IntentFollowupAgentOption[];
@@ -58,13 +58,14 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function intentFollowupQuery(input: { agentId?: string; outcome?: string; includeIgnored?: boolean; callbackDue?: string; owner?: string }) {
+export function intentFollowupQuery(input: { agentId?: string; outcome?: string; includeIgnored?: boolean; callbackDue?: string; owner?: string } & QueueCallGlanceQuery) {
   const params = new URLSearchParams();
   if (input.agentId) params.set("agentId", input.agentId);
   if (input.outcome) params.set("outcome", input.outcome);
   if (input.includeIgnored) params.set("includeIgnored", "1");
   if (input.callbackDue === "today" || input.callbackDue === "overdue") params.set("callbackDue", input.callbackDue);
   if (input.owner === "mine") params.set("owner", "mine");
+  appendQueueCallGlanceQuery(params, input);
   const query = params.toString();
   return query ? `?${query}` : "";
 }
@@ -129,6 +130,7 @@ export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse, vi
   const active = items.filter((item) => !item.ignored);
   const ignored = items.filter((item) => item.ignored);
   if (!active.length && !ignored.length) {
+    if (queueCallGlanceFilterActive(input)) return queueCallGlanceFilterEmpty('data-intent-followup-empty="1"');
     if (input.filters?.callbackDue === "today" || input.filters?.callbackDue === "overdue") {
       return `<p data-intent-followup-empty="1" data-callback-filter-empty="1">这个筛选下没有今日到期或已逾期的回拨预约。</p>`;
     }

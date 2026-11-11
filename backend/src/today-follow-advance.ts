@@ -3,6 +3,7 @@ import { displayMaskedNumber } from "./call-wrapup-queue.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
 import { outboundInstant, sameDaySkipActive, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
 import { attachQueueCallGlance } from "./queue-call-glance.js";
+import { applyQueueCallGlanceView, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import { activePreferredPhoneId } from "./preferred-phone.js";
 import { isPhoneMarkedInvalid, listObjectPhones } from "./phone-validity-state.js";
 import type { CrmStore } from "./store.js";
@@ -214,7 +215,9 @@ export async function collectTodayFollowRows(store: CrmStore, user: SessionUser,
 
 export async function listTodayFollowNext(store: CrmStore, user: SessionUser | undefined, query: Record<string, unknown>) {
   if (!user?.id || !user.teamId) return { status: 401, body: { message: "未登录" } };
-  const parsed = parseTodayFollowNextQuery(query);
+  const glance = takeQueueCallGlanceView(query);
+  if (!glance.ok) return reject("invalid_request", QUEUE_CALL_GLANCE_VIEW_INVALID);
+  const parsed = parseTodayFollowNextQuery(glance.rest);
   if (!parsed.ok) return reject("invalid_request", "查看范围不正确");
   if (!hasIamPermission(user, "communication.read")) {
     return reject("forbidden", "没有查看通话记录的权限", 403);
@@ -225,8 +228,10 @@ export async function listTodayFollowNext(store: CrmStore, user: SessionUser | u
   const timeZone = await tenantTimeZoneFor(store, user.teamId);
   const date = zonedDateKey(outboundInstant(), timeZone);
   const rows = await listRows(store, user, parsed.scope, date);
-  const next = pickNextTodayFollow(rows, parsed.after);
-  const glanced = next ? (await attachQueueCallGlance(store, user, [next]))[0] || null : null;
+  const glanced = await attachQueueCallGlance(store, user, rows);
+  const viewed = applyQueueCallGlanceView(glanced, glance.view);
+  const next = pickNextTodayFollow(viewed, parsed.after);
+  const filtered = glance.view.todayCalls !== "" || glance.view.lastOutcome !== "";
   return {
     status: 200,
     body: {
@@ -234,9 +239,10 @@ export async function listTodayFollowNext(store: CrmStore, user: SessionUser | u
       scope: parsed.scope,
       timeZone,
       date,
+      ...queueCallGlanceViewFields(glance.view),
       empty: !next,
-      next: glanced,
-      message: next ? "已打开下一位。外呼仍要自己点。" : "今天没有下一位待跟进"
+      next,
+      message: next ? "已打开下一位。外呼仍要自己点。" : filtered ? "这个筛选下没有下一位待跟进" : "今天没有下一位待跟进"
     }
   };
 }
