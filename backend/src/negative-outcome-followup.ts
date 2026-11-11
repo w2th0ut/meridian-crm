@@ -341,6 +341,7 @@ export async function listNegativeOutcomeFollowups(store: CrmStore, user: Sessio
       scope: parsed.scope,
       outcome: parsed.outcome,
       ...queueCallGlanceViewFields(glance.view),
+      timeZone: resolved.access.timeZone,
       empty: viewed.length === 0,
       items: viewed
     }

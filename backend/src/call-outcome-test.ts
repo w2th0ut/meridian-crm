@@ -57,6 +57,24 @@ if (clearing.ok) {
 }
 assert.equal(prepareQueueCallOutcomeWrite({ outcome: "未标注", preserveNote: "yes" }).ok, false);
 assert.equal(prepareQueueCallOutcomeWrite({ outcome: "" }).ok, true);
+const blankFollow = prepareQueueCallOutcomeWrite({ outcome: "有意向", preserveNote: true, inlineNextFollow: "  " });
+assert.equal(blankFollow.ok, true);
+if (blankFollow.ok) assert.equal(blankFollow.inlineNextFollow.kind, "omit");
+const setFollow = prepareQueueCallOutcomeWrite({ outcome: "有意向", preserveNote: true, inlineNextFollow: "2026-11-07 15:30" });
+assert.equal(setFollow.ok, true);
+if (setFollow.ok && setFollow.inlineNextFollow.kind === "set") assert.equal(setFollow.inlineNextFollow.value, "2026-11-07 15:30");
+const clearFollow = prepareQueueCallOutcomeWrite({ outcome: "有意向", clearInlineNextFollow: true });
+assert.equal(clearFollow.ok, true);
+if (clearFollow.ok) {
+  assert.equal(clearFollow.inlineNextFollow.kind, "clear");
+  assert.equal("clearInlineNextFollow" in (clearFollow.body as object), false);
+}
+assert.equal(prepareQueueCallOutcomeWrite({ outcome: "有意向", inlineNextFollow: "明天" }).ok, false);
+assert.equal(prepareQueueCallOutcomeWrite({ outcome: "有意向", inlineNextFollow: "2026-11-07 15:30", clearInlineNextFollow: true }).ok, false);
+assert.equal(prepareQueueCallOutcomeWrite({ outcome: "有意向", clearInlineNextFollow: "yes" }).ok, false);
+const keptRaw = prepareQueueCallOutcomeWrite({ outcome: "有意向", nextFollowAt: "2026-11-07 09:00" });
+assert.equal(keptRaw.ok, true);
+if (keptRaw.ok) assert.equal(parseCallOutcomeRequest(keptRaw.body).ok, false);
 assert.equal(parseCallOutcomeRequest({ note: "只有备注" }).ok, false);
 assert.equal(parseCallOutcomeRequest({ outcome: "有意向", note: 1 }).ok, false);
 assert.equal(parseCallOutcomeRequest(["有意向"]).ok, false);
