@@ -20015,7 +20015,8 @@ function queueCallGlanceControls(prefix: string) {
   return queueCallGlanceQueryFromValues(
     qs<HTMLSelectElement>(`#${prefix}TodayCalls`)?.value || "",
     qs<HTMLSelectElement>(`#${prefix}LastOutcome`)?.value || "",
-    qs<HTMLSelectElement>(`#${prefix}TodayCallSort`)?.value || ""
+    qs<HTMLSelectElement>(`#${prefix}TodayCallSort`)?.value || "",
+    qs<HTMLSelectElement>(`#${prefix}LastCallWithin`)?.value || ""
   );
 }
 

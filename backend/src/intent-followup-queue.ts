@@ -7,7 +7,7 @@ import { callbackScheduleView } from "./callback-schedule-state.js";
 import { outboundOwnerView, parseOwnerMineFilter, userOwnsOutboundTarget } from "./outbound-owner.js";
 import { outboundInstant, zonedDateKey } from "./outbound-call.js";
 import { attachQueueCallGlance } from "./queue-call-glance.js";
-import { applyQueueCallGlanceView, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
+import { applyQueueCallGlanceView, queueCallGlanceClock, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import {
   outboundCallRecordVisible,
   resolveOutboundCallRecordAccess,
@@ -358,7 +358,8 @@ export async function listIntentFollowupQueue(
   if (parsed.agentId && !resolved.access.tenantWide && !resolved.access.allowed.has(parsed.agentId)) {
     return { status: 403, body: { result: "rejected" as const, reason: "forbidden", message: "不能查看这个坐席的回访队列" } };
   }
-  const today = zonedDateKey(outboundInstant(), resolved.access.timeZone);
+  const now = outboundInstant();
+  const today = zonedDateKey(now, resolved.access.timeZone);
   const decorated = queueFromStore(store, user, resolved.access, parsed).map((item) => ({
     ...item,
     ...callbackScheduleView(store, user.teamId, item.targetType, item.targetId, today)
@@ -373,8 +374,8 @@ export async function listIntentFollowupQueue(
   const ownedItems = parsed.owner === "mine"
     ? owned.filter((item) => userOwnsOutboundTarget(store, user, item.targetType, item.targetId))
     : owned;
-  const glanced = await attachQueueCallGlance(store, user, ownedItems);
-  const items = applyQueueCallGlanceView(glanced, glance.view);
+  const glanced = await attachQueueCallGlance(store, user, ownedItems, now);
+  const items = applyQueueCallGlanceView(glanced, glance.view, queueCallGlanceClock(now, resolved.access.timeZone));
   return {
     status: 200,
     body: {

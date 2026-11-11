@@ -3,7 +3,7 @@ import { displayMaskedNumber } from "./call-wrapup-queue.js";
 import { isPublicCustomer } from "./customer-public-pool.js";
 import { outboundInstant, sameDaySkipActive, tenantTimeZoneFor, zonedDateKey } from "./outbound-call.js";
 import { attachQueueCallGlance } from "./queue-call-glance.js";
-import { applyQueueCallGlanceView, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
+import { applyQueueCallGlanceView, queueCallGlanceClock, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import { activePreferredPhoneId } from "./preferred-phone.js";
 import { isPhoneMarkedInvalid, listObjectPhones } from "./phone-validity-state.js";
 import type { CrmStore } from "./store.js";
@@ -225,13 +225,14 @@ export async function listTodayFollowNext(store: CrmStore, user: SessionUser | u
   if (parsed.scope === "team" && !canViewTeamTodayFollow(user)) {
     return reject("forbidden", "只有主管可以查看团队的下一位", 403);
   }
+  const now = outboundInstant();
   const timeZone = await tenantTimeZoneFor(store, user.teamId);
-  const date = zonedDateKey(outboundInstant(), timeZone);
+  const date = zonedDateKey(now, timeZone);
   const rows = await listRows(store, user, parsed.scope, date);
-  const glanced = await attachQueueCallGlance(store, user, rows);
-  const viewed = applyQueueCallGlanceView(glanced, glance.view);
+  const glanced = await attachQueueCallGlance(store, user, rows, now);
+  const viewed = applyQueueCallGlanceView(glanced, glance.view, queueCallGlanceClock(now, timeZone));
   const next = pickNextTodayFollow(viewed, parsed.after);
-  const filtered = glance.view.todayCalls !== "" || glance.view.lastOutcome !== "";
+  const filtered = glance.view.todayCalls !== "" || glance.view.lastOutcome !== "" || glance.view.lastCallWithin !== "";
   return {
     status: 200,
     body: {

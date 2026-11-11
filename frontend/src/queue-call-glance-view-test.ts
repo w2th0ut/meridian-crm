@@ -26,6 +26,7 @@ assert.equal(negativeOutcomeFollowupQuery({ scope: "mine", outcome: "无意向",
 assert.equal(otherOutcomeFollowupQuery({ scope: "mine", lastOutcome: "其他" }), "?scope=mine&lastOutcome=%E5%85%B6%E4%BB%96");
 assert.equal(unlabeledConnectedFollowupQuery({ scope: "team" }), "?scope=team");
 assert.equal(todayFollowNextQuery({ scope: "mine", afterType: "customer", afterId: "c1", todayCallSort: "uncalled" }), "?scope=mine&afterType=customer&afterId=c1&todayCallSort=uncalled");
+assert.equal(unansweredPendingQueueQuery({ scope: "mine", lastCallWithin: "1h", lastCallSort: "older" }), "?scope=mine&lastCallWithin=1h&lastCallSort=older");
 
 const params = new URLSearchParams();
 appendQueueCallGlanceQuery(params, queueCallGlanceQueryFromValues("9", "Success", "asc"));
@@ -33,8 +34,26 @@ assert.equal(params.toString(), "");
 assert.deepEqual(queueCallGlanceQueryFromValues("0", "需回访", "uncalled"), {
   todayCalls: "0",
   lastOutcome: "需回访",
-  todayCallSort: "uncalled"
+  todayCallSort: "uncalled",
+  lastCallWithin: "",
+  lastCallSort: ""
 });
+assert.deepEqual(queueCallGlanceQueryFromValues("", "", "older", "1h"), {
+  todayCalls: "",
+  lastOutcome: "",
+  todayCallSort: "",
+  lastCallWithin: "1h",
+  lastCallSort: "older"
+});
+assert.deepEqual(queueCallGlanceQueryFromValues("", "", "newer", "today"), {
+  todayCalls: "",
+  lastOutcome: "",
+  todayCallSort: "",
+  lastCallWithin: "today",
+  lastCallSort: "newer"
+});
+appendQueueCallGlanceQuery(params, queueCallGlanceQueryFromValues("", "", "", "2h"));
+assert.equal(params.toString(), "");
 
 const empty = queueCallGlanceFilterEmpty('data-unanswered-pending-empty="1"');
 assert.match(empty, /data-queue-call-filter-empty="1"/);
@@ -48,6 +67,8 @@ assert.equal(renderUnansweredPendingQueue({ scope: "mine", items: [] }).includes
 assert.match(renderIntentFollowupQueue({ todayCalls: "1", items: [] }), /data-queue-call-filter-empty="1"/);
 assert.match(renderNegativeOutcomeFollowup({ lastOutcome: "无意向", items: [] }), /data-queue-call-filter-empty="1"/);
 assert.match(renderTodayFollowNext({ todayCalls: "0", next: null }), /data-queue-call-filter-empty="1"/);
+assert.match(renderUnansweredPendingQueue({ scope: "mine", lastCallWithin: "30m", items: [] }), /最近一次通话时间/);
+assert.equal(renderUnansweredPendingQueue({ scope: "mine", lastCallSort: "older", items: [] }).includes("data-queue-call-filter-empty"), false);
 assert.equal(renderTodayFollowNext({ next: null }).includes("data-queue-call-filter-empty"), false);
 
 const page = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -62,8 +83,12 @@ for (const id of [
   assert.match(page, new RegExp(`id="${id}TodayCalls"`));
   assert.match(page, new RegExp(`id="${id}LastOutcome"`));
   assert.match(page, new RegExp(`id="${id}TodayCallSort"`));
+  assert.match(page, new RegExp(`id="${id}LastCallWithin"`));
 }
 assert.match(page, /今日未拨在前/);
+assert.match(page, /更久未联系在前/);
+assert.match(page, /最近 1 小时内打过/);
+assert.match(page, /最近 30 分钟内打过/);
 assert.equal(page.includes("queue-call-glance-dial"), false);
 
 const api = readFileSync(new URL("./prototype-api.ts", import.meta.url), "utf8");

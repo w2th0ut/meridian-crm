@@ -108,6 +108,48 @@ export function formatQueueCallStartedAt(startTimeRaw: string, timeZone: string)
   }
 }
 
+const QUEUE_CALL_WALL_MINUTE = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/;
+
+/**
+ * 把 §121 已经写出的 YYYY-MM-DD HH:mm 按租户时区还原到这一分钟的起点。
+ * 「—」、解析不了、时区无效，都返回 null，不当成 0。
+ */
+export function parseQueueCallWallMinute(wall: string, timeZone: string): number | null {
+  const text = (wall || "").trim();
+  if (!QUEUE_CALL_WALL_MINUTE.test(text) || text === QUEUE_CALL_GLANCE_NO_TIME) return null;
+  const asUtc = Date.parse(`${text.replace(" ", "T")}:00Z`);
+  if (!Number.isFinite(asUtc)) return null;
+  let guess = asUtc;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const shown = formatQueueCallStartedAt(String(guess), timeZone);
+    if (shown === text) return wallMinuteStart(guess, text, timeZone);
+    if (!shown) return null;
+    const shownUtc = Date.parse(`${shown.replace(" ", "T")}:00Z`);
+    if (!Number.isFinite(shownUtc)) return null;
+    guess += asUtc - shownUtc;
+  }
+  return formatQueueCallStartedAt(String(guess), timeZone) === text
+    ? wallMinuteStart(guess, text, timeZone)
+    : null;
+}
+
+function wallMinuteStart(seed: number, wall: string, timeZone: string) {
+  if (formatQueueCallStartedAt(String(seed), timeZone) !== wall) return null;
+  let best = seed;
+  let lo = seed - 120_000;
+  let hi = seed;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (formatQueueCallStartedAt(String(mid), timeZone) === wall) {
+      best = mid;
+      hi = mid - 1;
+    } else {
+      lo = mid + 1;
+    }
+  }
+  return best;
+}
+
 export function summarizeQueueCallGlance(input: {
   teamId: string;
   targetType: string;
