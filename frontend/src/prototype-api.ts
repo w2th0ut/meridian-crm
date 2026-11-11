@@ -69,7 +69,16 @@ import {
   type OutboundCallRecordListResponse,
   type OutboundCallRecordRow
 } from "./outbound-call-records";
-import { queueCallGlanceQueryFromValues } from "./queue-call-glance";
+import {
+  QUEUE_CALL_GLANCE_DEFAULT_PREFERENCE,
+  QUEUE_CALL_GLANCE_LISTS,
+  clearQueueCallGlancePreference,
+  isQueueCallGlanceList,
+  queueCallGlanceQueryFromValues,
+  readQueueCallGlancePreference,
+  writeQueueCallGlancePreference,
+  type QueueCallGlancePreference
+} from "./queue-call-glance";
 import {
   intentFollowupQuery,
   renderIntentFollowupFailure,
@@ -10520,6 +10529,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (response.status === 401 && path !== "/api/auth/login") {
       localStorage.removeItem(storage.user);
       state.user = null;
+      syncQueueCallGlancePreferenceAccount("");
       clearOutboundCallAvailability();
       document.body.classList.remove("is-authenticated");
     }
@@ -10584,6 +10594,7 @@ async function loginWithPassword(email: string, password: string) {
 }
 
 function applyAuthedUser(user: User) {
+  syncQueueCallGlancePreferenceAccount(user.id);
   const profileName = `${user.name} / ${roleLabel[user.role]}`;
   document.body.dataset.role = user.role;
   syncWorkspaceAccess(user);
@@ -11167,6 +11178,7 @@ async function changeProfilePassword(button?: HTMLButtonElement) {
     setFieldValue("#loginPassword", "");
     localStorage.removeItem(storage.user);
     state.user = null;
+    syncQueueCallGlancePreferenceAccount("");
     clearOutboundCallAvailability();
     state.iamCapabilities = null;
     document.body.classList.remove("is-authenticated");
@@ -11329,6 +11341,7 @@ async function loadIamCapabilities(user: User) {
     if (scopeText) scopeText.textContent = state.iamCapabilities.source === "platform" ? "平台运维控制域，不直接拥有公司业务权限" : allScopes.includes("tenant") ? "已按角色授权公司范围" : allScopes.includes("org_subtree") || allScopes.includes("org_unit") ? "已按角色授权组织范围" : "已按角色授权本人范围";
   }
   syncWorkspaceAccess(user);
+  restoreQueueCallGlancePreferences();
   renderTopbarForView(qs<HTMLElement>(".view.active")?.id || "dashboard");
 }
 
@@ -20011,7 +20024,80 @@ async function rescheduleCallbackDue(form: HTMLFormElement) {
 let unansweredPendingScope: "mine" | "team" = "mine";
 let unansweredPendingBusy = false;
 
+let queueCallGlancePreferenceAccountId = "";
+
+function queueCallGlanceAccountId() {
+  return (state.user?.id || "").trim();
+}
+
+function canRememberQueueCallGlance() {
+  return Boolean(queueCallGlanceAccountId() && state.iamCapabilities && hasIamCapability("communication.read"));
+}
+
+function readQueueCallGlancePreferenceFromDom(listId: string): QueueCallGlancePreference {
+  return {
+    todayCalls: (qs<HTMLSelectElement>(`#${listId}TodayCalls`)?.value || "") as QueueCallGlancePreference["todayCalls"],
+    lastOutcome: qs<HTMLSelectElement>(`#${listId}LastOutcome`)?.value || "",
+    sort: (qs<HTMLSelectElement>(`#${listId}TodayCallSort`)?.value || "") as QueueCallGlancePreference["sort"],
+    lastCallWithin: (qs<HTMLSelectElement>(`#${listId}LastCallWithin`)?.value || "") as QueueCallGlancePreference["lastCallWithin"]
+  };
+}
+
+function applyQueueCallGlancePreferenceToDom(listId: string, preference: QueueCallGlancePreference) {
+  const assign = (suffix: string, value: string) => {
+    const select = qs<HTMLSelectElement>(`#${listId}${suffix}`);
+    if (select) select.value = value;
+  };
+  assign("TodayCalls", preference.todayCalls);
+  assign("LastOutcome", preference.lastOutcome);
+  assign("LastCallWithin", preference.lastCallWithin);
+  assign("TodayCallSort", preference.sort);
+}
+
+function resetQueueCallGlancePreferenceDom() {
+  for (const listId of QUEUE_CALL_GLANCE_LISTS) {
+    applyQueueCallGlancePreferenceToDom(listId, QUEUE_CALL_GLANCE_DEFAULT_PREFERENCE);
+  }
+}
+
+function syncQueueCallGlancePreferenceAccount(accountId: string) {
+  const next = accountId.trim();
+  if (next === queueCallGlancePreferenceAccountId) return;
+  queueCallGlancePreferenceAccountId = next;
+  resetQueueCallGlancePreferenceDom();
+}
+
+function restoreQueueCallGlancePreferences() {
+  if (!canRememberQueueCallGlance()) {
+    resetQueueCallGlancePreferenceDom();
+    return;
+  }
+  const accountId = queueCallGlanceAccountId();
+  for (const listId of QUEUE_CALL_GLANCE_LISTS) {
+    const saved = readQueueCallGlancePreference(localStorage, accountId, listId);
+    applyQueueCallGlancePreferenceToDom(listId, saved || QUEUE_CALL_GLANCE_DEFAULT_PREFERENCE);
+  }
+}
+
+function rememberQueueCallGlancePreference(listId: string) {
+  if (!canRememberQueueCallGlance() || !isQueueCallGlanceList(listId)) return;
+  const sort = qs<HTMLSelectElement>(`#${listId}TodayCallSort`);
+  const calls = qs<HTMLSelectElement>(`#${listId}TodayCalls`);
+  const outcome = qs<HTMLSelectElement>(`#${listId}LastOutcome`);
+  const within = qs<HTMLSelectElement>(`#${listId}LastCallWithin`);
+  if (!sort || !calls || !outcome || !within) return;
+  writeQueueCallGlancePreference(localStorage, queueCallGlanceAccountId(), listId, readQueueCallGlancePreferenceFromDom(listId));
+}
+
+function resetQueueCallGlancePreference(listId: string) {
+  if (!isQueueCallGlanceList(listId)) return;
+  const accountId = queueCallGlanceAccountId();
+  if (accountId) clearQueueCallGlancePreference(localStorage, accountId, listId);
+  applyQueueCallGlancePreferenceToDom(listId, QUEUE_CALL_GLANCE_DEFAULT_PREFERENCE);
+}
+
 function queueCallGlanceControls(prefix: string) {
+  if (isQueueCallGlanceList(prefix)) rememberQueueCallGlancePreference(prefix);
   return queueCallGlanceQueryFromValues(
     qs<HTMLSelectElement>(`#${prefix}TodayCalls`)?.value || "",
     qs<HTMLSelectElement>(`#${prefix}LastOutcome`)?.value || "",
@@ -58406,6 +58492,7 @@ function installEvents() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => null);
     localStorage.removeItem(storage.user);
     state.user = null;
+    syncQueueCallGlancePreferenceAccount("");
     clearOutboundCallAvailability();
     document.body.classList.remove("is-authenticated");
     prefillLoginCredentials();
@@ -59478,6 +59565,17 @@ function installEvents() {
     event.preventDefault();
     void rescheduleCallbackDue(rescheduleForm);
   });
+  for (const listId of QUEUE_CALL_GLANCE_LISTS) {
+    for (const suffix of ["TodayCalls", "LastOutcome", "LastCallWithin", "TodayCallSort"]) {
+      qs<HTMLSelectElement>(`#${listId}${suffix}`)?.addEventListener("change", () => {
+        rememberQueueCallGlancePreference(listId);
+      });
+    }
+    qs<HTMLButtonElement>(`#${listId}GlancePrefReset`)?.addEventListener("click", (event) => {
+      event.preventDefault();
+      resetQueueCallGlancePreference(listId);
+    });
+  }
   qs<HTMLButtonElement>("#dashboardUnansweredPendingMine")?.addEventListener("click", () => {
     void loadUnansweredPendingQueue("mine");
   });

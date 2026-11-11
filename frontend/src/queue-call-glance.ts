@@ -70,3 +70,160 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+/**
+ * 当前账号在六份名单上的今日已拨、最近结果、最近通话和排序。
+ * 只记这四个下拉的取值，按账号和名单分开。不记行、对象或号码，也不建表、不加列。
+ * 没有记下的选择时，排序仍是今日未拨在前，不带次数、结果和时间筛选。
+ */
+
+export const QUEUE_CALL_GLANCE_LISTS = [
+  "intentFollowup",
+  "dashboardUnansweredPending",
+  "dashboardNegativeOutcomeFollowup",
+  "dashboardOtherOutcomeFollowup",
+  "dashboardUnlabeledConnectedFollowup",
+  "dashboardTodayFollowNext"
+] as const;
+
+export type QueueCallGlanceListId = typeof QUEUE_CALL_GLANCE_LISTS[number];
+export type QueueCallGlanceSort = "" | "uncalled" | "called" | "older" | "newer";
+
+export interface QueueCallGlancePreference {
+  todayCalls: QueueCallTodayCalls;
+  lastOutcome: string;
+  sort: QueueCallGlanceSort;
+  lastCallWithin: QueueCallLastWithin;
+}
+
+export const QUEUE_CALL_GLANCE_DEFAULT_PREFERENCE: QueueCallGlancePreference = {
+  todayCalls: "",
+  lastOutcome: "",
+  sort: "uncalled",
+  lastCallWithin: ""
+};
+
+const QUEUE_CALL_GLANCE_LIST_SET = new Set<string>(QUEUE_CALL_GLANCE_LISTS);
+const QUEUE_CALL_GLANCE_PREFERENCE_FIELDS = ["todayCalls", "lastOutcome", "sort", "lastCallWithin"] as const;
+const QUEUE_CALL_GLANCE_PREFERENCE_PREFIX = "gj_queue_call_glance_pref";
+const QUEUE_CALL_GLANCE_SORTS = new Set(["", "uncalled", "called", "older", "newer"]);
+
+export interface QueueCallGlancePreferenceStore {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export function isQueueCallGlanceList(listId: string): listId is QueueCallGlanceListId {
+  return QUEUE_CALL_GLANCE_LIST_SET.has(listId);
+}
+
+export function queueCallGlancePreferenceAccountId(accountId: string) {
+  const id = accountId.trim();
+  if (!id || id.length > 128 || /[\u0000-\u001f\u007f]/.test(id)) return "";
+  return id;
+}
+
+export function queueCallGlancePreferenceKey(accountId: string, listId: string) {
+  const id = queueCallGlancePreferenceAccountId(accountId);
+  if (!id || !isQueueCallGlanceList(listId)) return "";
+  return `${QUEUE_CALL_GLANCE_PREFERENCE_PREFIX}:${id}:${listId}`;
+}
+
+export function normalizeQueueCallGlancePreference(input: {
+  todayCalls?: string;
+  lastOutcome?: string;
+  sort?: string;
+  lastCallWithin?: string;
+}): QueueCallGlancePreference {
+  const query = queueCallGlanceQueryFromValues(
+    input.todayCalls || "",
+    input.lastOutcome || "",
+    input.sort || "",
+    input.lastCallWithin || ""
+  );
+  const sort = query.lastCallSort || query.todayCallSort || "";
+  return {
+    todayCalls: query.todayCalls || "",
+    lastOutcome: query.lastOutcome || "",
+    sort: QUEUE_CALL_GLANCE_SORTS.has(sort) ? sort as QueueCallGlanceSort : "",
+    lastCallWithin: query.lastCallWithin || ""
+  };
+}
+
+export function parseQueueCallGlancePreference(value: unknown): QueueCallGlancePreference | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length !== QUEUE_CALL_GLANCE_PREFERENCE_FIELDS.length) return null;
+  if (keys.some((key) => !QUEUE_CALL_GLANCE_PREFERENCE_FIELDS.includes(key as typeof QUEUE_CALL_GLANCE_PREFERENCE_FIELDS[number]))) return null;
+  const todayCalls = record.todayCalls;
+  const lastOutcome = record.lastOutcome;
+  const sort = record.sort;
+  const lastCallWithin = record.lastCallWithin;
+  if (typeof todayCalls !== "string" || typeof lastOutcome !== "string" || typeof sort !== "string" || typeof lastCallWithin !== "string") return null;
+  const normalized = normalizeQueueCallGlancePreference({ todayCalls, lastOutcome, sort, lastCallWithin });
+  if (normalized.todayCalls !== todayCalls || normalized.lastOutcome !== lastOutcome || normalized.sort !== sort || normalized.lastCallWithin !== lastCallWithin) return null;
+  return normalized;
+}
+
+export function queueCallGlancePreferenceQuery(preference: QueueCallGlancePreference): QueueCallGlanceQuery {
+  return queueCallGlanceQueryFromValues(
+    preference.todayCalls,
+    preference.lastOutcome,
+    preference.sort,
+    preference.lastCallWithin
+  );
+}
+
+export function readQueueCallGlancePreference(
+  store: Pick<QueueCallGlancePreferenceStore, "getItem">,
+  accountId: string,
+  listId: string
+): QueueCallGlancePreference | null {
+  const key = queueCallGlancePreferenceKey(accountId, listId);
+  if (!key) return null;
+  try {
+    const raw = store.getItem(key);
+    if (!raw) return null;
+    return parseQueueCallGlancePreference(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export function writeQueueCallGlancePreference(
+  store: Pick<QueueCallGlancePreferenceStore, "setItem">,
+  accountId: string,
+  listId: string,
+  preference: {
+    todayCalls?: string;
+    lastOutcome?: string;
+    sort?: string;
+    lastCallWithin?: string;
+  }
+) {
+  const key = queueCallGlancePreferenceKey(accountId, listId);
+  if (!key) return false;
+  try {
+    store.setItem(key, JSON.stringify(normalizeQueueCallGlancePreference(preference)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function clearQueueCallGlancePreference(
+  store: Pick<QueueCallGlancePreferenceStore, "removeItem">,
+  accountId: string,
+  listId: string
+) {
+  const key = queueCallGlancePreferenceKey(accountId, listId);
+  if (!key) return false;
+  try {
+    store.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
