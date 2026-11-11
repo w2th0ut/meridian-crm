@@ -3,7 +3,7 @@ import { displayMaskedNumber, formatEndedAgo } from "./call-wrapup-queue.js";
 import { hasOpenNextFollowUp, isMoreRecentCall } from "./intent-followup-queue.js";
 import { outboundInstant, tenantTimeZoneFor } from "./outbound-call.js";
 import { attachQueueCallGlance } from "./queue-call-glance.js";
-import { applyQueueCallGlanceView, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
+import { applyQueueCallGlanceView, queueCallGlanceClock, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import {
   isEstablishedCall,
   outboundCallRecordVisible,
@@ -331,7 +331,7 @@ export async function listUnansweredPendingQueue(store: CrmStore, user: SessionU
     reason: ""
   });
   const glanced = await attachQueueCallGlance(store, user, items, now);
-  const viewed = applyQueueCallGlanceView(glanced, glance.view);
+  const viewed = applyQueueCallGlanceView(glanced, glance.view, queueCallGlanceClock(now, resolved.access.timeZone));
   return {
     status: 200,
     body: {

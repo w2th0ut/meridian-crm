@@ -137,7 +137,17 @@ try {
     customer("c_view_two", shirleyUser.id, "Two <Co>", ""),
     customer("c_view_hidden", miaUser.id, "Hidden Co", ""),
     customer("c_view_early", shirleyUser.id, "Early Co", "2026-11-04 09:00"),
-    customer("c_view_late", shirleyUser.id, "Late Co", "2026-11-04 11:00")
+    customer("c_view_late", shirleyUser.id, "Late Co", "2026-11-04 11:00"),
+    customer("c_gap_20", shirleyUser.id, "Gap 20", ""),
+    customer("c_gap_30", shirleyUser.id, "Gap 30", ""),
+    customer("c_gap_31", shirleyUser.id, "Gap 31", ""),
+    customer("c_gap_60", shirleyUser.id, "Gap 60", ""),
+    customer("c_gap_61", shirleyUser.id, "Gap 61", ""),
+    customer("c_gap_future", shirleyUser.id, "Gap Future", ""),
+    customer("c_gap_yest", shirleyUser.id, "Gap Yest", ""),
+    customer("c_gap_ny", shirleyUser.id, "Gap NY", ""),
+    customer("c_gap_dash", shirleyUser.id, "Gap Dash", ""),
+    customer("c_gap_secret", miaUser.id, "Secret <Gap>", "")
   );
   const old = String(Date.parse("2026-11-02T02:00:00.000Z"));
   const early = String(Date.parse("2026-11-04T01:00:00.000Z"));
@@ -149,7 +159,17 @@ try {
     record({ id: "ocr_view_two_b", targetId: "c_view_two", startTimeRaw: late, callOutcome: "需回访", establishedTimeRaw: "1", contactDisposition: "Success" }),
     record({ id: "ocr_view_hidden", targetId: "c_view_hidden", startTimeRaw: old, callOutcome: "号码错误" }),
     record({ id: "ocr_view_early", targetId: "c_view_early", startTimeRaw: early, callOutcome: "需回访", establishedTimeRaw: "1", contactDisposition: "Success" }),
-    record({ id: "ocr_view_early_2", targetId: "c_view_early", startTimeRaw: late, callOutcome: "需回访", establishedTimeRaw: "1", contactDisposition: "Success" })
+    record({ id: "ocr_view_early_2", targetId: "c_view_early", startTimeRaw: late, callOutcome: "需回访", establishedTimeRaw: "1", contactDisposition: "Success" }),
+    record({ id: "ocr_gap_20", targetId: "c_gap_20", startTimeRaw: String(Date.parse("2026-11-04T02:10:00.000Z")), callOutcome: "有意向" }),
+    record({ id: "ocr_gap_30", targetId: "c_gap_30", startTimeRaw: String(Date.parse("2026-11-04T02:00:00.000Z")), callOutcome: "有意向" }),
+    record({ id: "ocr_gap_31", targetId: "c_gap_31", startTimeRaw: String(Date.parse("2026-11-04T01:59:00.000Z")), callOutcome: "有意向" }),
+    record({ id: "ocr_gap_60", targetId: "c_gap_60", startTimeRaw: String(Date.parse("2026-11-04T01:30:00.000Z")), callOutcome: "有意向" }),
+    record({ id: "ocr_gap_61", targetId: "c_gap_61", startTimeRaw: String(Date.parse("2026-11-04T01:29:00.000Z")), callOutcome: "有意向" }),
+    record({ id: "ocr_gap_future", targetId: "c_gap_future", startTimeRaw: String(Date.parse("2026-11-04T02:31:00.000Z")), callOutcome: "有意向" }),
+    record({ id: "ocr_gap_yest", targetId: "c_gap_yest", startTimeRaw: String(Date.parse("2026-11-03T02:30:00.000Z")), callOutcome: "无意向" }),
+    record({ id: "ocr_gap_ny", targetId: "c_gap_ny", startTimeRaw: String(Date.parse("2026-11-03T15:00:00.000Z")), callOutcome: "有意向" }),
+    record({ id: "ocr_gap_dash", targetId: "c_gap_dash", startTimeRaw: "", callOutcome: "", createdAt: "2026-11-04T02:20:00.000Z", updatedAt: "2026-11-04T02:20:00.000Z" }),
+    record({ id: "ocr_gap_secret", targetId: "c_gap_secret", startTimeRaw: String(Date.parse("2026-11-04T02:20:00.000Z")), callOutcome: "需回访", agentIds: "agent@ccc-view-a" })
   );
   const callsBefore = JSON.stringify(store.outboundCallRecords.map((item) => [item.id, item.callOutcome, item.establishedTimeRaw]));
   const auditsBefore = store.outboundCallAudits.length;
@@ -177,6 +197,8 @@ try {
   assert.equal(plain.response.status, 200, JSON.stringify(plain.json));
   assert.equal(plain.json.todayCalls, "");
   assert.equal(plain.json.todayCallSort, "");
+  assert.equal(plain.json.lastCallWithin, "");
+  assert.equal(plain.json.lastCallSort, "");
   const plainIds = idsOf(plain.json.items);
   assert.equal(plainIds.includes("c_view_zero"), true);
   assert.equal(plainIds.includes("c_view_two"), true);
@@ -201,9 +223,8 @@ try {
 
   const none = await request("/api/unanswered-pending-queue?scope=mine&todayCalls=1", shirley);
   assert.equal(none.response.status, 200);
-  assert.equal(none.json.empty, true);
-  assert.deepEqual(none.json.items, []);
-  assert.equal(none.text.includes("c_view_"), false);
+  assert.equal(none.json.items.some((item: { targetId?: string }) => String(item.targetId || "").startsWith("c_view_")), false);
+  assert.equal(none.json.items.every((item: { todayCallCount?: number }) => item.todayCallCount === 1), true);
 
   const unlabeled = await request("/api/unanswered-pending-queue?scope=mine&lastOutcome=%E6%9C%AA%E6%A0%87%E6%B3%A8", shirley);
   assert.equal(unlabeled.response.status, 200);
@@ -301,6 +322,118 @@ try {
     const result = await request(path, shirley);
     assert.equal(result.response.status, 400, path);
     assert.equal(result.text.includes("todayCallCount"), false, path);
+  }
+
+  const auditsBeforeGap = JSON.stringify(store.unansweredPendingQueueAudits || []);
+  function placed(items: Array<{ targetId?: string; lastCallAt?: string }>, id: string) {
+    return items.findIndex((item) => item.targetId === id);
+  }
+  const within30 = await request("/api/unanswered-pending-queue?scope=mine&lastCallWithin=30m", shirley);
+  assert.equal(within30.response.status, 200, within30.text);
+  assert.equal(within30.json.lastCallWithin, "30m");
+  const within30Ids = idsOf(within30.json.items);
+  assert.equal(within30Ids.includes("c_gap_20") && within30Ids.includes("c_gap_30"), true);
+  for (const id of ["c_gap_31", "c_gap_60", "c_gap_61", "c_gap_future", "c_gap_yest", "c_gap_ny", "c_gap_dash", "c_view_zero", "c_view_two", "c_view_hidden", "c_gap_secret"]) {
+    assert.equal(within30Ids.includes(id), false, id);
+  }
+  assert.equal(within30.text.includes("Secret <Gap>"), false);
+  assert.equal(within30.text.includes("c_gap_secret"), false);
+  assert.equal(within30.text.includes("ocr_gap_secret"), false);
+
+  const withinHour = await request("/api/unanswered-pending-queue?scope=mine&lastCallWithin=1h", shirley);
+  assert.equal(withinHour.response.status, 200, withinHour.text);
+  const withinHourIds = idsOf(withinHour.json.items);
+  for (const id of ["c_gap_20", "c_gap_30", "c_gap_31", "c_gap_60"]) assert.equal(withinHourIds.includes(id), true, id);
+  for (const id of ["c_gap_61", "c_gap_future", "c_gap_yest", "c_gap_dash", "c_view_zero", "c_view_two", "c_view_hidden", "c_gap_secret"]) {
+    assert.equal(withinHourIds.includes(id), false, id);
+  }
+
+  const calledToday = await request("/api/unanswered-pending-queue?scope=mine&lastCallWithin=today", shirley);
+  assert.equal(calledToday.response.status, 200, calledToday.text);
+  const calledTodayIds = idsOf(calledToday.json.items);
+  for (const id of ["c_gap_20", "c_gap_30", "c_gap_31", "c_gap_60", "c_gap_61", "c_gap_future", "c_view_two"]) {
+    assert.equal(calledTodayIds.includes(id), true, id);
+  }
+  for (const id of ["c_gap_yest", "c_gap_ny", "c_gap_dash", "c_view_zero", "c_view_hidden", "c_gap_secret"]) {
+    assert.equal(calledTodayIds.includes(id), false, id);
+  }
+  assert.equal(calledToday.text.includes("lastCallAt"), true);
+
+  const older = await request("/api/unanswered-pending-queue?scope=mine&lastCallSort=older", shirley);
+  assert.equal(older.response.status, 200, older.text);
+  const olderItems = older.json.items as Array<{ targetId?: string; lastCallAt?: string }>;
+  const olderChain = ["c_view_zero", "c_gap_yest", "c_gap_ny", "c_view_two", "c_gap_61", "c_gap_60", "c_gap_31", "c_gap_30", "c_gap_20", "c_gap_future", "c_gap_dash"];
+  const olderAt = olderChain.map((id) => placed(olderItems, id));
+  assert.equal(olderAt.every((index, at) => index >= 0 && (at === 0 || index > olderAt[at - 1])), true, olderAt.join(","));
+  const futureAt = placed(olderItems, "c_gap_future");
+  for (const id of ["c_gap_dash", "c_gap_secret", "c_view_hidden"]) {
+    assert.equal(placed(olderItems, id) > futureAt, true, id);
+  }
+  assert.equal("lastCallAt" in (olderItems.find((item) => item.targetId === "c_gap_secret") || {}), false);
+  assert.equal("lastCallAt" in (olderItems.find((item) => item.targetId === "c_view_hidden") || {}), false);
+  assert.equal(olderItems.find((item) => item.targetId === "c_gap_dash")?.lastCallAt, "—");
+
+  const newer = await request("/api/unanswered-pending-queue?scope=mine&lastCallSort=newer", shirley);
+  assert.equal(newer.response.status, 200, newer.text);
+  const newerItems = newer.json.items as Array<{ targetId?: string }>;
+  const newerChain = ["c_gap_future", "c_gap_20", "c_view_zero", "c_gap_dash"];
+  const newerAt = newerChain.map((id) => placed(newerItems, id));
+  assert.equal(newerAt.every((index, at) => index >= 0 && (at === 0 || index > newerAt[at - 1])), true, newerAt.join(","));
+  assert.equal(placed(newerItems, "c_gap_secret") > placed(newerItems, "c_view_zero"), true);
+  assert.equal("lastCallAt" in (newerItems.find((item) => item.targetId === "c_gap_secret") || {}), false);
+  assert.equal(plainIds.join(","), idsOf((await request("/api/unanswered-pending-queue?scope=mine", shirley)).json.items).join(","));
+
+  const combined = await request("/api/unanswered-pending-queue?scope=mine&lastCallWithin=1h&todayCalls=1&todayCallSort=uncalled", shirley);
+  assert.equal(combined.response.status, 200, combined.text);
+  assert.deepEqual(idsOf(combined.json.items).filter((id) => String(id).startsWith("c_gap_")), ["c_gap_60", "c_gap_31", "c_gap_30", "c_gap_20"]);
+
+  setTenantTimezoneOverride(store, "europe", "America/New_York");
+  const nyToday = await request("/api/unanswered-pending-queue?scope=mine&lastCallWithin=today", shirley);
+  assert.equal(nyToday.response.status, 200, nyToday.text);
+  const nyRow = nyToday.json.items.find((item: { targetId?: string }) => item.targetId === "c_gap_ny");
+  assert.equal(nyRow?.lastCallAt, "2026-11-03 10:00");
+  assert.equal(idsOf(nyToday.json.items).includes("c_gap_yest"), false);
+  setTenantTimezoneOverride(store, "europe", "Asia/Shanghai");
+  const backToday = await request("/api/unanswered-pending-queue?scope=mine&lastCallWithin=today", shirley);
+  assert.equal(idsOf(backToday.json.items).includes("c_gap_ny"), false);
+  assert.equal(backToday.json.items.find((item: { targetId?: string; lastCallAt?: string }) => item.targetId === "c_gap_20")?.lastCallAt, "2026-11-04 10:10");
+
+  const badWindow = await request("/api/unanswered-pending-queue?scope=mine&lastCallWithin=2h", shirley);
+  assert.equal(badWindow.response.status, 400);
+  assert.equal(badWindow.text.includes("todayCallCount"), false);
+  assert.equal(badWindow.text.includes("c_gap_20"), false);
+  const badSort = await request("/api/unanswered-pending-queue?scope=mine&lastCallSort=asc", shirley);
+  assert.equal(badSort.response.status, 400);
+  const badTwice = await request("/api/unanswered-pending-queue?scope=mine&lastCallWithin=1h&lastCallWithin=30m", shirley);
+  assert.equal(badTwice.response.status, 400);
+  const gapAuditBefore = (JSON.parse(auditsBeforeGap) as unknown[]).length;
+  const gapAudits = store.unansweredPendingQueueAudits || [];
+  const addedGap = gapAudits.slice(0, gapAudits.length - gapAuditBefore);
+  assert.equal(addedGap.length, 9);
+  assert.equal(JSON.stringify(addedGap).includes("lastCallWithin"), false);
+  assert.equal(JSON.stringify(addedGap).includes("lastCallAt"), false);
+
+  for (const path of [
+    "/api/intent-followup-queue?lastCallWithin=1h&lastCallSort=older",
+    "/api/negative-outcome-followups?scope=mine&lastCallWithin=30m",
+    "/api/other-outcome-followups?scope=mine&lastCallSort=newer",
+    "/api/unlabeled-connected-followups?scope=mine&lastCallWithin=today",
+    "/api/today-follow-next?scope=mine&lastCallSort=older"
+  ]) {
+    const result = await request(path, shirley);
+    assert.equal(result.response.status, 200, `${path} ${result.text}`);
+    assert.equal(result.text.includes("c_gap_secret"), false, path);
+  }
+  for (const path of [
+    "/api/intent-followup-queue?lastCallWithin=soon",
+    "/api/negative-outcome-followups?scope=mine&lastCallSort=0",
+    "/api/other-outcome-followups?scope=mine&lastCallWithin=1h&lastCallWithin=today",
+    "/api/unlabeled-connected-followups?scope=mine&lastCallSort=older&lastCallSort=newer",
+    "/api/today-follow-next?scope=mine&lastCallWithin=hour"
+  ]) {
+    const result = await request(path, shirley);
+    assert.equal(result.response.status, 400, path);
+    assert.equal(result.text.includes("c_gap_secret"), false, path);
   }
 
   assert.equal(JSON.stringify(store.outboundCallRecords.map((item) => [item.id, item.callOutcome, item.establishedTimeRaw])), callsBefore);

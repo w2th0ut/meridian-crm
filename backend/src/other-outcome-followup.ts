@@ -10,7 +10,7 @@ import {
 import { suggestedMissedFollowAt } from "./outbound-missed-follow-up.js";
 import { outboundInstant } from "./outbound-call.js";
 import { attachQueueCallGlance } from "./queue-call-glance.js";
-import { applyQueueCallGlanceView, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
+import { applyQueueCallGlanceView, queueCallGlanceClock, queueCallGlanceViewFields, QUEUE_CALL_GLANCE_VIEW_INVALID, takeQueueCallGlanceView } from "./queue-call-glance-view.js";
 import {
   isEstablishedCall,
   outboundCallRecordVisible,
@@ -306,7 +306,8 @@ export async function listOtherOutcomeFollowups(store: CrmStore, user: SessionUs
   }
   const resolved = await resolveOutboundCallRecordAccess(store, user);
   if (!resolved.ok) return { status: resolved.status, body: resolved.body };
-  const now = outboundInstant().toISOString();
+  const instant = outboundInstant();
+  const now = instant.toISOString();
   const items = queueFromStore(store, user, resolved.access, parsed, now);
   await writeAudit(store, {
     teamId: user.teamId,
@@ -321,8 +322,8 @@ export async function listOtherOutcomeFollowups(store: CrmStore, user: SessionUs
     result: "read",
     reason: ""
   });
-  const glanced = await attachQueueCallGlance(store, user, items);
-  const viewed = applyQueueCallGlanceView(glanced, glance.view);
+  const glanced = await attachQueueCallGlance(store, user, items, instant);
+  const viewed = applyQueueCallGlanceView(glanced, glance.view, queueCallGlanceClock(instant, resolved.access.timeZone));
   return {
     status: 200,
     body: {
