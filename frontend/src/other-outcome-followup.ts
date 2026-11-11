@@ -25,6 +25,7 @@ export interface OtherOutcomeFollowupItem {
   suppressionNotice?: string;
   todayCallCount?: number;
   lastCallOutcome?: string;
+  lastCallAt?: string;
 }
 
 export interface OtherOutcomeFollowupResponse extends QueueCallGlanceQuery {

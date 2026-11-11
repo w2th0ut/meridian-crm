@@ -3,7 +3,9 @@ import { isMoreRecentCall } from "./intent-followup-queue.js";
 import { callLocalDate } from "./outbound-call-records.js";
 import { zonedDateKey } from "./outbound-call.js";
 import {
+  formatQueueCallStartedAt,
   isMoreRecentQueueCall,
+  QUEUE_CALL_GLANCE_NO_TIME,
   queueCallOutcomeLabel,
   summarizeQueueCallGlance
 } from "./queue-call-glance.js";
@@ -125,8 +127,17 @@ const shanghai = summarizeQueueCallGlance({
   timeZone: "Asia/Shanghai",
   today: shanghaiToday
 });
+assert.equal(formatQueueCallStartedAt(String(Date.parse(late)), "Asia/Shanghai"), "2026-11-04 16:00");
+assert.equal(formatQueueCallStartedAt(String(Date.parse(late)), "America/New_York"), "2026-11-04 03:00");
+assert.equal(formatQueueCallStartedAt(String(Date.parse(early)), "Asia/Shanghai"), "2026-11-04 09:00");
+assert.equal(formatQueueCallStartedAt("not-a-time", "Asia/Shanghai"), "");
+assert.equal(formatQueueCallStartedAt("0", "Asia/Shanghai"), "");
+assert.equal(formatQueueCallStartedAt(String(Date.parse(late)), "Not/AZone"), "");
+assert.equal(formatQueueCallStartedAt("", "Asia/Shanghai"), "");
+
 assert.equal(shanghai.todayCallCount, 2);
 assert.equal(shanghai.lastCallOutcome, "需回访");
+assert.equal(shanghai.lastCallAt, "2026-11-04 16:00");
 
 const ny = summarizeQueueCallGlance({
   teamId: "europe",
@@ -139,6 +150,7 @@ const ny = summarizeQueueCallGlance({
 });
 assert.equal(ny.todayCallCount, 1);
 assert.equal(ny.lastCallOutcome, "需回访");
+assert.equal(ny.lastCallAt, "2026-11-04 03:00");
 
 const withHidden = summarizeQueueCallGlance({
   teamId: "europe",
@@ -151,6 +163,7 @@ const withHidden = summarizeQueueCallGlance({
 });
 assert.equal(withHidden.todayCallCount, 3);
 assert.equal(withHidden.lastCallOutcome, "需回访");
+assert.equal(withHidden.lastCallAt, "2026-11-04 16:00");
 
 const none = summarizeQueueCallGlance({
   teamId: "europe",
@@ -163,6 +176,7 @@ const none = summarizeQueueCallGlance({
 });
 assert.equal(none.todayCallCount, 0);
 assert.equal(none.lastCallOutcome, "未标注");
+assert.equal(none.lastCallAt, QUEUE_CALL_GLANCE_NO_TIME);
 
 const unlabeledLatest = summarizeQueueCallGlance({
   teamId: "europe",
@@ -175,5 +189,57 @@ const unlabeledLatest = summarizeQueueCallGlance({
 });
 assert.equal(unlabeledLatest.todayCallCount, 1);
 assert.equal(unlabeledLatest.lastCallOutcome, "未标注");
+assert.equal(unlabeledLatest.lastCallAt, "2026-11-04 09:00");
+
+const hiddenLater = summarizeQueueCallGlance({
+  teamId: "europe",
+  targetType: "customer",
+  targetId: "c1",
+  records: [
+    record({ id: "seen", startTimeRaw: String(Date.parse(early)), callOutcome: "有意向" }),
+    record({
+      id: "secret",
+      startTimeRaw: String(Date.parse("2026-11-04T10:00:00.000Z")),
+      callOutcome: "号码错误",
+      agentIds: "agent-b"
+    })
+  ],
+  visible,
+  timeZone: "Asia/Shanghai",
+  today: shanghaiToday
+});
+assert.equal(hiddenLater.todayCallCount, 1);
+assert.equal(hiddenLater.lastCallOutcome, "有意向");
+assert.equal(hiddenLater.lastCallAt, "2026-11-04 09:00");
+
+const unparsedLatest = summarizeQueueCallGlance({
+  teamId: "europe",
+  targetType: "customer",
+  targetId: "c1",
+  records: [
+    record({
+      id: "older-real",
+      startTimeRaw: String(Date.parse("2026-11-02T02:00:00.000Z")),
+      callOutcome: "无意向",
+      createdAt: "2026-11-02T02:00:00.000Z",
+      updatedAt: "2026-11-02T02:00:00.000Z"
+    }),
+    record({
+      id: "newest-bad",
+      startTimeRaw: "not-a-time",
+      callOutcome: "有意向",
+      createdAt: "2026-11-04T12:00:00.000Z",
+      updatedAt: "2026-11-04T12:00:00.000Z"
+    })
+  ],
+  visible: () => true,
+  timeZone: "Asia/Shanghai",
+  today: shanghaiToday
+});
+assert.equal(unparsedLatest.lastCallOutcome, "有意向");
+assert.equal(unparsedLatest.todayCallCount, 0);
+assert.equal(unparsedLatest.lastCallAt, QUEUE_CALL_GLANCE_NO_TIME);
+assert.equal(unparsedLatest.lastCallAt.includes("2026-11-02"), false);
+assert.equal(unparsedLatest.lastCallAt.includes("12:00"), false);
 
 console.log("queue call glance tests passed");
