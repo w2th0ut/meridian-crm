@@ -35,8 +35,38 @@ import type { CallOutcomeAudit, SessionUser } from "./types.js";
  * 号码错误可以同时把这一通对上的号码标为无效，并在首选正是它时改到另一个有效号码。
  * 可以同时把关联对象的负责人转给同租户的另一位同事。不选则不改负责人。
  * 只改本条的 callOutcome 和 callOutcomeNote，以及该对象已有的下次跟进、无效号、首选和 ownerId。
+ * 结果正好是「未标注」时，把人工标注清空成空字符串，不另存第六项。空字符串和其他文字仍拒绝。
+ * preserveNote 为 true 时不改原来的备注。不带时，省略备注仍是没有备注。
  * 不拨号，不发信，不推进序列，不解除抑制，不转线索。
  */
+
+export const CALL_OUTCOME_CLEAR_LABEL = "未标注";
+
+/**
+ * 行内登记把「未标注」当成清空，并可以要求保留备注。
+ * 清空在交给原来的解析前换成一项合法结果，真正写入时仍是空字符串。
+ * 不带 preserveNote 时，请求体保持原样。
+ */
+export function prepareQueueCallOutcomeWrite(body: unknown):
+  | { ok: true; body: unknown; clearing: boolean; preserveNote: boolean }
+  | { ok: false; reason: "invalid_request" } {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: true, body, clearing: false, preserveNote: false };
+  }
+  const record = { ...(body as Record<string, unknown>) };
+  let preserveNote = false;
+  if ("preserveNote" in record) {
+    if (record.preserveNote !== true && record.preserveNote !== false) {
+      return { ok: false, reason: "invalid_request" };
+    }
+    preserveNote = record.preserveNote === true;
+    delete record.preserveNote;
+  }
+  const outcome = typeof record.outcome === "string" ? record.outcome.trim() : "";
+  const clearing = outcome === CALL_OUTCOME_CLEAR_LABEL;
+  if (clearing) record.outcome = "其他";
+  return { ok: true, body: record, clearing, preserveNote };
+}
 
 const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "outcomes", "phones", "phoneIds", "ownerIds", "assignees", "users"] as const;
 
@@ -103,7 +133,11 @@ export async function labelCallOutcome(
   if (!user?.id || !user.teamId) {
     return { status: 401, body: { message: "未登录" } };
   }
-  const parsed = parseCallOutcomeRequest(body);
+  const prepared = prepareQueueCallOutcomeWrite(body);
+  if (!prepared.ok) {
+    return reject("invalid_request", "一次只能为一条通话记录标注结果");
+  }
+  const parsed = parseCallOutcomeRequest(prepared.body);
   if (!parsed.ok) {
     const message = parsed.reason === "note_too_long"
       ? `备注不能超过 ${CALL_OUTCOME_NOTE_MAX} 字`
@@ -174,7 +208,9 @@ export async function labelCallOutcome(
   }
   const previousOutcome = record.callOutcome || "";
   const previousNote = record.callOutcomeNote || "";
-  const outcomeChanged = previousOutcome !== parsed.outcome || previousNote !== parsed.note;
+  const writtenOutcome = prepared.clearing ? "" : parsed.outcome;
+  const writtenNote = prepared.preserveNote ? previousNote : parsed.note;
+  const outcomeChanged = previousOutcome !== writtenOutcome || previousNote !== writtenNote;
   const followChanged = follow.kind === "write" && follow.previous !== follow.next;
   const nextFollowAt = follow.kind === "write" ? follow.next : "";
   const nextFollowResult = follow.kind === "skip" ? "skipped" as const : followChanged ? "updated" as const : "unchanged" as const;
@@ -204,8 +240,8 @@ export async function labelCallOutcome(
         result: "unchanged" as const,
         message: "标注没有变化",
         callRecordId: record.id,
-        outcome: parsed.outcome,
-        note: parsed.note,
+        outcome: writtenOutcome,
+        note: writtenNote,
         nextFollowChoice: parsed.nextFollowChoice,
         nextFollowAt,
         nextFollowResult,
@@ -220,16 +256,16 @@ export async function labelCallOutcome(
   if (ownerChanged && transfer.kind === "write") transfer.apply();
   let auditId = "";
   if (outcomeChanged) {
-    record.callOutcome = parsed.outcome;
-    record.callOutcomeNote = parsed.note;
+    record.callOutcome = writtenOutcome;
+    record.callOutcomeNote = writtenNote;
     auditId = writeOutcomeAudit(store, {
       teamId: user.teamId,
       actorId: user.id,
       callRecordId: record.id,
       previousOutcome,
-      nextOutcome: parsed.outcome,
+      nextOutcome: writtenOutcome,
       previousNote,
-      nextNote: parsed.note
+      nextNote: writtenNote
     }).id;
   }
   if (followChanged && follow.kind === "write") {
@@ -283,8 +319,8 @@ export async function labelCallOutcome(
       result: "updated" as const,
       message,
       callRecordId: record.id,
-      outcome: parsed.outcome,
-      note: parsed.note,
+      outcome: writtenOutcome,
+      note: writtenNote,
       ...(auditId ? { auditId } : {}),
       nextFollowChoice: parsed.nextFollowChoice,
       nextFollowAt,

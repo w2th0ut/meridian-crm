@@ -138,6 +138,7 @@ assert.equal(formatQueueCallStartedAt("", "Asia/Shanghai"), "");
 assert.equal(shanghai.todayCallCount, 2);
 assert.equal(shanghai.lastCallOutcome, "需回访");
 assert.equal(shanghai.lastCallAt, "2026-11-04 16:00");
+assert.equal(shanghai.latestCallRecordId, "late");
 
 const ny = summarizeQueueCallGlance({
   teamId: "europe",
@@ -177,6 +178,7 @@ const none = summarizeQueueCallGlance({
 assert.equal(none.todayCallCount, 0);
 assert.equal(none.lastCallOutcome, "未标注");
 assert.equal(none.lastCallAt, QUEUE_CALL_GLANCE_NO_TIME);
+assert.equal(none.latestCallRecordId, "");
 
 const unlabeledLatest = summarizeQueueCallGlance({
   teamId: "europe",
@@ -211,6 +213,7 @@ const hiddenLater = summarizeQueueCallGlance({
 assert.equal(hiddenLater.todayCallCount, 1);
 assert.equal(hiddenLater.lastCallOutcome, "有意向");
 assert.equal(hiddenLater.lastCallAt, "2026-11-04 09:00");
+assert.equal(hiddenLater.latestCallRecordId, "seen");
 
 const unparsedLatest = summarizeQueueCallGlance({
   teamId: "europe",

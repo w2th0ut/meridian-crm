@@ -86,6 +86,7 @@ import {
   readQueueTodayCallCount,
   type QueueUndialedAnchor
 } from "./queue-next-undialed";
+import { isQueueCallOutcomeChoice, queueCallOutcomeBody } from "./queue-call-outcome";
 import {
   intentFollowupQuery,
   renderIntentFollowupFailure,
@@ -20224,6 +20225,48 @@ function reloadPromotedDashboardQueues() {
   if (queueUndialedFocus.has("dashboardOtherOutcomeFollowup")) void loadOtherOutcomeFollowups(otherOutcomeFollowupScope);
   if (queueUndialedFocus.has("dashboardUnlabeledConnectedFollowup")) void loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope);
   if (queueUndialedFocus.has("dashboardTodayFollowNext")) void openNextTodayFollow("", "", todayFollowNextScope, false);
+}
+
+async function settleInlineQueueCallOutcome(targetType: string, targetId: string) {
+  armQueueUndialedFromOutcome(targetType, targetId);
+  promoteQueueUndialedFocus("dashboard");
+  promoteQueueUndialedFocus("intent-followup-queue");
+  if (queueUndialedFocus.has("intentFollowup")) await loadIntentFollowupQueue();
+  if (queueUndialedFocus.has("dashboardUnansweredPending")) await loadUnansweredPendingQueue(unansweredPendingScope);
+  if (queueUndialedFocus.has("dashboardNegativeOutcomeFollowup")) await loadNegativeOutcomeFollowups(negativeOutcomeFollowupScope);
+  if (queueUndialedFocus.has("dashboardOtherOutcomeFollowup")) await loadOtherOutcomeFollowups(otherOutcomeFollowupScope);
+  if (queueUndialedFocus.has("dashboardUnlabeledConnectedFollowup")) await loadUnlabeledConnectedFollowups(unlabeledConnectedFollowupScope);
+  if (queueUndialedFocus.has("dashboardTodayFollowNext")) await openNextTodayFollow("", "", todayFollowNextScope, false);
+}
+
+let queueCallOutcomePending = false;
+
+async function submitQueueCallOutcome(form: HTMLFormElement) {
+  const recordId = form.dataset.callRecordId || "";
+  const outcome = form.querySelector<HTMLSelectElement>("[data-queue-call-outcome-value]")?.value.trim() || "";
+  if (!recordId || queueCallOutcomePending) return;
+  if (!isQueueCallOutcomeChoice(outcome)) {
+    toast("请选择通话结果", "error");
+    return;
+  }
+  const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  queueCallOutcomePending = true;
+  if (button) button.disabled = true;
+  try {
+    const result = await api<{ message?: string; result?: string }>(
+      `/api/outbound-call-records/${encodeURIComponent(recordId)}/outcome`,
+      { method: "POST", body: JSON.stringify(queueCallOutcomeBody(outcome)) }
+    );
+    toast(result.message || "已保存通话结果");
+    if (result.result === "updated" || result.result === "unchanged") {
+      await settleInlineQueueCallOutcome(form.dataset.targetType || "", form.dataset.targetId || "");
+    }
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "通话结果没有保存", "error");
+  } finally {
+    queueCallOutcomePending = false;
+    if (button) button.disabled = false;
+  }
 }
 
 function unansweredPendingAge(): "" | "within7" | "over7" {
@@ -58814,6 +58857,12 @@ function installEvents() {
   qs<HTMLFormElement>("#intentFollowupFilters")?.addEventListener("submit", (event) => {
     event.preventDefault();
     void loadIntentFollowupQueue();
+  });
+  document.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-queue-call-outcome]");
+    if (!form) return;
+    event.preventDefault();
+    void submitQueueCallOutcome(form);
   });
   qs<HTMLElement>("#intentFollowupQueue")?.addEventListener("submit", (event) => {
     const callbackForm = (event.target as HTMLElement | null)?.closest<HTMLFormElement>("[data-callback-schedule-form]");

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { parseCallOutcomeRequest } from "./call-outcome.js";
+import { parseCallOutcomeRequest, prepareQueueCallOutcomeWrite } from "./call-outcome.js";
 import {
   CALL_OUTCOME_NOTE_MAX,
   CALL_OUTCOMES,
@@ -37,6 +37,26 @@ assert.deepEqual(parseCallOutcomeRequest({ outcome: "有意向", nextFollowChoic
 });
 assert.equal(parseCallOutcomeRequest({ outcome: "成交" }).ok, false);
 assert.equal(parseCallOutcomeRequest({ outcome: "" }).ok, false);
+assert.equal(parseCallOutcomeRequest({ outcome: "未标注" }).ok, false);
+const preserved = prepareQueueCallOutcomeWrite({ outcome: " 需回访 ", preserveNote: true });
+assert.equal(preserved.ok, true);
+if (preserved.ok) {
+  assert.equal(preserved.clearing, false);
+  assert.equal(preserved.preserveNote, true);
+  assert.equal("preserveNote" in (preserved.body as object), false);
+}
+const clearing = prepareQueueCallOutcomeWrite({ outcome: " 未标注 ", preserveNote: true, note: "留着" });
+assert.equal(clearing.ok, true);
+if (clearing.ok) {
+  assert.equal(clearing.clearing, true);
+  assert.equal(clearing.preserveNote, true);
+  assert.equal((clearing.body as { outcome: string }).outcome, "其他");
+  const parsedClear = parseCallOutcomeRequest(clearing.body);
+  assert.equal(parsedClear.ok, true);
+  if (parsedClear.ok) assert.equal(parsedClear.note, "留着");
+}
+assert.equal(prepareQueueCallOutcomeWrite({ outcome: "未标注", preserveNote: "yes" }).ok, false);
+assert.equal(prepareQueueCallOutcomeWrite({ outcome: "" }).ok, true);
 assert.equal(parseCallOutcomeRequest({ note: "只有备注" }).ok, false);
 assert.equal(parseCallOutcomeRequest({ outcome: "有意向", note: 1 }).ok, false);
 assert.equal(parseCallOutcomeRequest(["有意向"]).ok, false);
