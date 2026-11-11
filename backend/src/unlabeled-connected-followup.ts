@@ -335,6 +335,7 @@ export async function listUnlabeledConnectedFollowups(store: CrmStore, user: Ses
     body: {
       scope: parsed.scope,
       ...queueCallGlanceViewFields(glance.view),
+      timeZone: resolved.access.timeZone,
       empty: viewed.length === 0,
       items: viewed
     }

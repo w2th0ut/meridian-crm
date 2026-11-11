@@ -4,7 +4,7 @@ import { queueOwnerReassignFormFor, queueOwnerReassignPick, type QueueOwnerReass
 import { backupNumberBatchFormFor, backupNumberBatchPick } from "./backup-number-batch";
 import { phoneInvalidBatchFormFor, phoneInvalidBatchPick, type PhoneInvalidBatchView } from "./phone-invalid-batch";
 import { callNoteAppendFormFor, callNoteAppendPick } from "./call-note-append-batch";
-import { renderQueueCallOutcomeForm } from "./queue-call-outcome";
+import { queueNextFollowWritable, renderQueueCallOutcomeForm } from "./queue-call-outcome";
 import { appendQueueCallGlanceQuery, queueCallGlanceFilterActive, queueCallGlanceFilterEmpty, queueCallGlanceMarkup, type QueueCallGlanceQuery } from "./queue-call-glance";
 import { sameDaySkipBatchFormFor, sameDaySkipBatchPick } from "./same-day-skip-batch";
 
@@ -35,6 +35,7 @@ export interface IntentFollowupQueueRow {
   todayCallCount?: number;
   lastCallOutcome?: string;
   lastCallAt?: string;
+  nextFollowAt?: string;
 }
 
 export interface IntentFollowupAgentOption {
@@ -108,7 +109,7 @@ function rowActions(row: IntentFollowupQueueRow, suggested: string) {
   return `<form class="intent-followup-actions" data-intent-followup-form="1" ${identity(row)}><label>下次跟进<input type="datetime-local" data-intent-follow-at value="${escapeHtml(suggested)}"></label><button class="btn" type="submit">安排跟进</button><button class="btn" type="button" data-intent-ignore="1">忽略</button></form>`;
 }
 
-export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefined, suggestedNextFollowAt: string, view?: QueueOwnerReassignView, canSkip = false, markView?: PhoneInvalidBatchView) {
+export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefined, suggestedNextFollowAt: string, view?: QueueOwnerReassignView, canSkip = false, markView?: PhoneInvalidBatchView, timeZone = "") {
   if (!rows?.length) return "";
   const suggested = toDateTimeLocal(suggestedNextFollowAt);
   const body = rows.map((row) => {
@@ -122,7 +123,11 @@ export function renderIntentFollowupRows(rows: IntentFollowupQueueRow[] | undefi
     });
     const ownerLabel = row.ownerAgentId ? (row.ownerAgentLabel || row.ownerAgentId) : "未指派";
     const pick = row.ignored ? "" : `${missingNextFollowupPick(row.targetType, row.targetId)}${queueOwnerReassignPick(row.targetType, row.targetId, view)}${sameDaySkipBatchPick(row.targetType, row.targetId, canSkip)}${phoneInvalidBatchPick(row.targetType, row.targetId, markView)}${backupNumberBatchPick(row.targetType, row.targetId, markView)}${callNoteAppendPick(row.targetType, row.callRecordId || "", markView)}`;
-    const outcomeForm = renderQueueCallOutcomeForm(row);
+    const outcomeForm = renderQueueCallOutcomeForm({
+      ...row,
+      canWriteNextFollow: queueNextFollowWritable(row.targetType, markView),
+      timeZone
+    });
     return `<tr data-intent-followup-row="1"${ignored} ${identity(row)}><td>${pick}<button type="button" class="btn" data-intent-followup-open="1">${escapeHtml(row.name || row.targetId)}</button><div>${escapeHtml(row.targetLabel || row.targetType)}</div>${notice(row)}${queueCallGlanceMarkup(row)}</td><td>${escapeHtml(row.outcome || "—")}</td><td data-labeled-at="${escapeHtml(row.labeledAt || "")}">${escapeHtml(formatStamp(row.labeledAt || ""))}</td><td data-agent-label="${escapeHtml(row.agentLabel || "")}">${escapeHtml(row.agentLabel || "—")}</td><td data-owner-agent="${escapeHtml(row.ownerAgentId || "")}">${escapeHtml(ownerLabel)}</td><td>${escapeHtml(row.maskedNumber || "—")}</td><td>${rowActions(row, suggested)}${callback}${outcomeForm}</td></tr>`;
   }).join("");
   return `<div class="outbound-record-table-wrap"><table class="outbound-record-table"><thead><tr><th>对象</th><th>通话结果</th><th>标注时间</th><th>坐席</th><th>负责坐席</th><th>号码</th><th>操作</th></tr></thead><tbody>${body}</tbody></table></div>`;
@@ -144,10 +149,10 @@ export function renderIntentFollowupQueue(input: IntentFollowupQueueResponse, vi
   }
   const suggested = input.suggestedNextFollowAt || "";
   const activeHtml = active.length
-    ? `${missingNextFollowupBatchForm()}${queueOwnerReassignFormFor(active, view)}${sameDaySkipBatchFormFor(active, canSkip)}${phoneInvalidBatchFormFor(active, markView)}${backupNumberBatchFormFor(active, markView)}${callNoteAppendFormFor(active, markView)}${renderIntentFollowupRows(active, suggested, view, canSkip, markView)}`
+    ? `${missingNextFollowupBatchForm()}${queueOwnerReassignFormFor(active, view)}${sameDaySkipBatchFormFor(active, canSkip)}${phoneInvalidBatchFormFor(active, markView)}${backupNumberBatchFormFor(active, markView)}${callNoteAppendFormFor(active, markView)}${renderIntentFollowupRows(active, suggested, view, canSkip, markView, input.timeZone || "")}`
     : "";
   const ignoredHtml = ignored.length
-    ? `<section data-intent-followup-ignored="1"><h2>已忽略</h2>${renderIntentFollowupRows(ignored, suggested, view)}</section>`
+    ? `<section data-intent-followup-ignored="1"><h2>已忽略</h2>${renderIntentFollowupRows(ignored, suggested, view, false, markView, input.timeZone || "")}</section>`
     : "";
   return `${activeHtml}${ignoredHtml}`;
 }

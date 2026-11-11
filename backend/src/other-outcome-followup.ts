@@ -329,6 +329,7 @@ export async function listOtherOutcomeFollowups(store: CrmStore, user: SessionUs
     body: {
       scope: parsed.scope,
       ...queueCallGlanceViewFields(glance.view),
+      timeZone: resolved.access.timeZone,
       empty: viewed.length === 0,
       items: viewed
     }

@@ -20249,13 +20249,24 @@ async function submitQueueCallOutcome(form: HTMLFormElement) {
     toast("请选择通话结果", "error");
     return;
   }
+  const clearFollow = form.querySelector<HTMLInputElement>("[data-queue-next-follow-clear]")?.checked === true;
+  const rawFollow = form.querySelector<HTMLInputElement>("[data-queue-next-follow-at]")?.value || "";
+  const inlineFollow = rawFollow.trim() ? fromDateTimeLocal(rawFollow) : "";
+  if (rawFollow.trim() && !inlineFollow) {
+    toast("下次跟进时间格式不对", "error");
+    return;
+  }
+  if (clearFollow && inlineFollow) {
+    toast("清空和填写下次跟进请只选一项", "error");
+    return;
+  }
   const button = form.querySelector<HTMLButtonElement>("button[type='submit']");
   queueCallOutcomePending = true;
   if (button) button.disabled = true;
   try {
     const result = await api<{ message?: string; result?: string }>(
       `/api/outbound-call-records/${encodeURIComponent(recordId)}/outcome`,
-      { method: "POST", body: JSON.stringify(queueCallOutcomeBody(outcome)) }
+      { method: "POST", body: JSON.stringify(queueCallOutcomeBody(outcome, inlineFollow, clearFollow)) }
     );
     toast(result.message || "已保存通话结果");
     if (result.result === "updated" || result.result === "unchanged") {

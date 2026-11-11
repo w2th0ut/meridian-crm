@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   isSameDayFollowChoice,
   planCallOutcomeNextFollow,
+  planExplicitCallOutcomeNextFollow,
   parseCallOutcomeNextFollowChoice,
   type CallOutcomeNextFollowChoice
 } from "./call-outcome-next-follow.js";
@@ -13,6 +14,7 @@ import {
   type WrongNumberEffect
 } from "./call-outcome-wrong-number.js";
 import { appendNextFollowUpAudit } from "./next-follow-up-audit.js";
+import { normalizeProspectNextFollowAt, ProspectFollowUpError } from "./prospect-follow-up.js";
 import { appendOwnerReassignAudit } from "./owner-reassign-audit.js";
 import {
   CALL_OUTCOME_NOTE_MAX,
@@ -37,21 +39,29 @@ import type { CallOutcomeAudit, SessionUser } from "./types.js";
  * 只改本条的 callOutcome 和 callOutcomeNote，以及该对象已有的下次跟进、无效号、首选和 ownerId。
  * 结果正好是「未标注」时，把人工标注清空成空字符串，不另存第六项。空字符串和其他文字仍拒绝。
  * preserveNote 为 true 时不改原来的备注。不带时，省略备注仍是没有备注。
+ * 行内登记可以另带租户当地的墙上时间，或显式清空下次跟进。不带则不改原来的下次跟进。
  * 不拨号，不发信，不推进序列，不解除抑制，不转线索。
  */
 
 export const CALL_OUTCOME_CLEAR_LABEL = "未标注";
 
+export type QueueInlineNextFollow =
+  | { kind: "omit" }
+  | { kind: "set"; value: string }
+  | { kind: "clear" };
+
 /**
  * 行内登记把「未标注」当成清空，并可以要求保留备注。
  * 清空在交给原来的解析前换成一项合法结果，真正写入时仍是空字符串。
  * 不带 preserveNote 时，请求体保持原样。
+ * inlineNextFollow 是租户当地的 YYYY-MM-DD HH:mm。空着或不带就是不改下次跟进。
+ * clearInlineNextFollow 为 true 才清空。不接受再带手填的 nextFollowAt。
  */
 export function prepareQueueCallOutcomeWrite(body: unknown):
-  | { ok: true; body: unknown; clearing: boolean; preserveNote: boolean }
-  | { ok: false; reason: "invalid_request" } {
+  | { ok: true; body: unknown; clearing: boolean; preserveNote: boolean; inlineNextFollow: QueueInlineNextFollow }
+  | { ok: false; reason: "invalid_request" | "invalid_next_follow" } {
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
-    return { ok: true, body, clearing: false, preserveNote: false };
+    return { ok: true, body, clearing: false, preserveNote: false, inlineNextFollow: { kind: "omit" } };
   }
   const record = { ...(body as Record<string, unknown>) };
   let preserveNote = false;
@@ -62,10 +72,39 @@ export function prepareQueueCallOutcomeWrite(body: unknown):
     preserveNote = record.preserveNote === true;
     delete record.preserveNote;
   }
+  const inline = readInlineNextFollow(record);
+  if (!inline.ok) return inline;
+  delete record.inlineNextFollow;
+  delete record.clearInlineNextFollow;
   const outcome = typeof record.outcome === "string" ? record.outcome.trim() : "";
   const clearing = outcome === CALL_OUTCOME_CLEAR_LABEL;
   if (clearing) record.outcome = "其他";
-  return { ok: true, body: record, clearing, preserveNote };
+  return { ok: true, body: record, clearing, preserveNote, inlineNextFollow: inline.follow };
+}
+
+function readInlineNextFollow(record: Record<string, unknown>):
+  | { ok: true; follow: QueueInlineNextFollow }
+  | { ok: false; reason: "invalid_request" | "invalid_next_follow" } {
+  const hasTime = "inlineNextFollow" in record;
+  const hasClear = "clearInlineNextFollow" in record;
+  if (!hasTime && !hasClear) return { ok: true, follow: { kind: "omit" } };
+  if (hasClear && record.clearInlineNextFollow !== true && record.clearInlineNextFollow !== false) {
+    return { ok: false, reason: "invalid_request" };
+  }
+  if (hasTime && record.inlineNextFollow !== null && typeof record.inlineNextFollow !== "string") {
+    return { ok: false, reason: "invalid_request" };
+  }
+  const clear = record.clearInlineNextFollow === true;
+  const raw = typeof record.inlineNextFollow === "string" ? record.inlineNextFollow.trim() : "";
+  if (clear && raw) return { ok: false, reason: "invalid_request" };
+  if (clear) return { ok: true, follow: { kind: "clear" } };
+  if (!raw) return { ok: true, follow: { kind: "omit" } };
+  try {
+    return { ok: true, follow: { kind: "set", value: normalizeProspectNextFollowAt(raw) } };
+  } catch (error) {
+    if (error instanceof ProspectFollowUpError) return { ok: false, reason: "invalid_next_follow" };
+    throw error;
+  }
 }
 
 const BATCH_KEYS = ["records", "ids", "callRecordIds", "recordIds", "targets", "outcomes", "phones", "phoneIds", "ownerIds", "assignees", "users"] as const;
@@ -135,6 +174,9 @@ export async function labelCallOutcome(
   }
   const prepared = prepareQueueCallOutcomeWrite(body);
   if (!prepared.ok) {
+    if (prepared.reason === "invalid_next_follow") {
+      return reject("invalid_next_follow", "下次跟进时间请用日期和时间，例如 2026-10-30 15:30");
+    }
     return reject("invalid_request", "一次只能为一条通话记录标注结果");
   }
   const parsed = parseCallOutcomeRequest(prepared.body);
@@ -152,6 +194,9 @@ export async function labelCallOutcome(
               : "一次只能为一条通话记录标注结果";
     return reject(parsed.reason, message);
   }
+  if (prepared.inlineNextFollow.kind !== "omit" && parsed.nextFollowChoice !== "none") {
+    return reject("invalid_request", "一次只能为一条通话记录标注结果");
+  }
   const resolved = await resolveOutboundCallRecordAccess(store, user);
   if (!resolved.ok) return { status: resolved.status, body: resolved.body };
   const record = store.outboundCallRecords.find((item) => item.id === callRecordId);
@@ -162,7 +207,15 @@ export async function labelCallOutcome(
     return reject("not_unanswered", "只有未接通的通话可以选 2 小时后或 4 小时后");
   }
   const now = outboundInstant();
-  const follow = await planCallOutcomeNextFollow(store, user, record, parsed.nextFollowChoice, now);
+  const follow = prepared.inlineNextFollow.kind === "omit"
+    ? await planCallOutcomeNextFollow(store, user, record, parsed.nextFollowChoice, now)
+    : await planExplicitCallOutcomeNextFollow(
+      store,
+      user,
+      record,
+      prepared.inlineNextFollow.kind === "clear" ? "" : prepared.inlineNextFollow.value,
+      now
+    );
   if (!follow.ok) {
     if (follow.audit) {
       appendNextFollowUpAudit(store, {
@@ -273,7 +326,7 @@ export async function labelCallOutcome(
       actorId: user.id,
       objectType: follow.objectType,
       objectId: follow.objectId,
-      action: "set_next_follow_up",
+      action: follow.next ? "set_next_follow_up" : "clear_next_follow_up",
       oldValue: follow.previous,
       newValue: follow.next,
       callRecordId: record.id,
@@ -293,15 +346,20 @@ export async function labelCallOutcome(
     });
   }
   await store.persist();
+  const followText = !followChanged
+    ? ""
+    : follow.kind === "write" && follow.next === ""
+      ? "已清除下次跟进"
+      : "已记下下次跟进";
   const baseMessage = !validityChanged && preferredSwitchResult !== "updated" && preferredSwitchResult !== "cleared"
     ? outcomeChanged && followChanged
-      ? "已保存通话结果，并记下下次跟进"
-      : followChanged
-        ? "已记下下次跟进"
-        : "已保存通话结果"
+      ? followText === "已清除下次跟进"
+        ? "已保存通话结果，已清除下次跟进"
+        : "已保存通话结果，并记下下次跟进"
+      : followText || "已保存通话结果"
     : [
       outcomeChanged ? "已保存通话结果" : "",
-      followChanged ? "已记下下次跟进" : "",
+      followText,
       validityChanged ? "已把这个号码标为无效" : "",
       preferredSwitchResult === "updated" ? "已把首选改到另一个号码" : "",
       preferredSwitchResult === "cleared" ? "这个号码不再是首选" : ""

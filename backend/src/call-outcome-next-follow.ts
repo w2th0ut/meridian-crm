@@ -154,6 +154,35 @@ function rejectPlan(
   return { ok: false, status, reason, message, audit: { action, objectType, objectId } };
 }
 
+function missingTargetPlan(): CallOutcomeNextFollowPlan {
+  return {
+    ok: false,
+    status: 400,
+    reason: "no_target",
+    message: "这条通话没有关联对象，不能记下下次跟进",
+    audit: null
+  };
+}
+
+/**
+ * 按已经算好的墙上时间写下次跟进。空字符串是清空。
+ * 权限、公池、可联系和审计口径与快选相同。
+ */
+export async function planExplicitCallOutcomeNextFollow(
+  store: CrmStore,
+  user: SessionUser,
+  record: Pick<OutboundCallRecord, "targetType" | "targetId">,
+  next: string,
+  now: Date
+): Promise<CallOutcomeNextFollowPlan> {
+  const targetType = record.targetType;
+  const targetId = (record.targetId || "").trim();
+  if ((targetType !== "customer" && targetType !== "lead" && targetType !== "prospect") || !targetId) {
+    return missingTargetPlan();
+  }
+  return planResolvedCallOutcomeNextFollow(store, user, targetType, targetId, next, now);
+}
+
 export async function planCallOutcomeNextFollow(
   store: CrmStore,
   user: SessionUser,
@@ -165,15 +194,20 @@ export async function planCallOutcomeNextFollow(
   const targetType = record.targetType;
   const targetId = (record.targetId || "").trim();
   if ((targetType !== "customer" && targetType !== "lead" && targetType !== "prospect") || !targetId) {
-    return {
-      ok: false,
-      status: 400,
-      reason: "no_target",
-      message: "这条通话没有关联对象，不能记下下次跟进",
-      audit: null
-    };
+    return missingTargetPlan();
   }
   const next = await callOutcomeNextFollowAt(store, user.teamId, choice, now);
+  return planResolvedCallOutcomeNextFollow(store, user, targetType, targetId, next, now);
+}
+
+async function planResolvedCallOutcomeNextFollow(
+  store: CrmStore,
+  user: SessionUser,
+  targetType: "customer" | "lead" | "prospect",
+  targetId: string,
+  next: string,
+  now: Date
+): Promise<CallOutcomeNextFollowPlan> {
   const at = now.toISOString();
   if (targetType === "customer") {
     const customer = store.customers.find((item) => item.id === targetId && item.teamId === user.teamId);

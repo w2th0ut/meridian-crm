@@ -7,6 +7,7 @@ import {
   isQueueCallOutcomeChoice,
   queueCallOutcomeBody,
   queueCallOutcomeSelection,
+  queueNextFollowWritable,
   renderQueueCallOutcomeForm
 } from "./queue-call-outcome.js";
 import { renderTodayFollowNext } from "./today-follow-advance.js";
@@ -17,6 +18,20 @@ assert.equal(queueCallOutcomeSelection(" 需回访 "), "需回访");
 assert.equal(queueCallOutcomeSelection("Success"), "未标注");
 assert.equal(queueCallOutcomeSelection(""), "未标注");
 assert.deepEqual(queueCallOutcomeBody("未标注"), { outcome: "未标注", preserveNote: true });
+assert.deepEqual(queueCallOutcomeBody("需回访", "  "), { outcome: "需回访", preserveNote: true });
+assert.deepEqual(queueCallOutcomeBody("需回访", "2026-11-07 15:30"), {
+  outcome: "需回访",
+  preserveNote: true,
+  inlineNextFollow: "2026-11-07 15:30"
+});
+assert.deepEqual(queueCallOutcomeBody("需回访", "2026-11-07 15:30", true), {
+  outcome: "需回访",
+  preserveNote: true,
+  clearInlineNextFollow: true
+});
+assert.equal(queueNextFollowWritable("customer", { customer: true, lead: false, prospect: false }), true);
+assert.equal(queueNextFollowWritable("lead", { customer: true, lead: false, prospect: false }), false);
+assert.equal(queueNextFollowWritable("customer", undefined), false);
 assert.equal(isQueueCallOutcomeChoice("号码错误"), true);
 assert.equal(isQueueCallOutcomeChoice("未标注"), true);
 assert.equal(isQueueCallOutcomeChoice("Success"), false);
@@ -42,6 +57,32 @@ assert.match(form, />登记结果</);
 assert.equal(form.includes("拨号"), false);
 assert.equal(form.includes("外呼"), false);
 assert.equal(form.includes("MakeCall"), false);
+assert.equal(form.includes("data-queue-next-follow"), false);
+const writable = renderQueueCallOutcomeForm({
+  callRecordId: "ocr_1",
+  targetType: "customer",
+  targetId: "c1",
+  outcome: "有意向",
+  nextFollowAt: "2026-11-06 09:00",
+  timeZone: "America/New_York",
+  canWriteNextFollow: true
+});
+assert.match(writable, /data-queue-next-follow-at/);
+assert.match(writable, /data-queue-next-follow-clear="1"/);
+assert.match(writable, /data-queue-next-follow-zone="1"/);
+assert.match(writable, /America\/New_York/);
+assert.match(writable, /当前 2026-11-06 09:00/);
+assert.match(writable, /不填则保持原来的下次跟进/);
+assert.equal(writable.includes("拨号"), false);
+assert.equal(writable.includes("外呼"), false);
+assert.equal(renderQueueCallOutcomeForm({
+  callRecordId: "ocr_1",
+  targetType: "customer",
+  targetId: "c1",
+  nextFollowAt: "<script>",
+  timeZone: "Asia/Shanghai",
+  canWriteNextFollow: true
+}).includes("<script>"), false);
 assert.equal(form.includes("data-call-outcome-form"), false);
 assert.equal(renderQueueCallOutcomeForm({ targetType: "customer", targetId: "c1", outcome: "有意向" }), "");
 assert.equal(renderQueueCallOutcomeForm({ callRecordId: "ocr_1", targetType: "customer", targetId: "c1", outcome: "Nordic <x>" }).includes("未标注\" selected") || renderQueueCallOutcomeForm({ callRecordId: "ocr_1", targetType: "customer", targetId: "c1", outcome: "Success" }).includes("value=\"未标注\" selected"), true);
@@ -117,6 +158,9 @@ const submitEnd = api.indexOf("\nfunction unansweredPendingAge", submitStart);
 assert.ok(submitStart > 0 && submitEnd > submitStart);
 const submit = api.slice(submitStart, submitEnd);
 assert.match(submit, /queueCallOutcomeBody/);
+assert.match(submit, /data-queue-next-follow-clear/);
+assert.match(submit, /fromDateTimeLocal/);
+assert.match(submit, /queueCallOutcomeBody\(outcome, inlineFollow, clearFollow\)/);
 assert.match(submit, /\/api\/outbound-call-records\/\$\{encodeURIComponent\(recordId\)\}\/outcome/);
 assert.match(submit, /settleInlineQueueCallOutcome/);
 assert.equal(submit.includes("openCallbackDueObject"), false);
@@ -151,5 +195,52 @@ assert.match(page.slice(intentStart, intentEnd), /登记这一通的通话结果
 
 const doc = readFileSync(new URL("../../docs/acquisition-outreach-acceptance.md", import.meta.url), "utf8");
 assert.match(doc, /## 125\. 本地演示：名单行上登记本次通话结果/);
+assert.match(doc, /## 126\. 本地演示：名单行上登记结果时写下次跟进/);
+
+const writeView = { customer: true, lead: true, prospect: true };
+const intentWritable = renderIntentFollowupRows([{
+  targetType: "customer",
+  targetId: "c1",
+  name: "甲",
+  callRecordId: "ocr_intent",
+  outcome: "需回访",
+  nextFollowAt: "2026-11-08 10:00"
+}], "", undefined, false, writeView, "Asia/Shanghai");
+assert.match(intentWritable, /data-queue-next-follow-at/);
+assert.match(intentWritable, /Asia\/Shanghai/);
+assert.match(intentWritable, /当前 2026-11-08 10:00/);
+assert.match(renderUnansweredPendingQueue({
+  scope: "mine",
+  timeZone: "Asia/Shanghai",
+  items: [{ targetType: "lead", targetId: "l1", name: "线索", callRecordId: "ocr_miss", outcome: "未标注" }]
+}, undefined, false, writeView), /data-queue-next-follow-clear="1"/);
+assert.match(renderNegativeOutcomeFollowup({
+  scope: "mine",
+  timeZone: "Asia/Shanghai",
+  items: [{ targetType: "customer", targetId: "c2", name: "乙", callRecordId: "ocr_neg", outcome: "无意向", nextFollowAt: "明天 10:00" }]
+}, undefined, false, writeView), /当前 明天 10:00/);
+assert.match(renderOtherOutcomeFollowup({
+  scope: "mine",
+  timeZone: "Asia/Shanghai",
+  items: [{ targetType: "prospect", targetId: "p1", name: "丙", callRecordId: "ocr_other", outcome: "其他" }]
+}, undefined, false, writeView), /data-queue-next-follow-at/);
+assert.match(renderUnlabeledConnectedFollowup({
+  scope: "mine",
+  timeZone: "Asia/Shanghai",
+  items: [{ targetType: "customer", targetId: "c3", name: "丁", callRecordId: "ocr_open", outcome: "未标注" }]
+}, undefined, false, writeView), /data-queue-next-follow-at/);
+assert.match(renderTodayFollowNext({
+  timeZone: "America/New_York",
+  next: {
+    targetType: "customer",
+    targetId: "c9",
+    name: "今日",
+    callRecordId: "ocr_today",
+    lastCallOutcome: "号码错误",
+    nextFollowAt: "2026-11-06 11:00",
+    maskedNumber: "****8000"
+  }
+}, undefined, false, writeView), /America\/New_York/);
+assert.equal(intent.includes("data-queue-next-follow"), false);
 
 console.log("queue inline call outcome tests passed");
